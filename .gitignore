@@ -23,6 +23,13 @@
 *.mdb
 sysinfo.txt
 
+# Unity Android signing keys - keep private, recreate locally when needed
+*.keystore
+*.jks
+
+# Local SDK download/extract cache; the committed copy lives under Client/Packages
+PICO Unity Integration SDK-*/
+
 # IDE / editor
 .vs/
 .vscode/
