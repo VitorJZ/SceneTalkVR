@@ -27,6 +27,7 @@ namespace SceneTalkVR.Runtime
         public string LastTranscript { get; private set; }
         public SpringScenePayload LastScenePayload { get; private set; }
         public string LastError { get; private set; }
+        public bool IsTurnRunning => currentTurn != null;
 
         private Coroutine currentTurn;
         private bool finishRequested;

@@ -11,6 +11,7 @@ using UnityEditor.XR.Management;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
+using UnityEngine.Rendering;
 using UnityEngine.UI;
 using UnityEngine.XR.Management;
 using UnityEngine.XR.OpenXR;
@@ -62,6 +63,9 @@ namespace SceneTalkVR.EditorTools
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel29;
+            PlayerSettings.Android.useCustomKeystore = false;
+            PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android, false);
+            PlayerSettings.SetGraphicsAPIs(BuildTarget.Android, new[] { GraphicsDeviceType.OpenGLES3 });
 
             EnsureMainSceneInBuildSettings();
 
@@ -178,6 +182,7 @@ namespace SceneTalkVR.EditorTools
             AppendCheck(report, bootstraps.Length == 1, $"One SceneTalkInteractionBootstrap in scene (found {bootstraps.Length})");
             AppendCheck(report, canvases.Length == 1, $"One SceneTalkVR World UI canvas in scene (found {canvases.Length})");
             AppendCheck(report, eventSystems.Length == 1, $"One EventSystem in scene (found {eventSystems.Length})");
+            AppendCheck(report, HasTrackedPoseDriver(Camera.main), "Main Camera uses XR tracked pose on device");
 
             if (canvases.Length > 0)
             {
@@ -213,6 +218,8 @@ namespace SceneTalkVR.EditorTools
             AppendCheck(report, PlayerSettings.GetScriptingBackend(NamedBuildTarget.Android) == ScriptingImplementation.IL2CPP, "Android scripting backend is IL2CPP");
             AppendCheck(report, PlayerSettings.Android.targetArchitectures == AndroidArchitecture.ARM64, "Android target architecture is ARM64");
             AppendCheck(report, (int)PlayerSettings.Android.minSdkVersion >= (int)AndroidSdkVersions.AndroidApiLevel29, "Android minimum SDK is 29 or higher for PICO");
+            AppendCheck(report, !PlayerSettings.Android.useCustomKeystore, "Android development builds use Unity debug signing");
+            AppendCheck(report, UsesAndroidOpenGLES3Only(), "Android graphics API is OpenGLES3 only");
 
             AppendSection(report, "Manual Steps Still Required");
             if (!hasAndroidBuildSupport)
@@ -222,6 +229,8 @@ namespace SceneTalkVR.EditorTools
             report.AppendLine("- Run `SceneTalkVR/Setup/Apply Recommended Project Settings` after package import or Unity recompilation.");
             report.AppendLine("- If OpenXR validation still reports no interaction profile, run `SceneTalkVR/Advanced/Enable OpenXR Fallback Controller Profile` or add `Khronos Simple Controller Profile` on the Android OpenXR page.");
             report.AppendLine("- In Unity Project Settings, keep exactly one Android XR provider path active: OpenXR + PICO features, or PICO native loader.");
+            report.AppendLine("- Keep Android Graphics APIs set to OpenGLES3 only for PICO 4 debug builds; Vulkan can crash on startup with this project stack.");
+            report.AppendLine("- For local Build & Run, keep custom keystore disabled. Enable a private keystore only for release builds.");
             report.AppendLine("- Connect PICO 4 with developer mode enabled, then build and run the Android APK.");
             report.AppendLine("- Replace demo Spring/Edwin adapters with real LLM, STT, TTS, Avatar, and scene-generation modules.");
 
@@ -345,6 +354,31 @@ namespace SceneTalkVR.EditorTools
             var managerSettings = generalSettings?.AssignedSettings;
             return managerSettings != null
                 && managerSettings.activeLoaders.Any(loader => loader != null && loader.GetType().FullName == loaderTypeName);
+        }
+
+        private static bool UsesAndroidOpenGLES3Only()
+        {
+            var apis = PlayerSettings.GetGraphicsAPIs(BuildTarget.Android);
+            return apis.Length == 1 && apis[0] == GraphicsDeviceType.OpenGLES3;
+        }
+
+        private static bool HasTrackedPoseDriver(Camera camera)
+        {
+            if (camera == null)
+            {
+                return false;
+            }
+
+            foreach (var behaviour in camera.GetComponents<MonoBehaviour>())
+            {
+                var typeName = behaviour == null ? string.Empty : behaviour.GetType().FullName;
+                if (!string.IsNullOrEmpty(typeName) && typeName.Contains("TrackedPoseDriver"))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool EnsureAndroidDefine(string define)

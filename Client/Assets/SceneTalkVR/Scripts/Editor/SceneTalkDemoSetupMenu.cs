@@ -54,7 +54,7 @@ namespace SceneTalkVR.EditorTools
             var orchestrator = root.AddComponent<SceneTalkOrchestrator>();
             var interactionBootstrap = root.AddComponent<SceneTalkInteractionBootstrap>();
 
-            var ui = CreateWorldSpaceUi(root.transform, orchestrator, interactionCamera);
+            var ui = CreateWorldSpaceUi(root.transform, orchestrator, interactionBootstrap, interactionCamera);
 
             SetObject(scenePresenter, "sceneRoot", sceneRoot);
             SetObject(avatarVoice, "audioSource", audioSource);
@@ -66,6 +66,7 @@ namespace SceneTalkVR.EditorTools
             SetObject(orchestrator, "transcriptLabel", ui.transcriptLabel);
             SetObject(orchestrator, "replyLabel", ui.replyLabel);
             SetObject(orchestrator, "errorLabel", ui.errorLabel);
+            SetObject(interactionBootstrap, "orchestrator", orchestrator);
             SetObject(interactionBootstrap, "interactionCamera", interactionCamera);
             SetObject(interactionBootstrap, "worldCanvas", ui.canvas);
 
@@ -73,7 +74,11 @@ namespace SceneTalkVR.EditorTools
             EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
         }
 
-        private static DemoUi CreateWorldSpaceUi(Transform parent, SceneTalkOrchestrator orchestrator, Camera interactionCamera)
+        private static DemoUi CreateWorldSpaceUi(
+            Transform parent,
+            SceneTalkOrchestrator orchestrator,
+            SceneTalkInteractionBootstrap interactionBootstrap,
+            Camera interactionCamera)
         {
             var canvasObject = new GameObject(WorldUiName);
             canvasObject.transform.SetParent(parent);
@@ -98,10 +103,13 @@ namespace SceneTalkVR.EditorTools
             var startButton = CreateButton(panel.transform, "StartButton", "Start Practice", new Vector2(-170f, -120f));
             var retryButton = CreateButton(panel.transform, "RetryButton", "Retry", new Vector2(0f, -120f));
             var finishButton = CreateButton(panel.transform, "FinishButton", "Finish", new Vector2(170f, -120f));
+            var quitButton = CreateButton(panel.transform, "QuitButton", "Quit", new Vector2(0f, -178f));
+            quitButton.GetComponent<Image>().color = new Color(0.58f, 0.18f, 0.18f, 1f);
 
             UnityEventTools.AddPersistentListener(startButton.onClick, orchestrator.StartPractice);
             UnityEventTools.AddPersistentListener(retryButton.onClick, orchestrator.RetryAfterError);
             UnityEventTools.AddPersistentListener(finishButton.onClick, orchestrator.FinishPractice);
+            UnityEventTools.AddPersistentListener(quitButton.onClick, interactionBootstrap.QuitApplication);
 
             return new DemoUi
             {
@@ -236,15 +244,20 @@ namespace SceneTalkVR.EditorTools
 
         private static Camera ConfigureMainCamera()
         {
-            var camera = Camera.main != null ? Camera.main : FindFirst<Camera>();
+            var camera = Camera.main != null ? Camera.main : FindActiveCamera();
             if (camera == null)
             {
                 camera = new GameObject("Main Camera").AddComponent<Camera>();
             }
 
             camera.tag = "MainCamera";
-            camera.transform.position = new Vector3(0f, 1.6f, -1.5f);
-            camera.transform.rotation = Quaternion.identity;
+
+            if (!IsTrackedCamera(camera))
+            {
+                camera.transform.position = new Vector3(0f, 1.6f, -1.5f);
+                camera.transform.rotation = Quaternion.identity;
+            }
+
             camera.fieldOfView = 60f;
             camera.nearClipPlane = 0.01f;
             camera.farClipPlane = 100f;
@@ -262,6 +275,38 @@ namespace SceneTalkVR.EditorTools
             return camera;
         }
 
+        private static Camera FindActiveCamera()
+        {
+            foreach (var camera in FindAll<Camera>())
+            {
+                if (camera != null && camera.enabled && camera.gameObject.activeInHierarchy)
+                {
+                    return camera;
+                }
+            }
+
+            return FindFirst<Camera>();
+        }
+
+        private static bool IsTrackedCamera(Camera camera)
+        {
+            if (camera == null)
+            {
+                return false;
+            }
+
+            foreach (var behaviour in camera.GetComponents<MonoBehaviour>())
+            {
+                var typeName = behaviour == null ? string.Empty : behaviour.GetType().FullName;
+                if (!string.IsNullOrEmpty(typeName) && typeName.Contains("TrackedPoseDriver"))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static void ConfigureWorldCanvas(Canvas canvas, Camera interactionCamera)
         {
             canvas.renderMode = RenderMode.WorldSpace;
@@ -269,6 +314,12 @@ namespace SceneTalkVR.EditorTools
             canvas.transform.position = new Vector3(0f, 1.5f, 1.4f);
             canvas.transform.rotation = Quaternion.identity;
             canvas.transform.localScale = Vector3.one * 0.005f;
+
+            var canvasRect = canvas.transform as RectTransform;
+            if (canvasRect != null)
+            {
+                canvasRect.sizeDelta = new Vector2(720f, 420f);
+            }
 
             var canvasScaler = canvas.GetComponent<CanvasScaler>();
             if (canvasScaler != null)

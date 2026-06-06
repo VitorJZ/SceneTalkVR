@@ -32,6 +32,18 @@
 
 如果只想清空旧生成物，不立刻重建，运行 `SceneTalkVR/Advanced/Clear Generated Demo Rig`。
 
+## PICO 手柄与头显视角
+
+真机运行时，`SceneTalkInteractionBootstrap` 会读取 PICO/OpenXR 通用手柄输入：
+
+- 左右手柄会显示轻量 3D 手柄代理和射线；射线命中世界空间 UI 按钮时，扳机键用于确认点击。
+- `A / X`：保留为开始练习快捷键；错误状态下用于重试。
+- `B / Y` 或菜单键：结束当前练习。
+- 握持键或摇杆按下：把世界空间 UI 面板重新放到当前头显正前方。
+- `Quit` 按钮：退出当前应用；在 Unity Editor Play 模式下会停止播放。
+
+如果 Main Camera 带有 `TrackedPoseDriver`，脚本不会再强制写入固定世界坐标。启动后会等待头显追踪更新，再按当前头显位置和朝向放置 UI 面板，避免真机初始相机位置和 Editor 预设位置互相冲突。
+
 ## Vitor 预检与打包准备
 
 运行 `SceneTalkVR/Diagnostics/Run Preflight Check` 会生成：
@@ -47,11 +59,15 @@
 - 设置 Android Scripting Backend 为 IL2CPP。
 - 设置 Android Target Architecture 为 ARM64。
 - 设置 Android Min SDK 为 29，以满足 PICO SDK 的 Android 10.0 要求。
+- 将 Android Graphics APIs 固定为 `OpenGLES3`，规避当前 Unity/PICO/URP 组合下 Vulkan 启动崩溃。
+- 关闭 Android custom keystore，让本地 Build & Run 使用 Unity debug signing。
 - 将 `Assets/Scenes/SampleScene.unity` 加入 Build Settings。
 
 如果预检报告显示 Android Build Support 缺失，需要先在 Unity Hub 为 Unity `6000.3.16f1` 安装 `Android Build Support`、`Android SDK & NDK Tools` 和 `OpenJDK`，再重新运行该菜单。缺失 Android 模块时，脚本会保留已写入的 Android 默认参数，但不会强行切换 Build Target。
 
 XR Interaction Toolkit、OpenXR Plugin 和 PICO Unity Integration SDK 已接入。当前默认路线是 `OpenXRLoader + PICO OpenXR Features`，而不是同时启用 OpenXR 和 PICO 原生 Loader。PICO 原生 Loader 与 OpenXR Loader 是互斥路线，二者不要同时启用。
+
+PICO 4 真机调试当前固定使用 `OpenGLES3`。如果 Android Graphics APIs 中 Vulkan 排在首位，设备上可能在 `vulkan.kona.so` / `VKGpuProgram::Prepare` 阶段 native crash，表现为 APK 启动后立即回到 PICO 系统界面。
 
 如果 OpenXR Validation 报告 `At least one interaction profile must be added`，先运行 `SceneTalkVR/Setup/Apply Recommended Project Settings`。如果仍未消失，再运行 `SceneTalkVR/Advanced/Enable OpenXR Fallback Controller Profile`，或在 Android OpenXR 页手动添加 `Khronos Simple Controller Profile`。
 
@@ -75,5 +91,5 @@ PICO SDK 在 Unity 6 / XR Interaction Toolkit 3.x 下会输出较多 `CS0618`、
 
 - `Client/UserKeystore.keystore` 是 Android/PICO 签名私钥文件，只保留在本机，不提交 Git。
 - `.gitignore` 已忽略 `*.keystore` 和 `*.jks`，避免误传签名文件。
-- `ProjectSettings.asset` 中只保留 keystore 文件名和 alias 名，不保存 keystore 密码。
-- 队友拉取工程后，如果需要本地打包，需要在 Unity 的 `Player > Publishing Settings` 中重新生成自己的 keystore，或通过私密渠道获取同一份 keystore。
+- 本地 PICO 调试构建默认关闭 custom keystore，使用 Unity debug signing。
+- 只有 release 包需要在 Unity 的 `Player > Publishing Settings` 中启用私有 keystore；签名文件和密码只通过私密渠道共享。
