@@ -41,6 +41,25 @@ namespace SceneTalkVR.Core
         public string speakingSpeed;
         public string accent;
         public string attitude;
+        public AvatarAppearanceData appearance = new AvatarAppearanceData();
+    }
+
+    [Serializable]
+    public sealed class AvatarAppearanceData
+    {
+        public string styleId;
+        public string genderPresentation;
+        public string ageBucket;
+        public string bodyBuild;
+        public string hairStyle;
+        public string hairColor;
+        public string outfitRole;
+        public string outfitColor;
+        public string[] accessories = Array.Empty<string>();
+        public string[] mustHave = Array.Empty<string>();
+        public string[] mustNotHave = Array.Empty<string>();
+        public string[] unsupported = Array.Empty<string>();
+        public int seed;
     }
 
     [Serializable]
