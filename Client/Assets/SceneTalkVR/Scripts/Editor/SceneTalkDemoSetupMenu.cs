@@ -1,4 +1,5 @@
 using SceneTalkVR.Demo;
+using SceneTalkVR.AvatarSystem;
 using SceneTalkVR.Runtime;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -14,7 +15,9 @@ namespace SceneTalkVR.EditorTools
         private const string DemoRigName = "SceneTalkVR Demo Rig";
         private const string WorldUiName = "SceneTalkVR World UI";
         private const string SceneRootName = "SceneRoot";
+        private const string AvatarRootName = "AvatarRoot";
         private const string EventSystemName = "EventSystem";
+        private const string AvatarCatalogPath = "Assets/SceneTalkVR/Avatar/Catalogs/AvatarCatalog.asset";
 
         [MenuItem("SceneTalkVR/Setup/Rebuild Demo Rig", false, 10)]
         public static void CreateVitorDemoRig()
@@ -42,6 +45,10 @@ namespace SceneTalkVR.EditorTools
             var root = new GameObject(DemoRigName);
             var sceneRoot = new GameObject(SceneRootName).transform;
             sceneRoot.SetParent(root.transform);
+            var avatarRoot = new GameObject(AvatarRootName).transform;
+            avatarRoot.SetParent(root.transform);
+            avatarRoot.localPosition = new Vector3(0f, 0f, 1.1f);
+            avatarRoot.localRotation = Quaternion.Euler(0f, 180f, 0f);
             var interactionCamera = ConfigureMainCamera();
             EnsureInputEventSystem();
 
@@ -49,13 +56,19 @@ namespace SceneTalkVR.EditorTools
             var speech = root.AddComponent<DemoSpeechInputModule>();
             var brain = root.AddComponent<DemoBrainModule>();
             var scenePresenter = root.AddComponent<SceneTalkScenePresenter>();
-            var avatarVoice = root.AddComponent<DemoAvatarVoiceModule>();
+            var avatarResolver = root.AddComponent<AvatarPresetResolver>();
+            var avatarLoader = root.AddComponent<PrefabAvatarInstanceLoader>();
+            var avatarVoice = root.AddComponent<AvatarPresentationVoiceModule>();
             var orchestrator = root.AddComponent<SceneTalkOrchestrator>();
             var interactionBootstrap = root.AddComponent<SceneTalkInteractionBootstrap>();
 
             var ui = CreateWorldSpaceUi(root.transform, interactionCamera);
 
             SetObject(scenePresenter, "sceneRoot", sceneRoot);
+            SetObject(avatarResolver, "catalog", LoadAvatarCatalog());
+            SetObject(avatarVoice, "resolver", avatarResolver);
+            SetObject(avatarVoice, "loaderModule", avatarLoader);
+            SetObject(avatarVoice, "avatarRoot", avatarRoot);
             SetObject(avatarVoice, "audioSource", audioSource);
             SetObject(orchestrator, "speechInputModule", speech);
             SetObject(orchestrator, "brainModule", brain);
@@ -70,6 +83,17 @@ namespace SceneTalkVR.EditorTools
 
             Selection.activeObject = root;
             EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+        }
+
+        private static AvatarCatalog LoadAvatarCatalog()
+        {
+            var catalog = AssetDatabase.LoadAssetAtPath<AvatarCatalog>(AvatarCatalogPath);
+            if (catalog == null)
+            {
+                Debug.LogWarning($"[SceneTalkVR] Avatar catalog not found at {AvatarCatalogPath}. Run SceneTalkVR/Avatar/Generate Placeholder Avatars first.");
+            }
+
+            return catalog;
         }
 
         private static DemoUi CreateWorldSpaceUi(
