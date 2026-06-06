@@ -26,7 +26,7 @@ SceneTalkVR 是一个面向 PICO/VR 的英语情景练习课程项目。当前�
 3. 打开 `Assets/Scenes/SampleScene.unity`。
 4. 在 Unity 顶部菜单运行 `SceneTalkVR/Setup/Apply Recommended Project Settings`。如果 Unity 触发重新编译，等待完成后再运行一次。
 5. 运行 `SceneTalkVR/Setup/Rebuild Demo Rig`。
-6. 点击 Play，在世界空间 UI 面板上点击 `Start Practice`。
+6. 点击 Play，在初始界面点击 `Start`；初始界面只显示纵向排列的 `Start` 和 `Quit`。
 7. 运行 `SceneTalkVR/Diagnostics/Run Preflight Check` 查看当前环境报告：`Client/Assets/SceneTalkVR/Docs/VitorPreflightReport.md`。
 
 ### PICO 手柄操作
@@ -34,10 +34,19 @@ SceneTalkVR 是一个面向 PICO/VR 的英语情景练习课程项目。当前�
 真机运行时，Demo 支持 PICO/OpenXR 通用手柄输入：
 
 - 左右手柄会显示轻量 3D 手柄代理和射线；射线命中世界空间 UI 按钮时，扳机键用于确认点击。
-- `A / X`：保留为开始练习快捷键；错误状态下用于重试。
-- `B / Y` 或菜单键：结束当前练习。
+- `A / X`：保留为开始/确认快捷键；错误状态下用于重试。
+- `B / Y` 或菜单键：返回初始界面。
 - 握持键或摇杆按下：把世界空间面板重新居中到当前头显正前方。
-- `Quit` 按钮：退出当前应用；在 Unity Editor Play 模式下会停止播放。
+- 初始界面的 `Quit` 按钮退出当前应用；非初始流程右上角的 `Exit` 按钮返回初始界面。
+
+### Demo 流程 UI
+
+当前 Demo UI 分为四个阶段：
+
+1. 初始界面：只显示 `Start` 和 `Quit`，没有 `Exit`。
+2. 场景/人物需求确认：点击 `Start` 后自动听取玩家语音，显示 STT 转写结果，并提供 `Listen`、`Retry`、`Confirm` 三个按钮；右上角 `Exit` 返回初始界面。
+3. 加载界面：点击 `Confirm` 后显示场景和人物加载状态；右上角 `Exit` 返回初始界面。
+4. 对话界面：加载完成后中间面板消失，底部显示玩家与 Avatar 的彩色字幕；右上角 `Exit` 返回初始界面。
 
 启动时客户端会等待头显位姿更新，然后把 Demo 面板放到当前视线前方。XR 相机带 `TrackedPoseDriver` 时不会再被脚本强制写入固定世界坐标，避免真机初始视角偏移。
 
@@ -178,7 +187,7 @@ SceneTalkVR is a PICO/VR English scenario practice project. The current architec
 3. Open `Assets/Scenes/SampleScene.unity`.
 4. Run `SceneTalkVR/Setup/Apply Recommended Project Settings`. If Unity recompiles, wait until it finishes and run the same menu once more.
 5. Run `SceneTalkVR/Setup/Rebuild Demo Rig`.
-6. Press Play and click `Start Practice` on the world-space UI panel.
+6. Press Play and click `Start` on the initial panel. The initial panel only shows vertically stacked `Start` and `Quit` buttons.
 7. Run `SceneTalkVR/Diagnostics/Run Preflight Check` to generate the environment report at `Client/Assets/SceneTalkVR/Docs/VitorPreflightReport.md`.
 
 ### PICO Controller Input
@@ -186,10 +195,19 @@ SceneTalkVR is a PICO/VR English scenario practice project. The current architec
 On device, the demo supports generic PICO/OpenXR controller input:
 
 - Both controllers show lightweight 3D controller proxies and UI rays. Pull the trigger while the ray is over a world-space UI button to confirm the click.
-- `A / X`: kept as a start-practice shortcut; retries when the demo is in an error state.
-- `B / Y` or menu: finish the current practice.
+- `A / X`: kept as a start/confirm shortcut; retries when the demo is in an error state.
+- `B / Y` or menu: returns to the initial panel.
 - Grip or thumbstick click: recenter the world-space panel in front of the current headset pose.
-- `Quit` button: exits the application; in Unity Editor Play mode, it stops playback.
+- The initial `Quit` button exits the application; the top-right `Exit` button during the flow returns to the initial panel.
+
+### Demo Flow UI
+
+The current demo UI has four stages:
+
+1. Initial panel: shows only `Start` and `Quit`; no `Exit` button.
+2. Scene/avatar request confirmation: after `Start`, the client listens to the player, shows the STT transcript, and provides `Listen`, `Retry`, and `Confirm`; top-right `Exit` returns to the initial panel.
+3. Loading panel: after `Confirm`, the client shows scene and avatar loading state; top-right `Exit` returns to the initial panel.
+4. Dialogue panel: after loading, the central panel disappears and colored subtitles appear at the bottom for player and Avatar lines; top-right `Exit` returns to the initial panel.
 
 At startup, the client waits for headset tracking and places the demo panel in front of the current view. If the camera has a `TrackedPoseDriver`, the bootstrap no longer writes a fixed world position into the camera transform, which avoids incorrect initial view offsets on device.
 
@@ -227,7 +245,7 @@ Before building, check:
 
 ### GitHub Upload Checklist
 
-Commit project source, Unity assets, Package files, and ProjectSettings. Do not commit generated Unity folders, local builds, IDE files, keystores, or SDK download caches. The currently untracked `Client/Assets/Resources/PXR_PlatformSetting.asset` and `.meta` should be committed because they are PICO project assets and currently contain no app secret.
+Commit project source, Unity assets, Package files, and ProjectSettings. Do not commit generated Unity folders, local builds, IDE files, keystores, or SDK download caches. Keep `Client/Assets/Resources/PXR_PlatformSetting.asset` and `.meta` committed because they are PICO project assets and currently contain no app secret.
 
 Before committing, run:
 

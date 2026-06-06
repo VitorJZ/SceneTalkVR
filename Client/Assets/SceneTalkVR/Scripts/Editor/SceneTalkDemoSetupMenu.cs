@@ -1,7 +1,6 @@
 using SceneTalkVR.Demo;
 using SceneTalkVR.Runtime;
 using UnityEditor;
-using UnityEditor.Events;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -54,7 +53,7 @@ namespace SceneTalkVR.EditorTools
             var orchestrator = root.AddComponent<SceneTalkOrchestrator>();
             var interactionBootstrap = root.AddComponent<SceneTalkInteractionBootstrap>();
 
-            var ui = CreateWorldSpaceUi(root.transform, orchestrator, interactionBootstrap, interactionCamera);
+            var ui = CreateWorldSpaceUi(root.transform, interactionCamera);
 
             SetObject(scenePresenter, "sceneRoot", sceneRoot);
             SetObject(avatarVoice, "audioSource", audioSource);
@@ -62,13 +61,12 @@ namespace SceneTalkVR.EditorTools
             SetObject(orchestrator, "brainModule", brain);
             SetObject(orchestrator, "scenePresenterModule", scenePresenter);
             SetObject(orchestrator, "avatarVoiceModule", avatarVoice);
-            SetObject(orchestrator, "stateLabel", ui.stateLabel);
-            SetObject(orchestrator, "transcriptLabel", ui.transcriptLabel);
-            SetObject(orchestrator, "replyLabel", ui.replyLabel);
-            SetObject(orchestrator, "errorLabel", ui.errorLabel);
             SetObject(interactionBootstrap, "orchestrator", orchestrator);
             SetObject(interactionBootstrap, "interactionCamera", interactionCamera);
             SetObject(interactionBootstrap, "worldCanvas", ui.canvas);
+
+            var flowUi = root.AddComponent<SceneTalkFlowUiController>();
+            flowUi.Configure(orchestrator, ui.canvas, interactionBootstrap);
 
             Selection.activeObject = root;
             EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
@@ -76,8 +74,6 @@ namespace SceneTalkVR.EditorTools
 
         private static DemoUi CreateWorldSpaceUi(
             Transform parent,
-            SceneTalkOrchestrator orchestrator,
-            SceneTalkInteractionBootstrap interactionBootstrap,
             Camera interactionCamera)
         {
             var canvasObject = new GameObject(WorldUiName);
@@ -87,80 +83,10 @@ namespace SceneTalkVR.EditorTools
             canvasObject.AddComponent<CanvasScaler>();
             ConfigureWorldCanvas(canvas, interactionCamera);
 
-            var panel = new GameObject("Panel");
-            panel.transform.SetParent(canvasObject.transform, false);
-            var image = panel.AddComponent<Image>();
-            image.color = new Color(0.05f, 0.06f, 0.08f, 0.88f);
-            var panelRect = panel.GetComponent<RectTransform>();
-            panelRect.sizeDelta = new Vector2(720f, 420f);
-
-            var stateLabel = CreateText(panel.transform, "StateLabel", "State: Idle", new Vector2(0f, 150f), 30, TextAnchor.MiddleCenter);
-            var transcriptLabel = CreateText(panel.transform, "TranscriptLabel", "Transcript: -", new Vector2(0f, 95f), 22, TextAnchor.MiddleCenter);
-            var replyLabel = CreateText(panel.transform, "ReplyLabel", "Avatar: -", new Vector2(0f, 45f), 22, TextAnchor.MiddleCenter);
-            var errorLabel = CreateText(panel.transform, "ErrorLabel", string.Empty, new Vector2(0f, -5f), 20, TextAnchor.MiddleCenter);
-            errorLabel.color = new Color(1f, 0.45f, 0.35f, 1f);
-
-            var startButton = CreateButton(panel.transform, "StartButton", "Start Practice", new Vector2(-170f, -120f));
-            var retryButton = CreateButton(panel.transform, "RetryButton", "Retry", new Vector2(0f, -120f));
-            var finishButton = CreateButton(panel.transform, "FinishButton", "Finish", new Vector2(170f, -120f));
-            var quitButton = CreateButton(panel.transform, "QuitButton", "Quit", new Vector2(0f, -178f));
-            quitButton.GetComponent<Image>().color = new Color(0.58f, 0.18f, 0.18f, 1f);
-
-            UnityEventTools.AddPersistentListener(startButton.onClick, orchestrator.StartPractice);
-            UnityEventTools.AddPersistentListener(retryButton.onClick, orchestrator.RetryAfterError);
-            UnityEventTools.AddPersistentListener(finishButton.onClick, orchestrator.FinishPractice);
-            UnityEventTools.AddPersistentListener(quitButton.onClick, interactionBootstrap.QuitApplication);
-
             return new DemoUi
             {
-                canvas = canvas,
-                stateLabel = stateLabel,
-                transcriptLabel = transcriptLabel,
-                replyLabel = replyLabel,
-                errorLabel = errorLabel
+                canvas = canvas
             };
-        }
-
-        private static Text CreateText(Transform parent, string name, string text, Vector2 anchoredPosition, int fontSize, TextAnchor alignment)
-        {
-            var textObject = new GameObject(name);
-            textObject.transform.SetParent(parent, false);
-            var label = textObject.AddComponent<Text>();
-            label.text = text;
-            label.font = GetDefaultFont();
-            label.fontSize = fontSize;
-            label.alignment = alignment;
-            label.color = Color.white;
-
-            var rect = label.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(640f, 42f);
-            rect.anchoredPosition = anchoredPosition;
-            return label;
-        }
-
-        private static Font GetDefaultFont()
-        {
-            var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            return font != null ? font : Resources.GetBuiltinResource<Font>("Arial.ttf");
-        }
-
-        private static Button CreateButton(Transform parent, string name, string label, Vector2 anchoredPosition)
-        {
-            var buttonObject = new GameObject(name);
-            buttonObject.transform.SetParent(parent, false);
-
-            var image = buttonObject.AddComponent<Image>();
-            image.color = new Color(0.18f, 0.34f, 0.58f, 1f);
-
-            var button = buttonObject.AddComponent<Button>();
-            var rect = button.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(150f, 56f);
-            rect.anchoredPosition = anchoredPosition;
-
-            var labelText = CreateText(buttonObject.transform, "Label", label, Vector2.zero, 22, TextAnchor.MiddleCenter);
-            labelText.raycastTarget = false;
-            labelText.rectTransform.sizeDelta = rect.sizeDelta;
-            return button;
         }
 
         private static void CleanupGeneratedDemoObjects()
@@ -409,10 +335,6 @@ namespace SceneTalkVR.EditorTools
         private struct DemoUi
         {
             public Canvas canvas;
-            public Text stateLabel;
-            public Text transcriptLabel;
-            public Text replyLabel;
-            public Text errorLabel;
         }
     }
 }

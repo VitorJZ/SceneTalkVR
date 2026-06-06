@@ -36,6 +36,11 @@ namespace SceneTalkVR.Runtime
             yield break;
         }
 
+        public void ClearPresentedScene()
+        {
+            ClearSceneRoot();
+        }
+
         private void ClearSceneRoot()
         {
             if (sceneRoot == null)

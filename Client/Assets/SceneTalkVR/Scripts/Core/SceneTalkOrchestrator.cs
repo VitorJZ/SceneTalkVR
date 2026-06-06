@@ -45,20 +45,41 @@ namespace SceneTalkVR.Runtime
         public void StartPractice()
         {
             finishRequested = false;
-            StartPracticeTurn();
+            StartListeningTurn();
         }
 
         public void StartPracticeTurn()
         {
-            if (currentTurn != null)
+            StartListeningTurn();
+        }
+
+        public void RetryListening()
+        {
+            StartListeningTurn();
+        }
+
+        public void ConfirmPracticeRequest()
+        {
+            if (currentTurn != null || string.IsNullOrWhiteSpace(LastTranscript))
             {
-                StopCoroutine(currentTurn);
+                return;
             }
 
-            currentTurn = StartCoroutine(RunPracticeTurn());
+            if (!ValidateGenerationModules())
+            {
+                return;
+            }
+
+            finishRequested = false;
+            currentTurn = StartCoroutine(RunConfirmedPracticeTurn());
         }
 
         public void FinishPractice()
+        {
+            ReturnToInitialMenu();
+        }
+
+        public void ReturnToInitialMenu()
         {
             finishRequested = true;
 
@@ -68,29 +89,46 @@ namespace SceneTalkVR.Runtime
                 currentTurn = null;
             }
 
-            SetState(SceneTalkState.Finished);
+            LastTranscript = string.Empty;
+            LastScenePayload = null;
+            LastError = string.Empty;
+            ClearPresentedSceneIfSupported();
+            SetState(SceneTalkState.Idle);
         }
 
         public void RetryAfterError()
         {
             if (CurrentState == SceneTalkState.Error)
             {
-                StartPracticeTurn();
+                StartListeningTurn();
             }
         }
 
-        private IEnumerator RunPracticeTurn()
+        private void StartListeningTurn()
         {
+            if (currentTurn != null)
+            {
+                StopCoroutine(currentTurn);
+            }
+
+            if (!ValidateSpeechModule())
+            {
+                currentTurn = null;
+                return;
+            }
+
+            finishRequested = false;
             LastTranscript = string.Empty;
             LastScenePayload = null;
             LastError = string.Empty;
-            RefreshUi();
+            currentTurn = StartCoroutine(RunSpeechCaptureTurn());
+        }
 
-            if (!ValidateModules())
-            {
-                currentTurn = null;
-                yield break;
-            }
+        private IEnumerator RunSpeechCaptureTurn()
+        {
+            LastTranscript = string.Empty;
+            LastError = string.Empty;
+            RefreshUi();
 
             SetState(SceneTalkState.Listening);
 
@@ -108,8 +146,18 @@ namespace SceneTalkVR.Runtime
 
             LastTranscript = transcript;
             RefreshUi();
+            currentTurn = null;
+            SetState(SceneTalkState.Listening);
+        }
+
+        private IEnumerator RunConfirmedPracticeTurn()
+        {
+            LastScenePayload = null;
+            LastError = string.Empty;
             SetState(SceneTalkState.Processing);
 
+            var transcript = LastTranscript;
+            string error = null;
             SpringScenePayload payload = null;
             yield return Brain.GenerateSceneAndReply(
                 transcript,
@@ -151,10 +199,10 @@ namespace SceneTalkVR.Runtime
             }
 
             currentTurn = null;
-            SetState(finishRequested ? SceneTalkState.Finished : SceneTalkState.Listening);
+            SetState(SceneTalkState.AvatarSpeaking);
         }
 
-        private bool ValidateModules()
+        private bool ValidateSpeechModule()
         {
             if (SpeechInput == null)
             {
@@ -162,6 +210,11 @@ namespace SceneTalkVR.Runtime
                 return false;
             }
 
+            return true;
+        }
+
+        private bool ValidateGenerationModules()
+        {
             if (Brain == null)
             {
                 EnterError("Brain module is missing or does not implement ISceneTalkBrain.");
@@ -181,6 +234,14 @@ namespace SceneTalkVR.Runtime
             }
 
             return true;
+        }
+
+        private void ClearPresentedSceneIfSupported()
+        {
+            if (scenePresenterModule is SceneTalkScenePresenter presenter)
+            {
+                presenter.ClearPresentedScene();
+            }
         }
 
         private bool HandleErrorOrFinish(string error, string fallbackMessage)

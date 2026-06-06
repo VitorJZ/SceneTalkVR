@@ -29,6 +29,7 @@ namespace SceneTalkVR.Runtime
         [SerializeField] private float headsetCanvasVerticalOffset = -0.05f;
         [SerializeField] private float headsetCanvasRecenterDelay = 0.25f;
         [SerializeField] private bool enableControllerShortcuts = true;
+        [SerializeField] private bool enableFlowUi = true;
         [SerializeField] private bool ensureQuitButton = true;
         [SerializeField] private bool enableControllerRay = true;
         [SerializeField] private bool enableControllerVisuals = true;
@@ -77,7 +78,14 @@ namespace SceneTalkVR.Runtime
             EnsureEventSystem();
             EnsureControllerRayVisuals();
             EnsureControllerVisuals();
-            EnsureQuitButton();
+            if (enableFlowUi)
+            {
+                EnsureFlowUiController();
+            }
+            else
+            {
+                EnsureQuitButton();
+            }
 
             if (Application.isPlaying && useHeadsetRelativeCanvas)
             {
@@ -297,6 +305,25 @@ namespace SceneTalkVR.Runtime
 
             quitButton.onClick.RemoveListener(QuitApplication);
             quitButton.onClick.AddListener(QuitApplication);
+        }
+
+        private void EnsureFlowUiController()
+        {
+            orchestrator = ResolveOrchestrator(orchestrator);
+            worldCanvas = ResolveCanvas(worldCanvas);
+
+            if (orchestrator == null || worldCanvas == null)
+            {
+                return;
+            }
+
+            var flowUiController = GetComponent<SceneTalkFlowUiController>();
+            if (flowUiController == null)
+            {
+                flowUiController = gameObject.AddComponent<SceneTalkFlowUiController>();
+            }
+
+            flowUiController.Configure(orchestrator, worldCanvas, this);
         }
 
         private Button FindButtonByName(string buttonName)
@@ -1104,7 +1131,14 @@ namespace SceneTalkVR.Runtime
 
             if (orchestrator.CurrentState == SceneTalkState.Error)
             {
-                orchestrator.RetryAfterError();
+                orchestrator.RetryListening();
+                return;
+            }
+
+            if (orchestrator.CurrentState == SceneTalkState.Listening
+                && !string.IsNullOrWhiteSpace(orchestrator.LastTranscript))
+            {
+                orchestrator.ConfirmPracticeRequest();
                 return;
             }
 
