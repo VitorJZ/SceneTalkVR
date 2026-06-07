@@ -9,15 +9,14 @@ using UnityEngine.Networking;
 namespace SceneTalkVR.Runtime.Services
 {
     /// <summary>
-    /// Real implementation of LLM service using OpenAI API.
-    /// Implements both the core orchestrator interface and the specific LLM service interface.
+    /// Real implementation of LLM service using SJTU Local API (OpenAI compatible).
     /// </summary>
     public sealed class RealLLMService : MonoBehaviour, ISceneTalkBrain, ILLMService
     {
-        private const string ApiUrl = "https://api.openai.com/v1/chat/completions";
-        
-        [Header("OpenAI Settings")]
-        [SerializeField] private string modelName = "gpt-4o";
+        [Header("API Configuration")]
+        [SerializeField] private string apiUrl = "https://models.sjtu.edu.cn/api/v1/chat/completions";
+        [SerializeField] private string apiKey = ""; 
+        [SerializeField] private string modelName = "minimax-m2.7";
         
         [Header("Prompts")]
         [TextArea(10, 20)]
@@ -32,9 +31,6 @@ namespace SceneTalkVR.Runtime.Services
                                                       "Ensure the output is ONLY the JSON object, no markdown, no conversational filler. " +
                                                       "The 'dialogueReply' should be in character based on the 'environmentType' and 'avatarRole.role'.";
 
-        /// <summary>
-        /// Legacy implementation for ISceneTalkBrain to support the current Orchestrator.
-        /// </summary>
         public IEnumerator GenerateSceneAndReply(string userText, Action<SpringScenePayload> onComplete, Action<string> onError)
         {
             Debug.Log($"[RealLLMService] Generating scene and reply for: {userText}");
@@ -78,7 +74,7 @@ namespace SceneTalkVR.Runtime.Services
                     content = CleanJsonString(content);
                     return JsonUtility.FromJson<SpringScenePayload>(content);
                 }
-                throw new Exception("OpenAI response structure is invalid or empty.");
+                throw new Exception("API response structure is invalid or empty.");
             }
             catch (Exception ex)
             {
@@ -99,7 +95,7 @@ namespace SceneTalkVR.Runtime.Services
                 {
                     return response.choices[0].message.content;
                 }
-                throw new Exception("OpenAI response structure is invalid or empty.");
+                throw new Exception("API response structure is invalid or empty.");
             }
             catch (Exception ex)
             {
@@ -112,10 +108,13 @@ namespace SceneTalkVR.Runtime.Services
 
         private async Task<string> SendChatRequest(string sysPrompt, string userPrompt, bool useJsonObject)
         {
-            var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-            if (string.IsNullOrEmpty(apiKey))
+            string effectiveKey = string.IsNullOrEmpty(apiKey) 
+                ? Environment.GetEnvironmentVariable("OPENAI_API_KEY") 
+                : apiKey;
+
+            if (string.IsNullOrEmpty(effectiveKey))
             {
-                throw new Exception("OPENAI_API_KEY environment variable is not set. Cannot use RealLLMService.");
+                throw new Exception("API Key is not set.");
             }
 
             var requestBody = new OpenAiRequest
@@ -135,12 +134,12 @@ namespace SceneTalkVR.Runtime.Services
 
             string jsonBody = JsonUtility.ToJson(requestBody);
             
-            using var webRequest = new UnityWebRequest(ApiUrl, "POST");
+            using var webRequest = new UnityWebRequest(apiUrl, "POST");
             byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
             webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
             webRequest.downloadHandler = new DownloadHandlerBuffer();
             webRequest.SetRequestHeader("Content-Type", "application/json");
-            webRequest.SetRequestHeader("Authorization", $"Bearer {apiKey}");
+            webRequest.SetRequestHeader("Authorization", $"Bearer {effectiveKey}");
 
             var operation = webRequest.SendWebRequest();
             
@@ -151,7 +150,7 @@ namespace SceneTalkVR.Runtime.Services
 
             if (webRequest.result != UnityWebRequest.Result.Success)
             {
-                string errorMsg = $"OpenAI Request Failed: {webRequest.error}";
+                string errorMsg = $"API Request Failed: {webRequest.error}";
                 if (webRequest.downloadHandler != null)
                 {
                     errorMsg += $"\n{webRequest.downloadHandler.text}";
