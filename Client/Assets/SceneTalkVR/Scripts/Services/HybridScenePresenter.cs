@@ -38,7 +38,7 @@ namespace SceneTalkVR.Runtime.Services
 
             ClearScene();
 
-            // 1. Generate Panorama Background (Parallel start if possible, but keep sequence for simplicity here)
+            // 1. Generate Panorama Background
             var panoTask = panoramaService.GenerateSkyboxAsync(payload.environmentType);
             
             // 2. Generate Holodeck 3D Layout
@@ -90,36 +90,99 @@ namespace SceneTalkVR.Runtime.Services
 
             foreach (var objData in response.objects)
             {
-                GameObject prefab = FindPrefab(objData.name);
+                // 1. Map Holodeck Name to PrefabKey Whitelist
+                string mappedKey = MapToPrefabKey(objData.name);
+                
+                // 2. Find mapped prefab
+                GameObject prefab = FindPrefab(mappedKey);
                 if (prefab == null)
                 {
-                    Debug.LogWarning($"[HybridScenePresenter] No prefab mapping found for: {objData.name}. Creating placeholder.");
-                    prefab = CreatePlaceholder(objData.name);
+                    Debug.LogWarning($"[HybridScenePresenter] No prefab mapped for: '{mappedKey}' (Original: '{objData.name}'). Using generic fallback.");
+                    prefab = GetGenericFallback(mappedKey);
                 }
 
-                Vector3 pos = new Vector3(objData.position[0], objData.position[1], objData.position[2]);
+                // 3. Handle coordinate format from Python backend
+                Vector3 pos = Vector3.zero;
+                if (objData.position != null && objData.position.Length >= 3)
+                {
+                    pos = new Vector3(objData.position[0], objData.position[1], objData.position[2]);
+                }
+                
                 Quaternion rot = Quaternion.Euler(0, objData.rotation, 0);
 
                 var instance = Instantiate(prefab, pos, rot, sceneRoot);
-                instance.name = objData.name;
+                instance.name = $"{mappedKey}_{Guid.NewGuid().ToString().Substring(0, 4)}";
                 instance.transform.localScale = Vector3.one * spawnScale;
             }
         }
 
-        private GameObject FindPrefab(string name)
+        private string MapToPrefabKey(string originalName)
+        {
+            if (string.IsNullOrEmpty(originalName)) return "generic_decor";
+            
+            string lowerName = originalName.ToLowerInvariant();
+            
+            // Strict mapping to docs/PrefabKeyWhitelist.md
+            if (lowerName.Contains("counter")) return "coffee_counter";
+            if (lowerName.Contains("cafe") && lowerName.Contains("table")) return "cafe_table";
+            if (lowerName.Contains("sofa") || lowerName.Contains("couch")) return "sofa";
+            if (lowerName.Contains("chair")) return "chair";
+            if (lowerName.Contains("plant") || lowerName.Contains("succulent") || lowerName.Contains("flower")) return "plant";
+            if (lowerName.Contains("shelf")) return "wall_shelf";
+            if (lowerName.Contains("menu")) return "menu_board";
+            if (lowerName.Contains("register") || lowerName.Contains("cash")) return "cash_register";
+            if (lowerName.Contains("mug") || lowerName.Contains("cup")) return "coffee_mug";
+            if (lowerName.Contains("lamp") || lowerName.Contains("light")) return "lamp";
+            if (lowerName.Contains("table")) return "cafe_table";
+            
+            // Generic fallbacks
+            if (lowerName.Contains("desk") || lowerName.Contains("table")) return "generic_table";
+            if (lowerName.Contains("seat") || lowerName.Contains("stool")) return "generic_chair";
+
+            return "generic_decor";
+        }
+
+        private GameObject FindPrefab(string key)
         {
             foreach (var mapping in objectLibrary)
             {
-                if (name.Contains(mapping.key, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(key, mapping.key, StringComparison.OrdinalIgnoreCase))
                     return mapping.prefab;
             }
             return null;
         }
 
-        private GameObject CreatePlaceholder(string name)
+        private GameObject GetGenericFallback(string key)
         {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            go.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
+            PrimitiveType type = PrimitiveType.Cube;
+            Vector3 scale = new Vector3(0.3f, 0.3f, 0.3f);
+            
+            if (key.Contains("table"))
+            {
+                type = PrimitiveType.Cube;
+                scale = new Vector3(1.2f, 0.8f, 1.2f);
+            }
+            else if (key.Contains("chair") || key.Contains("sofa"))
+            {
+                type = PrimitiveType.Cylinder;
+                scale = new Vector3(0.5f, 0.5f, 0.5f);
+            }
+            else if (key.Contains("plant"))
+            {
+                type = PrimitiveType.Sphere;
+                scale = new Vector3(0.4f, 0.6f, 0.4f);
+            }
+
+            var go = GameObject.CreatePrimitive(type);
+            go.transform.localScale = scale;
+            
+            // Visual indicator for generic fallbacks
+            var renderer = go.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.material.color = Color.cyan;
+            }
+            
             return go;
         }
     }
