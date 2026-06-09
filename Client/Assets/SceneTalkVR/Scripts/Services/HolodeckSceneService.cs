@@ -14,7 +14,7 @@ namespace SceneTalkVR.Runtime.Services
     public sealed class HolodeckSceneService : MonoBehaviour
     {
         [Header("Backend Configuration")]
-        [SerializeField] private string backendUrl = "http://localhost:8000/generate_scene";
+        [SerializeField] private string backendUrl = "http://localhost:8080/generate_scene";
         [SerializeField] private int timeoutSeconds = 120; // Holodeck can be slow
 
         public async Task<HolodeckResponse> GenerateLayoutAsync(string environmentDescription)

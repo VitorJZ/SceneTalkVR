@@ -15,7 +15,7 @@ namespace SceneTalkVR.Runtime.Services
     {
         [Header("API Configuration")]
         [SerializeField] private string apiUrl = "https://models.sjtu.edu.cn/api/v1/chat/completions";
-        [SerializeField] private string apiKey = ""; 
+        [SerializeField] private string apiKey = "sk-AGepmiQRplsPpiBqfA5uUw"; 
         [SerializeField] private string modelName = "minimax-m2.7";
         
         [Header("Prompts")]
