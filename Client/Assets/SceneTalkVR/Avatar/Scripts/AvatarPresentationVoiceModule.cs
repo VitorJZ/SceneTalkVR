@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using SceneTalkVR.Core;
+using SceneTalkVR.Voice;
 using UnityEngine;
 
 namespace SceneTalkVR.AvatarSystem
@@ -17,6 +18,15 @@ namespace SceneTalkVR.AvatarSystem
         [SerializeField] private AudioSource audioSource;
         [SerializeField] private AudioClip demoReplyClip;
         [SerializeField] private float fallbackSpeakingSeconds = 2f;
+
+        [Header("Voice Gateway")]
+        [SerializeField] private bool useVoiceGatewayTts;
+        [SerializeField] private VoiceGatewayClient voiceGatewayClient;
+        [SerializeField] private string sessionId = "scenetalk-demo-session";
+        [SerializeField] private string language = "en-US";
+        [SerializeField] private string defaultVoiceId = "default_female_en";
+        [SerializeField] private int ttsSampleRate = 24000;
+        [SerializeField] private bool fallbackToDemoVoiceOnGatewayError = true;
 
         [Header("Animation")]
         [SerializeField] private Animator fallbackAnimator;
@@ -56,13 +66,34 @@ namespace SceneTalkVR.AvatarSystem
             Debug.Log($"[SceneTalkVR] Avatar reply: {payload.dialogueReply}", this);
             TriggerAnimation(speakingTrigger);
 
-            if (audioSource != null && demoReplyClip != null)
+            var playedAudio = false;
+            if (useVoiceGatewayTts)
+            {
+                string voiceError = null;
+                yield return PlayGatewayTts(payload, message => voiceError = message);
+                playedAudio = string.IsNullOrWhiteSpace(voiceError);
+
+                if (!playedAudio)
+                {
+                    if (!fallbackToDemoVoiceOnGatewayError)
+                    {
+                        onError?.Invoke(voiceError);
+                        yield break;
+                    }
+
+                    Debug.LogWarning($"[SceneTalkVR] Voice gateway TTS fallback: {voiceError}", this);
+                }
+            }
+
+            if (!playedAudio && audioSource != null && demoReplyClip != null)
             {
                 audioSource.clip = demoReplyClip;
                 audioSource.Play();
                 yield return new WaitWhile(() => audioSource != null && audioSource.isPlaying);
+                playedAudio = true;
             }
-            else
+
+            if (!playedAudio)
             {
                 yield return new WaitForSeconds(Mathf.Max(0.1f, fallbackSpeakingSeconds));
             }
@@ -118,6 +149,100 @@ namespace SceneTalkVR.AvatarSystem
             Debug.Log(
                 $"[SceneTalkVR] Avatar resolved: key={resolution.avatarKey}, score={resolution.score}, fallback={resolution.fallbackLevel}",
                 this);
+        }
+
+        private IEnumerator PlayGatewayTts(SpringScenePayload payload, Action<string> onError)
+        {
+            if (audioSource == null)
+            {
+                onError?.Invoke("AudioSource is not assigned.");
+                yield break;
+            }
+
+            var client = ResolveVoiceGatewayClient();
+            if (client == null)
+            {
+                onError?.Invoke("Voice gateway client is not assigned.");
+                yield break;
+            }
+
+            var text = payload.dialogueReply;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                onError?.Invoke("TTS text is empty.");
+                yield break;
+            }
+
+            var role = payload.avatarRole;
+            var request = new TtsRequest
+            {
+                sessionId = sessionId,
+                turnId = $"turn-{Time.frameCount}",
+                text = text,
+                language = string.IsNullOrWhiteSpace(language) ? "en-US" : language,
+                voiceProfile = new VoiceProfile
+                {
+                    provider = "tencent",
+                    voiceId = string.IsNullOrWhiteSpace(defaultVoiceId) ? "default_female_en" : defaultVoiceId,
+                    speakingSpeed = role != null ? role.speakingSpeed : string.Empty,
+                    accent = role != null ? role.accent : string.Empty,
+                    attitude = role != null ? role.attitude : string.Empty,
+                    role = role != null ? role.role : string.Empty
+                },
+                output = new TtsOutput
+                {
+                    format = "wav",
+                    sampleRate = Mathf.Max(8000, ttsSampleRate)
+                }
+            };
+
+            AudioClip clip = null;
+            TtsResponse response = null;
+            string requestError = null;
+            yield return client.RequestTtsAudioClip(
+                request,
+                (value, audioClip) =>
+                {
+                    response = value;
+                    clip = audioClip;
+                },
+                message => requestError = message);
+
+            if (!string.IsNullOrWhiteSpace(requestError))
+            {
+                onError?.Invoke(requestError);
+                yield break;
+            }
+
+            if (clip == null)
+            {
+                onError?.Invoke("Voice gateway returned no playable TTS clip.");
+                yield break;
+            }
+
+            audioSource.clip = clip;
+            audioSource.Play();
+            Debug.Log(
+                $"[SceneTalkVR] Voice gateway TTS audio ({response?.provider}, {response?.latencyMs} ms, cache={response?.cacheHit})",
+                this);
+            yield return new WaitWhile(() => audioSource != null && audioSource.isPlaying);
+        }
+
+        private VoiceGatewayClient ResolveVoiceGatewayClient()
+        {
+            if (voiceGatewayClient != null)
+            {
+                return voiceGatewayClient;
+            }
+
+            voiceGatewayClient = GetComponent<VoiceGatewayClient>();
+            if (voiceGatewayClient != null)
+            {
+                return voiceGatewayClient;
+            }
+
+            voiceGatewayClient = gameObject.AddComponent<VoiceGatewayClient>();
+            return voiceGatewayClient;
         }
 
         private void ReplaceCurrentAvatar(GameObject loadedAvatar)
