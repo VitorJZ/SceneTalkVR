@@ -535,6 +535,8 @@ GameObject:
   - component: {fileID: 978778293}
   - component: {fileID: 978778292}
   - component: {fileID: 978778291}
+  - component: {fileID: 978778300}
+  - component: {fileID: 978778299}
   m_Layer: 0
   m_Name: SceneTalkVR Demo Rig
   m_TagString: Untagged
@@ -554,7 +556,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e31b3f8bd2f2f3c40a93708c122d2846, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Runtime.Services.RealLLMService
-  modelName: gpt-4o
+  apiUrl: https://models.sjtu.edu.cn/api/v1/chat/completions
+  apiKey: sk-AGepmiQRplsPpiBqfA5uUw
+  modelName: minimax-m2.7
   systemPrompt: "You are a VR scene dispatcher and an English tutor. Based on the
     user's input, generate a JSON response that matches the following structure:\n{\n 
     \"taskType\": \"string\",\n  \"environmentType\": \"string\",\n  \"dialogueReply\":
@@ -596,7 +600,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Runtime.SceneTalkOrchestrator
   speechInputModule: {fileID: 978778296}
   brainModule: {fileID: 978778291}
-  scenePresenterModule: {fileID: 978778295}
+  scenePresenterModule: {fileID: 978778299}
   avatarVoiceModule: {fileID: 978778294}
   stateLabel: {fileID: 1842477889}
   transcriptLabel: {fileID: 1676390929}
@@ -769,6 +773,35 @@ Transform:
   - {fileID: 1657238060}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &978778299
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 978778290}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9d81c539c0bcfeb48943009c654e1c42, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Runtime.Services.PanoramaScenePresenter
+  panoramaService: {fileID: 978778300}
+  fallbackPresenter: {fileID: 978778295}
+--- !u!114 &978778300
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 978778290}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0cc7e53b82b50a64382d1b09d75a0d35, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Runtime.Services.PanoramaSceneService
+  apiKey: sk-azcoikjkgvfzqcpytdlvjnemnxnvcqnhghlnsvtgfugoqblv
+  modelName: Tongyi-MAI/Z-Image
+  imageSize: 1024x1024
 --- !u!1 &1064264522
 GameObject:
   m_ObjectHideFlags: 0
