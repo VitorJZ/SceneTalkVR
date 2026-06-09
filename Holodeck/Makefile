@@ -11,6 +11,10 @@ black: ## [Local development] Auto-format python code using black
 test: ## [Local development] Run unit tests
 	python -m pytest -x -s -v tests
 
+run-app: ## [Local development] Run the FastAPI backend
+	xvfb-run -a /home/spring5/miniconda3/envs/holodeck/bin/python -m uvicorn app:app --host 0.0.0.0 --port 8080
+
+
 .PHONY: help
 
 help: # Run `make help` to get help on the make commands

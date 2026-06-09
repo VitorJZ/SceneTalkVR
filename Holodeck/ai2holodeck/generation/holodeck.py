@@ -4,7 +4,8 @@ from typing import Optional, Dict, Any, Tuple
 
 import compress_json
 import open_clip
-from langchain.llms import OpenAI
+from langchain.chat_models import ChatOpenAI
+from langchain.schema import HumanMessage
 from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 
@@ -67,10 +68,12 @@ class Holodeck:
             os.environ["OPENAI_ORG"] = openai_org
 
         # initialize llm
-        self.llm = OpenAI(
+        self.raw_llm = ChatOpenAI(
             model_name=LLM_MODEL_NAME,
             max_tokens=2048,
             openai_api_key=openai_api_key,
+            openai_api_base=os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1"),
+            temperature=0.1,
         )
 
         # initialize CLIP
@@ -136,6 +139,9 @@ class Holodeck:
         )
         self.additional_requirements_object = "N/A"
         self.additional_requirements_ceiling = "N/A"
+
+    def llm(self, prompt: str) -> str:
+        return self.raw_llm([HumanMessage(content=prompt)]).content
 
     def get_empty_scene(self):
         return compress_json.load(

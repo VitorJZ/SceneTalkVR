@@ -87,28 +87,38 @@ class FloorPlanGenerator:
         room_types = []
         plans = [plan.lower() for plan in raw_plan.split("\n") if "|" in plan]
         for i, plan in enumerate(plans):
-            room_type, floor_design, wall_design, vertices = plan.split("|")
-            room_type = room_type.strip().replace("'", "")  # remove single quote
+            try:
+                room_type, floor_design, wall_design, vertices = plan.split("|")
+                room_type = room_type.strip().replace("'", "")  # remove single quote
 
-            if room_type in room_types:
-                room_type += f"-{i}"
-            room_types.append(room_type)
+                if room_type in room_types:
+                    room_type += f"-{i}"
+                room_types.append(room_type)
 
-            floor_design = floor_design.strip()
-            wall_design = wall_design.strip()
-            vertices = ast.literal_eval(vertices.strip())
-            # change to float
-            vertices = [(float(vertex[0]), float(vertex[1])) for vertex in vertices]
+                floor_design = floor_design.strip()
+                wall_design = wall_design.strip()
+                
+                # Robust extraction of the list structure from the vertices string
+                v_str = vertices.strip()
+                if "[" in v_str and "]" in v_str:
+                    v_str = v_str[v_str.find("["):v_str.rfind("]")+1]
+                
+                import ast
+                vertices = ast.literal_eval(v_str)
+                # change to float
+                vertices = [(float(vertex[0]), float(vertex[1])) for vertex in vertices]
 
-            current_plan = copy.deepcopy(self.json_template)
-            current_plan["id"] = room_type
-            current_plan["roomType"] = room_type
-            current_plan["vertices"], current_plan["floorPolygon"] = self.vertices2xyz(
-                vertices
-            )
-            current_plan["floor_design"] = floor_design
-            current_plan["wall_design"] = wall_design
-            parsed_plan.append(current_plan)
+                current_plan = copy.deepcopy(self.json_template)
+                current_plan["id"] = room_type
+                current_plan["roomType"] = room_type
+                current_plan["vertices"], current_plan["floorPolygon"] = self.vertices2xyz(
+                    vertices
+                )
+                current_plan["floor_design"] = floor_design
+                current_plan["wall_design"] = wall_design
+                parsed_plan.append(current_plan)
+            except Exception as e:
+                print(f"Skipping line due to parse error: {plan}, error: {e}")
 
         # get full vertices: consider the intersection with other rooms
         all_vertices = []
