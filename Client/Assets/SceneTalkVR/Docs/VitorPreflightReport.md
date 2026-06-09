@@ -1,6 +1,6 @@
 ﻿# Vitor Preflight Report
 
-Generated: 2026-05-31 21:46:39
+Generated: 2026-06-06 18:35:36
 Unity: 6000.3.16f1
 Active Build Target: Android
 Android Build Support Path: `E:/ProgramFile/UnityEditor/6000.3.16f1/Editor/Data\PlaybackEngines\AndroidPlayer`
@@ -18,6 +18,7 @@ Android Build Support Path: `E:/ProgramFile/UnityEditor/6000.3.16f1/Editor/Data\
 - [x] One SceneTalkInteractionBootstrap in scene (found 1)
 - [x] One SceneTalkVR World UI canvas in scene (found 1)
 - [x] One EventSystem in scene (found 1)
+- [x] Main Camera uses XR tracked pose on device
 - [x] World UI canvas uses World Space render mode
 - [x] World UI canvas has an interaction camera
 - [x] World UI canvas is not mirrored on Y axis
@@ -52,11 +53,15 @@ Android Build Support Path: `E:/ProgramFile/UnityEditor/6000.3.16f1/Editor/Data\
 - [x] Android scripting backend is IL2CPP
 - [x] Android target architecture is ARM64
 - [x] Android minimum SDK is 29 or higher for PICO
+- [x] Android development builds use Unity debug signing
+- [x] Android graphics API is OpenGLES3 only
 
 ## Manual Steps Still Required
 
 - Run `SceneTalkVR/Setup/Apply Recommended Project Settings` after package import or Unity recompilation.
 - If OpenXR validation still reports no interaction profile, run `SceneTalkVR/Advanced/Enable OpenXR Fallback Controller Profile` or add `Khronos Simple Controller Profile` on the Android OpenXR page.
 - In Unity Project Settings, keep exactly one Android XR provider path active: OpenXR + PICO features, or PICO native loader.
+- Keep Android Graphics APIs set to OpenGLES3 only for PICO 4 debug builds; Vulkan can crash on startup with this project stack.
+- For local Build & Run, keep custom keystore disabled. Enable a private keystore only for release builds.
 - Connect PICO 4 with developer mode enabled, then build and run the Android APK.
 - Replace demo Spring/Edwin adapters with real LLM, STT, TTS, Avatar, and scene-generation modules.

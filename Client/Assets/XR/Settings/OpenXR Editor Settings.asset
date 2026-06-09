@@ -16,4 +16,4 @@ MonoBehaviour:
   Values:
   - featureSets: []
   m_vulkanAdditionalGraphicsQueue: 0
-  m_vulkanOffscreenSwapchainNoMainDisplay: 1
+  m_vulkanOffscreenSwapchainNoMainDisplay: 0

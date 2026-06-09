@@ -14,7 +14,7 @@ Vitor 作为组长，负责 SceneTalk VR 的系统架构、Unity/PICO 客户端�
 4. 定义 Unity 客户端与 Spring、Edwin 模块之间的轻量数据接口，支持先用假数据联调，再替换为真实模块。
 5. 完成 PICO 设备联调、性能检查、演示流程打磨和答辩技术路线说明。
 
-## 当前完成进度（2026-05-29）
+## 当前完成进度（2026-06-06）
 
 ### 已完成
 
@@ -36,12 +36,14 @@ Vitor 作为组长，负责 SceneTalk VR 的系统架构、Unity/PICO 客户端�
 - 已导入 PICO Unity Integration SDK `3.4.0`，当前包路径为 `Client/Packages/com.unity.xr.picoxr`。
 - 已将 PICO OpenXR 默认配置合并到 `SceneTalkVR/Setup/Apply Recommended Project Settings`；该步骤需要 Unity 重新编译后再运行一次菜单完成启用。
 - 已完成 PICO OpenXR 基础验证：`PICO_OPENXR_SDK`、`OpenXRLoader`、`PICO XR Support`、`PICO OpenXR Features`、`PICO4 Touch Controller Profile` 均已通过预检。
-- 已完成 PICO/OpenXR Project Validation 基础配置：Android 保持 OpenXR 单一路线，Min SDK API 29、ARM64、IL2CPP、Run In Background、URP Quality 配置和本地签名 keystore 已落盘；keystore 私钥文件不提交 Git。
+- 已完成 PICO/OpenXR Project Validation 基础配置：Android 保持 OpenXR 单一路线，Min SDK API 29、ARM64、IL2CPP、OpenGLES3、Run In Background 与 URP Quality 配置已落盘；本地调试默认使用 Unity debug signing，keystore 私钥文件不提交 Git。
+- 已接入 PICO/OpenXR 手柄交互：左右手柄显示轻量 3D 手柄代理和射线，射线命中世界空间 UI 时由扳机确认点击；`A/X` 保留为开始/重试快捷键，`B/Y` 或菜单结束，握持键或摇杆按下重置 UI 面板到头显正前方；UI 中新增 `Quit` 按钮用于退出应用。
+- 已修正真机初始视角逻辑：带 `TrackedPoseDriver` 的 XR 相机不再被 Demo bootstrap 强制设置世界坐标，UI 面板改为启动后相对当前头显位置重居中。
 - 当前 Unity Editor 内 Demo 已能正常显示、点击并运行假数据闭环。
 
 ### 仍未完成
 
-- 还未在 PICO 4 真机上完成 Build & Run。
+- PICO 4 真机已能启动 Demo；仍需回归验证手柄射线方向、扳机点击命中率和完整演示路径。
 - PICO SDK 产生的 100+ 条 warning 目前来自 SDK 包内部的 Unity 6 / XRI 3.x 兼容性提示，只要 Console 没有 error，暂不阻塞后续真机打包。
 - Spring 的真实 LLM/场景生成模块尚未替换假数据模块。
 - Edwin 的真实 STT/TTS/Avatar/口型同步模块尚未替换假数据模块。
@@ -64,7 +66,7 @@ Vitor 作为组长，负责 SceneTalk VR 的系统架构、Unity/PICO 客户端�
 - [x] 接入 PICO Unity Integration SDK。
 - [x] 验证 PICO OpenXR 功能集和 Android XR 设置。
 - [x] 验证 PICO/OpenXR Project Validation 基础 Required 项。
-- [ ] 验证 PICO 真机权限、USB 调试和设备运行要求。
+- [x] 验证 PICO 真机权限、USB 调试和设备运行要求。
 - [ ] 完成 XR Rig、左右手控制器、射线交互和 PICO 真机 UI 点击验证。
 - [x] 建立最小 VR/桌面可运行场景：玩家视角、基础灯光、测试 UI 面板、场景容器。
 - [x] 提供预检工具输出环境验证记录：Unity 版本、Package 状态、Build Settings、Android 参数、缺失项。

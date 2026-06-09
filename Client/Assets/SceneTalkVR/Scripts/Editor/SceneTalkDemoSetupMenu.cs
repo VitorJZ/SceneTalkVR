@@ -1,7 +1,7 @@
 using SceneTalkVR.Demo;
+using SceneTalkVR.AvatarSystem;
 using SceneTalkVR.Runtime;
 using UnityEditor;
-using UnityEditor.Events;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -15,7 +15,9 @@ namespace SceneTalkVR.EditorTools
         private const string DemoRigName = "SceneTalkVR Demo Rig";
         private const string WorldUiName = "SceneTalkVR World UI";
         private const string SceneRootName = "SceneRoot";
+        private const string AvatarRootName = "AvatarRoot";
         private const string EventSystemName = "EventSystem";
+        private const string AvatarCatalogPath = "Assets/SceneTalkVR/Avatar/Catalogs/AvatarCatalog.asset";
 
         [MenuItem("SceneTalkVR/Setup/Rebuild Demo Rig", false, 10)]
         public static void CreateVitorDemoRig()
@@ -43,6 +45,10 @@ namespace SceneTalkVR.EditorTools
             var root = new GameObject(DemoRigName);
             var sceneRoot = new GameObject(SceneRootName).transform;
             sceneRoot.SetParent(root.transform);
+            var avatarRoot = new GameObject(AvatarRootName).transform;
+            avatarRoot.SetParent(root.transform);
+            avatarRoot.localPosition = new Vector3(0f, 0f, 1.1f);
+            avatarRoot.localRotation = Quaternion.Euler(0f, 180f, 0f);
             var interactionCamera = ConfigureMainCamera();
             EnsureInputEventSystem();
 
@@ -50,30 +56,49 @@ namespace SceneTalkVR.EditorTools
             var speech = root.AddComponent<DemoSpeechInputModule>();
             var brain = root.AddComponent<DemoBrainModule>();
             var scenePresenter = root.AddComponent<SceneTalkScenePresenter>();
-            var avatarVoice = root.AddComponent<DemoAvatarVoiceModule>();
+            var avatarResolver = root.AddComponent<AvatarPresetResolver>();
+            var avatarLoader = root.AddComponent<PrefabAvatarInstanceLoader>();
+            var avatarVoice = root.AddComponent<AvatarPresentationVoiceModule>();
             var orchestrator = root.AddComponent<SceneTalkOrchestrator>();
             var interactionBootstrap = root.AddComponent<SceneTalkInteractionBootstrap>();
 
-            var ui = CreateWorldSpaceUi(root.transform, orchestrator, interactionCamera);
+            var ui = CreateWorldSpaceUi(root.transform, interactionCamera);
 
             SetObject(scenePresenter, "sceneRoot", sceneRoot);
+            SetObject(avatarResolver, "catalog", LoadAvatarCatalog());
+            SetObject(avatarVoice, "resolver", avatarResolver);
+            SetObject(avatarVoice, "loaderModule", avatarLoader);
+            SetObject(avatarVoice, "avatarRoot", avatarRoot);
             SetObject(avatarVoice, "audioSource", audioSource);
             SetObject(orchestrator, "speechInputModule", speech);
             SetObject(orchestrator, "brainModule", brain);
             SetObject(orchestrator, "scenePresenterModule", scenePresenter);
             SetObject(orchestrator, "avatarVoiceModule", avatarVoice);
-            SetObject(orchestrator, "stateLabel", ui.stateLabel);
-            SetObject(orchestrator, "transcriptLabel", ui.transcriptLabel);
-            SetObject(orchestrator, "replyLabel", ui.replyLabel);
-            SetObject(orchestrator, "errorLabel", ui.errorLabel);
+            SetObject(interactionBootstrap, "orchestrator", orchestrator);
             SetObject(interactionBootstrap, "interactionCamera", interactionCamera);
             SetObject(interactionBootstrap, "worldCanvas", ui.canvas);
+
+            var flowUi = root.AddComponent<SceneTalkFlowUiController>();
+            flowUi.Configure(orchestrator, ui.canvas, interactionBootstrap);
 
             Selection.activeObject = root;
             EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
         }
 
-        private static DemoUi CreateWorldSpaceUi(Transform parent, SceneTalkOrchestrator orchestrator, Camera interactionCamera)
+        private static AvatarCatalog LoadAvatarCatalog()
+        {
+            var catalog = AssetDatabase.LoadAssetAtPath<AvatarCatalog>(AvatarCatalogPath);
+            if (catalog == null)
+            {
+                Debug.LogWarning($"[SceneTalkVR] Avatar catalog not found at {AvatarCatalogPath}. Run SceneTalkVR/Avatar/Generate Placeholder Avatars first.");
+            }
+
+            return catalog;
+        }
+
+        private static DemoUi CreateWorldSpaceUi(
+            Transform parent,
+            Camera interactionCamera)
         {
             var canvasObject = new GameObject(WorldUiName);
             canvasObject.transform.SetParent(parent);
@@ -82,77 +107,10 @@ namespace SceneTalkVR.EditorTools
             canvasObject.AddComponent<CanvasScaler>();
             ConfigureWorldCanvas(canvas, interactionCamera);
 
-            var panel = new GameObject("Panel");
-            panel.transform.SetParent(canvasObject.transform, false);
-            var image = panel.AddComponent<Image>();
-            image.color = new Color(0.05f, 0.06f, 0.08f, 0.88f);
-            var panelRect = panel.GetComponent<RectTransform>();
-            panelRect.sizeDelta = new Vector2(720f, 420f);
-
-            var stateLabel = CreateText(panel.transform, "StateLabel", "State: Idle", new Vector2(0f, 150f), 30, TextAnchor.MiddleCenter);
-            var transcriptLabel = CreateText(panel.transform, "TranscriptLabel", "Transcript: -", new Vector2(0f, 95f), 22, TextAnchor.MiddleCenter);
-            var replyLabel = CreateText(panel.transform, "ReplyLabel", "Avatar: -", new Vector2(0f, 45f), 22, TextAnchor.MiddleCenter);
-            var errorLabel = CreateText(panel.transform, "ErrorLabel", string.Empty, new Vector2(0f, -5f), 20, TextAnchor.MiddleCenter);
-            errorLabel.color = new Color(1f, 0.45f, 0.35f, 1f);
-
-            var startButton = CreateButton(panel.transform, "StartButton", "Start Practice", new Vector2(-170f, -120f));
-            var retryButton = CreateButton(panel.transform, "RetryButton", "Retry", new Vector2(0f, -120f));
-            var finishButton = CreateButton(panel.transform, "FinishButton", "Finish", new Vector2(170f, -120f));
-
-            UnityEventTools.AddPersistentListener(startButton.onClick, orchestrator.StartPractice);
-            UnityEventTools.AddPersistentListener(retryButton.onClick, orchestrator.RetryAfterError);
-            UnityEventTools.AddPersistentListener(finishButton.onClick, orchestrator.FinishPractice);
-
             return new DemoUi
             {
-                canvas = canvas,
-                stateLabel = stateLabel,
-                transcriptLabel = transcriptLabel,
-                replyLabel = replyLabel,
-                errorLabel = errorLabel
+                canvas = canvas
             };
-        }
-
-        private static Text CreateText(Transform parent, string name, string text, Vector2 anchoredPosition, int fontSize, TextAnchor alignment)
-        {
-            var textObject = new GameObject(name);
-            textObject.transform.SetParent(parent, false);
-            var label = textObject.AddComponent<Text>();
-            label.text = text;
-            label.font = GetDefaultFont();
-            label.fontSize = fontSize;
-            label.alignment = alignment;
-            label.color = Color.white;
-
-            var rect = label.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(640f, 42f);
-            rect.anchoredPosition = anchoredPosition;
-            return label;
-        }
-
-        private static Font GetDefaultFont()
-        {
-            var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            return font != null ? font : Resources.GetBuiltinResource<Font>("Arial.ttf");
-        }
-
-        private static Button CreateButton(Transform parent, string name, string label, Vector2 anchoredPosition)
-        {
-            var buttonObject = new GameObject(name);
-            buttonObject.transform.SetParent(parent, false);
-
-            var image = buttonObject.AddComponent<Image>();
-            image.color = new Color(0.18f, 0.34f, 0.58f, 1f);
-
-            var button = buttonObject.AddComponent<Button>();
-            var rect = button.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(150f, 56f);
-            rect.anchoredPosition = anchoredPosition;
-
-            var labelText = CreateText(buttonObject.transform, "Label", label, Vector2.zero, 22, TextAnchor.MiddleCenter);
-            labelText.raycastTarget = false;
-            labelText.rectTransform.sizeDelta = rect.sizeDelta;
-            return button;
         }
 
         private static void CleanupGeneratedDemoObjects()
@@ -236,15 +194,20 @@ namespace SceneTalkVR.EditorTools
 
         private static Camera ConfigureMainCamera()
         {
-            var camera = Camera.main != null ? Camera.main : FindFirst<Camera>();
+            var camera = Camera.main != null ? Camera.main : FindActiveCamera();
             if (camera == null)
             {
                 camera = new GameObject("Main Camera").AddComponent<Camera>();
             }
 
             camera.tag = "MainCamera";
-            camera.transform.position = new Vector3(0f, 1.6f, -1.5f);
-            camera.transform.rotation = Quaternion.identity;
+
+            if (!IsTrackedCamera(camera))
+            {
+                camera.transform.position = new Vector3(0f, 1.6f, -1.5f);
+                camera.transform.rotation = Quaternion.identity;
+            }
+
             camera.fieldOfView = 60f;
             camera.nearClipPlane = 0.01f;
             camera.farClipPlane = 100f;
@@ -262,6 +225,38 @@ namespace SceneTalkVR.EditorTools
             return camera;
         }
 
+        private static Camera FindActiveCamera()
+        {
+            foreach (var camera in FindAll<Camera>())
+            {
+                if (camera != null && camera.enabled && camera.gameObject.activeInHierarchy)
+                {
+                    return camera;
+                }
+            }
+
+            return FindFirst<Camera>();
+        }
+
+        private static bool IsTrackedCamera(Camera camera)
+        {
+            if (camera == null)
+            {
+                return false;
+            }
+
+            foreach (var behaviour in camera.GetComponents<MonoBehaviour>())
+            {
+                var typeName = behaviour == null ? string.Empty : behaviour.GetType().FullName;
+                if (!string.IsNullOrEmpty(typeName) && typeName.Contains("TrackedPoseDriver"))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static void ConfigureWorldCanvas(Canvas canvas, Camera interactionCamera)
         {
             canvas.renderMode = RenderMode.WorldSpace;
@@ -269,6 +264,12 @@ namespace SceneTalkVR.EditorTools
             canvas.transform.position = new Vector3(0f, 1.5f, 1.4f);
             canvas.transform.rotation = Quaternion.identity;
             canvas.transform.localScale = Vector3.one * 0.005f;
+
+            var canvasRect = canvas.transform as RectTransform;
+            if (canvasRect != null)
+            {
+                canvasRect.sizeDelta = new Vector2(720f, 420f);
+            }
 
             var canvasScaler = canvas.GetComponent<CanvasScaler>();
             if (canvasScaler != null)
@@ -358,10 +359,6 @@ namespace SceneTalkVR.EditorTools
         private struct DemoUi
         {
             public Canvas canvas;
-            public Text stateLabel;
-            public Text transcriptLabel;
-            public Text replyLabel;
-            public Text errorLabel;
         }
     }
 }
