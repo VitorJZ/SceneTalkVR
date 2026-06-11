@@ -1,6 +1,7 @@
 using SceneTalkVR.Demo;
 using SceneTalkVR.AvatarSystem;
 using SceneTalkVR.Runtime;
+using SceneTalkVR.Voice;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -18,16 +19,32 @@ namespace SceneTalkVR.EditorTools
         private const string AvatarRootName = "AvatarRoot";
         private const string EventSystemName = "EventSystem";
         private const string AvatarCatalogPath = "Assets/SceneTalkVR/Avatar/Catalogs/AvatarCatalog.asset";
+        private const string AvatarPropCatalogPath = "Assets/SceneTalkVR/Avatar/Catalogs/AvatarPropCatalog.asset";
+        private const string AvatarCommonControllerPath = "Assets/SceneTalkVR/Avatar/Animations/Common/AvatarCommonHumanoid.controller";
+        private const string VoiceGatewaySettingsPath = "Assets/SceneTalkVR/Voice/VoiceGatewaySettings.asset";
 
         [MenuItem("SceneTalkVR/Setup/Rebuild Demo Rig", false, 10)]
         public static void CreateVitorDemoRig()
         {
-            CreateCleanDemoRig();
+            CreateCleanDemoRig(false);
+        }
+
+        [MenuItem("SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway", false, 11)]
+        public static void CreateVitorDemoRigWithVoiceGateway()
+        {
+            CreateCleanDemoRig(true);
+        }
+
+        [MenuItem("SceneTalkVR/Setup/Create Voice Gateway Settings", false, 12)]
+        public static void CreateVoiceGatewaySettingsAsset()
+        {
+            var settings = EnsureVoiceGatewaySettings();
+            Selection.activeObject = settings;
         }
 
         public static void RepairVitorDemoRigCameraAndInput()
         {
-            CreateCleanDemoRig();
+            CreateCleanDemoRig(false);
         }
 
         [MenuItem("SceneTalkVR/Advanced/Clear Generated Demo Rig", false, 110)]
@@ -38,7 +55,7 @@ namespace SceneTalkVR.EditorTools
             EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
         }
 
-        private static void CreateCleanDemoRig()
+        private static void CreateCleanDemoRig(bool useVoiceGateway)
         {
             CleanupGeneratedDemoObjects();
 
@@ -47,17 +64,35 @@ namespace SceneTalkVR.EditorTools
             sceneRoot.SetParent(root.transform);
             var avatarRoot = new GameObject(AvatarRootName).transform;
             avatarRoot.SetParent(root.transform);
-            avatarRoot.localPosition = new Vector3(0f, 0f, 1.1f);
-            avatarRoot.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            avatarRoot.localPosition = new Vector3(0f, 0f, 2.6f);
+            avatarRoot.localRotation = Quaternion.identity;
+            avatarRoot.localScale = Vector3.one * 1.25f;
             var interactionCamera = ConfigureMainCamera();
             EnsureInputEventSystem();
 
             var audioSource = root.AddComponent<AudioSource>();
-            var speech = root.AddComponent<DemoSpeechInputModule>();
+            MonoBehaviour speech;
+            if (useVoiceGateway)
+            {
+                var gatewayClient = root.AddComponent<VoiceGatewayClient>();
+                var microphoneRecorder = root.AddComponent<MicrophoneRecorder>();
+                var gatewaySpeech = root.AddComponent<GatewaySpeechInputModule>();
+                SetObject(gatewayClient, "settings", EnsureVoiceGatewaySettings());
+                SetObject(gatewaySpeech, "gatewayClient", gatewayClient);
+                SetObject(gatewaySpeech, "microphoneRecorder", microphoneRecorder);
+                speech = gatewaySpeech;
+            }
+            else
+            {
+                speech = root.AddComponent<DemoSpeechInputModule>();
+            }
+
             var brain = root.AddComponent<DemoBrainModule>();
             var scenePresenter = root.AddComponent<SceneTalkScenePresenter>();
             var avatarResolver = root.AddComponent<AvatarPresetResolver>();
             var avatarLoader = root.AddComponent<PrefabAvatarInstanceLoader>();
+            var avatarAnimation = root.AddComponent<AvatarAnimationDriver>();
+            var avatarProps = root.AddComponent<AvatarPropPresenter>();
             var avatarVoice = root.AddComponent<AvatarPresentationVoiceModule>();
             var orchestrator = root.AddComponent<SceneTalkOrchestrator>();
             var interactionBootstrap = root.AddComponent<SceneTalkInteractionBootstrap>();
@@ -66,10 +101,21 @@ namespace SceneTalkVR.EditorTools
 
             SetObject(scenePresenter, "sceneRoot", sceneRoot);
             SetObject(avatarResolver, "catalog", LoadAvatarCatalog());
+            SetObject(avatarProps, "catalog", LoadAvatarPropCatalog());
             SetObject(avatarVoice, "resolver", avatarResolver);
             SetObject(avatarVoice, "loaderModule", avatarLoader);
             SetObject(avatarVoice, "avatarRoot", avatarRoot);
+            SetObject(avatarVoice, "propPresenter", avatarProps);
             SetObject(avatarVoice, "audioSource", audioSource);
+            SetObject(avatarVoice, "animationDriver", avatarAnimation);
+            SetObject(avatarVoice, "defaultAnimatorController", LoadAvatarCommonController());
+            if (useVoiceGateway && speech is GatewaySpeechInputModule)
+            {
+                var gatewayClient = root.GetComponent<VoiceGatewayClient>();
+                SetObject(avatarVoice, "voiceGatewayClient", gatewayClient);
+                SetBool(avatarVoice, "useVoiceGatewayTts", true);
+            }
+
             SetObject(orchestrator, "speechInputModule", speech);
             SetObject(orchestrator, "brainModule", brain);
             SetObject(orchestrator, "scenePresenterModule", scenePresenter);
@@ -94,6 +140,44 @@ namespace SceneTalkVR.EditorTools
             }
 
             return catalog;
+        }
+
+        private static RuntimeAnimatorController LoadAvatarCommonController()
+        {
+            var controller = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(AvatarCommonControllerPath);
+            if (controller == null)
+            {
+                Debug.LogWarning($"[SceneTalkVR] Avatar common animator controller not found at {AvatarCommonControllerPath}. Run SceneTalkVR/Avatar/P1 Build Humanoid Avatars first.");
+            }
+
+            return controller;
+        }
+
+        private static AvatarPropCatalog LoadAvatarPropCatalog()
+        {
+            var catalog = AssetDatabase.LoadAssetAtPath<AvatarPropCatalog>(AvatarPropCatalogPath);
+            if (catalog == null)
+            {
+                Debug.LogWarning($"[SceneTalkVR] Avatar prop catalog not found at {AvatarPropCatalogPath}. Run SceneTalkVR/Avatar/P1 Build Teacher Humanoid first.");
+            }
+
+            return catalog;
+        }
+
+        private static VoiceGatewaySettings EnsureVoiceGatewaySettings()
+        {
+            var settings = AssetDatabase.LoadAssetAtPath<VoiceGatewaySettings>(VoiceGatewaySettingsPath);
+            if (settings != null)
+            {
+                return settings;
+            }
+
+            settings = ScriptableObject.CreateInstance<VoiceGatewaySettings>();
+            AssetDatabase.CreateAsset(settings, VoiceGatewaySettingsPath);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log($"[SceneTalkVR] Created voice gateway settings at {VoiceGatewaySettingsPath}.");
+            return settings;
         }
 
         private static DemoUi CreateWorldSpaceUi(
@@ -343,6 +427,14 @@ namespace SceneTalkVR.EditorTools
             var serializedObject = new SerializedObject(target);
             var property = serializedObject.FindProperty(propertyName);
             property.objectReferenceValue = value;
+            serializedObject.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetBool(Object target, string propertyName, bool value)
+        {
+            var serializedObject = new SerializedObject(target);
+            var property = serializedObject.FindProperty(propertyName);
+            property.boolValue = value;
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
 

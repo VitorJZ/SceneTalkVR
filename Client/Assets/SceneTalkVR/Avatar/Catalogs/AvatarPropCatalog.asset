@@ -1,0 +1,58 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2c712289f2b8a46bc8d86d38b33ccb8b, type: 3}
+  m_Name: AvatarPropCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.AvatarSystem.AvatarPropCatalog
+  props:
+  - key: book_prop_v1
+    displayName: Book Prop v1
+    priority: 50
+    prefab: {fileID: 1072874870464437303, guid: 7f66e7a26b54347d698e2c6124cac368, type: 3}
+    addressableKey: 
+    defaultForRoles:
+    - teacher
+    - instructor
+    - tutor
+    accessoryTags:
+    - book
+    - textbook
+    - notebook
+    environmentTags:
+    - classroom
+    - school
+    socket: 4
+    localPosition: {x: 0.035, y: 0.02, z: 0.015}
+    localEulerAngles: {x: 10, y: 80, z: 100}
+    localScale: {x: 1, y: 1, z: 1}
+    mobileReady: 1
+  - key: frappe_prop_v1
+    displayName: Frappe Prop v1 - Kenney
+    priority: 50
+    prefab: {fileID: 4669142321484525044, guid: 7b22e28829058452f8f66fb2ff94c5e6, type: 3}
+    addressableKey: 
+    defaultForRoles:
+    - barista
+    - cafe_worker
+    accessoryTags:
+    - frappe
+    - coffee
+    - cup
+    - drink
+    - takeaway_cup
+    environmentTags:
+    - coffee_shop
+    - cafe
+    socket: 5
+    localPosition: {x: 0.018, y: 0.01, z: 0.005}
+    localEulerAngles: {x: 0, y: 95, z: 80}
+    localScale: {x: 0.78, y: 0.78, z: 0.78}
+    mobileReady: 1

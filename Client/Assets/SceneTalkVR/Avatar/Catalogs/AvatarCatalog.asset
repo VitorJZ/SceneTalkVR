@@ -14,11 +14,52 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.AvatarSystem.AvatarCatalog
   defaultAvatarKey: teacher_default
   presets:
+  - key: barista_humanoid_v1
+    displayName: Barista Humanoid v1 - Quaternius Animated Woman
+    priority: 80
+    prefab: {fileID: 1872998247441980805, guid: ba253876361a342949527e1350c3a960, type: 3}
+    addressableKey: 
+    roles:
+    - barista
+    - cafe_worker
+    - clerk
+    environmentTags:
+    - coffee_shop
+    - cafe
+    styleIds:
+    - semi_realistic_v1
+    - humanoid_v1
+    - low_poly_v1
+    genderPresentations:
+    - female
+    - unknown
+    ageBuckets:
+    - young_adult
+    - adult
+    bodyBuilds:
+    - average
+    hairStyles: []
+    hairColors: []
+    outfitRoles:
+    - barista
+    - casual
+    outfitColors:
+    - green
+    - white
+    - black
+    accessoryTags:
+    - frappe
+    - coffee
+    - cup
+    - drink
+    mustHaveTags: []
+    qualityTier: humanoid_v1
+    mobileReady: 1
   - key: barista_default
     displayName: Placeholder Barista
     priority: 30
     prefab: {fileID: 2935414769035953400, guid: 93ba7dfb50bb3484bb3a064173f7d94e, type: 3}
-    addressableKey:
+    addressableKey: 
     roles:
     - barista
     - clerk
@@ -48,11 +89,52 @@ MonoBehaviour:
     - green_apron
     qualityTier: placeholder
     mobileReady: 1
+  - key: teacher_humanoid_v1
+    displayName: Teacher Humanoid v1 - Quaternius Business Man
+    priority: 80
+    prefab: {fileID: 5799682958458321345, guid: 37325c6c640e440b99fd3686afd1e05d, type: 3}
+    addressableKey: 
+    roles:
+    - teacher
+    - instructor
+    - tutor
+    environmentTags:
+    - classroom
+    - school
+    styleIds:
+    - semi_realistic_v1
+    - humanoid_v1
+    - low_poly_v1
+    genderPresentations:
+    - unknown
+    - male
+    ageBuckets:
+    - adult
+    - middle_aged
+    bodyBuilds:
+    - average
+    hairStyles: []
+    hairColors: []
+    outfitRoles:
+    - teacher
+    - formal
+    - business
+    outfitColors:
+    - blue
+    - black
+    - white
+    accessoryTags:
+    - book
+    - suit
+    - formal
+    mustHaveTags: []
+    qualityTier: humanoid_v1
+    mobileReady: 1
   - key: teacher_default
     displayName: Placeholder Teacher
     priority: 20
     prefab: {fileID: 1046230029941474567, guid: 75dfb57a118af47b0b9ab712381c4e98, type: 3}
-    addressableKey:
+    addressableKey: 
     roles:
     - teacher
     environmentTags:
@@ -79,11 +161,58 @@ MonoBehaviour:
     mustHaveTags: []
     qualityTier: placeholder
     mobileReady: 1
+  - key: police_humanoid_v1
+    displayName: Police Humanoid v1 - Quaternius SWAT
+    priority: 80
+    prefab: {fileID: 3556086996252984580, guid: ae4ef32f03bf84216a851155dbebf06f, type: 3}
+    addressableKey: 
+    roles:
+    - police
+    - officer
+    - security
+    - customs
+    environmentTags:
+    - airport
+    - street
+    - station
+    styleIds:
+    - semi_realistic_v1
+    - humanoid_v1
+    - low_poly_v1
+    genderPresentations:
+    - unknown
+    - male
+    ageBuckets:
+    - adult
+    - middle_aged
+    bodyBuilds:
+    - average
+    - strong
+    hairStyles: []
+    hairColors: []
+    outfitRoles:
+    - police
+    - security
+    - uniform
+    - swat
+    outfitColors:
+    - black
+    - navy
+    - dark
+    accessoryTags:
+    - badge
+    - uniform
+    - helmet
+    - vest
+    - security
+    mustHaveTags: []
+    qualityTier: humanoid_v1
+    mobileReady: 1
   - key: police_default
     displayName: Placeholder Police Officer
     priority: 20
     prefab: {fileID: 6292588086742147096, guid: f7731ac3ae84448b191eb5d44d0abb92, type: 3}
-    addressableKey:
+    addressableKey: 
     roles:
     - police
     - officer
