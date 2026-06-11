@@ -13,6 +13,7 @@ namespace SceneTalkVR.AvatarSystem
         [SerializeField] private MonoBehaviour loaderModule;
         [SerializeField] private Transform avatarRoot;
         [SerializeField] private bool continueWithoutAvatar = true;
+        [SerializeField] private AvatarPropPresenter propPresenter;
 
         [Header("Demo Voice")]
         [SerializeField] private AudioSource audioSource;
@@ -29,6 +30,8 @@ namespace SceneTalkVR.AvatarSystem
         [SerializeField] private bool fallbackToDemoVoiceOnGatewayError = true;
 
         [Header("Animation")]
+        [SerializeField] private AvatarAnimationDriver animationDriver;
+        [SerializeField] private RuntimeAnimatorController defaultAnimatorController;
         [SerializeField] private Animator fallbackAnimator;
         [SerializeField] private string thinkingTrigger = "Think";
         [SerializeField] private string speakingTrigger = "Speak";
@@ -60,11 +63,11 @@ namespace SceneTalkVR.AvatarSystem
                 Debug.LogWarning($"[SceneTalkVR] Avatar presentation fallback: {avatarError}", this);
             }
 
-            TriggerAnimation(thinkingTrigger);
+            TriggerThinking();
             yield return null;
 
             Debug.Log($"[SceneTalkVR] Avatar reply: {payload.dialogueReply}", this);
-            TriggerAnimation(speakingTrigger);
+            TriggerSpeaking();
 
             var playedAudio = false;
             if (useVoiceGatewayTts)
@@ -145,7 +148,7 @@ namespace SceneTalkVR.AvatarSystem
                 yield break;
             }
 
-            ReplaceCurrentAvatar(loadedAvatar);
+            ReplaceCurrentAvatar(loadedAvatar, payload);
             Debug.Log(
                 $"[SceneTalkVR] Avatar resolved: key={resolution.avatarKey}, score={resolution.score}, fallback={resolution.fallbackLevel}",
                 this);
@@ -245,8 +248,14 @@ namespace SceneTalkVR.AvatarSystem
             return voiceGatewayClient;
         }
 
-        private void ReplaceCurrentAvatar(GameObject loadedAvatar)
+        private void ReplaceCurrentAvatar(GameObject loadedAvatar, SpringScenePayload payload)
         {
+            var props = ResolvePropPresenter();
+            if (props != null)
+            {
+                props.ClearProps();
+            }
+
             if (currentAvatar != null && currentAvatar != loadedAvatar)
             {
                 Destroy(currentAvatar);
@@ -254,9 +263,82 @@ namespace SceneTalkVR.AvatarSystem
 
             currentAvatar = loadedAvatar;
             currentAnimator = currentAvatar.GetComponentInChildren<Animator>();
+            EnsureAnimatorController(currentAnimator);
+
+            var driver = ResolveAnimationDriver();
+            if (driver != null)
+            {
+                driver.BindAnimator(currentAnimator);
+            }
+
+            if (props != null)
+            {
+                props.PresentProps(payload, currentAvatar);
+            }
         }
 
-        private void TriggerAnimation(string triggerName)
+        private void EnsureAnimatorController(Animator animator)
+        {
+            if (animator == null || animator.runtimeAnimatorController != null || defaultAnimatorController == null)
+            {
+                return;
+            }
+
+            animator.runtimeAnimatorController = defaultAnimatorController;
+            animator.applyRootMotion = false;
+        }
+
+        private AvatarPropPresenter ResolvePropPresenter()
+        {
+            if (propPresenter == null)
+            {
+                propPresenter = GetComponent<AvatarPropPresenter>();
+            }
+
+            return propPresenter;
+        }
+
+        private void TriggerThinking()
+        {
+            var driver = ResolveAnimationDriver();
+            if (driver != null)
+            {
+                driver.PlayThinking();
+                return;
+            }
+
+            TriggerAnimationLegacy(thinkingTrigger);
+        }
+
+        private void TriggerSpeaking()
+        {
+            var driver = ResolveAnimationDriver();
+            if (driver != null)
+            {
+                driver.PlaySpeaking();
+                return;
+            }
+
+            TriggerAnimationLegacy(speakingTrigger);
+        }
+
+        private AvatarAnimationDriver ResolveAnimationDriver()
+        {
+            if (animationDriver == null)
+            {
+                animationDriver = GetComponent<AvatarAnimationDriver>();
+            }
+
+            if (animationDriver == null)
+            {
+                animationDriver = gameObject.AddComponent<AvatarAnimationDriver>();
+            }
+
+            animationDriver.SetFallbackAnimator(fallbackAnimator);
+            return animationDriver;
+        }
+
+        private void TriggerAnimationLegacy(string triggerName)
         {
             if (string.IsNullOrWhiteSpace(triggerName))
             {
