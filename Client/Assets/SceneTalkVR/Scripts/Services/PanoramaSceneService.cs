@@ -1,0 +1,144 @@
+using System;
+using System.Collections;
+using System.Text;
+using System.Threading.Tasks;
+using SceneTalkVR.Core;
+using UnityEngine;
+using UnityEngine.Networking;
+
+namespace SceneTalkVR.Runtime.Services
+{
+    /// <summary>
+    /// Service for generating 360 panorama scenes using SiliconFlow API (Domestic Model).
+    /// Optimized for Tongyi-MAI/Z-Image or Kwai-Kolors/Kolors.
+    /// </summary>
+    public sealed class PanoramaSceneService : MonoBehaviour
+    {
+        private const string SiliconFlowUrl = "https://api.siliconflow.cn/v1/images/generations";
+        
+        [Header("API Configuration")]
+        [SerializeField] private string apiKey = "sk-azcoikjkgvfzqcpytdlvjnemnxnvcqnhghlnsvtgfugoqblv";
+        [SerializeField] private string modelName = "Tongyi-MAI/Z-Image";
+        [SerializeField] private string imageSize = "1024x1024";
+
+        public async Task<Texture2D> GenerateSkyboxAsync(string environmentDescription)
+        {
+            string effectiveKey = string.IsNullOrEmpty(apiKey) 
+                ? Environment.GetEnvironmentVariable("SILICONFLOW_API_KEY") 
+                : apiKey;
+
+            if (string.IsNullOrEmpty(effectiveKey))
+            {
+                throw new Exception("SiliconFlow API Key is not set.");
+            }
+
+            // Enhance prompt for 360 panorama
+            string enhancedPrompt = $"{environmentDescription}, 360 degree equirectangular panorama, highly detailed, high resolution, seamless";
+            Debug.Log($"[PanoramaSceneService] Requesting SiliconFlow generation with prompt: {enhancedPrompt}");
+
+            // 1. Request generation
+            string imageUrl = await RequestGeneration(effectiveKey, enhancedPrompt);
+            Debug.Log($"[PanoramaSceneService] Image URL received: {imageUrl}");
+
+            // 2. Download texture
+            return await DownloadTexture(imageUrl);
+        }
+
+        private async Task<string> RequestGeneration(string key, string prompt)
+        {
+            var requestBody = new SiliconFlowRequest
+            {
+                model = modelName,
+                prompt = prompt,
+                image_size = imageSize,
+                batch_size = 1
+            };
+
+            string jsonBody = JsonUtility.ToJson(requestBody);
+            
+            using var webRequest = new UnityWebRequest(SiliconFlowUrl, "POST");
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
+            webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            webRequest.downloadHandler = new DownloadHandlerBuffer();
+            webRequest.SetRequestHeader("Content-Type", "application/json");
+            webRequest.SetRequestHeader("Authorization", $"Bearer {key}");
+
+            var operation = webRequest.SendWebRequest();
+            while (!operation.isDone)
+            {
+                await Task.Yield();
+            }
+
+            if (webRequest.result != UnityWebRequest.Result.Success)
+            {
+                throw new Exception($"SiliconFlow request failed: {webRequest.error}\n{webRequest.downloadHandler.text}");
+            }
+
+            var response = JsonUtility.FromJson<SiliconFlowResponse>(webRequest.downloadHandler.text);
+            if (response != null && response.images != null && response.images.Length > 0)
+            {
+                return response.images[0].url;
+            }
+
+            throw new Exception("SiliconFlow response did not contain any images.");
+        }
+
+        private async Task<Texture2D> DownloadTexture(string url)
+        {
+            using var webRequest = UnityWebRequestTexture.GetTexture(url);
+            var operation = webRequest.SendWebRequest();
+            while (!operation.isDone)
+            {
+                await Task.Yield();
+            }
+
+            if (webRequest.result != UnityWebRequest.Result.Success)
+            {
+                throw new Exception($"Failed to download panorama texture: {webRequest.error}");
+            }
+
+            return DownloadHandlerTexture.GetContent(webRequest);
+        }
+
+        public void ApplySkybox(Texture2D texture)
+        {
+            if (texture == null) return;
+
+            var shader = Shader.Find("Skybox/Panoramic");
+            if (shader == null)
+            {
+                Debug.LogError("[PanoramaSceneService] Shader 'Skybox/Panoramic' not found.");
+                return;
+            }
+
+            var material = new Material(shader);
+            material.SetTexture("_MainTex", texture);
+            
+            RenderSettings.skybox = material;
+            DynamicGI.UpdateEnvironment();
+            
+            Debug.Log("[PanoramaSceneService] Skybox updated successfully.");
+        }
+
+        [Serializable]
+        private class SiliconFlowRequest
+        {
+            public string model;
+            public string prompt;
+            public string image_size;
+            public int batch_size;
+        }
+
+        [Serializable]
+        private class SiliconFlowResponse
+        {
+            public SiliconFlowImage[] images;
+        }
+
+        [Serializable]
+        private class SiliconFlowImage
+        {
+            public string url;
+        }
+    }
+}
