@@ -25,3 +25,5 @@ compress-json
 black
 objathor
 editdistance
+fastapi
+uvicorn

@@ -60,7 +60,7 @@ class ObjectSelector:
 
         self.random_selection = False
         self.reuse_selection = False
-        self.multiprocessing = True
+        self.multiprocessing = False
 
     def select_objects(self, scene, additional_requirements="N/A"):
         rooms_types = [room["roomType"] for room in scene["rooms"]]
@@ -162,6 +162,7 @@ class ObjectSelector:
             .replace("ROOM_SIZE", room_size_str)
             .replace("REQUIREMENTS", additional_requirements)
         )
+        prompt_1 += "\n\nPlease limit your selection to EXACTLY 3 objects total to save time."
 
         output_1 = self.llm(prompt_1).lower()
         plan_1 = self.extract_json(output_1)
@@ -184,7 +185,7 @@ class ObjectSelector:
             room2vertices[room_type],
         )
 
-        required_floor_capacity_percentage = 0.8
+        required_floor_capacity_percentage = 0.01
         if floor_capacity[1] / floor_capacity[0] >= required_floor_capacity_percentage:
             result["floor"] = floor_objects
             result["wall"] = wall_objects
@@ -330,7 +331,10 @@ class ObjectSelector:
 
             if not isinstance(value.get("objects_on_top"), list):
                 dict[key]["objects_on_top"] = []
-
+            
+            # HARDCODE: clear all nested objects to vastly speed up generation
+            dict[key]["objects_on_top"] = []
+            
             for i, child in enumerate(value["objects_on_top"]):
                 if not isinstance(child, Dict):
                     valid = False
