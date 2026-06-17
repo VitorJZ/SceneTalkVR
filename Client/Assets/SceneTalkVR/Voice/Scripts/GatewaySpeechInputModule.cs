@@ -1,0 +1,142 @@
+using System;
+using System.Collections;
+using SceneTalkVR.Core;
+using UnityEngine;
+
+namespace SceneTalkVR.Voice
+{
+    public sealed class GatewaySpeechInputModule : MonoBehaviour, ISceneTalkSpeechInput
+    {
+        [SerializeField] private VoiceGatewayClient gatewayClient;
+        [SerializeField] private MicrophoneRecorder microphoneRecorder;
+        [SerializeField] private string sessionId = "scenetalk-demo-session";
+        [SerializeField] private string language = "en-US";
+        [SerializeField] private string sceneType = "general";
+        [SerializeField] private int sampleRate = 16000;
+        [SerializeField] private int channels = 1;
+        [SerializeField] private string format = "wav";
+        [SerializeField] private bool useMockEmptyAudio;
+        [SerializeField] private string fallbackTranscript = "I want to practice ordering coffee with a fast-speaking foreign barista.";
+        [SerializeField] private bool useFallbackTranscriptOnError = true;
+
+        public IEnumerator CaptureSpeech(Action<string> onComplete, Action<string> onError)
+        {
+            var client = ResolveGatewayClient();
+            if (client == null)
+            {
+                onError?.Invoke("Voice gateway client is missing.");
+                yield break;
+            }
+
+            var audioBase64 = string.Empty;
+            var requestSampleRate = Mathf.Max(1, sampleRate);
+            var requestChannels = Mathf.Max(1, channels);
+            if (!useMockEmptyAudio)
+            {
+                var recorder = ResolveMicrophoneRecorder();
+                if (recorder == null)
+                {
+                    onError?.Invoke("Microphone recorder is missing.");
+                    yield break;
+                }
+
+                string recordingError = null;
+                yield return recorder.RecordWavBase64(
+                    value => audioBase64 = value,
+                    message => recordingError = message);
+
+                if (!string.IsNullOrWhiteSpace(recordingError))
+                {
+                    if (useFallbackTranscriptOnError && !string.IsNullOrWhiteSpace(fallbackTranscript))
+                    {
+                        Debug.LogWarning($"[SceneTalkVR] Microphone STT fallback: {recordingError}", this);
+                        onComplete?.Invoke(fallbackTranscript);
+                        yield break;
+                    }
+
+                    onError?.Invoke(recordingError);
+                    yield break;
+                }
+
+                requestSampleRate = recorder.LastSampleRate;
+                requestChannels = recorder.LastChannels;
+            }
+
+            var request = new SttRequest
+            {
+                sessionId = sessionId,
+                sampleRate = requestSampleRate,
+                channels = requestChannels,
+                format = string.IsNullOrWhiteSpace(format) ? "wav" : format,
+                language = string.IsNullOrWhiteSpace(language) ? "en-US" : language,
+                sceneType = string.IsNullOrWhiteSpace(sceneType) ? "general" : sceneType,
+                audioBase64 = audioBase64
+            };
+
+            SttResponse response = null;
+            string error = null;
+            yield return client.RequestStt(
+                request,
+                value => response = value,
+                message => error = message);
+
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                if (useFallbackTranscriptOnError && !string.IsNullOrWhiteSpace(fallbackTranscript))
+                {
+                    Debug.LogWarning($"[SceneTalkVR] Gateway STT fallback: {error}", this);
+                    onComplete?.Invoke(fallbackTranscript);
+                    yield break;
+                }
+
+                onError?.Invoke(error);
+                yield break;
+            }
+
+            if (response == null || string.IsNullOrWhiteSpace(response.transcript))
+            {
+                onError?.Invoke("Voice gateway STT completed without a transcript.");
+                yield break;
+            }
+
+            Debug.Log(
+                $"[SceneTalkVR] Gateway STT transcript ({response.provider}, {response.latencyMs} ms): {response.transcript}",
+                this);
+            onComplete?.Invoke(response.transcript);
+        }
+
+        private VoiceGatewayClient ResolveGatewayClient()
+        {
+            if (gatewayClient != null)
+            {
+                return gatewayClient;
+            }
+
+            gatewayClient = GetComponent<VoiceGatewayClient>();
+            if (gatewayClient != null)
+            {
+                return gatewayClient;
+            }
+
+            gatewayClient = gameObject.AddComponent<VoiceGatewayClient>();
+            return gatewayClient;
+        }
+
+        private MicrophoneRecorder ResolveMicrophoneRecorder()
+        {
+            if (microphoneRecorder != null)
+            {
+                return microphoneRecorder;
+            }
+
+            microphoneRecorder = GetComponent<MicrophoneRecorder>();
+            if (microphoneRecorder != null)
+            {
+                return microphoneRecorder;
+            }
+
+            microphoneRecorder = gameObject.AddComponent<MicrophoneRecorder>();
+            return microphoneRecorder;
+        }
+    }
+}
