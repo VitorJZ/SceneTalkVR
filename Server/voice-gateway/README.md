@@ -64,6 +64,15 @@ TENCENT_TTS_VOICE_TYPE=1051
 TENCENT_FALLBACK_TO_MOCK=true
 ```
 
+Optional local config file, for teammates who do not want to export variables every run:
+
+```bash
+cd Server/voice-gateway
+cp voice-gateway.local.example.json voice-gateway.local.json
+```
+
+Then edit `voice-gateway.local.json` with the local Tencent key. This file is ignored by Git and should stay local to each teammate's machine.
+
 Defaults:
 
 - ASR endpoint: `asr.tencentcloudapi.com`
@@ -79,7 +88,7 @@ Defaults:
 2. Open and activate ASR: https://cloud.tencent.com/product/asr
 3. Open and activate TTS: https://cloud.tencent.com/product/tts
 4. Create an API key in CAM: https://console.cloud.tencent.com/cam/capi
-5. Export the key only in your local terminal environment. Do not write it into Unity, Git, `.meta` files, or screenshots.
+5. Put the key in either your local terminal environment or `voice-gateway.local.json`. Do not write real keys into tracked Git files, Unity `.meta` files, or screenshots.
 
 Example local run:
 
@@ -89,6 +98,15 @@ export VOICE_GATEWAY_PROVIDER=tencent
 export TENCENT_SECRET_ID="AKID..."
 export TENCENT_SECRET_KEY="..."
 export TENCENT_REGION=ap-guangzhou
+python3 -m src.voice_gateway.main
+```
+
+Example local-file run:
+
+```bash
+cd Server/voice-gateway
+cp voice-gateway.local.example.json voice-gateway.local.json
+# Edit voice-gateway.local.json with your local Tencent key.
 python3 -m src.voice_gateway.main
 ```
 
@@ -146,7 +164,7 @@ The response contains an `audioUrl`. Download it from the same gateway host.
 
 - Mock STT/TTS are available for offline demos.
 - Tencent ASR/TTS are available through `VOICE_GATEWAY_PROVIDER=tencent`.
-- Tencent cloud keys are read from environment variables only.
+- Tencent cloud keys are read from environment variables or local `voice-gateway.local.json`.
 - No user audio or transcript is persisted by the gateway.
 - P0 live smoke testing has been completed with Tencent ASR/TTS and Unity Editor.
 

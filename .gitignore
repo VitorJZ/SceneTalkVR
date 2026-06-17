@@ -30,6 +30,9 @@ sysinfo.txt
 # Local SDK download/extract cache; the committed copy lives under Client/Packages
 PICO Unity Integration SDK-*/
 
+# Local voice gateway secrets
+Server/voice-gateway/voice-gateway.local.json
+
 # IDE / editor
 .vs/
 .vscode/

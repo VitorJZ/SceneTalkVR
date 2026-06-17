@@ -1,0 +1,11 @@
+{
+  "host": "127.0.0.1",
+  "port": 8787,
+  "provider": "tencent",
+  "tencent_secret_id": "AKID_REPLACE_ME",
+  "tencent_secret_key": "REPLACE_ME",
+  "tencent_region": "ap-guangzhou",
+  "tencent_asr_engine": "16k_en",
+  "tencent_tts_voice_type": 1051,
+  "tencent_fallback_to_mock": true
+}
