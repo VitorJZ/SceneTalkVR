@@ -21,6 +21,10 @@ namespace SceneTalkVR.Runtime.Services
         [SerializeField] private string modelName = "Tongyi-MAI/Z-Image";
         [SerializeField] private string imageSize = "1024x1024";
 
+        [Header("Fallback Settings")]
+        [SerializeField] private Texture2D fallbackTexture;
+        [SerializeField] private string localFallbackPath = "SceneTalkVR/Textures/FallbackPanorama";
+
         public async Task<Texture2D> GenerateSkyboxAsync(string environmentDescription)
         {
             string effectiveKey = string.IsNullOrEmpty(apiKey) 
@@ -29,19 +33,43 @@ namespace SceneTalkVR.Runtime.Services
 
             if (string.IsNullOrEmpty(effectiveKey))
             {
-                throw new Exception("SiliconFlow API Key is not set.");
+                Debug.LogWarning("[PanoramaSceneService] API Key missing. Using local fallback.");
+                return LoadLocalFallback();
             }
 
             // Enhance prompt for 360 panorama
             string enhancedPrompt = $"{environmentDescription}, 360 degree equirectangular panorama, highly detailed, high resolution, seamless";
             Debug.Log($"[PanoramaSceneService] Requesting SiliconFlow generation with prompt: {enhancedPrompt}");
 
-            // 1. Request generation
-            string imageUrl = await RequestGeneration(effectiveKey, enhancedPrompt);
-            Debug.Log($"[PanoramaSceneService] Image URL received: {imageUrl}");
+            try
+            {
+                // 1. Request generation
+                string imageUrl = await RequestGeneration(effectiveKey, enhancedPrompt);
+                Debug.Log($"[PanoramaSceneService] Image URL received: {imageUrl}");
 
-            // 2. Download texture
-            return await DownloadTexture(imageUrl);
+                // 2. Download texture
+                return await DownloadTexture(imageUrl);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[PanoramaSceneService] API request failed: {ex.Message}. Using local fallback.");
+                return LoadLocalFallback();
+            }
+        }
+
+        private Texture2D LoadLocalFallback()
+        {
+            if (fallbackTexture != null) return fallbackTexture;
+            
+            var loaded = Resources.Load<Texture2D>(localFallbackPath);
+            if (loaded == null)
+            {
+                // Try direct asset load (only works in editor or if built in)
+                #if UNITY_EDITOR
+                loaded = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>($"Assets/{localFallbackPath}.png");
+                #endif
+            }
+            return loaded;
         }
 
         private async Task<string> RequestGeneration(string key, string prompt)
