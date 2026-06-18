@@ -18,6 +18,7 @@ namespace SceneTalkVR.Runtime.Services
         [Header("Settings")]
         [SerializeField] private Transform sceneRoot;
         [SerializeField] private float spawnScale = 1.0f;
+        [SerializeField] private bool autoCenterObjects = true;
         
         [Serializable]
         private struct PrefabMapping
@@ -88,6 +89,29 @@ namespace SceneTalkVR.Runtime.Services
         {
             if (response?.objects == null || sceneRoot == null) return;
 
+            Debug.Log($"[HybridScenePresenter] Received {response.objects.Length} objects from backend.");
+
+            Vector3 centerOffset = Vector3.zero;
+            if (autoCenterObjects && response.objects.Length > 0)
+            {
+                Vector3 sum = Vector3.zero;
+                int count = 0;
+                foreach (var obj in response.objects)
+                {
+                    if (obj.position != null && obj.position.Length >= 3)
+                    {
+                        sum += new Vector3(obj.position[0], obj.position[1], obj.position[2]);
+                        count++;
+                    }
+                }
+                if (count > 0)
+                {
+                    centerOffset = sum / count;
+                    centerOffset.y = 0; // Keep objects on ground
+                    Debug.Log($"[HybridScenePresenter] Auto-centering scene. Applied offset: {-centerOffset}");
+                }
+            }
+
             foreach (var objData in response.objects)
             {
                 // 1. Map Holodeck Name to PrefabKey Whitelist
@@ -108,6 +132,8 @@ namespace SceneTalkVR.Runtime.Services
                     pos = new Vector3(objData.position[0], objData.position[1], objData.position[2]);
                 }
                 
+                pos -= centerOffset; // Move objects to be centered around user
+
                 Quaternion rot = Quaternion.Euler(0, objData.rotation, 0);
 
                 var instance = Instantiate(prefab, pos, rot, sceneRoot);
