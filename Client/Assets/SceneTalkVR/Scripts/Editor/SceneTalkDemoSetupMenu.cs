@@ -57,26 +57,47 @@ namespace SceneTalkVR.EditorTools
 
         private static void CreateCleanDemoRig(bool useVoiceGateway)
         {
-            CleanupGeneratedDemoObjects();
+            var root = GameObject.Find(DemoRigName);
+            if (root == null)
+            {
+                root = new GameObject(DemoRigName);
+            }
 
-            var root = new GameObject(DemoRigName);
-            var sceneRoot = new GameObject(SceneRootName).transform;
-            sceneRoot.SetParent(root.transform);
-            var avatarRoot = new GameObject(AvatarRootName).transform;
-            avatarRoot.SetParent(root.transform);
-            avatarRoot.localPosition = new Vector3(0f, 0f, 2.6f);
-            avatarRoot.localRotation = Quaternion.identity;
-            avatarRoot.localScale = Vector3.one * 1.25f;
+            var sceneRootTransform = root.transform.Find(SceneRootName);
+            if (sceneRootTransform == null)
+            {
+                sceneRootTransform = new GameObject(SceneRootName).transform;
+                sceneRootTransform.SetParent(root.transform);
+            }
+
+            var avatarRootTransform = root.transform.Find(AvatarRootName);
+            if (avatarRootTransform == null)
+            {
+                avatarRootTransform = new GameObject(AvatarRootName).transform;
+                avatarRootTransform.SetParent(root.transform);
+                avatarRootTransform.localPosition = new Vector3(0f, 0f, 2.6f);
+                avatarRootTransform.localRotation = Quaternion.identity;
+                avatarRootTransform.localScale = Vector3.one * 1.25f;
+            }
+
             var interactionCamera = ConfigureMainCamera();
             EnsureInputEventSystem();
 
-            var audioSource = root.AddComponent<AudioSource>();
+            var audioSource = root.GetComponent<AudioSource>();
+            if (audioSource == null) audioSource = root.AddComponent<AudioSource>();
+
             MonoBehaviour speech;
             if (useVoiceGateway)
             {
-                var gatewayClient = root.AddComponent<VoiceGatewayClient>();
-                var microphoneRecorder = root.AddComponent<MicrophoneRecorder>();
-                var gatewaySpeech = root.AddComponent<GatewaySpeechInputModule>();
+                var gatewayClient = root.GetComponent<VoiceGatewayClient>();
+                if (gatewayClient == null) gatewayClient = root.AddComponent<VoiceGatewayClient>();
+
+                var microphoneRecorder = root.GetComponent<MicrophoneRecorder>();
+                if (microphoneRecorder == null) microphoneRecorder = root.AddComponent<MicrophoneRecorder>();
+
+                var gatewaySpeech = root.GetComponent<GatewaySpeechInputModule>();
+                if (gatewaySpeech == null) gatewaySpeech = root.AddComponent<GatewaySpeechInputModule>();
+
                 SetObject(gatewayClient, "settings", EnsureVoiceGatewaySettings());
                 SetObject(gatewaySpeech, "gatewayClient", gatewayClient);
                 SetObject(gatewaySpeech, "microphoneRecorder", microphoneRecorder);
@@ -84,31 +105,62 @@ namespace SceneTalkVR.EditorTools
             }
             else
             {
-                speech = root.AddComponent<DemoSpeechInputModule>();
+                speech = root.GetComponent<DemoSpeechInputModule>();
+                if (speech == null) speech = root.AddComponent<DemoSpeechInputModule>();
             }
 
-            var brain = root.AddComponent<DemoBrainModule>();
-            var scenePresenter = root.AddComponent<SceneTalkScenePresenter>();
-            var avatarResolver = root.AddComponent<AvatarPresetResolver>();
-            var avatarLoader = root.AddComponent<PrefabAvatarInstanceLoader>();
-            var avatarAnimation = root.AddComponent<AvatarAnimationDriver>();
-            var avatarProps = root.AddComponent<AvatarPropPresenter>();
-            var avatarVoice = root.AddComponent<AvatarPresentationVoiceModule>();
-            var orchestrator = root.AddComponent<SceneTalkOrchestrator>();
-            var interactionBootstrap = root.AddComponent<SceneTalkInteractionBootstrap>();
+            var brain = root.GetComponent<DemoBrainModule>();
+            if (brain == null) brain = root.AddComponent<DemoBrainModule>();
+            
+            var scenePresenter = root.GetComponent<SceneTalkScenePresenter>();
+            if (scenePresenter == null) scenePresenter = root.AddComponent<SceneTalkScenePresenter>();
 
+            // Prioritize RealLLM and HybridPresenter if they exist
+            MonoBehaviour brainToUse = brain;
+            var realLlm = root.GetComponent<SceneTalkVR.Runtime.Services.RealLLMService>();
+            if (realLlm != null) brainToUse = realLlm;
+
+            MonoBehaviour presenterToUse = scenePresenter;
+            var hybridPresenter = root.GetComponent<SceneTalkVR.Runtime.Services.HybridScenePresenter>();
+            if (hybridPresenter != null) presenterToUse = hybridPresenter;
+
+            var avatarResolver = root.GetComponent<AvatarPresetResolver>();
+            if (avatarResolver == null) avatarResolver = root.AddComponent<AvatarPresetResolver>();
+            
+            var avatarLoader = root.GetComponent<PrefabAvatarInstanceLoader>();
+            if (avatarLoader == null) avatarLoader = root.AddComponent<PrefabAvatarInstanceLoader>();
+            
+            var avatarAnimation = root.GetComponent<AvatarAnimationDriver>();
+            if (avatarAnimation == null) avatarAnimation = root.AddComponent<AvatarAnimationDriver>();
+            
+            var avatarProps = root.GetComponent<AvatarPropPresenter>();
+            if (avatarProps == null) avatarProps = root.AddComponent<AvatarPropPresenter>();
+            
+            var avatarVoice = root.GetComponent<AvatarPresentationVoiceModule>();
+            if (avatarVoice == null) avatarVoice = root.AddComponent<AvatarPresentationVoiceModule>();
+            
+            var orchestrator = root.GetComponent<SceneTalkOrchestrator>();
+            if (orchestrator == null) orchestrator = root.AddComponent<SceneTalkOrchestrator>();
+            
+            var interactionBootstrap = root.GetComponent<SceneTalkInteractionBootstrap>();
+            if (interactionBootstrap == null) interactionBootstrap = root.AddComponent<SceneTalkInteractionBootstrap>();
+
+            // Cleanup old UI to avoid duplicates
+            var existingUi = root.transform.Find(WorldUiName);
+            if (existingUi != null) Object.DestroyImmediate(existingUi.gameObject);
             var ui = CreateWorldSpaceUi(root.transform, interactionCamera);
 
-            SetObject(scenePresenter, "sceneRoot", sceneRoot);
+            SetObject(scenePresenter, "sceneRoot", sceneRootTransform);
             SetObject(avatarResolver, "catalog", LoadAvatarCatalog());
             SetObject(avatarProps, "catalog", LoadAvatarPropCatalog());
             SetObject(avatarVoice, "resolver", avatarResolver);
             SetObject(avatarVoice, "loaderModule", avatarLoader);
-            SetObject(avatarVoice, "avatarRoot", avatarRoot);
+            SetObject(avatarVoice, "avatarRoot", avatarRootTransform);
             SetObject(avatarVoice, "propPresenter", avatarProps);
             SetObject(avatarVoice, "audioSource", audioSource);
             SetObject(avatarVoice, "animationDriver", avatarAnimation);
             SetObject(avatarVoice, "defaultAnimatorController", LoadAvatarCommonController());
+            
             if (useVoiceGateway && speech is GatewaySpeechInputModule)
             {
                 var gatewayClient = root.GetComponent<VoiceGatewayClient>();
@@ -117,14 +169,15 @@ namespace SceneTalkVR.EditorTools
             }
 
             SetObject(orchestrator, "speechInputModule", speech);
-            SetObject(orchestrator, "brainModule", brain);
-            SetObject(orchestrator, "scenePresenterModule", scenePresenter);
+            SetObject(orchestrator, "brainModule", brainToUse);
+            SetObject(orchestrator, "scenePresenterModule", presenterToUse);
             SetObject(orchestrator, "avatarVoiceModule", avatarVoice);
             SetObject(interactionBootstrap, "orchestrator", orchestrator);
             SetObject(interactionBootstrap, "interactionCamera", interactionCamera);
             SetObject(interactionBootstrap, "worldCanvas", ui.canvas);
 
-            var flowUi = root.AddComponent<SceneTalkFlowUiController>();
+            var flowUi = root.GetComponent<SceneTalkFlowUiController>();
+            if (flowUi == null) flowUi = root.AddComponent<SceneTalkFlowUiController>();
             flowUi.Configure(orchestrator, ui.canvas, interactionBootstrap);
 
             Selection.activeObject = root;
