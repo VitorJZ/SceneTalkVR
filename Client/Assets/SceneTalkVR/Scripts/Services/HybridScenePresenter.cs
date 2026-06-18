@@ -19,6 +19,7 @@ namespace SceneTalkVR.Runtime.Services
         [SerializeField] private Transform sceneRoot;
         [SerializeField] private float spawnScale = 1.0f;
         [SerializeField] private bool autoCenterObjects = true;
+        [SerializeField] private Vector3 sceneOffset = new Vector3(0, 0, 2.5f); // Move objects 2.5m forward
         
         [Serializable]
         private struct PrefabMapping
@@ -133,6 +134,7 @@ namespace SceneTalkVR.Runtime.Services
                 }
                 
                 pos -= centerOffset; // Move objects to be centered around user
+                pos += sceneOffset; // Apply manual viewing offset
 
                 Quaternion rot = Quaternion.Euler(0, objData.rotation, 0);
 
