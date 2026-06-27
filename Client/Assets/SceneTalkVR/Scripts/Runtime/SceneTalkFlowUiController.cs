@@ -24,12 +24,14 @@ namespace SceneTalkVR.Runtime
         private Button retryButton;
         private Button confirmButton;
         private Button exitButton;
+        private Button dialogueListenButton;
 
         private Text requestTitleText;
         private Text requestStatusText;
         private Text requestTranscriptText;
         private Text requestErrorText;
         private Text loadingText;
+        private Text dialogueStatusText;
         private Text playerSubtitleText;
         private Text avatarSubtitleText;
 
@@ -105,9 +107,11 @@ namespace SceneTalkVR.Runtime
             loadingPanel = CreatePanel(root, "LoadingPanel", new Vector2(0f, 0f), new Vector2(540f, 220f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
             loadingText = CreateText(loadingPanel.transform, "LoadingText", "Loading scene and avatar...", new Vector2(0f, 0f), new Vector2(480f, 80f), 26, TextAnchor.MiddleCenter, Color.white);
 
-            subtitlePanel = CreatePanel(root, "SubtitlePanel", new Vector2(0f, -190f), new Vector2(800f, 118f), new Color(0f, 0f, 0f, 0.62f));
-            playerSubtitleText = CreateText(subtitlePanel.transform, "PlayerSubtitle", "You: -", new Vector2(0f, 24f), new Vector2(740f, 42f), 20, TextAnchor.MiddleLeft, new Color(0.45f, 0.9f, 1f, 1f));
-            avatarSubtitleText = CreateText(subtitlePanel.transform, "AvatarSubtitle", "Avatar: -", new Vector2(0f, -24f), new Vector2(740f, 42f), 20, TextAnchor.MiddleLeft, new Color(1f, 0.88f, 0.36f, 1f));
+            subtitlePanel = CreatePanel(root, "SubtitlePanel", new Vector2(0f, -170f), new Vector2(800f, 160f), new Color(0f, 0f, 0f, 0.62f));
+            playerSubtitleText = CreateText(subtitlePanel.transform, "PlayerSubtitle", "You: -", new Vector2(0f, 50f), new Vector2(740f, 38f), 20, TextAnchor.MiddleLeft, new Color(0.45f, 0.9f, 1f, 1f));
+            avatarSubtitleText = CreateText(subtitlePanel.transform, "AvatarSubtitle", "Avatar: -", new Vector2(0f, 12f), new Vector2(740f, 38f), 20, TextAnchor.MiddleLeft, new Color(1f, 0.88f, 0.36f, 1f));
+            dialogueStatusText = CreateText(subtitlePanel.transform, "DialogueStatus", "Ready", new Vector2(-95f, -46f), new Vector2(550f, 32f), 18, TextAnchor.MiddleLeft, new Color(0.86f, 0.9f, 1f, 1f));
+            dialogueListenButton = CreateButton(subtitlePanel.transform, "DialogueListenButton", "Speak", new Vector2(310f, -46f), new Vector2(130f, 42f), new Color(0.12f, 0.52f, 0.38f, 1f));
 
             exitButton = CreateButton(root, "ExitButton", "Exit", new Vector2(360f, 218f), new Vector2(110f, 44f), new Color(0.58f, 0.18f, 0.18f, 1f));
             exitButtonObject = exitButton.gameObject;
@@ -147,6 +151,12 @@ namespace SceneTalkVR.Runtime
                 confirmButton.onClick.AddListener(() => orchestrator?.ConfirmPracticeRequest());
             }
 
+            if (dialogueListenButton != null)
+            {
+                dialogueListenButton.onClick.RemoveAllListeners();
+                dialogueListenButton.onClick.AddListener(() => orchestrator?.StartDialogueTurn());
+            }
+
             if (exitButton != null)
             {
                 exitButton.onClick.RemoveAllListeners();
@@ -162,10 +172,11 @@ namespace SceneTalkVR.Runtime
             }
 
             var state = orchestrator.CurrentState;
+            var dialogueActive = orchestrator.IsDialogueActive;
             var showMain = state == SceneTalkState.Idle || state == SceneTalkState.Finished;
-            var showRequest = state == SceneTalkState.Listening || state == SceneTalkState.Error;
-            var showLoading = state == SceneTalkState.Processing || state == SceneTalkState.SceneReady;
-            var showDialogue = state == SceneTalkState.AvatarSpeaking;
+            var showRequest = !dialogueActive && (state == SceneTalkState.Listening || state == SceneTalkState.Error);
+            var showLoading = !dialogueActive && (state == SceneTalkState.Processing || state == SceneTalkState.SceneReady);
+            var showDialogue = dialogueActive || state == SceneTalkState.AvatarSpeaking;
 
             SetActive(mainMenuPanel, showMain);
             SetActive(requestPanel, showRequest);
@@ -251,6 +262,50 @@ namespace SceneTalkVR.Runtime
             {
                 avatarSubtitleText.text = $"Avatar: {reply}";
             }
+
+            if (dialogueStatusText != null)
+            {
+                dialogueStatusText.text = ResolveDialogueStatusText();
+            }
+
+            if (dialogueListenButton != null)
+            {
+                SetButtonLabel(dialogueListenButton, orchestrator.CurrentState == SceneTalkState.Error ? "Retry" : "Speak");
+                SetInteractable(dialogueListenButton, !orchestrator.IsTurnRunning);
+            }
+        }
+
+        private string ResolveDialogueStatusText()
+        {
+            if (orchestrator == null)
+            {
+                return string.Empty;
+            }
+
+            if (!string.IsNullOrWhiteSpace(orchestrator.LastError))
+            {
+                return orchestrator.LastError;
+            }
+
+            if (orchestrator.IsTurnRunning)
+            {
+                if (orchestrator.CurrentState == SceneTalkState.Listening)
+                {
+                    return "Listening...";
+                }
+
+                if (orchestrator.CurrentState == SceneTalkState.Processing)
+                {
+                    return "Thinking...";
+                }
+
+                if (orchestrator.CurrentState == SceneTalkState.AvatarSpeaking)
+                {
+                    return "Speaking...";
+                }
+            }
+
+            return "Ready for your next line.";
         }
 
         private void Subscribe()
@@ -393,6 +448,20 @@ namespace SceneTalkVR.Runtime
             if (selectable != null)
             {
                 selectable.interactable = interactable;
+            }
+        }
+
+        private static void SetButtonLabel(Button button, string label)
+        {
+            if (button == null)
+            {
+                return;
+            }
+
+            var text = button.GetComponentInChildren<Text>(true);
+            if (text != null)
+            {
+                text.text = label;
             }
         }
 

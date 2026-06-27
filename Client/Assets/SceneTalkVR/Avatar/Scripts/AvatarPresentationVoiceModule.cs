@@ -38,6 +38,7 @@ namespace SceneTalkVR.AvatarSystem
 
         private GameObject currentAvatar;
         private Animator currentAnimator;
+        private string currentAvatarKey;
 
         private IAvatarInstanceLoader Loader => loaderModule as IAvatarInstanceLoader;
 
@@ -126,6 +127,13 @@ namespace SceneTalkVR.AvatarSystem
                 yield break;
             }
 
+            if (currentAvatar != null
+                && string.Equals(currentAvatarKey, resolution.avatarKey, StringComparison.OrdinalIgnoreCase))
+            {
+                PresentProps(payload, currentAvatar);
+                yield break;
+            }
+
             GameObject loadedAvatar = null;
             string loadError = null;
             var parent = avatarRoot != null ? avatarRoot : transform;
@@ -148,7 +156,7 @@ namespace SceneTalkVR.AvatarSystem
                 yield break;
             }
 
-            ReplaceCurrentAvatar(loadedAvatar, payload);
+            ReplaceCurrentAvatar(loadedAvatar, payload, resolution.avatarKey);
             Debug.Log(
                 $"[SceneTalkVR] Avatar resolved: key={resolution.avatarKey}, score={resolution.score}, fallback={resolution.fallbackLevel}",
                 this);
@@ -248,7 +256,7 @@ namespace SceneTalkVR.AvatarSystem
             return voiceGatewayClient;
         }
 
-        private void ReplaceCurrentAvatar(GameObject loadedAvatar, SpringScenePayload payload)
+        private void ReplaceCurrentAvatar(GameObject loadedAvatar, SpringScenePayload payload, string avatarKey)
         {
             var props = ResolvePropPresenter();
             if (props != null)
@@ -262,6 +270,7 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             currentAvatar = loadedAvatar;
+            currentAvatarKey = string.IsNullOrWhiteSpace(avatarKey) ? string.Empty : avatarKey;
             currentAnimator = currentAvatar.GetComponentInChildren<Animator>();
             EnsureAnimatorController(currentAnimator);
 
@@ -273,7 +282,16 @@ namespace SceneTalkVR.AvatarSystem
 
             if (props != null)
             {
-                props.PresentProps(payload, currentAvatar);
+                PresentProps(payload, currentAvatar);
+            }
+        }
+
+        private void PresentProps(SpringScenePayload payload, GameObject avatar)
+        {
+            var props = ResolvePropPresenter();
+            if (props != null)
+            {
+                props.PresentProps(payload, avatar);
             }
         }
 

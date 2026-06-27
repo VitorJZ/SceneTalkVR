@@ -28,6 +28,7 @@ namespace SceneTalkVR.Runtime
         public SpringScenePayload LastScenePayload { get; private set; }
         public string LastError { get; private set; }
         public bool IsTurnRunning => currentTurn != null;
+        public bool IsDialogueActive { get; private set; }
 
         private Coroutine currentTurn;
         private bool finishRequested;
@@ -55,6 +56,12 @@ namespace SceneTalkVR.Runtime
 
         public void RetryListening()
         {
+            if (IsDialogueActive)
+            {
+                StartDialogueTurn();
+                return;
+            }
+
             StartListeningTurn();
         }
 
@@ -72,6 +79,28 @@ namespace SceneTalkVR.Runtime
 
             finishRequested = false;
             currentTurn = StartCoroutine(RunConfirmedPracticeTurn());
+        }
+
+        public void StartDialogueTurn()
+        {
+            if (currentTurn != null)
+            {
+                return;
+            }
+
+            if (!IsDialogueActive)
+            {
+                StartListeningTurn();
+                return;
+            }
+
+            if (!ValidateSpeechModule() || !ValidateDialogueModules())
+            {
+                return;
+            }
+
+            finishRequested = false;
+            currentTurn = StartCoroutine(RunDialogueTurn());
         }
 
         public void FinishPractice()
@@ -92,6 +121,7 @@ namespace SceneTalkVR.Runtime
             LastTranscript = string.Empty;
             LastScenePayload = null;
             LastError = string.Empty;
+            IsDialogueActive = false;
             ClearPresentedSceneIfSupported();
             SetState(SceneTalkState.Idle);
         }
@@ -100,7 +130,7 @@ namespace SceneTalkVR.Runtime
         {
             if (CurrentState == SceneTalkState.Error)
             {
-                StartListeningTurn();
+                RetryListening();
             }
         }
 
@@ -121,6 +151,7 @@ namespace SceneTalkVR.Runtime
             LastTranscript = string.Empty;
             LastScenePayload = null;
             LastError = string.Empty;
+            IsDialogueActive = false;
             currentTurn = StartCoroutine(RunSpeechCaptureTurn());
         }
 
@@ -185,8 +216,65 @@ namespace SceneTalkVR.Runtime
                 yield break;
             }
 
+            IsDialogueActive = true;
             SetState(SceneTalkState.AvatarSpeaking);
 
+            yield return AvatarVoice.PresentReply(
+                payload,
+                () => { },
+                message => error = message);
+
+            if (HandleErrorOrFinish(error, "Avatar voice playback failed."))
+            {
+                currentTurn = null;
+                yield break;
+            }
+
+            currentTurn = null;
+            SetState(SceneTalkState.AvatarSpeaking);
+        }
+
+        private IEnumerator RunDialogueTurn()
+        {
+            LastError = string.Empty;
+            RefreshUi();
+
+            SetState(SceneTalkState.Listening);
+
+            string transcript = null;
+            string error = null;
+            yield return SpeechInput.CaptureSpeech(
+                value => transcript = value,
+                message => error = message);
+
+            if (HandleErrorOrFinish(error, "Speech input failed."))
+            {
+                currentTurn = null;
+                yield break;
+            }
+
+            LastTranscript = transcript;
+            RefreshUi();
+            SetState(SceneTalkState.Processing);
+
+            SpringScenePayload payload = null;
+            error = null;
+            yield return Brain.GenerateSceneAndReply(
+                transcript,
+                value => payload = value,
+                message => error = message);
+
+            if (HandleErrorOrFinish(error, "Dialogue reply generation failed."))
+            {
+                currentTurn = null;
+                yield break;
+            }
+
+            LastScenePayload = payload;
+            RefreshUi();
+            SetState(SceneTalkState.AvatarSpeaking);
+
+            error = null;
             yield return AvatarVoice.PresentReply(
                 payload,
                 () => { },
@@ -224,6 +312,23 @@ namespace SceneTalkVR.Runtime
             if (ScenePresenter == null)
             {
                 EnterError("Scene presenter module is missing or does not implement ISceneTalkScenePresenter.");
+                return false;
+            }
+
+            if (AvatarVoice == null)
+            {
+                EnterError("Avatar voice module is missing or does not implement ISceneTalkAvatarVoice.");
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool ValidateDialogueModules()
+        {
+            if (Brain == null)
+            {
+                EnterError("Brain module is missing or does not implement ISceneTalkBrain.");
                 return false;
             }
 

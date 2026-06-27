@@ -1142,6 +1142,12 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
+            if (orchestrator.IsDialogueActive)
+            {
+                orchestrator.StartDialogueTurn();
+                return;
+            }
+
             orchestrator.StartPractice();
         }
 
