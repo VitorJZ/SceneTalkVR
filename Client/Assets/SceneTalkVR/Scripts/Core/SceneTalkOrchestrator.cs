@@ -37,6 +37,8 @@ namespace SceneTalkVR.Runtime
         private ISceneTalkBrain Brain => brainModule as ISceneTalkBrain;
         private ISceneTalkScenePresenter ScenePresenter => scenePresenterModule as ISceneTalkScenePresenter;
         private ISceneTalkAvatarVoice AvatarVoice => avatarVoiceModule as ISceneTalkAvatarVoice;
+        private ISceneTalkAvatarReplyContext AvatarReplyContext => avatarVoiceModule as ISceneTalkAvatarReplyContext;
+        private ISceneTalkAvatarSessionReset AvatarSessionReset => avatarVoiceModule as ISceneTalkAvatarSessionReset;
 
         private void Awake()
         {
@@ -123,6 +125,7 @@ namespace SceneTalkVR.Runtime
             LastError = string.Empty;
             IsDialogueActive = false;
             ClearPresentedSceneIfSupported();
+            AvatarSessionReset?.ClearAvatar();
             SetState(SceneTalkState.Idle);
         }
 
@@ -219,6 +222,7 @@ namespace SceneTalkVR.Runtime
             IsDialogueActive = true;
             SetState(SceneTalkState.AvatarSpeaking);
 
+            AvatarReplyContext?.SetReplyContext(true);
             yield return AvatarVoice.PresentReply(
                 payload,
                 () => { },
@@ -275,6 +279,7 @@ namespace SceneTalkVR.Runtime
             SetState(SceneTalkState.AvatarSpeaking);
 
             error = null;
+            AvatarReplyContext?.SetReplyContext(false);
             yield return AvatarVoice.PresentReply(
                 payload,
                 () => { },

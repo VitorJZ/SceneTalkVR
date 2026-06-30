@@ -4,10 +4,13 @@ namespace SceneTalkVR.AvatarSystem
 {
     public sealed class AvatarAnimationDriver : MonoBehaviour
     {
+        private const string DefaultFollowUpSpeakingTrigger = "Talk";
+
         [SerializeField] private Animator fallbackAnimator;
         [SerializeField] private string idleStateName = "Idle";
         [SerializeField] private string thinkingTrigger = "Think";
         [SerializeField] private string speakingTrigger = "Speak";
+        [SerializeField] private string followUpSpeakingTrigger = "Talk";
         [SerializeField] private bool useFallbackAnimator = true;
 
         private Animator currentAnimator;
@@ -42,6 +45,14 @@ namespace SceneTalkVR.AvatarSystem
         public bool PlaySpeaking()
         {
             return TryPlayTrigger(speakingTrigger);
+        }
+
+        public bool PlayFollowUpSpeaking()
+        {
+            var triggerName = string.IsNullOrWhiteSpace(followUpSpeakingTrigger)
+                ? DefaultFollowUpSpeakingTrigger
+                : followUpSpeakingTrigger;
+            return TryPlayTrigger(triggerName);
         }
 
         public bool TryPlayTrigger(string triggerName)

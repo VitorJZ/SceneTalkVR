@@ -24,12 +24,27 @@
 - Detached book prop prefab: `Assets/SceneTalkVR/Avatar/Prefabs/Props/book_prop_v1.prefab`
 - Prop catalog: `Assets/SceneTalkVR/Avatar/Catalogs/AvatarPropCatalog.asset`
 - `book_prop_v1` is a lightweight local prop using existing project materials and defaults to the `LeftHand` socket for `teacher`, `instructor`, and `tutor` roles.
-- Runtime prop layer: `AvatarPropPresenter` consumes the same `SpringScenePayload`, reads `AvatarPropCatalog.asset`, and attaches props through `AvatarAttachmentSockets`.
+- Optional prop layer: `AvatarPropPresenter` can consume the same `SpringScenePayload`, read `AvatarPropCatalog.asset`, and attach props through `AvatarAttachmentSockets` when `AvatarPresentationVoiceModule.attachProps` is explicitly enabled.
 - Shared Animator controller: `Assets/SceneTalkVR/Avatar/Animations/Common/AvatarCommonHumanoid.controller`
-- Animation mapping: default `Idle_Neutral`, `Think` trigger to `Interact`, `Speak` trigger to `Wave`.
-- Runtime trigger layer: `AvatarAnimationDriver` binds the loaded avatar Animator and uses the shared `Think` / `Speak` trigger protocol.
+- Animation mapping: default `Idle_Neutral`, `Think` trigger to `Interact`, `Speak` trigger to `Wave`, and `Talk` trigger to a conservative masked `Rig|Idle_Talking_Loop` gesture layer.
+- Runtime trigger layer: `AvatarAnimationDriver` binds the loaded avatar Animator and uses the shared `Think` / `Speak` / `Talk` trigger protocol.
+- 2026-06-30 dialogue animation pass: `SceneTalkOrchestrator` marks the first avatar reply in a practice scene as opening speech, so the avatar can keep the greeting wave; later dialogue turns mark replies as follow-up speech and use `Talk`.
 - 2026-06-11 idle fix: default idle remains `CharacterArmature|Idle_Neutral`; Idle/Walk/Run clips are imported with loop enabled, and `AvatarPresentationVoiceModule` assigns `AvatarCommonHumanoid.controller` at runtime if a nested FBX Animator loses its controller override.
+- 2026-06-30 existing-rig fix: `SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway` also rebinds `AvatarPresentationVoiceModule.defaultAnimatorController`, so existing voice-gateway rigs recover animation even when prefab-instantiated Animators lose their controller reference.
 - `AvatarCatalog.asset` keeps `teacher_default` as placeholder fallback and adds `teacher_humanoid_v1` as the higher-priority teacher match.
+
+## Masked External Talking Animation
+
+- Source page: https://poly.pizza/m/cwYvO5UauX
+- Creator: Quaternius
+- Original model title: `Animated Base Character`
+- License shown on source page: `Creative Commons Attribution 3.0`
+- Source page metadata checked on 2026-06-30: `Type=FBX / GLTF`, `Animated=true`, `Tris=13.7k`
+- Download used: https://static.poly.pizza/0b65e14d-a349-44cc-836c-efdeb6933d48.zip
+- Imported model: `Assets/SceneTalkVR/Avatar/Models/Humanoid/QuaterniusAnimatedBaseCharacter/animation_library_unity_standard.fbx`
+- Clip used: `Rig|Idle_Talking_Loop`
+- Mask asset: `Assets/SceneTalkVR/Avatar/Animations/Common/AvatarTalkGesture.mask`
+- Result: full-body retargeting this external `DEF-*` rig produced visible deformation, and the arm/finger portion still looked unnatural when masked to the upper body. The shared controller now uses the clip only on a `Talk Gesture` layer with the Head body part enabled; body, root, legs, arms, and fingers remain on the base idle pose.
 
 ## Barista Humanoid v1
 
@@ -57,6 +72,7 @@
 - `frappe_prop_v1` defaults to the `RightHand` socket for `barista` and `cafe_worker` roles.
 - `AvatarPropPresenter` compensates parent socket scale so props stay near the hand even when imported Humanoid bones carry large local scale.
 - 2026-06-11 placement pass: catalog offset was tightened and prop scale was reduced to `0.78`; Play Mode verification measured the prop at about `0.021m` from the Humanoid right hand.
+- 2026-06-17 scope pass: props remain in the asset library but are disabled by default for current demos; generated avatars appear without book/frappe unless `attachProps` is explicitly enabled.
 
 ## Police Humanoid v1
 

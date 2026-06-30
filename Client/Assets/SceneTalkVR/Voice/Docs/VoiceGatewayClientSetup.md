@@ -41,13 +41,15 @@ For the P0 STT step:
 5. Add `GatewaySpeechInputModule` to the same object.
 6. Assign `GatewaySpeechInputModule` to `SceneTalkOrchestrator.speechInputModule`.
 
-You can use `SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway` to rebuild the demo rig with:
+You can use `SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway` to configure the existing demo rig with:
 
 - `VoiceGatewayClient`
 - `MicrophoneRecorder`
 - `GatewaySpeechInputModule`
 - `AvatarPresentationVoiceModule.useVoiceGatewayTts` enabled
 - `VoiceGatewaySettings.asset` assigned to `VoiceGatewayClient`
+
+This menu item only changes the voice path on the existing rig. It does not rebuild scene presentation, UI, avatar placement, or prefab bindings.
 
 ## P0 Status
 

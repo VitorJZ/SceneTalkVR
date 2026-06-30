@@ -66,28 +66,39 @@ P1 已完成增量（2026-06-10）：
 
 - 已接入一个真实 Humanoid 角色 `teacher_humanoid_v1`，使用 Quaternius / Poly Pizza 授权为 CC0 的 `Business Man` 模型。
 - 已建立真实角色导入目录、授权记录、模型体量记录和 prefab 制作脚本。
-- 已配置 `AvatarCommonHumanoid.controller`，提供统一 `Idle` / `Think` / `Speak` 动作协议。
+- 已配置 `AvatarCommonHumanoid.controller`，提供统一 `Idle` / `Think` / `Speak` / `Talk` 动作协议；`Speak` 保留首次开场挥手，`Talk` 使用 head-only mask 后的外部 `Rig|Idle_Talking_Loop` 作为后续对话微动作。
 - 已新增 `AvatarAnimationDriver`，让不同 Humanoid 角色外观复用同一套动作触发层。
 - 已新增 `AvatarPropCatalog.asset`、`book_prop_v1.prefab`、`AvatarPropPresenter` 和 `AvatarAttachmentSockets`，把角色外观与职业道具素材解耦。
-- 已将 teacher 的 book 从角色 prefab 内移出，改为运行时挂载到 Humanoid `LeftHand` socket。
+- 已将 teacher 的 book 从角色 prefab 内移出，保留为可选运行时 prop，不再默认随人物生成。
 - 已接入第二个真实 Humanoid 角色 `barista_humanoid_v1`，使用 Quaternius / Poly Pizza 授权为 CC0 的 `Animated Woman` 模型。
 - 已接入第三个真实 Humanoid 角色 `police_humanoid_v1`，使用 Quaternius / Poly Pizza 授权为 CC0 的 `SWAT` 模型。
-- 已接入 `frappe_prop_v1`，使用 Kenney / Poly Pizza 授权为 CC0 的 `Frappe` OBJ 模型，并作为 barista 默认右手道具。
+- 已接入 `frappe_prop_v1`，使用 Kenney / Poly Pizza 授权为 CC0 的 `Frappe` OBJ 模型；当前默认演示不再随人物挂载 props。
 - 已在 `AvatarPropPresenter` 中补偿 Humanoid 骨骼挂点的 parent scale，避免道具因导入骨骼缩放被放大或偏移。
 - 已验证 teacher fixed payload 能加载真实模型、触发共享动作，并能在资源缺失时回退 placeholder。
-- 已验证 barista fixed payload 能加载真实模型、触发共享动作、挂载 frappe 道具，并能在资源缺失时回退 placeholder。
+- 已验证 barista fixed payload 能加载真实模型、触发共享动作，并能在资源缺失时回退 placeholder。
 - 已验证 police fixed payload 能加载 `police_humanoid_v1`，Humanoid Avatar 为 `isValid=True` / `isHuman=True`，并继续保留 `police_default` fallback。
 
 P1 调整与验证（2026-06-11）：
 
 - 已将 Demo Rig 的 `AvatarRoot` 默认缩放从 `0.8` 调整为 `1.25`，让真实 Humanoid 角色在当前相机/桌面场景中更易读。
 - 已微调 `frappe_prop_v1` 的右手 socket 偏移、旋转和缩放，使它贴近 barista 右手；Play Mode 验证中 frappe 与右手距离约 `0.021m`。
-- Play Mode 固定 coffee-shop payload 验证：`barista_humanoid_v1` 加载成功，`frappe_prop_v1` 挂到 `Wrist.R`，角色外观与手持道具链路正常。
+- 2026-06-17 调整：人物生成默认不再挂载 props，Demo Rig 不再默认添加 `AvatarPropPresenter`；`AvatarPresentationVoiceModule.attachProps` 默认为关闭，仅保留未来重新启用的开关。
+- Play Mode 固定 coffee-shop payload 验证：`barista_humanoid_v1` 加载成功，角色外观链路正常；默认不生成 `frappe_prop_v1`。
+
+与 Vitor 多轮交互框架集成（2026-06-29）：
+
+- 已合入 Vitor 的 `SceneTalkOrchestrator.IsDialogueActive` / `StartDialogueTurn()` 框架；初始场景和 Avatar 生成后，后续每一轮对话会继续调用 `ISceneTalkAvatarVoice.PresentReply(...)`。
+- `AvatarPresentationVoiceModule` 已保留 Vitor 的 `currentAvatarKey` 复用逻辑：连续回合中如果 resolver 命中同一个 Avatar key，不重复销毁和重新加载角色，只刷新道具状态并继续播放回复。
+- 初始回复会通过 `ISceneTalkAvatarReplyContext.SetReplyContext(true)` 保持 `Speak` 挥手动作；同场景后续回复会通过 `SetReplyContext(false)` 触发 `Talk` talking loop，避免 Avatar 每句话都挥手。
+- `Talk` 使用 Quaternius `Animated Base Character` 的 `Rig|Idle_Talking_Loop`，但只通过 `AvatarTalkGesture.mask` 作用在头部；body/root/legs/arms/fingers 保持基础 idle，避免 full-body retarget 和手臂姿态造成角色变形或怪异 pose。
+- 已更新 `SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway`，在不重建场景的情况下也会重新绑定 `AvatarPresentationVoiceModule.defaultAnimatorController` 和 `AvatarAnimationDriver`，避免已有 rig 中 Avatar 不播放动作。
+- `AvatarPresentationVoiceModule.attachProps` 仍作为默认关闭的道具开关；无论新加载 Avatar 还是复用当前 Avatar，都会先清理 props，并且只有显式启用 `attachProps` 时才重新挂载 props。
+- Edwin 的 Avatar 侧支持“连续回合中的 Avatar 复用和回复呈现”，但不负责 LLM 对话记忆、角色连续性策略或 Prompt。若后续回合需要保持同一角色语义，应由 Spring 的 Brain 在 payload 中稳定输出对应 `avatarRole` / `appearance` 字段。
 
 后续仍未完成：
 
 - 若后续课程/demo 需要更多场景覆盖，可继续接入 `student_humanoid_v1` 或 `tourist_humanoid_v1`，但这不再阻塞 Avatar P1。
-- 还未接入更多可复用咖啡店道具，例如 coffee cup、tray、menu board；用户已确认道具不是当前重点。
+- props 当前不是演示重点，默认关闭；若后续重新需要道具，再通过 `AvatarPresentationVoiceModule.attachProps` 和 `AvatarPropPresenter` 显式启用。
 - 还未实现 Addressables 加载；这属于 P2，不是 P1 的必要前置。
 - 口型同步属于后续增强项，不阻塞 P1 真实模型替换。
 - UI 中 `Retry` 按钮目前只在 Error 状态有实际作用，但用户已确认这不是当前重点。
@@ -117,7 +128,7 @@ Avatar 子系统拆成若干小模块，而不是做成一个大脚本：
 - `IAvatarInstanceLoader`：加载 Avatar 实例的抽象接口。
 - `PrefabAvatarInstanceLoader`：第一阶段使用的本地 Prefab 加载器。
 - `AvatarPresentationVoiceModule`：挂到场景中的运行时呈现模块，当前同时负责 Avatar 呈现和 demo 语音播放。
-- `AvatarAnimationDriver`：统一触发 Humanoid `Idle` / `Think` / `Speak` 动作协议。
+- `AvatarAnimationDriver`：统一触发 Humanoid `Idle` / `Think` / `Speak` / `Talk` 动作协议。
 - `AvatarPropCatalog`：登记可复用道具资源，例如 book、coffee cup、tray、pointer。
 - `AvatarPropPresenter`：根据 `SpringScenePayload`、角色 role 和 appearance accessories 给当前 Avatar 挂载道具。
 - `AvatarAttachmentSockets`：为角色提供 `LeftHand`、`RightHand`、`Chest`、`Head` 等挂点，优先使用 Humanoid 骨骼。
@@ -489,6 +500,7 @@ public interface IAvatarInstanceLoader
 - 清理上一轮 Avatar。
 - 调用 resolver。
 - 调用 loader。
+- 在连续回合中复用同一个 `avatarKey` 对应的当前 Avatar，避免同角色重复加载。
 - 设置位置、朝向和缩放。
 - 绑定 Animator。
 - 触发 idle/thinking/speaking 动画。
@@ -532,7 +544,7 @@ flowchart TD
     Resolver --> Resolution["AvatarResolutionResult"]
     Resolution --> Loader["IAvatarInstanceLoader"]
     Loader --> AvatarGO["Avatar GameObject"]
-    AvatarGO --> Animator["Animator / Idle / Think / Speak"]
+    AvatarGO --> Animator["Animator / Idle / Think / Speak / Talk"]
     AvatarModule --> Audio["AudioSource / Demo Audio"]
 ```
 
@@ -590,8 +602,10 @@ flowchart TD
 - [x] 将真实 prefab 登记到 `AvatarCatalog.asset`，并通过 priority 让其优先于 placeholder 命中。
 - [x] 保留 `barista_default`、`teacher_default`、`police_default` 作为 fallback。
 - [x] Play Mode 验证 demo/fixed payload 能加载真实角色，资源缺失时仍能回退 placeholder。
-- [x] 建立 `AvatarPropCatalog.asset`、`book_prop_v1`、`frappe_prop_v1` 和 Humanoid socket 挂载规则。
-- [x] 调整 Demo Rig 角色缩放和 frappe 右手挂点，验证 barista fixed payload 中角色和道具均可正常呈现。
+- [x] 建立 `AvatarPropCatalog.asset`、`book_prop_v1`、`frappe_prop_v1` 和 Humanoid socket 挂载规则；当前默认不启用 props。
+- [x] 调整 Demo Rig 角色缩放，验证 barista fixed payload 中角色可正常呈现且默认不生成 props。
+- [x] 与 Vitor 多轮交互框架合并后，保留同 Avatar key 复用逻辑，并让 `attachProps` 在新加载和复用路径中一致生效。
+- [x] 首次 Avatar 回复继续 `Speak`/`Wave`，同场景后续回复切换为 `Talk`；外部 Quaternius `Idle_Talking_Loop` 已改为 head-only masked layer，保留轻微说话感并避免 full-body retarget 与手臂怪异 pose。
 - [x] 记录 P1 验证结果和下一批角色扩展建议。
 
 ## 10. 验收标准
@@ -673,12 +687,12 @@ LLM 可能输出不存在的字段、拼写错误或不支持的角色。
 
 ## 13. 推荐下一步
 
-P1 当前已经跑通三个真实 Humanoid 外观和两个可复用道具。下一步建议先收口验证与轻量性能检查，仍保持现有架构边界，不接 LLM、Prompt 或真实 STT/TTS。
+P1 当前已经跑通三个真实 Humanoid 外观。props 资源保留但默认关闭。下一步建议先收口验证与轻量性能检查，仍保持现有架构边界，不接 LLM、Prompt 或真实 STT/TTS。
 
 推荐顺序：
 
 1. 做一次 P1 收口验收：teacher / barista / police 三个 fixed payload 逐个加载，确认 resolver 命中真实 prefab，缺资源时仍回退 placeholder。
 2. 做一次 PICO 4 或移动端目标配置下的渲染预算检查，重点看 draw calls、材质数量和加载耗时。
-3. 若仍需扩展素材，再接入更多可复用道具，例如 `coffee_cup_prop_v1`、`tray_prop_v1`、`menu_prop_v1`，全部登记到 `AvatarPropCatalog.asset`。
-4. 为常用道具补轻量 socket offset 调参记录，避免不同 Humanoid 骨骼缩放造成摆放偏移。
+3. 若重新需要 props，再显式打开 `AvatarPresentationVoiceModule.attachProps` 并接入更多可复用道具，例如 `coffee_cup_prop_v1`、`tray_prop_v1`、`menu_prop_v1`。
+4. 若启用 props，再为常用道具补轻量 socket offset 调参记录，避免不同 Humanoid 骨骼缩放造成摆放偏移。
 5. P1 资源稳定后，再进入 P2 Addressables，把角色和道具从直接 prefab 引用升级为可打包/可缓存加载。
