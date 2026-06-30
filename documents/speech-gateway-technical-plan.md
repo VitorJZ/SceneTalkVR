@@ -40,7 +40,7 @@ P0 最小实现已经完成。当前完成范围是 Unity Editor + 后端语音�
 - 已新增 Unity 侧 `MicrophoneRecorder`，可录制默认麦克风音频，编码为 16-bit WAV base64 并随 STT 请求上传到语音网关。
 - 已扩展 Unity 侧 `VoiceGatewayClient`，可调用 `/api/voice/tts` 并下载返回的 WAV 音频为 `AudioClip`；后端 provider 可切换为 mock 或 tencent。
 - 已扩展 `AvatarPresentationVoiceModule`，可优先播放语音网关 TTS 音频，失败时回退 demo 音频或 fallback 等待。
-- 已新增 `SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway`，可重建一个同时使用语音网关 STT adapter 和 TTS 播放的 demo rig；原 `Rebuild Demo Rig` 仍保持离线 demo 输入。
+- 已新增 `SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway`，可在现有 demo rig 上只切换语音网关 STT adapter 和 TTS 播放；原 `Rebuild Demo Rig` 仍保持离线 demo 输入。
 - 已新增 `VoiceGatewaySettings.asset`，用于集中配置语音网关地址；团队开发时可把地址改为运行网关那台电脑的局域网 IP。
 - 已新增后端 `TencentSpeechProvider`，通过腾讯云 API 3.0 签名调用 ASR `SentenceRecognition` 和 TTS `TextToVoice`。
 - 已支持 `VOICE_GATEWAY_PROVIDER=mock|tencent` 切换，腾讯云密钥只从后端环境变量读取。
@@ -50,6 +50,13 @@ P0 最小实现已经完成。当前完成范围是 Unity Editor + 后端语音�
 - 已修正 P0 demo rig 的 `AvatarRoot` 默认位置、朝向和缩放，避免 Avatar 过近、背向镜头或遮挡字幕。
 - 尚未实现流式播放、打断、缓存和日志脱敏。
 - 尚未实现真实口型同步。P0 只要求音频播放和 speaking 动画触发稳定。
+
+与 Vitor 多轮交互框架集成（2026-06-29）：
+
+- 已合入 Vitor 的 `SceneTalkOrchestrator.IsDialogueActive` / `StartDialogueTurn()` 框架；初始确认生成场景后，用户可在同一场景中继续触发下一轮 `CaptureSpeech(...) -> GenerateSceneAndReply(...) -> PresentReply(...)`。
+- Edwin 语音侧 adapter 仍按“每一轮一次 STT、每一轮一次 TTS”工作：`GatewaySpeechInputModule` 负责当前轮录音和 transcript，`AvatarPresentationVoiceModule` 负责当前轮 reply 的 TTS 和播放完成回调。
+- 当前 Unity Brain 接口仍是 `GenerateSceneAndReply(string userText, ...)`；语音网关不保存 LLM 对话历史，也不决定上下文记忆。后续如果需要代词理解、连续纠错或长期任务状态，应由 Spring 的 LLM/Brain 层维护 history，并在必要时扩展 Brain 接口或 session 协议。
+- 因此 Edwin 当前可表述为：语音与 Avatar 播放链路已可被连续回合框架重复调用，但 Edwin 不负责“LLM 记住前几轮说过什么”。
 
 当前推荐下一步进入 P1：PICO 真机麦克风/播放验证、录音结束策略、实时转写体验和更细的错误恢复。
 
@@ -74,7 +81,7 @@ Edwin 不负责：
 - Avatar 真实模型资产采购、外观 prefab 制作和角色预设库美术生产。Edwin 只负责语音驱动入口和后续口型同步对接，不负责模型本身。
 - 云厂商账号归属和团队密钥发放流程。Edwin 文档中只说明安全接入方式：密钥留在后端网关主机，不进入 Unity 工程。
 
-当前 P0 已完成的是 Edwin 语音侧最小闭环：用户说一段话，腾讯云 ASR 返回 transcript，现有 Brain 生成一次回复，腾讯云 TTS 返回音频，Unity 播放 Avatar 回复。它还不是带 LLM 对话记忆的连续多轮对话；连续对话需要 Spring 的多轮 Brain 和 Vitor/Orchestrator 的循环交互共同配合。
+当前 P0 已完成的是 Edwin 语音侧最小闭环：用户说一段话，腾讯云 ASR 返回 transcript，现有 Brain 生成一次回复，腾讯云 TTS 返回音频，Unity 播放 Avatar 回复。合入 Vitor 的多轮交互框架后，这条语音链路可以在同一场景中被一轮一轮重复调用；但它仍不是带 LLM 对话记忆的完整多轮智能，对话历史、Prompt 和上下文策略仍属于 Spring 的 LLM/Brain 职责。
 
 ## 3. 总体设计原则
 
@@ -183,11 +190,11 @@ P0 成功后再逐步引入实时 STT partial、TTS 分段播放和 barge-in 打
 
 P0 阶段的音频可以先使用整段上传和整段播放。重点不是最低延迟，而是架构边界、鉴权安全和真实可用性。
 
-当前状态：P0 已完成。验证范围是 Unity Editor + 后端语音网关 + 腾讯云 ASR/TTS。PICO 真机验证和连续多轮对话不计入 P0 完成条件。
+当前状态：P0 已完成。验证范围是 Unity Editor + 后端语音网关 + 腾讯云 ASR/TTS。Vitor 的连续回合框架已合入并可重复调用 Edwin 的 STT/TTS adapter，但 PICO 真机验证、LLM 对话记忆和自动打断不计入 P0 完成条件。
 
 ### 4.2 P1：Edwin 语音体验增强
 
-目标：降低用户说完话后的等待时间，让语音模块具备下一阶段连续对话所需的录音、播放和错误恢复能力。P1 不实现 LLM 对话记忆，只向上游 Brain/Orchestrator 提供更稳定的语音输入输出。
+目标：降低用户说完话后的等待时间，让语音模块在 Vitor 的连续回合框架中具备更稳定的录音、播放和错误恢复能力。P1 不实现 LLM 对话记忆，只向上游 Brain/Orchestrator 提供每一轮可靠的语音输入输出和播放完成信号。
 
 需要完成：
 
@@ -599,8 +606,9 @@ flowchart TD
 - [x] 支持从网关下载音频并转换为 `AudioClip`。
 - [x] 支持 TTS 播放时触发 speaking 动画。
 - [x] 支持失败时回退 demo transcript 或 demo audio。
-- [x] 更新 setup menu，新增 `SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway` 入口挂载网关 STT 模块。
+- [x] 更新 setup menu，新增 `SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway` 入口，只挂载/切换语音网关 STT/TTS 模块，不重建场景生成配置。
 - [x] 新增 `VoiceGatewaySettings.asset`，集中配置 `gatewayBaseUrl`。
+- [x] 与 Vitor 多轮交互框架合并后，确认 `GatewaySpeechInputModule` 和 `AvatarPresentationVoiceModule` 可以按回合被重复调用。
 
 ### 9.4 验证任务
 
@@ -617,7 +625,8 @@ flowchart TD
 
 - [ ] Spring：实现 LLM 多轮对话记忆、Prompt、上下文管理和回复策略。
 - [ ] Spring：实现场景生成、Holodeck/360 Skybox 接入和场景布局数据生产。
-- [ ] Vitor：实现 PICO SDK 环境、XR 交互、VR UI、最终打包和主状态机交互体验。
+- [x] Vitor：提供同一场景中连续触发下一轮的 Orchestrator/UI 框架。
+- [ ] Vitor：实现 PICO SDK 环境、XR 交互、最终打包和主状态机真机交互体验。
 - [ ] 场景/呈现链路：补齐 `coffee_table`、`menu` 等 prefab binding。
 - [ ] Avatar 资产链路：采购或制作真实 humanoid 模型、角色 prefab 和美术预设库。
 
@@ -644,7 +653,7 @@ Edwin 语音 P1 阶段完成时，应满足：
 - 用户说完后 STT final transcript 延迟可被量化。
 - 语音网关具备结构化 provider、耗时、错误码、fallback 和成本相关日志。
 - 云服务失败、空 transcript 和 TTS 下载失败都能进入可恢复 fallback。
-- Avatar TTS 播放结束后，语音模块能给 Orchestrator 明确完成信号，便于后续进入下一轮。
+- Avatar TTS 播放结束后，语音模块能给 Orchestrator 明确完成信号，确保 Vitor 的连续回合框架能在下一次用户触发时安全进入录音。
 
 Edwin 语音 P2 阶段完成时，应满足：
 
@@ -747,7 +756,7 @@ P0 最小真实链路已经完成。建议下一步进入 Edwin 语音 P1 验证
 2. 增加手动结束录音、静音结束或基础 VAD，避免固定录音时长影响交互。
 3. 增加结构化日志：字符数、音频时长、错误码、单次练习估算成本。
 4. 明确云服务失败时的 UI 提示和 demo fallback 行为。
-5. 给 Orchestrator 暴露清晰的语音轮次完成信号，方便 Vitor/Spring 后续接连续对话。
+5. 继续强化 Avatar TTS 播放完成信号和录音禁用时机，确保 Vitor 的连续回合框架不会在 Avatar 还没说完时误触发下一轮。
 6. 再评估是否接入腾讯云实时 ASR WebSocket、TTS 分段播放和 barge-in 打断。
 
 如果时间紧，优先保证：
@@ -770,7 +779,7 @@ P0 最小真实链路已经完成。建议下一步进入 Edwin 语音 P1 验证
 当前可写入 Codex 记忆的项目事实：
 
 - SceneTalkVR 的 Edwin 语音 P0 已完成：Unity Editor 中通过 voice-gateway + 腾讯云 ASR/TTS 跑通“用户说一句 -> transcript -> Avatar TTS 回复一句”的真实 turn-based 闭环。
-- 当前不是连续多轮 LLM 对话：没有 LLM 对话历史，也没有 Avatar 说完自动进入下一轮的完整会话循环。
+- 当前已合入 Vitor 的连续回合框架：同一场景中可以一轮一轮触发 STT -> Brain -> TTS -> Avatar 回复；但还不是带 LLM 对话历史的完整多轮智能。
 - Edwin P1 只聚焦语音侧：PICO 录音/播放验证、手动结束或基础 VAD、结构化语音日志、错误恢复、fallback、语音轮次完成信号。
 - 不要把 `coffee_table` / `menu` prefab binding、场景生成、LLM 上下文记忆、PICO SDK 环境和最终打包算作 Edwin 语音任务。
 
@@ -779,7 +788,7 @@ P0 最小真实链路已经完成。建议下一步进入 Edwin 语音 P1 验证
 ```text
 你在 /Users/edwin/Documents/PROJECTS/Unity/SceneTalkVR 继续 SceneTalkVR 的 Edwin 语音模块 P1。先阅读 documents/conversation.md 和 documents/speech-gateway-technical-plan.md，严格按 Edwin 分工边界工作：只做 STT/TTS/voice-gateway/Unity 语音 adapter/语音体验增强，不做 Spring 的 LLM 对话记忆与场景生成，不做 Vitor 的 PICO SDK/VR UI/打包，不处理 coffee_table/menu prefab binding。
 
-当前 P0 已完成：Unity Editor 已通过 Server/voice-gateway + 腾讯云 ASR/TTS 跑通真实 turn-based 闭环，用户说一句话后返回 transcript，现有 Brain 生成一次回复，Avatar 通过腾讯云 TTS 播放一句回复。P0 不是连续多轮对话。
+当前 P0 已完成：Unity Editor 已通过 Server/voice-gateway + 腾讯云 ASR/TTS 跑通真实 turn-based 闭环，用户说一句话后返回 transcript，现有 Brain 生成一次回复，Avatar 通过腾讯云 TTS 播放一句回复。Vitor 的连续回合框架已合入，可在同一场景中重复调用这条语音链路；但 LLM 对话历史仍未实现。
 
 P1 目标：实现并验证 Edwin 语音侧体验增强，包括手动结束录音或基础静音/VAD、PICO 4 录音/上传/STT/TTS 播放验证、结构化 provider/latency/error/fallback 日志、失败 fallback、语音轮次完成信号。保持旧 demo path 可用，不泄露腾讯云密钥，不扩大改动范围。每一步完成后同步更新 documents/speech-gateway-technical-plan.md。
 ```

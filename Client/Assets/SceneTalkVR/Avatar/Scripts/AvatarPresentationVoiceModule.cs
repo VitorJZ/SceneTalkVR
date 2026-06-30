@@ -6,14 +6,18 @@ using UnityEngine;
 
 namespace SceneTalkVR.AvatarSystem
 {
-    public sealed class AvatarPresentationVoiceModule : MonoBehaviour, ISceneTalkAvatarVoice
+    public sealed class AvatarPresentationVoiceModule : MonoBehaviour, ISceneTalkAvatarVoice, ISceneTalkAvatarReplyContext, ISceneTalkAvatarSessionReset
     {
+        private const string DefaultFollowUpSpeakingTrigger = "Talk";
+
         [Header("Avatar Resolution")]
         [SerializeField] private AvatarPresetResolver resolver;
         [SerializeField] private MonoBehaviour loaderModule;
         [SerializeField] private Transform avatarRoot;
         [SerializeField] private bool continueWithoutAvatar = true;
+        [SerializeField] private bool attachProps;
         [SerializeField] private AvatarPropPresenter propPresenter;
+        [SerializeField] private AvatarPropCatalog propCatalog;
 
         [Header("Demo Voice")]
         [SerializeField] private AudioSource audioSource;
@@ -35,12 +39,51 @@ namespace SceneTalkVR.AvatarSystem
         [SerializeField] private Animator fallbackAnimator;
         [SerializeField] private string thinkingTrigger = "Think";
         [SerializeField] private string speakingTrigger = "Speak";
+        [SerializeField] private string followUpSpeakingTrigger = "Talk";
 
         private GameObject currentAvatar;
         private Animator currentAnimator;
         private string currentAvatarKey;
+        private bool isOpeningReply = true;
 
         private IAvatarInstanceLoader Loader => loaderModule as IAvatarInstanceLoader;
+
+        public void SetReplyContext(bool isOpeningReply)
+        {
+            this.isOpeningReply = isOpeningReply;
+        }
+
+        public void ClearAvatar()
+        {
+            if (audioSource != null)
+            {
+                audioSource.Stop();
+                audioSource.clip = null;
+            }
+
+            var props = ResolvePropPresenter(false);
+            if (props != null)
+            {
+                props.ClearProps();
+            }
+
+            var avatarToDestroy = currentAvatar;
+            currentAvatar = null;
+            currentAnimator = null;
+            currentAvatarKey = string.Empty;
+            isOpeningReply = true;
+
+            var driver = ResolveAnimationDriver();
+            if (driver != null)
+            {
+                driver.BindAnimator(null);
+            }
+
+            if (avatarToDestroy != null)
+            {
+                DestroyAvatarObject(avatarToDestroy);
+            }
+        }
 
         public IEnumerator PresentReply(SpringScenePayload payload, Action onComplete, Action<string> onError)
         {
@@ -68,7 +111,7 @@ namespace SceneTalkVR.AvatarSystem
             yield return null;
 
             Debug.Log($"[SceneTalkVR] Avatar reply: {payload.dialogueReply}", this);
-            TriggerSpeaking();
+            TriggerSpeaking(isOpeningReply);
 
             var playedAudio = false;
             if (useVoiceGatewayTts)
@@ -130,7 +173,7 @@ namespace SceneTalkVR.AvatarSystem
             if (currentAvatar != null
                 && string.Equals(currentAvatarKey, resolution.avatarKey, StringComparison.OrdinalIgnoreCase))
             {
-                PresentProps(payload, currentAvatar);
+                RefreshProps(payload, currentAvatar);
                 yield break;
             }
 
@@ -258,12 +301,6 @@ namespace SceneTalkVR.AvatarSystem
 
         private void ReplaceCurrentAvatar(GameObject loadedAvatar, SpringScenePayload payload, string avatarKey)
         {
-            var props = ResolvePropPresenter();
-            if (props != null)
-            {
-                props.ClearProps();
-            }
-
             if (currentAvatar != null && currentAvatar != loadedAvatar)
             {
                 Destroy(currentAvatar);
@@ -278,39 +315,92 @@ namespace SceneTalkVR.AvatarSystem
             if (driver != null)
             {
                 driver.BindAnimator(currentAnimator);
+                driver.PlayIdle();
             }
 
-            if (props != null)
-            {
-                PresentProps(payload, currentAvatar);
-            }
+            RefreshProps(payload, currentAvatar);
         }
 
-        private void PresentProps(SpringScenePayload payload, GameObject avatar)
+        private static void DestroyAvatarObject(GameObject avatar)
         {
-            var props = ResolvePropPresenter();
-            if (props != null)
-            {
-                props.PresentProps(payload, avatar);
-            }
-        }
-
-        private void EnsureAnimatorController(Animator animator)
-        {
-            if (animator == null || animator.runtimeAnimatorController != null || defaultAnimatorController == null)
+            if (avatar == null)
             {
                 return;
             }
 
-            animator.runtimeAnimatorController = defaultAnimatorController;
-            animator.applyRootMotion = false;
+            if (Application.isPlaying)
+            {
+                Destroy(avatar);
+            }
+            else
+            {
+                DestroyImmediate(avatar);
+            }
         }
 
-        private AvatarPropPresenter ResolvePropPresenter()
+        private void RefreshProps(SpringScenePayload payload, GameObject avatar)
+        {
+            var props = ResolvePropPresenter(attachProps);
+            if (props == null)
+            {
+                return;
+            }
+
+            props.ClearProps();
+            if (!attachProps)
+            {
+                return;
+            }
+
+            if (propCatalog != null)
+            {
+                props.SetCatalog(propCatalog);
+            }
+
+            if (!props.HasCatalog)
+            {
+                Debug.LogWarning("[SceneTalkVR] Avatar props are enabled, but no AvatarPropCatalog is assigned.", this);
+                return;
+            }
+
+            props.PresentProps(payload, avatar);
+        }
+
+        private bool EnsureAnimatorController(Animator animator)
+        {
+            if (animator == null)
+            {
+                return false;
+            }
+
+            if (animator.runtimeAnimatorController != null && animator.layerCount > 0)
+            {
+                return true;
+            }
+
+            if (defaultAnimatorController == null)
+            {
+                Debug.LogWarning("[SceneTalkVR] Avatar Animator has no controller and no default controller is assigned.", this);
+                return false;
+            }
+
+            animator.runtimeAnimatorController = defaultAnimatorController;
+            animator.applyRootMotion = false;
+            animator.Rebind();
+            animator.Update(0f);
+            return animator.runtimeAnimatorController != null && animator.layerCount > 0;
+        }
+
+        private AvatarPropPresenter ResolvePropPresenter(bool createIfMissing)
         {
             if (propPresenter == null)
             {
                 propPresenter = GetComponent<AvatarPropPresenter>();
+            }
+
+            if (propPresenter == null && createIfMissing)
+            {
+                propPresenter = gameObject.AddComponent<AvatarPropPresenter>();
             }
 
             return propPresenter;
@@ -318,6 +408,8 @@ namespace SceneTalkVR.AvatarSystem
 
         private void TriggerThinking()
         {
+            EnsureAnimatorController(currentAnimator);
+
             var driver = ResolveAnimationDriver();
             if (driver != null)
             {
@@ -328,16 +420,39 @@ namespace SceneTalkVR.AvatarSystem
             TriggerAnimationLegacy(thinkingTrigger);
         }
 
-        private void TriggerSpeaking()
+        private void TriggerSpeaking(bool openingReply)
         {
+            EnsureAnimatorController(currentAnimator);
+
             var driver = ResolveAnimationDriver();
             if (driver != null)
             {
-                driver.PlaySpeaking();
-                return;
+                var played = openingReply
+                    ? driver.PlaySpeaking()
+                    : driver.PlayFollowUpSpeaking();
+
+                if (played || openingReply)
+                {
+                    return;
+                }
+
+                if (driver.PlaySpeaking())
+                {
+                    return;
+                }
             }
 
-            TriggerAnimationLegacy(speakingTrigger);
+            var triggerName = openingReply
+                ? speakingTrigger
+                : ResolveFollowUpSpeakingTrigger();
+            TriggerAnimationLegacy(triggerName);
+        }
+
+        private string ResolveFollowUpSpeakingTrigger()
+        {
+            return string.IsNullOrWhiteSpace(followUpSpeakingTrigger)
+                ? DefaultFollowUpSpeakingTrigger
+                : followUpSpeakingTrigger;
         }
 
         private AvatarAnimationDriver ResolveAnimationDriver()

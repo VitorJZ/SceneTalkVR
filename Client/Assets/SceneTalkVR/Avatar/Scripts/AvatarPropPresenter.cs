@@ -13,6 +13,13 @@ namespace SceneTalkVR.AvatarSystem
 
         private readonly List<GameObject> currentProps = new List<GameObject>();
 
+        public bool HasCatalog => catalog != null;
+
+        public void SetCatalog(AvatarPropCatalog propCatalog)
+        {
+            catalog = propCatalog;
+        }
+
         public void PresentProps(SpringScenePayload payload, GameObject avatar)
         {
             ClearProps();
