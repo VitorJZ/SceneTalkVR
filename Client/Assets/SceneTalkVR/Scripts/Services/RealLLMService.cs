@@ -145,6 +145,10 @@ namespace SceneTalkVR.Runtime.Services
                 if (response != null && response.choices != null && response.choices.Length > 0)
                 {
                     var content = response.choices[0].message.content;
+                    
+                    // Clean content by stripping <think>...</think> reasoning blocks
+                    content = CleanJsonString(content);
+                    
                     Debug.Log($"[RealLLMService] Dialogue Turn Reply: {content}");
                     
                     chatHistory.Add(new OpenAiMessage { role = "assistant", content = content });
