@@ -271,6 +271,15 @@ namespace SceneTalkVR.Runtime.Services
         private string CleanJsonString(string json)
         {
             if (string.IsNullOrEmpty(json)) return json;
+
+            // Strip <think>...</think> reasoning blocks if present
+            int thinkEndIdx = json.IndexOf("</think>", StringComparison.OrdinalIgnoreCase);
+            if (thinkEndIdx >= 0)
+            {
+                json = json.Substring(thinkEndIdx + 8);
+            }
+            
+            json = json.Trim();
             
             if (json.StartsWith("```json")) json = json.Substring(7);
             else if (json.StartsWith("```")) json = json.Substring(3);
