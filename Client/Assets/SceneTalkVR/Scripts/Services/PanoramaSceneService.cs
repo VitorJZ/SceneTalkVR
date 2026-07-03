@@ -17,7 +17,7 @@ namespace SceneTalkVR.Runtime.Services
         private const string SiliconFlowUrl = "https://api.siliconflow.cn/v1/images/generations";
         
         [Header("API Configuration")]
-        [SerializeField] private string apiKey = "sk-azcoikjkgvfzqcpytdlvjnemnxnvcqnhghlnsvtgfugoqblv";
+        [SerializeField] private string apiKey = "";
         [SerializeField] private string modelName = "Tongyi-MAI/Z-Image";
         [SerializeField] private string imageSize = "1024x1024";
 
