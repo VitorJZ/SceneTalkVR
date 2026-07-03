@@ -33,6 +33,8 @@ namespace SceneTalkVR.Runtime.Services
         [Tooltip("If enabled, renders background inside a 3D Sphere in the scene to allow scaling.")]
         [SerializeField] private bool useSkySphere = false;
         [SerializeField] private float skySphereScale = 20.0f;
+        [Tooltip("Physical position offset of the Sky Sphere. Lowering Y (e.g. -1.6) aligns the panorama floor with physical ground.")]
+        [SerializeField] private Vector3 skySpherePositionOffset = new Vector3(0f, -1.6f, 0f);
         [SerializeField] private Material skySphereMaterial;
 
         private GameObject skySphereInstance;
@@ -42,6 +44,7 @@ namespace SceneTalkVR.Runtime.Services
             if (useSkySphere && skySphereInstance != null)
             {
                 skySphereInstance.transform.localScale = Vector3.one * skySphereScale;
+                skySphereInstance.transform.position = skySpherePositionOffset;
             }
         }
 
@@ -196,7 +199,7 @@ namespace SceneTalkVR.Runtime.Services
                 }
 
                 skySphereInstance.SetActive(true);
-                skySphereInstance.transform.position = Vector3.zero;
+                skySphereInstance.transform.position = skySpherePositionOffset;
                 skySphereInstance.transform.localScale = Vector3.one * skySphereScale;
 
                 var renderer = skySphereInstance.GetComponent<Renderer>();
