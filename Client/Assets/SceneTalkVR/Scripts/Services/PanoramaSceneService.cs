@@ -25,8 +25,34 @@ namespace SceneTalkVR.Runtime.Services
         [SerializeField] private Texture2D fallbackTexture;
         [SerializeField] private string localFallbackPath = "SceneTalkVR/Textures/FallbackPanorama";
 
+        [Header("Debug Controls")]
+        [Tooltip("If enabled, bypasses SiliconFlow API and forces using local fallback panorama.")]
+        [SerializeField] private bool forceUseFallback = false;
+
+        [Header("Sky Sphere Settings")]
+        [Tooltip("If enabled, renders background inside a 3D Sphere in the scene to allow scaling.")]
+        [SerializeField] private bool useSkySphere = false;
+        [SerializeField] private float skySphereScale = 20.0f;
+        [SerializeField] private Material skySphereMaterial;
+
+        private GameObject skySphereInstance;
+
+        private void Update()
+        {
+            if (useSkySphere && skySphereInstance != null)
+            {
+                skySphereInstance.transform.localScale = Vector3.one * skySphereScale;
+            }
+        }
+
         public async Task<Texture2D> GenerateSkyboxAsync(string environmentDescription)
         {
+            if (forceUseFallback)
+            {
+                Debug.Log("[PanoramaSceneService] Force Use Fallback is enabled. Loading local fallback.");
+                return LoadLocalFallback();
+            }
+
             string effectiveKey = string.IsNullOrEmpty(apiKey) 
                 ? Environment.GetEnvironmentVariable("SILICONFLOW_API_KEY") 
                 : apiKey;
@@ -132,20 +158,88 @@ namespace SceneTalkVR.Runtime.Services
         {
             if (texture == null) return;
 
-            var shader = Shader.Find("Skybox/Panoramic");
-            if (shader == null)
+            if (!useSkySphere)
             {
-                Debug.LogError("[PanoramaSceneService] Shader 'Skybox/Panoramic' not found.");
-                return;
+                if (skySphereInstance != null)
+                {
+                    skySphereInstance.SetActive(false);
+                }
+
+                var shader = Shader.Find("Skybox/Panoramic");
+                if (shader == null)
+                {
+                    Debug.LogError("[PanoramaSceneService] Shader 'Skybox/Panoramic' not found.");
+                    return;
+                }
+
+                var material = new Material(shader);
+                material.SetTexture("_MainTex", texture);
+                
+                RenderSettings.skybox = material;
+            }
+            else
+            {
+                RenderSettings.skybox = null; // Disable global skybox
+
+                if (skySphereInstance == null)
+                {
+                    skySphereInstance = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                    skySphereInstance.name = "SceneTalkVR_SkySphere";
+                    
+                    var col = skySphereInstance.GetComponent<Collider>();
+                    if (col != null)
+                    {
+                        DestroyImmediate(col); // Prevent blocking VR raycasts
+                    }
+
+                    InvertMeshNormals(skySphereInstance);
+                }
+
+                skySphereInstance.SetActive(true);
+                skySphereInstance.transform.position = Vector3.zero;
+                skySphereInstance.transform.localScale = Vector3.one * skySphereScale;
+
+                var renderer = skySphereInstance.GetComponent<Renderer>();
+                if (renderer != null)
+                {
+                    Material matInstance = skySphereMaterial != null 
+                        ? new Material(skySphereMaterial) 
+                        : new Material(Shader.Find("Unlit/Texture"));
+                    
+                    matInstance.mainTexture = texture;
+                    renderer.sharedMaterial = matInstance;
+                }
             }
 
-            var material = new Material(shader);
-            material.SetTexture("_MainTex", texture);
-            
-            RenderSettings.skybox = material;
             DynamicGI.UpdateEnvironment();
-            
-            Debug.Log("[PanoramaSceneService] Skybox updated successfully.");
+            Debug.Log("[PanoramaSceneService] Background applied successfully.");
+        }
+
+        private void InvertMeshNormals(GameObject go)
+        {
+            MeshFilter filter = go.GetComponent<MeshFilter>();
+            if (filter != null)
+            {
+                Mesh mesh = filter.mesh;
+                Vector3[] normals = mesh.normals;
+                for (int i = 0; i < normals.Length; i++)
+                {
+                    normals[i] = -normals[i];
+                }
+                mesh.normals = normals;
+
+                for (int m = 0; m < mesh.subMeshCount; m++)
+                {
+                    int[] triangles = mesh.GetTriangles(m);
+                    for (int i = 0; i < triangles.Length; i += 3)
+                    {
+                        int temp = triangles[i + 0];
+                        triangles[i + 0] = triangles[i + 1];
+                        triangles[i + 1] = temp;
+                    }
+                    mesh.SetTriangles(triangles, m);
+                }
+            }
         }
 
         [Serializable]
