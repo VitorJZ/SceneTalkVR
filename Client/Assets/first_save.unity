@@ -2346,51 +2346,7 @@ MonoBehaviour:
   spawnScale: 1
   autoCenterObjects: 1
   sceneOffset: {x: 0, y: 0, z: 2.5}
-  objectLibrary:
-  - key: coffee_counter
-    prefab: {fileID: 3578100829446289374, guid: 0275dc80e0ad8e047b96f52fc5a79d3f, type: 3}
-  - key: cafe_table
-    prefab: {fileID: 3260861638834122554, guid: 2462142bcda5dad45975add9996018e1, type: 3}
-  - key: chair
-    prefab: {fileID: 6883192621741307245, guid: 89332c33c06293b429a383f9e1383d18, type: 3}
-  - key: sofa
-    prefab: {fileID: 7169782441327115028, guid: e92f236a79af052448e39adec40a713d, type: 3}
-  - key: plant
-    prefab: {fileID: 646303662335392379, guid: c0bce8e8a06446b44b16b51ab9321513, type: 3}
-  - key: wall_shelf
-    prefab: {fileID: 1129514004662567314, guid: 68457096e061f2a4a9daa9a5ea0a94ce, type: 3}
-  - key: menu_board
-    prefab: {fileID: 5153793437013856097, guid: a538d25012a878d4b994bec66247a673, type: 3}
-  - key: cash_register
-    prefab: {fileID: 6382745072485444156, guid: 5616e8cb24f2b9b41888d5e87a99a5b3, type: 3}
-  - key: coffee_mug
-    prefab: {fileID: 6312753954431593307, guid: 317a033dec0d59f4f81b1a7063210dad, type: 3}
-  - key: lamp
-    prefab: {fileID: 8591947542421555118, guid: 5338455c13a03b14cb13b73f1dd22690, type: 3}
-  - key: bookshelf
-    prefab: {fileID: 4202775674775902662, guid: 4fb815fb259764b4badf3f45d52f115c, type: 3}
-  - key: airport_counter
-    prefab: {fileID: 1557396203416218281, guid: 751b68030fb9fb94899eb5a031cd9331, type: 3}
-  - key: airport_sign
-    prefab: {fileID: 5512241872697491558, guid: 5c0271f636a067445a89350a876f805e, type: 3}
-  - key: queue_barrier
-    prefab: {fileID: 6264817371174080245, guid: cd87231e1bbc0a546a51948e339d85dc, type: 3}
-  - key: office_desk
-    prefab: {fileID: 5596674627438918871, guid: 37d24f4fefb448445b069a9ff8a3ff49, type: 3}
-  - key: whiteboard
-    prefab: {fileID: 678207050815317122, guid: ef372d411bd1ee745a89744a3b37fb8d, type: 3}
-  - key: restaurant_table
-    prefab: {fileID: 7346300414029330897, guid: dd27c57f005cf7641a47e7c92175d183, type: 3}
-  - key: bed
-    prefab: {fileID: 2729855437879032726, guid: b619eb5a8d846c7469ff8e27b763f817, type: 3}
-  - key: cabinet
-    prefab: {fileID: 6032631631988530692, guid: 62a55bf2d40b39948b601e7a5b962804, type: 3}
-  - key: generic_table
-    prefab: {fileID: 3260861638834122554, guid: 2462142bcda5dad45975add9996018e1, type: 3}
-  - key: generic_chair
-    prefab: {fileID: 6883192621741307245, guid: 89332c33c06293b429a383f9e1383d18, type: 3}
-  - key: generic_decor
-    prefab: {fileID: 4745317698406133146, guid: f721fd48d5d7b8b40ba012f58c226db8, type: 3}
+  assetCatalog: {fileID: 11400000, guid: 473e22657eee0af46a573da14e6e4ac6, type: 2}
 --- !u!114 &1664854954
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2423,9 +2379,10 @@ MonoBehaviour:
   imageSize: 1024x1024
   fallbackTexture: {fileID: 2800000, guid: 2b1cecb1152339547a3b0f46551d6331, type: 3}
   localFallbackPath: SceneTalkVR/Textures/FallbackPanorama
-  forceUseFallback: 0
-  useSkySphere: 0
-  skySphereScale: 20
+  forceUseFallback: 1
+  useSkySphere: 1
+  skySphereScale: 8
+  skySpherePositionOffset: {x: 0, y: 2, z: 0}
   skySphereMaterial: {fileID: 0}
 --- !u!114 &1664854956
 MonoBehaviour:

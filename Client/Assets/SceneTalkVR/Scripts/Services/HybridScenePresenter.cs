@@ -21,14 +21,8 @@ namespace SceneTalkVR.Runtime.Services
         [SerializeField] private bool autoCenterObjects = true;
         [SerializeField] private Vector3 sceneOffset = new Vector3(0, 0, 2.5f); // Move objects 2.5m forward
         
-        [Serializable]
-        private struct PrefabMapping
-        {
-            public string key;
-            public GameObject prefab;
-        }
-        
-        [SerializeField] private List<PrefabMapping> objectLibrary = new List<PrefabMapping>();
+        [Header("Asset Configuration")]
+        [SerializeField] private SceneTalkAssetCatalog assetCatalog;
 
         public IEnumerator PresentScene(SpringScenePayload payload, Action onComplete, Action<string> onError)
         {
@@ -183,12 +177,12 @@ namespace SceneTalkVR.Runtime.Services
 
         private GameObject FindPrefab(string key)
         {
-            foreach (var mapping in objectLibrary)
+            if (assetCatalog == null)
             {
-                if (string.Equals(key, mapping.key, StringComparison.OrdinalIgnoreCase))
-                    return mapping.prefab;
+                Debug.LogWarning("[HybridScenePresenter] Asset Catalog is not assigned.");
+                return null;
             }
-            return null;
+            return assetCatalog.FindPrefab(key);
         }
 
     }
