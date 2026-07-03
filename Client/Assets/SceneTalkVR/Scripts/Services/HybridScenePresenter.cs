@@ -122,8 +122,19 @@ namespace SceneTalkVR.Runtime.Services
                 GameObject prefab = FindPrefab(mappedKey);
                 if (prefab == null)
                 {
-                    Debug.LogWarning($"[HybridScenePresenter] No prefab mapped for: '{mappedKey}' (Original: '{objData.name}'). Using generic fallback.");
-                    prefab = GetGenericFallback(mappedKey);
+                    string fallbackKey = "generic_decor";
+                    if (mappedKey.Contains("table")) fallbackKey = "generic_table";
+                    else if (mappedKey.Contains("chair") || mappedKey.Contains("sofa")) fallbackKey = "generic_chair";
+
+                    prefab = FindPrefab(fallbackKey);
+                    
+                    if (prefab == null)
+                    {
+                        Debug.LogWarning($"[HybridScenePresenter] No prefab or fallback mapped for: '{mappedKey}' (Original: '{objData.name}'). Skipping instantiation.");
+                        continue;
+                    }
+                    
+                    Debug.Log($"[HybridScenePresenter] Mapped '{objData.name}' to fallback prefab '{fallbackKey}'");
                 }
 
                 // 3. Handle coordinate format from Python backend
@@ -180,38 +191,5 @@ namespace SceneTalkVR.Runtime.Services
             return null;
         }
 
-        private GameObject GetGenericFallback(string key)
-        {
-            PrimitiveType type = PrimitiveType.Cube;
-            Vector3 scale = new Vector3(0.3f, 0.3f, 0.3f);
-            
-            if (key.Contains("table"))
-            {
-                type = PrimitiveType.Cube;
-                scale = new Vector3(1.2f, 0.8f, 1.2f);
-            }
-            else if (key.Contains("chair") || key.Contains("sofa"))
-            {
-                type = PrimitiveType.Cylinder;
-                scale = new Vector3(0.5f, 0.5f, 0.5f);
-            }
-            else if (key.Contains("plant"))
-            {
-                type = PrimitiveType.Sphere;
-                scale = new Vector3(0.4f, 0.6f, 0.4f);
-            }
-
-            var go = GameObject.CreatePrimitive(type);
-            go.transform.localScale = scale;
-            
-            // Visual indicator for generic fallbacks
-            var renderer = go.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                renderer.material.color = Color.cyan;
-            }
-            
-            return go;
-        }
     }
 }
