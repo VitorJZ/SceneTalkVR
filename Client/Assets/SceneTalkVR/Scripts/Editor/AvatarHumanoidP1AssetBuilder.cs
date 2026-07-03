@@ -15,11 +15,14 @@ namespace SceneTalkVR.EditorTools
         private const string BaristaModelPath = BaristaModelFolder + "/barista_animated_woman.fbx";
         private const string PoliceModelFolder = AvatarRoot + "/Models/Humanoid/QuaterniusSWAT";
         private const string PoliceModelPath = PoliceModelFolder + "/police_swat.fbx";
+        private const string TalkingAnimationModelFolder = AvatarRoot + "/Models/Humanoid/QuaterniusAnimatedBaseCharacter";
+        private const string TalkingAnimationModelPath = TalkingAnimationModelFolder + "/animation_library_unity_standard.fbx";
         private const string FrappeModelFolder = AvatarRoot + "/Models/Props/KenneyFrappe";
         private const string FrappeModelPath = FrappeModelFolder + "/frappe.obj";
         private const string AnimationFolder = AvatarRoot + "/Animations";
         private const string CommonAnimationFolder = AnimationFolder + "/Common";
         private const string CommonHumanoidControllerPath = CommonAnimationFolder + "/AvatarCommonHumanoid.controller";
+        private const string TalkGestureMaskPath = CommonAnimationFolder + "/AvatarTalkGesture.mask";
         private const string HumanoidPrefabFolder = AvatarRoot + "/Prefabs/Humanoid";
         private const string PropPrefabFolder = AvatarRoot + "/Prefabs/Props";
         private const string TeacherPrefabPath = HumanoidPrefabFolder + "/teacher_humanoid_v1.prefab";
@@ -49,6 +52,7 @@ namespace SceneTalkVR.EditorTools
             ConfigureHumanoidImporter(TeacherModelPath);
             ConfigureHumanoidImporter(BaristaModelPath);
             ConfigureHumanoidImporter(PoliceModelPath);
+            ConfigureTalkingAnimationImporter(TalkingAnimationModelPath);
 
             var teacherSourceModel = AssetDatabase.LoadAssetAtPath<GameObject>(TeacherModelPath);
             if (teacherSourceModel == null)
@@ -123,6 +127,7 @@ namespace SceneTalkVR.EditorTools
             EnsureFolder(AvatarRoot + "/Models/Humanoid", "QuaterniusBusinessMan");
             EnsureFolder(AvatarRoot + "/Models/Humanoid", "QuaterniusAnimatedWoman");
             EnsureFolder(AvatarRoot + "/Models/Humanoid", "QuaterniusSWAT");
+            EnsureFolder(AvatarRoot + "/Models/Humanoid", "QuaterniusAnimatedBaseCharacter");
             EnsureFolder(AvatarRoot + "/Models", "Props");
             EnsureFolder(AvatarRoot + "/Models/Props", "KenneyFrappe");
             EnsureFolder(AvatarRoot, "Prefabs");
@@ -141,6 +146,16 @@ namespace SceneTalkVR.EditorTools
         }
 
         private static void ConfigureHumanoidImporter(string modelPath)
+        {
+            ConfigureHumanoidImporter(modelPath, CreateQuaterniusHumanDescription);
+        }
+
+        private static void ConfigureTalkingAnimationImporter(string modelPath)
+        {
+            ConfigureHumanoidImporter(modelPath, CreateDefRigHumanDescription);
+        }
+
+        private static void ConfigureHumanoidImporter(string modelPath, System.Func<Transform, HumanDescription> humanDescriptionFactory)
         {
             var importer = AssetImporter.GetAtPath(modelPath) as ModelImporter;
             if (importer == null)
@@ -169,9 +184,9 @@ namespace SceneTalkVR.EditorTools
             }
 
             var sourceModel = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
-            if (sourceModel != null)
+            if (sourceModel != null && humanDescriptionFactory != null)
             {
-                importer.humanDescription = CreateQuaterniusHumanDescription(sourceModel.transform);
+                importer.humanDescription = humanDescriptionFactory(sourceModel.transform);
                 changed = true;
             }
 
@@ -294,6 +309,75 @@ namespace SceneTalkVR.EditorTools
             };
         }
 
+        private static HumanDescription CreateDefRigHumanDescription(Transform root)
+        {
+            return new HumanDescription
+            {
+                human = new[]
+                {
+                    Human("Hips", "DEF-hips"),
+                    Human("Spine", "DEF-spine.001"),
+                    Human("Chest", "DEF-spine.002"),
+                    Human("UpperChest", "DEF-spine.003"),
+                    Human("Neck", "DEF-neck"),
+                    Human("Head", "DEF-head"),
+                    Human("LeftShoulder", "DEF-shoulder.L"),
+                    Human("LeftUpperArm", "DEF-upper_arm.L"),
+                    Human("LeftLowerArm", "DEF-forearm.L"),
+                    Human("LeftHand", "DEF-hand.L"),
+                    Human("RightShoulder", "DEF-shoulder.R"),
+                    Human("RightUpperArm", "DEF-upper_arm.R"),
+                    Human("RightLowerArm", "DEF-forearm.R"),
+                    Human("RightHand", "DEF-hand.R"),
+                    Human("LeftUpperLeg", "DEF-thigh.L"),
+                    Human("LeftLowerLeg", "DEF-shin.L"),
+                    Human("LeftFoot", "DEF-foot.L"),
+                    Human("RightUpperLeg", "DEF-thigh.R"),
+                    Human("RightLowerLeg", "DEF-shin.R"),
+                    Human("RightFoot", "DEF-foot.R"),
+                    Human("Left Thumb Proximal", "DEF-thumb.01.L"),
+                    Human("Left Thumb Intermediate", "DEF-thumb.02.L"),
+                    Human("Left Thumb Distal", "DEF-thumb.03.L"),
+                    Human("Left Index Proximal", "DEF-f_index.01.L"),
+                    Human("Left Index Intermediate", "DEF-f_index.02.L"),
+                    Human("Left Index Distal", "DEF-f_index.03.L"),
+                    Human("Left Middle Proximal", "DEF-f_middle.01.L"),
+                    Human("Left Middle Intermediate", "DEF-f_middle.02.L"),
+                    Human("Left Middle Distal", "DEF-f_middle.03.L"),
+                    Human("Left Ring Proximal", "DEF-f_ring.01.L"),
+                    Human("Left Ring Intermediate", "DEF-f_ring.02.L"),
+                    Human("Left Ring Distal", "DEF-f_ring.03.L"),
+                    Human("Left Little Proximal", "DEF-f_pinky.01.L"),
+                    Human("Left Little Intermediate", "DEF-f_pinky.02.L"),
+                    Human("Left Little Distal", "DEF-f_pinky.03.L"),
+                    Human("Right Thumb Proximal", "DEF-thumb.01.R"),
+                    Human("Right Thumb Intermediate", "DEF-thumb.02.R"),
+                    Human("Right Thumb Distal", "DEF-thumb.03.R"),
+                    Human("Right Index Proximal", "DEF-f_index.01.R"),
+                    Human("Right Index Intermediate", "DEF-f_index.02.R"),
+                    Human("Right Index Distal", "DEF-f_index.03.R"),
+                    Human("Right Middle Proximal", "DEF-f_middle.01.R"),
+                    Human("Right Middle Intermediate", "DEF-f_middle.02.R"),
+                    Human("Right Middle Distal", "DEF-f_middle.03.R"),
+                    Human("Right Ring Proximal", "DEF-f_ring.01.R"),
+                    Human("Right Ring Intermediate", "DEF-f_ring.02.R"),
+                    Human("Right Ring Distal", "DEF-f_ring.03.R"),
+                    Human("Right Little Proximal", "DEF-f_pinky.01.R"),
+                    Human("Right Little Intermediate", "DEF-f_pinky.02.R"),
+                    Human("Right Little Distal", "DEF-f_pinky.03.R")
+                },
+                skeleton = CreateSkeleton(root),
+                upperArmTwist = 0.5f,
+                lowerArmTwist = 0.5f,
+                upperLegTwist = 0.5f,
+                lowerLegTwist = 0.5f,
+                armStretch = 0.05f,
+                legStretch = 0.05f,
+                feetSpacing = 0f,
+                hasTranslationDoF = false
+            };
+        }
+
         private static SkeletonBone[] CreateSkeleton(Transform root)
         {
             var transforms = root.GetComponentsInChildren<Transform>(true);
@@ -323,11 +407,14 @@ namespace SceneTalkVR.EditorTools
             var controller = AnimatorController.CreateAnimatorControllerAtPath(CommonHumanoidControllerPath);
             controller.AddParameter("Think", AnimatorControllerParameterType.Trigger);
             controller.AddParameter("Speak", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("Talk", AnimatorControllerParameterType.Trigger);
 
             var stateMachine = controller.layers[0].stateMachine;
             var idleClip = LoadClip("CharacterArmature|Idle_Neutral") ?? LoadClip("CharacterArmature|Idle");
             var thinkClip = LoadClip("CharacterArmature|Interact") ?? idleClip;
             var speakClip = LoadClip("CharacterArmature|Wave") ?? thinkClip ?? idleClip;
+            var talkClip = LoadClip(TalkingAnimationModelPath, "Rig|Idle_Talking_Loop")
+                ?? LoadClip(TalkingAnimationModelPath, "CharacterArmature|Idle_Talking_Loop");
 
             var idle = stateMachine.AddState("Idle");
             idle.motion = idleClip;
@@ -341,8 +428,62 @@ namespace SceneTalkVR.EditorTools
             AddTriggeredReturnTransition(stateMachine, thinking, idle, "Think");
             AddTriggeredReturnTransition(stateMachine, speaking, idle, "Speak");
 
+            if (talkClip != null)
+            {
+                AddTalkGestureLayer(controller, talkClip);
+            }
+            else
+            {
+                var talking = stateMachine.AddState("TalkingFallback");
+                talking.motion = thinkClip ?? idleClip;
+                AddTriggeredReturnTransition(stateMachine, talking, idle, "Talk");
+                Debug.LogWarning("[SceneTalkVR] External talking clip was not found; Talk falls back to the same-rig Interact clip.");
+            }
+
             EditorUtility.SetDirty(controller);
             return controller;
+        }
+
+        private static void AddTalkGestureLayer(AnimatorController controller, AnimationClip talkClip)
+        {
+            var mask = CreateTalkGestureMask();
+            controller.AddLayer("Talk Gesture");
+            var layers = controller.layers;
+            var layer = layers[layers.Length - 1];
+            layer.defaultWeight = 1f;
+            layer.avatarMask = mask;
+            layer.blendingMode = AnimatorLayerBlendingMode.Override;
+
+            var stateMachine = layer.stateMachine;
+            var idle = stateMachine.AddState("TalkLayerIdle");
+            stateMachine.defaultState = idle;
+
+            var talking = stateMachine.AddState("TalkingGesture");
+            talking.motion = talkClip;
+            AddTriggeredReturnTransition(stateMachine, talking, idle, "Talk");
+
+            layers[layers.Length - 1] = layer;
+            controller.layers = layers;
+        }
+
+        private static AvatarMask CreateTalkGestureMask()
+        {
+            if (AssetDatabase.LoadAssetAtPath<AvatarMask>(TalkGestureMaskPath) != null)
+            {
+                AssetDatabase.DeleteAsset(TalkGestureMaskPath);
+            }
+
+            var mask = new AvatarMask();
+            for (var i = 0; i < (int)AvatarMaskBodyPart.LastBodyPart; i++)
+            {
+                mask.SetHumanoidBodyPartActive((AvatarMaskBodyPart)i, false);
+            }
+
+            mask.SetHumanoidBodyPartActive(AvatarMaskBodyPart.Head, true);
+
+            AssetDatabase.CreateAsset(mask, TalkGestureMaskPath);
+            EditorUtility.SetDirty(mask);
+            return mask;
         }
 
         private static void AddTriggeredReturnTransition(
@@ -364,17 +505,45 @@ namespace SceneTalkVR.EditorTools
 
         private static AnimationClip LoadClip(string clipName)
         {
-            var assets = AssetDatabase.LoadAllAssetsAtPath(TeacherModelPath);
+            return LoadClip(TeacherModelPath, clipName);
+        }
+
+        private static AnimationClip LoadClip(string assetPath, string clipName)
+        {
+            return FindClip(AssetDatabase.LoadAllAssetsAtPath(assetPath), clipName)
+                ?? FindClip(AssetDatabase.LoadAllAssetRepresentationsAtPath(assetPath), clipName);
+        }
+
+        private static AnimationClip FindClip(UnityEngine.Object[] assets, string clipName)
+        {
             for (var i = 0; i < assets.Length; i++)
             {
                 var clip = assets[i] as AnimationClip;
-                if (clip != null && clip.name == clipName)
+                if (clip != null && IsClipNameMatch(clip.name, clipName))
                 {
                     return clip;
                 }
             }
 
             return null;
+        }
+
+        private static bool IsClipNameMatch(string actualName, string expectedName)
+        {
+            if (string.Equals(actualName, expectedName, System.StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            var expectedSuffix = expectedName;
+            var separatorIndex = expectedName.IndexOf('|');
+            if (separatorIndex >= 0 && separatorIndex < expectedName.Length - 1)
+            {
+                expectedSuffix = expectedName.Substring(separatorIndex + 1);
+            }
+
+            return string.Equals(actualName, expectedSuffix, System.StringComparison.Ordinal)
+                || actualName.EndsWith("|" + expectedSuffix, System.StringComparison.Ordinal);
         }
 
         private static GameObject CreateHumanoidPrefab(
@@ -391,6 +560,13 @@ namespace SceneTalkVR.EditorTools
             if (modelInstance == null)
             {
                 modelInstance = Object.Instantiate(sourceModel);
+            }
+            else if (PrefabUtility.IsPartOfPrefabInstance(modelInstance))
+            {
+                PrefabUtility.UnpackPrefabInstance(
+                    modelInstance,
+                    PrefabUnpackMode.Completely,
+                    InteractionMode.AutomatedAction);
             }
 
             modelInstance.name = modelInstanceName;

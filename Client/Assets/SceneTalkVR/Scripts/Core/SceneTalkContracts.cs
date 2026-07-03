@@ -24,6 +24,16 @@ namespace SceneTalkVR.Core
         IEnumerator PresentReply(SpringScenePayload payload, Action onComplete, Action<string> onError);
     }
 
+    public interface ISceneTalkAvatarReplyContext
+    {
+        void SetReplyContext(bool isOpeningReply);
+    }
+
+    public interface ISceneTalkAvatarSessionReset
+    {
+        void ClearAvatar();
+    }
+
     [Serializable]
     public sealed class SpringScenePayload
     {

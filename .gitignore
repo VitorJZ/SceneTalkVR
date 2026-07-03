@@ -13,6 +13,7 @@
 # Unity generated files
 *.csproj
 *.sln
+*.slnx
 *.suo
 *.user
 *.userprefs
@@ -22,6 +23,14 @@
 *.pdb
 *.mdb
 sysinfo.txt
+
+# Python generated files
+__pycache__/
+*.py[cod]
+
+# Local scratch/output artifacts
+tmp/
+examples/*-bbox-work/
 
 # Unity Android signing keys - keep private, recreate locally when needed
 *.keystore

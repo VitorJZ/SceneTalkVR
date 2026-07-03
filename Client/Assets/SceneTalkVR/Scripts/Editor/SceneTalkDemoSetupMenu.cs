@@ -32,7 +32,7 @@ namespace SceneTalkVR.EditorTools
         [MenuItem("SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway", false, 11)]
         public static void CreateVitorDemoRigWithVoiceGateway()
         {
-            CreateCleanDemoRig(true);
+            ConfigureExistingDemoRigVoiceGateway();
         }
 
         [MenuItem("SceneTalkVR/Setup/Create Voice Gateway Settings", false, 12)]
@@ -149,14 +149,16 @@ namespace SceneTalkVR.EditorTools
             var existingUi = root.transform.Find(WorldUiName);
             if (existingUi != null) Object.DestroyImmediate(existingUi.gameObject);
             var ui = CreateWorldSpaceUi(root.transform, interactionCamera);
+            var avatarPropCatalog = LoadAvatarPropCatalog();
 
             SetObject(scenePresenter, "sceneRoot", sceneRootTransform);
             SetObject(avatarResolver, "catalog", LoadAvatarCatalog());
-            SetObject(avatarProps, "catalog", LoadAvatarPropCatalog());
+            SetObject(avatarProps, "catalog", avatarPropCatalog);
             SetObject(avatarVoice, "resolver", avatarResolver);
             SetObject(avatarVoice, "loaderModule", avatarLoader);
             SetObject(avatarVoice, "avatarRoot", avatarRootTransform);
             SetObject(avatarVoice, "propPresenter", avatarProps);
+            SetObject(avatarVoice, "propCatalog", avatarPropCatalog);
             SetObject(avatarVoice, "audioSource", audioSource);
             SetObject(avatarVoice, "animationDriver", avatarAnimation);
             SetObject(avatarVoice, "defaultAnimatorController", LoadAvatarCommonController());
@@ -182,6 +184,63 @@ namespace SceneTalkVR.EditorTools
 
             Selection.activeObject = root;
             EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+        }
+
+        private static void ConfigureExistingDemoRigVoiceGateway()
+        {
+            var orchestrator = FindFirst<SceneTalkOrchestrator>();
+            if (orchestrator == null)
+            {
+                Debug.LogWarning("[SceneTalkVR] No existing SceneTalkOrchestrator found. Run SceneTalkVR/Setup/Rebuild Demo Rig first, then configure Voice Gateway.");
+                return;
+            }
+
+            var root = orchestrator.gameObject;
+            var gatewayClient = root.GetComponent<VoiceGatewayClient>();
+            if (gatewayClient == null)
+            {
+                gatewayClient = root.AddComponent<VoiceGatewayClient>();
+            }
+
+            var microphoneRecorder = root.GetComponent<MicrophoneRecorder>();
+            if (microphoneRecorder == null)
+            {
+                microphoneRecorder = root.AddComponent<MicrophoneRecorder>();
+            }
+
+            var gatewaySpeech = root.GetComponent<GatewaySpeechInputModule>();
+            if (gatewaySpeech == null)
+            {
+                gatewaySpeech = root.AddComponent<GatewaySpeechInputModule>();
+            }
+
+            SetObject(gatewayClient, "settings", EnsureVoiceGatewaySettings());
+            SetObject(gatewaySpeech, "gatewayClient", gatewayClient);
+            SetObject(gatewaySpeech, "microphoneRecorder", microphoneRecorder);
+            SetObject(orchestrator, "speechInputModule", gatewaySpeech);
+
+            var avatarVoice = root.GetComponent<AvatarPresentationVoiceModule>();
+            if (avatarVoice != null)
+            {
+                var avatarAnimation = root.GetComponent<AvatarAnimationDriver>();
+                if (avatarAnimation == null)
+                {
+                    avatarAnimation = root.AddComponent<AvatarAnimationDriver>();
+                }
+
+                SetObject(avatarVoice, "animationDriver", avatarAnimation);
+                SetObject(avatarVoice, "defaultAnimatorController", LoadAvatarCommonController());
+                SetObject(avatarVoice, "voiceGatewayClient", gatewayClient);
+                SetBool(avatarVoice, "useVoiceGatewayTts", true);
+            }
+            else
+            {
+                Debug.LogWarning("[SceneTalkVR] AvatarPresentationVoiceModule not found. STT was configured, but TTS playback was not switched to Voice Gateway.");
+            }
+
+            Selection.activeObject = root;
+            EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+            Debug.Log("[SceneTalkVR] Configured Voice Gateway on existing demo rig without rebuilding scene, UI, scene presenter, or avatar setup.");
         }
 
         private static AvatarCatalog LoadAvatarCatalog()
@@ -211,7 +270,7 @@ namespace SceneTalkVR.EditorTools
             var catalog = AssetDatabase.LoadAssetAtPath<AvatarPropCatalog>(AvatarPropCatalogPath);
             if (catalog == null)
             {
-                Debug.LogWarning($"[SceneTalkVR] Avatar prop catalog not found at {AvatarPropCatalogPath}. Run SceneTalkVR/Avatar/P1 Build Teacher Humanoid first.");
+                Debug.LogWarning($"[SceneTalkVR] Avatar prop catalog not found at {AvatarPropCatalogPath}. Run SceneTalkVR/Avatar/P1 Build Humanoid Avatars first.");
             }
 
             return catalog;
