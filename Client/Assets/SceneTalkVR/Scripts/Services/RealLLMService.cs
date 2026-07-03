@@ -216,18 +216,26 @@ namespace SceneTalkVR.Runtime.Services
                 throw new Exception("API Key is not set.");
             }
 
-            var requestBody = new OpenAiRequest
-            {
-                model = modelName,
-                messages = messages
-            };
-
+            string jsonBody;
             if (useJsonObject)
             {
-                requestBody.response_format = new ResponseFormat { type = "json_object" };
+                var requestBody = new OpenAiRequest
+                {
+                    model = modelName,
+                    messages = messages,
+                    response_format = new ResponseFormat { type = "json_object" }
+                };
+                jsonBody = JsonUtility.ToJson(requestBody);
             }
-
-            string jsonBody = JsonUtility.ToJson(requestBody);
+            else
+            {
+                var requestBody = new OpenAiTextRequest
+                {
+                    model = modelName,
+                    messages = messages
+                };
+                jsonBody = JsonUtility.ToJson(requestBody);
+            }
             
             using var webRequest = new UnityWebRequest(apiUrl, "POST");
             byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
@@ -296,6 +304,13 @@ namespace SceneTalkVR.Runtime.Services
             public string model;
             public OpenAiMessage[] messages;
             public ResponseFormat response_format;
+        }
+
+        [Serializable]
+        private class OpenAiTextRequest
+        {
+            public string model;
+            public OpenAiMessage[] messages;
         }
 
         [Serializable]
