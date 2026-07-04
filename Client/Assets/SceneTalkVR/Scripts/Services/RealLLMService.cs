@@ -26,10 +26,25 @@ namespace SceneTalkVR.Runtime.Services
                                                       "  \"taskType\": \"string\",\n" +
                                                       "  \"environmentType\": \"string\",\n" +
                                                       "  \"dialogueReply\": \"string\",\n" +
-                                                      "  \"avatarRole\": { \"role\": \"string\", \"speakingSpeed\": \"string\", \"accent\": \"string\", \"attitude\": \"string\" },\n" +
+                                                      "  \"avatarRole\": {\n" +
+                                                      "    \"role\": \"string\",\n" +
+                                                      "    \"speakingSpeed\": \"string\",\n" +
+                                                      "    \"accent\": \"string\",\n" +
+                                                      "    \"attitude\": \"string\",\n" +
+                                                      "    \"appearance\": {\n" +
+                                                      "      \"styleId\": \"semi_realistic_v1\",\n" +
+                                                      "      \"genderPresentation\": \"male|female|unknown\",\n" +
+                                                      "      \"ageBucket\": \"young_adult|adult|unknown\",\n" +
+                                                      "      \"bodyBuild\": \"average|unknown\",\n" +
+                                                      "      \"outfitRole\": \"barista|teacher|police|unknown\",\n" +
+                                                      "      \"outfitColor\": \"string\"\n" +
+                                                      "    }\n" +
+                                                      "  },\n" +
                                                       "  \"scene\": { \"mode\": \"skybox\", \"skyboxUrl\": \"\" }\n" +
                                                       "}\n" +
                                                       "Ensure the output is ONLY the JSON object, no markdown, no conversational filler. " +
+                                                      "Normalize avatarRole.role to barista, teacher, or police when the request matches a waiter/service worker, teacher, or police/security officer. " +
+                                                      "Respect explicit gender requests such as male teacher, female teacher, male waiter, female waiter, male police, or female police by setting avatarRole.appearance.genderPresentation to male or female; otherwise use unknown. " +
                                                       "The 'dialogueReply' should be in character based on the 'environmentType' and 'avatarRole.role'.";
 
         private readonly List<OpenAiMessage> chatHistory = new List<OpenAiMessage>();

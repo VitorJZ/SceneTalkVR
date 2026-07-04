@@ -44,6 +44,7 @@ namespace SceneTalkVR.AvatarSystem
         private GameObject currentAvatar;
         private Animator currentAnimator;
         private string currentAvatarKey;
+        private string currentAvatarGenderPresentation;
         private bool isOpeningReply = true;
 
         private IAvatarInstanceLoader Loader => loaderModule as IAvatarInstanceLoader;
@@ -71,6 +72,7 @@ namespace SceneTalkVR.AvatarSystem
             currentAvatar = null;
             currentAnimator = null;
             currentAvatarKey = string.Empty;
+            currentAvatarGenderPresentation = string.Empty;
             isOpeningReply = true;
 
             var driver = ResolveAnimationDriver();
@@ -170,6 +172,8 @@ namespace SceneTalkVR.AvatarSystem
                 yield break;
             }
 
+            currentAvatarGenderPresentation = ResolvePresetGenderPresentation(resolution.preset);
+
             if (currentAvatar != null
                 && string.Equals(currentAvatarKey, resolution.avatarKey, StringComparison.OrdinalIgnoreCase))
             {
@@ -237,7 +241,7 @@ namespace SceneTalkVR.AvatarSystem
                 voiceProfile = new VoiceProfile
                 {
                     provider = "tencent",
-                    voiceId = string.IsNullOrWhiteSpace(defaultVoiceId) ? "default_female_en" : defaultVoiceId,
+                    voiceId = ResolveVoiceId(payload),
                     speakingSpeed = role != null ? role.speakingSpeed : string.Empty,
                     accent = role != null ? role.accent : string.Empty,
                     attitude = role != null ? role.attitude : string.Empty,
@@ -319,6 +323,49 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             RefreshProps(payload, currentAvatar);
+        }
+
+        private string ResolveVoiceId(SpringScenePayload payload)
+        {
+            var role = payload != null ? payload.avatarRole : null;
+            var appearance = role != null ? role.appearance : null;
+            var gender = appearance != null ? appearance.genderPresentation : string.Empty;
+
+            if (IsGender(currentAvatarGenderPresentation, "male") || IsGender(gender, "male"))
+            {
+                return "default_male_en";
+            }
+
+            if (IsGender(currentAvatarGenderPresentation, "female") || IsGender(gender, "female"))
+            {
+                return "default_female_en";
+            }
+
+            return string.IsNullOrWhiteSpace(defaultVoiceId) ? "default_female_en" : defaultVoiceId;
+        }
+
+        private static string ResolvePresetGenderPresentation(AvatarPresetEntry preset)
+        {
+            if (preset == null || preset.genderPresentations == null)
+            {
+                return string.Empty;
+            }
+
+            for (var i = 0; i < preset.genderPresentations.Length; i++)
+            {
+                var value = preset.genderPresentations[i];
+                if (IsGender(value, "male") || IsGender(value, "female"))
+                {
+                    return value;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static bool IsGender(string value, string expected)
+        {
+            return string.Equals(value, expected, StringComparison.OrdinalIgnoreCase);
         }
 
         private static void DestroyAvatarObject(GameObject avatar)

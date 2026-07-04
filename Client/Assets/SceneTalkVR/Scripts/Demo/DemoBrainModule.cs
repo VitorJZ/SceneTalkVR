@@ -27,21 +27,25 @@ namespace SceneTalkVR.Demo
 
         private static SpringScenePayload BuildPayload(string userText)
         {
-            if (ContainsAny(userText, "police", "officer", "airport", "security", "customs"))
+            var requestedGender = DetectGenderPresentation(userText, "unknown");
+
+            if (ContainsAny(userText, "police", "officer", "airport", "security", "customs", "警察", "警官", "安检", "海关"))
             {
-                return BuildPolicePayload();
+                return BuildPolicePayload(requestedGender);
             }
 
-            if (ContainsAny(userText, "teacher", "classroom", "school", "lesson", "exam"))
+            if (ContainsAny(userText, "teacher", "classroom", "school", "lesson", "exam", "教师", "老师", "课堂", "学校", "考试"))
             {
-                return BuildTeacherPayload();
+                return BuildTeacherPayload(requestedGender);
             }
 
-            return BuildBaristaPayload();
+            return BuildBaristaPayload(DetectGenderPresentation(userText, "female"));
         }
 
-        private static SpringScenePayload BuildBaristaPayload()
+        private static SpringScenePayload BuildBaristaPayload(string genderPresentation)
         {
+            var male = IsGender(genderPresentation, "male");
+
             return new SpringScenePayload
             {
                 taskType = "ordering_coffee",
@@ -56,15 +60,15 @@ namespace SceneTalkVR.Demo
                     appearance = new AvatarAppearanceData
                     {
                         styleId = "semi_realistic_v1",
-                        genderPresentation = "female",
+                        genderPresentation = genderPresentation,
                         ageBucket = "young_adult",
                         bodyBuild = "average",
                         hairStyle = "short_curly",
                         hairColor = "black",
                         outfitRole = "barista",
-                        outfitColor = "green",
-                        accessories = new[] { "round_black_glasses" },
-                        mustHave = new[] { "green_apron" },
+                        outfitColor = male ? "red" : "green",
+                        accessories = male ? Array.Empty<string>() : new[] { "round_black_glasses" },
+                        mustHave = male ? Array.Empty<string>() : new[] { "green_apron" },
                         seed = 12345
                     }
                 },
@@ -91,8 +95,10 @@ namespace SceneTalkVR.Demo
             };
         }
 
-        private static SpringScenePayload BuildTeacherPayload()
+        private static SpringScenePayload BuildTeacherPayload(string genderPresentation)
         {
+            var female = IsGender(genderPresentation, "female");
+
             return new SpringScenePayload
             {
                 taskType = "classroom_practice",
@@ -107,11 +113,11 @@ namespace SceneTalkVR.Demo
                     appearance = new AvatarAppearanceData
                     {
                         styleId = "semi_realistic_v1",
-                        genderPresentation = "unknown",
+                        genderPresentation = genderPresentation,
                         ageBucket = "adult",
                         bodyBuild = "average",
                         outfitRole = "teacher",
-                        outfitColor = "blue",
+                        outfitColor = female ? "black" : "blue",
                         seed = 22345
                     }
                 },
@@ -138,8 +144,10 @@ namespace SceneTalkVR.Demo
             };
         }
 
-        private static SpringScenePayload BuildPolicePayload()
+        private static SpringScenePayload BuildPolicePayload(string genderPresentation)
         {
+            var female = IsGender(genderPresentation, "female");
+
             return new SpringScenePayload
             {
                 taskType = "asking_for_directions",
@@ -154,11 +162,11 @@ namespace SceneTalkVR.Demo
                     appearance = new AvatarAppearanceData
                     {
                         styleId = "semi_realistic_v1",
-                        genderPresentation = "unknown",
+                        genderPresentation = genderPresentation,
                         ageBucket = "adult",
                         bodyBuild = "average",
                         outfitRole = "police",
-                        outfitColor = "navy",
+                        outfitColor = female ? "grey" : "navy",
                         accessories = new[] { "badge", "cap" },
                         mustHave = new[] { "badge" },
                         seed = 32345
@@ -185,6 +193,26 @@ namespace SceneTalkVR.Demo
                     }
                 }
             };
+        }
+
+        private static string DetectGenderPresentation(string value, string fallback)
+        {
+            if (ContainsAny(value, "female", "woman", "girl", "lady", "女", "女性", "女士", "女人"))
+            {
+                return "female";
+            }
+
+            if (ContainsAny(value, "male", "man", "boy", "gentleman", "男", "男性", "男士", "男人"))
+            {
+                return "male";
+            }
+
+            return fallback;
+        }
+
+        private static bool IsGender(string value, string expected)
+        {
+            return string.Equals(value, expected, StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool ContainsAny(string value, params string[] keywords)

@@ -38,7 +38,15 @@ Unity 客户端发送给后端的 POST 请求。
       "role": "barista",
       "speakingSpeed": "normal",
       "accent": "american",
-      "attitude": "friendly"
+      "attitude": "friendly",
+      "appearance": {
+        "styleId": "semi_realistic_v1",
+        "genderPresentation": "female",
+        "ageBucket": "young_adult",
+        "bodyBuild": "average",
+        "outfitRole": "barista",
+        "outfitColor": "green"
+      }
   },
   "scene": {
     "mode": "hybrid",
@@ -63,5 +71,6 @@ Unity 客户端发送给后端的 POST 请求。
 ### 字段说明
 *   `skyboxUrl`：外部生成的全景图下载地址（如 SiliconFlow 提供）。
 *   `skyboxKey`：本地预置的天空盒资源名。若存在此值，Unity 优先读取本地资源以节省时间。
+*   `avatarRole.appearance.genderPresentation`：Avatar 性别表现字段。核心取值为 `male` / `female` / `unknown`；Unity Avatar resolver 会用它选择同职业的男/女 prefab，TTS 也会用最终解析到的 Avatar 性别选择 `default_male_en` 或 `default_female_en`。
 *   `layoutObjects`：包含 3米 内近距离可交互物体的列表。
     *   `prefabKey`：**必须严格遵守**预定义的白名单。未知物体必须被后端映射为 `generic_decor` 等通用占位符。
