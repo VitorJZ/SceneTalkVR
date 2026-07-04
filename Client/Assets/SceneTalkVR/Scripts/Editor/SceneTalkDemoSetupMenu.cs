@@ -109,20 +109,45 @@ namespace SceneTalkVR.EditorTools
                 if (speech == null) speech = root.AddComponent<DemoSpeechInputModule>();
             }
 
-            var brain = root.GetComponent<DemoBrainModule>();
-            if (brain == null) brain = root.AddComponent<DemoBrainModule>();
-            
-            var scenePresenter = root.GetComponent<SceneTalkScenePresenter>();
-            if (scenePresenter == null) scenePresenter = root.AddComponent<SceneTalkScenePresenter>();
-
-            // Prioritize RealLLM and HybridPresenter if they exist
-            MonoBehaviour brainToUse = brain;
+            // Check for modern components (RealLLM, Panorama, Holodeck, HybridPresenter)
             var realLlm = root.GetComponent<SceneTalkVR.Runtime.Services.RealLLMService>();
-            if (realLlm != null) brainToUse = realLlm;
+            if (realLlm == null) realLlm = root.AddComponent<SceneTalkVR.Runtime.Services.RealLLMService>();
+            SetString(realLlm, "apiUrl", "https://models.sjtu.edu.cn/api/v1/chat/completions");
+            SetString(realLlm, "apiKey", "");
+            SetString(realLlm, "modelName", "minimax-m2.7");
+            SetString(realLlm, "systemPrompt", "You are a VR scene dispatcher and an English tutor. Based on the user's input, generate a JSON response that matches the following structure:\n{\n  \"taskType\": \"string\",\n  \"environmentType\": \"string\",\n  \"dialogueReply\": \"string\",\n  \"avatarRole\": { \"role\": \"string\", \"speakingSpeed\": \"string\", \"accent\": \"string\", \"attitude\": \"string\" },\n  \"scene\": { \"mode\": \"skybox\", \"skyboxUrl\": \"\" }\n}\nEnsure the output is ONLY the JSON object, no markdown, no conversational filler. The 'dialogueReply' should be in character based on the 'environmentType' and 'avatarRole.role'.");
 
-            MonoBehaviour presenterToUse = scenePresenter;
+            var panorama = root.GetComponent<SceneTalkVR.Runtime.Services.PanoramaSceneService>();
+            if (panorama == null) panorama = root.AddComponent<SceneTalkVR.Runtime.Services.PanoramaSceneService>();
+            SetString(panorama, "apiKey", "");
+            SetString(panorama, "modelName", "Tongyi-MAI/Z-Image");
+            SetString(panorama, "imageSize", "1024x1024");
+            SetString(panorama, "localFallbackPath", "SceneTalkVR/Textures/FallbackPanorama");
+            var fallbackTex = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/SceneTalkVR/Textures/FallbackPanorama.png");
+            SetObject(panorama, "fallbackTexture", fallbackTex);
+            SetBool(panorama, "forceUseFallback", false);
+            SetBool(panorama, "useSkySphere", false);
+            SetFloat(panorama, "skySphereScale", 20.0f);
+            SetVector3(panorama, "skySpherePositionOffset", new Vector3(0f, -1.6f, 0f));
+
+            var holodeck = root.GetComponent<SceneTalkVR.Runtime.Services.HolodeckSceneService>();
+            if (holodeck == null) holodeck = root.AddComponent<SceneTalkVR.Runtime.Services.HolodeckSceneService>();
+            SetBool(holodeck, "useLocalBackend", true);
+            SetString(holodeck, "backendUrl", "http://localhost:8080/generate_scene");
+
             var hybridPresenter = root.GetComponent<SceneTalkVR.Runtime.Services.HybridScenePresenter>();
-            if (hybridPresenter != null) presenterToUse = hybridPresenter;
+            if (hybridPresenter == null) hybridPresenter = root.AddComponent<SceneTalkVR.Runtime.Services.HybridScenePresenter>();
+            SetObject(hybridPresenter, "panoramaService", panorama);
+            SetObject(hybridPresenter, "holodeckService", holodeck);
+            SetObject(hybridPresenter, "sceneRoot", sceneRootTransform);
+            SetFloat(hybridPresenter, "spawnScale", 1.0f);
+            SetBool(hybridPresenter, "autoCenterObjects", true);
+            SetVector3(hybridPresenter, "sceneOffset", new Vector3(0f, 0f, 2.5f));
+            var assetCatalog = AssetDatabase.LoadAssetAtPath<SceneTalkAssetCatalog>("Assets/SceneTalkVR/Prefabs/SceneTalkAssetCatalog.asset");
+            SetObject(hybridPresenter, "assetCatalog", assetCatalog);
+
+            MonoBehaviour brainToUse = realLlm;
+            MonoBehaviour presenterToUse = hybridPresenter;
 
             var avatarResolver = root.GetComponent<AvatarPresetResolver>();
             if (avatarResolver == null) avatarResolver = root.AddComponent<AvatarPresetResolver>();
@@ -548,6 +573,39 @@ namespace SceneTalkVR.EditorTools
             var property = serializedObject.FindProperty(propertyName);
             property.boolValue = value;
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetString(Object target, string propertyName, string value)
+        {
+            var serializedObject = new SerializedObject(target);
+            var property = serializedObject.FindProperty(propertyName);
+            if (property != null)
+            {
+                property.stringValue = value;
+                serializedObject.ApplyModifiedPropertiesWithoutUndo();
+            }
+        }
+
+        private static void SetFloat(Object target, string propertyName, float value)
+        {
+            var serializedObject = new SerializedObject(target);
+            var property = serializedObject.FindProperty(propertyName);
+            if (property != null)
+            {
+                property.floatValue = value;
+                serializedObject.ApplyModifiedPropertiesWithoutUndo();
+            }
+        }
+
+        private static void SetVector3(Object target, string propertyName, Vector3 value)
+        {
+            var serializedObject = new SerializedObject(target);
+            var property = serializedObject.FindProperty(propertyName);
+            if (property != null)
+            {
+                property.vector3Value = value;
+                serializedObject.ApplyModifiedPropertiesWithoutUndo();
+            }
         }
 
         private static T FindFirst<T>() where T : Object
