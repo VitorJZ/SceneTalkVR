@@ -96,7 +96,10 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             var avatarError = string.Empty;
-            yield return EnsureAvatar(payload, message => avatarError = message);
+            if (isOpeningReply || currentAvatar == null)
+            {
+                yield return EnsureAvatar(payload, message => avatarError = message);
+            }
 
             if (!string.IsNullOrWhiteSpace(avatarError))
             {
