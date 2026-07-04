@@ -2,6 +2,7 @@ using SceneTalkVR.Demo;
 using SceneTalkVR.AvatarSystem;
 using SceneTalkVR.Runtime;
 using SceneTalkVR.Voice;
+using SceneTalkVR.Core;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -176,7 +177,7 @@ namespace SceneTalkVR.EditorTools
             var ui = CreateWorldSpaceUi(root.transform, interactionCamera);
             var avatarPropCatalog = LoadAvatarPropCatalog();
 
-            SetObject(scenePresenter, "sceneRoot", sceneRootTransform);
+
             SetObject(avatarResolver, "catalog", LoadAvatarCatalog());
             SetObject(avatarProps, "catalog", avatarPropCatalog);
             SetObject(avatarVoice, "resolver", avatarResolver);
