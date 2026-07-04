@@ -107,12 +107,32 @@ namespace SceneTalkVR.Runtime
             loadingPanel = CreatePanel(root, "LoadingPanel", new Vector2(0f, 0f), new Vector2(540f, 220f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
             loadingText = CreateText(loadingPanel.transform, "LoadingText", "Loading scene and avatar...", new Vector2(0f, 0f), new Vector2(480f, 80f), 26, TextAnchor.MiddleCenter, Color.white);
 
-            subtitlePanel = CreatePanel(root, "SubtitlePanel", new Vector2(0f, -170f), new Vector2(800f, 160f), new Color(0f, 0f, 0f, 0.62f));
-            playerSubtitleText = CreateText(subtitlePanel.transform, "PlayerSubtitle", "You: -", new Vector2(0f, 50f), new Vector2(740f, 38f), 20, TextAnchor.MiddleLeft, new Color(0.45f, 0.9f, 1f, 1f));
-            avatarSubtitleText = CreateText(subtitlePanel.transform, "AvatarSubtitle", "Avatar: -", new Vector2(0f, 12f), new Vector2(740f, 38f), 20, TextAnchor.MiddleLeft, new Color(1f, 0.88f, 0.36f, 1f));
-            dialogueStatusText = CreateText(subtitlePanel.transform, "DialogueStatus", "Ready", new Vector2(-95f, -46f), new Vector2(550f, 32f), 18, TextAnchor.MiddleLeft, new Color(0.86f, 0.9f, 1f, 1f));
-            dialogueListenButton = CreateButton(subtitlePanel.transform, "DialogueListenButton", "Speak", new Vector2(310f, -46f), new Vector2(130f, 42f), new Color(0.12f, 0.52f, 0.38f, 1f));
+            subtitlePanel = CreatePanel(root, "SubtitlePanel", new Vector2(0f, -170f), new Vector2(800f, 180f), new Color(0f, 0f, 0f, 0.62f));
+            
+            // Create self-adjusting text container for subtitles
+            var textContainer = new GameObject("TextContainer");
+            textContainer.transform.SetParent(subtitlePanel.transform, false);
+            var containerRect = textContainer.AddComponent<RectTransform>();
+            containerRect.anchoredPosition = new Vector2(0f, 25f);
+            containerRect.sizeDelta = new Vector2(740f, 100f);
 
+            var layout = textContainer.AddComponent<VerticalLayoutGroup>();
+            layout.childAlignment = TextAnchor.UpperLeft;
+            layout.spacing = 6f;
+            layout.childControlHeight = true;
+            layout.childControlWidth = true;
+            layout.childForceExpandHeight = false;
+            layout.childForceExpandWidth = true;
+
+            var fitter = textContainer.AddComponent<ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+
+            playerSubtitleText = CreateText(textContainer.transform, "PlayerSubtitle", "You: -", Vector2.zero, new Vector2(740f, 30f), 20, TextAnchor.MiddleLeft, new Color(0.45f, 0.9f, 1f, 1f), true);
+            avatarSubtitleText = CreateText(textContainer.transform, "AvatarSubtitle", "Avatar: -", Vector2.zero, new Vector2(740f, 30f), 20, TextAnchor.MiddleLeft, new Color(1f, 0.88f, 0.36f, 1f), true);
+            dialogueStatusText = CreateText(subtitlePanel.transform, "DialogueStatus", "Ready", new Vector2(-95f, -56f), new Vector2(550f, 32f), 18, TextAnchor.MiddleLeft, new Color(0.86f, 0.9f, 1f, 1f));
+            dialogueListenButton = CreateButton(subtitlePanel.transform, "DialogueListenButton", "Speak", new Vector2(310f, -56f), new Vector2(130f, 42f), new Color(0.12f, 0.52f, 0.38f, 1f));
+            
             exitButton = CreateButton(root, "ExitButton", "Exit", new Vector2(360f, 218f), new Vector2(110f, 44f), new Color(0.58f, 0.18f, 0.18f, 1f));
             exitButtonObject = exitButton.gameObject;
 
@@ -385,7 +405,8 @@ namespace SceneTalkVR.Runtime
             Vector2 size,
             int fontSize,
             TextAnchor alignment,
-            Color color)
+            Color color,
+            bool autoFitHeight = false)
         {
             var textObject = new GameObject(name);
             textObject.transform.SetParent(parent, false);
@@ -397,7 +418,18 @@ namespace SceneTalkVR.Runtime
             label.alignment = alignment;
             label.color = color;
             label.horizontalOverflow = HorizontalWrapMode.Wrap;
-            label.verticalOverflow = VerticalWrapMode.Truncate;
+            
+            if (autoFitHeight)
+            {
+                label.verticalOverflow = VerticalWrapMode.Overflow;
+                var fitter = textObject.AddComponent<ContentSizeFitter>();
+                fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+                fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            }
+            else
+            {
+                label.verticalOverflow = VerticalWrapMode.Truncate;
+            }
 
             var rectTransform = label.GetComponent<RectTransform>();
             rectTransform.anchoredPosition = position;
