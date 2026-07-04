@@ -27,7 +27,7 @@ namespace SceneTalkVR.EditorTools
         [MenuItem("SceneTalkVR/Setup/Rebuild Demo Rig", false, 10)]
         public static void CreateVitorDemoRig()
         {
-            CreateCleanDemoRig(false);
+            CreateCleanDemoRig(true);
         }
 
         [MenuItem("SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway", false, 11)]
@@ -111,14 +111,19 @@ namespace SceneTalkVR.EditorTools
             }
 
             // Check for modern components (RealLLM, Panorama, Holodeck, HybridPresenter)
-            var realLlm = root.GetComponent<SceneTalkVR.Runtime.Services.RealLLMService>();
-            if (realLlm == null) realLlm = root.AddComponent<SceneTalkVR.Runtime.Services.RealLLMService>();
+            // Force destroy existing instances to refresh serializable default prompt values and properties
+            var oldRealLlm = root.GetComponent<SceneTalkVR.Runtime.Services.RealLLMService>();
+            if (oldRealLlm != null) Object.DestroyImmediate(oldRealLlm);
+            
+            var realLlm = root.AddComponent<SceneTalkVR.Runtime.Services.RealLLMService>();
             SetString(realLlm, "apiUrl", "https://models.sjtu.edu.cn/api/v1/chat/completions");
             SetString(realLlm, "apiKey", "");
             SetString(realLlm, "modelName", "minimax-m2.7");
 
-            var panorama = root.GetComponent<SceneTalkVR.Runtime.Services.PanoramaSceneService>();
-            if (panorama == null) panorama = root.AddComponent<SceneTalkVR.Runtime.Services.PanoramaSceneService>();
+            var oldPanorama = root.GetComponent<SceneTalkVR.Runtime.Services.PanoramaSceneService>();
+            if (oldPanorama != null) Object.DestroyImmediate(oldPanorama);
+
+            var panorama = root.AddComponent<SceneTalkVR.Runtime.Services.PanoramaSceneService>();
             SetString(panorama, "apiKey", "");
             SetString(panorama, "modelName", "Tongyi-MAI/Z-Image");
             SetString(panorama, "imageSize", "1024x1024");
@@ -130,13 +135,17 @@ namespace SceneTalkVR.EditorTools
             SetFloat(panorama, "skySphereScale", 20.0f);
             SetVector3(panorama, "skySpherePositionOffset", new Vector3(0f, -1.6f, 0f));
 
-            var holodeck = root.GetComponent<SceneTalkVR.Runtime.Services.HolodeckSceneService>();
-            if (holodeck == null) holodeck = root.AddComponent<SceneTalkVR.Runtime.Services.HolodeckSceneService>();
+            var oldHolodeck = root.GetComponent<SceneTalkVR.Runtime.Services.HolodeckSceneService>();
+            if (oldHolodeck != null) Object.DestroyImmediate(oldHolodeck);
+
+            var holodeck = root.AddComponent<SceneTalkVR.Runtime.Services.HolodeckSceneService>();
             SetBool(holodeck, "useLocalBackend", true);
             SetString(holodeck, "backendUrl", "http://localhost:8080/generate_scene");
 
-            var hybridPresenter = root.GetComponent<SceneTalkVR.Runtime.Services.HybridScenePresenter>();
-            if (hybridPresenter == null) hybridPresenter = root.AddComponent<SceneTalkVR.Runtime.Services.HybridScenePresenter>();
+            var oldHybridPresenter = root.GetComponent<SceneTalkVR.Runtime.Services.HybridScenePresenter>();
+            if (oldHybridPresenter != null) Object.DestroyImmediate(oldHybridPresenter);
+
+            var hybridPresenter = root.AddComponent<SceneTalkVR.Runtime.Services.HybridScenePresenter>();
             SetObject(hybridPresenter, "panoramaService", panorama);
             SetObject(hybridPresenter, "holodeckService", holodeck);
             SetObject(hybridPresenter, "sceneRoot", sceneRootTransform);
