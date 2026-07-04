@@ -94,6 +94,56 @@
 - Prefab wrapper rotates the model 180 degrees around Y so it faces the user from `AvatarRoot`.
 - `AvatarCatalog.asset` keeps `police_default` as placeholder fallback and adds `police_humanoid_v1` as the higher-priority police/security match.
 
+## Male Barista Humanoid v1
+
+- Catalog key: `barista_male_humanoid_v1`
+- Runtime prefab: `Assets/SceneTalkVR/Avatar/Prefabs/Humanoid/barista_male_humanoid_v1.prefab`
+- Imported model: `Assets/SceneTalkVR/Avatar/Models/Humanoid/QuaterniusCasualCharacter/barista_casual_man.fbx`
+- Source page: https://poly.pizza/m/kZ3DmIoGip
+- Creator: Quaternius
+- Original model title: `Casual Character`
+- License shown on source page: `CC0 1.0` / Public Domain
+- Source page metadata checked on 2026-07-04: `Type=FBX`, `Animated=true`, `Tris=3350`
+- Download used: https://static.poly.pizza/90a9e2d4-053f-42f1-99a2-8f5e1180ea7f.zip
+- FBX used from source pack: `Casual_2.fbx`, renamed to `barista_casual_man.fbx` for stable Unity paths.
+- Unity import target: Humanoid rig, Avatar created from this model.
+- Unity animation import: disabled for this converted FBX; runtime animation comes from the shared `AvatarCommonHumanoid.controller` and existing stable Humanoid clips.
+- Prefab wrapper normalizes the model to about 1.72 meters tall and rotates it 180 degrees around Y so it faces the user from `AvatarRoot`.
+
+## Female Teacher Humanoid v1
+
+- Catalog key: `teacher_female_humanoid_v1`
+- Runtime prefab: `Assets/SceneTalkVR/Avatar/Prefabs/Humanoid/teacher_female_humanoid_v1.prefab`
+- Imported model: `Assets/SceneTalkVR/Avatar/Models/Humanoid/QuaterniusSuit/teacher_suit_woman.fbx`
+- Source page: https://poly.pizza/m/sOUciDsoVV
+- Creator: Quaternius
+- Original model title: `Suit`
+- License shown on source page: `Creative Commons Attribution`
+- Source page metadata checked on 2026-07-04: `Type=FBX`, `Animated=true`, `Tris=3956`
+- Download used: https://static.poly.pizza/1bd7759c-ab76-4178-8fe6-7706dffa7d5f.zip
+- FBX used from source pack: `Suit.fbx`, renamed to `teacher_suit_woman.fbx` for stable Unity paths.
+- Unity import target: Humanoid rig, Avatar created from this model.
+- Unity animation import: disabled for this converted FBX; runtime animation comes from the shared `AvatarCommonHumanoid.controller` and existing stable Humanoid clips.
+- Prefab wrapper normalizes the model to about 1.66 meters tall and rotates it 180 degrees around Y so it faces the user from `AvatarRoot`.
+- Attribution note: keep Quaternius / Poly Pizza attribution in presentation or source documentation.
+
+## Female Police Humanoid v1
+
+- Catalog key: `police_female_humanoid_v1`
+- Runtime prefab: `Assets/SceneTalkVR/Avatar/Prefabs/Humanoid/police_female_humanoid_v1.prefab`
+- Imported model: `Assets/SceneTalkVR/Avatar/Models/Humanoid/QuaterniusSoldier/police_soldier_woman.fbx`
+- Source page: https://poly.pizza/m/oAArCNHjFB
+- Creator: Quaternius
+- Original model title: `Soldier`
+- License shown on source page: `Creative Commons Attribution`
+- Source page metadata checked on 2026-07-04: `Type=FBX`, `Animated=true`, `Tris=4400`
+- Download used: https://static.poly.pizza/66a55d04-4286-44a3-b289-0d774c27db5b.zip
+- FBX used from source pack: `Soldier.fbx`, renamed to `police_soldier_woman.fbx` for stable Unity paths.
+- Unity import target: Humanoid rig, Avatar created from this model.
+- Unity animation import: disabled for this converted FBX; runtime animation comes from the shared `AvatarCommonHumanoid.controller` and existing stable Humanoid clips.
+- Prefab wrapper normalizes the model to about 1.70 meters tall and rotates it 180 degrees around Y so it faces the user from `AvatarRoot`.
+- Attribution note: keep Quaternius / Poly Pizza attribution in presentation or source documentation.
+
 ## Edwin Boundary
 
-This P1 import only changes Unity-side Avatar resource matching, loading, replacement, and fallback. It does not modify user intent recognition, LLM prompts, JSON generation, scene generation, STT, or TTS.
+This P1 import changes Unity-side Avatar resource matching, loading, replacement, and fallback. The 2026-07-04 gender pass also updates demo payload parsing, the Unity RealLLM prompt contract, and Avatar-side TTS voice selection so male/female Avatar presets can drive the correct voice alias. It does not implement Spring-side dialogue memory, scene generation, PICO packaging, or real-time lip sync.

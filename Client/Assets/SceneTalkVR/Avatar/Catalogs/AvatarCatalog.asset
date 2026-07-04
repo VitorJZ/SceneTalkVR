@@ -55,6 +55,46 @@ MonoBehaviour:
     mustHaveTags: []
     qualityTier: humanoid_v1
     mobileReady: 1
+  - key: barista_male_humanoid_v1
+    displayName: Barista Male Humanoid v1 - Quaternius Casual Character
+    priority: 80
+    prefab: {fileID: 7316973250779560681, guid: ea51f8798fb594caeb2576986eac044f, type: 3}
+    addressableKey: 
+    roles:
+    - barista
+    - cafe_worker
+    - clerk
+    environmentTags:
+    - coffee_shop
+    - cafe
+    styleIds:
+    - semi_realistic_v1
+    - humanoid_v1
+    - low_poly_v1
+    genderPresentations:
+    - male
+    ageBuckets:
+    - young_adult
+    - adult
+    bodyBuilds:
+    - average
+    hairStyles: []
+    hairColors: []
+    outfitRoles:
+    - barista
+    - casual
+    outfitColors:
+    - red
+    - white
+    - black
+    accessoryTags:
+    - coffee
+    - cup
+    - drink
+    - casual
+    mustHaveTags: []
+    qualityTier: humanoid_v1
+    mobileReady: 1
   - key: barista_default
     displayName: Placeholder Barista
     priority: 30
@@ -121,6 +161,45 @@ MonoBehaviour:
     - business
     outfitColors:
     - blue
+    - black
+    - white
+    accessoryTags:
+    - book
+    - suit
+    - formal
+    mustHaveTags: []
+    qualityTier: humanoid_v1
+    mobileReady: 1
+  - key: teacher_female_humanoid_v1
+    displayName: Teacher Female Humanoid v1 - Quaternius Suit
+    priority: 80
+    prefab: {fileID: 996461390545780520, guid: f996e4fd27273468099629141107f6ed, type: 3}
+    addressableKey: 
+    roles:
+    - teacher
+    - instructor
+    - tutor
+    environmentTags:
+    - classroom
+    - school
+    styleIds:
+    - semi_realistic_v1
+    - humanoid_v1
+    - low_poly_v1
+    genderPresentations:
+    - female
+    ageBuckets:
+    - adult
+    - middle_aged
+    bodyBuilds:
+    - average
+    hairStyles: []
+    hairColors: []
+    outfitRoles:
+    - teacher
+    - formal
+    - business
+    outfitColors:
     - black
     - white
     accessoryTags:
@@ -204,6 +283,51 @@ MonoBehaviour:
     - uniform
     - helmet
     - vest
+    - security
+    mustHaveTags: []
+    qualityTier: humanoid_v1
+    mobileReady: 1
+  - key: police_female_humanoid_v1
+    displayName: Police Female Humanoid v1 - Quaternius Soldier
+    priority: 80
+    prefab: {fileID: 7138947530723494882, guid: 2595414229f004cf89d96e7af3ae4ce5, type: 3}
+    addressableKey: 
+    roles:
+    - police
+    - officer
+    - security
+    - customs
+    environmentTags:
+    - airport
+    - street
+    - station
+    styleIds:
+    - semi_realistic_v1
+    - humanoid_v1
+    - low_poly_v1
+    genderPresentations:
+    - female
+    ageBuckets:
+    - adult
+    - middle_aged
+    bodyBuilds:
+    - average
+    - strong
+    hairStyles: []
+    hairColors: []
+    outfitRoles:
+    - police
+    - security
+    - uniform
+    - soldier
+    outfitColors:
+    - black
+    - navy
+    - dark
+    - grey
+    accessoryTags:
+    - badge
+    - uniform
     - security
     mustHaveTags: []
     qualityTier: humanoid_v1

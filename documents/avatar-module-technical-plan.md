@@ -97,6 +97,7 @@ P1 调整与验证（2026-06-11）：
 
 后续仍未完成：
 
+- 核心 demo 角色已形成 3 职业 x 2 性别最小矩阵；仍需逐个做 Play Mode / PICO 视角下的可视验收，确认新增男服务员、女教师、女警察的朝向、比例、材质和动作表现。
 - 若后续课程/demo 需要更多场景覆盖，可继续接入 `student_humanoid_v1` 或 `tourist_humanoid_v1`，但这不再阻塞 Avatar P1。
 - props 当前不是演示重点，默认关闭；若后续重新需要道具，再通过 `AvatarPresentationVoiceModule.attachProps` 和 `AvatarPropPresenter` 显式启用。
 - 还未实现 Addressables 加载；这属于 P2，不是 P1 的必要前置。
@@ -258,6 +259,18 @@ P1 试点流程：
 6. Play Mode 验证同一 transcript 可以加载真实模型，并确认失败时仍可回退占位模型。
 7. 记录模型来源、授权、导入设置和验证结果，方便答辩或后续仓库交接。
 
+P1 性别补齐结果：
+
+- 最小矩阵不是无限扩角色，而是先让已有 3 个核心职业各有 male / female 两个可选 Humanoid preset。
+- 已有覆盖：`barista_humanoid_v1` 作为 female barista，`teacher_humanoid_v1` 作为 male teacher，`police_humanoid_v1` 作为 male police。
+- 已补齐资源：
+  - `barista_male_humanoid_v1`：Poly Pizza `Casual Character`，Quaternius，Public Domain (CC0)，https://poly.pizza/m/kZ3DmIoGip
+  - `teacher_female_humanoid_v1`：Poly Pizza `Suit`，Quaternius，Creative Commons Attribution，https://poly.pizza/m/sOUciDsoVV
+  - `police_female_humanoid_v1`：Poly Pizza `Soldier`，Quaternius，Creative Commons Attribution，https://poly.pizza/m/oAArCNHjFB
+- 每个新增 prefab 已按现有流程完成 Humanoid Rig、朝向/缩放、Animator Controller、fallback 和来源授权记录。
+- Attribution 授权模型需要在 `AvatarHumanoidP1SourceLog.md`、答辩材料或 README 中保留作者/来源署名，不要按 CC0 处理。
+- `AvatarCatalog.asset` 中同职业不同性别条目不要靠文件名硬编码选择；统一靠 `roles`、`environmentTags`、`outfitRoles`、`genderPresentations` 和 `priority` 参与 resolver 打分。
+
 ### 4.3 P2：Addressables 与资源治理
 
 目标：从 Inspector 直接引用 Prefab 升级到可打包、可远程分发、可缓存的资源加载方式。
@@ -418,6 +431,7 @@ Unity 内可以用 `ScriptableObject` 表示 catalog，而不是运行时解析�
 role: barista | teacher | police
 environmentType: coffee_shop | classroom | airport
 styleId: semi_realistic_v1
+genderPresentation: male | female | unknown
 outfitRole: barista | teacher | police
 outfitColor: green | blue | navy
 accessories: round_black_glasses | badge | cap
@@ -453,12 +467,20 @@ Resolver 负责把已收到的外观意图转换成具体资源。当前已使�
 
 ```text
 role 命中 +40
+gender 命中 +25
 environment 命中 +20
 outfit 命中 +20
-accessory 命中 +10
-age/gender/style 命中 +10
+must-have 命中 +10
+style/age/body/hair/color/accessory 命中 +5
 mobileReady +5
 ```
+
+性别支持的最小规则：
+
+- 如果 payload 明确给出 `genderPresentation=male` 或 `female`，优先选择同 role 且同 gender 的 preset。
+- 如果没有同职业同 gender 资源，则回退到同职业 `unknown` 或同职业默认 preset，不中断练习流程。
+- 如果 payload 没有 gender 或给出 `unknown`，允许 resolver 选择该职业的默认高优先级 preset。
+- 不为每个性别写独立 resolver 分支；资源差异应留在 `AvatarCatalog.asset` 数据里。
 
 如果最高分低于阈值，进入 fallback：
 
@@ -606,6 +628,9 @@ flowchart TD
 - [x] 调整 Demo Rig 角色缩放，验证 barista fixed payload 中角色可正常呈现且默认不生成 props。
 - [x] 与 Vitor 多轮交互框架合并后，保留同 Avatar key 复用逻辑，并让 `attachProps` 在新加载和复用路径中一致生效。
 - [x] 首次 Avatar 回复继续 `Speak`/`Wave`，同场景后续回复切换为 `Talk`；外部 Quaternius `Idle_Talking_Loop` 已改为 head-only masked layer，保留轻微说话感并避免 full-body retarget 与手臂怪异 pose。
+- [x] 补齐核心 demo 角色 3 职业 x 2 性别矩阵，并在 `AvatarCatalog.asset` 中登记 `barista_male_humanoid_v1`、`teacher_female_humanoid_v1`、`police_female_humanoid_v1`。
+- [x] 提高 resolver 中 `genderPresentation` 命中权重，使明确性别请求优先于同职业默认资源。
+- [x] 更新 demo brain 与 RealLLM prompt，使中英文“男/女 + 职业”请求能进入 `avatarRole.appearance.genderPresentation`。
 - [x] 记录 P1 验证结果和下一批角色扩展建议。
 
 ## 10. 验收标准
@@ -687,11 +712,11 @@ LLM 可能输出不存在的字段、拼写错误或不支持的角色。
 
 ## 13. 推荐下一步
 
-P1 当前已经跑通三个真实 Humanoid 外观。props 资源保留但默认关闭。下一步建议先收口验证与轻量性能检查，仍保持现有架构边界，不接 LLM、Prompt 或真实 STT/TTS。
+P1 当前已经跑通核心真实 Humanoid 外观，并补齐三职业男女最小矩阵。props 资源保留但默认关闭。下一步建议先收口验证与轻量性能检查，仍保持现有架构边界，不接 Spring 的对话记忆或场景生成职责。
 
 推荐顺序：
 
-1. 做一次 P1 收口验收：teacher / barista / police 三个 fixed payload 逐个加载，确认 resolver 命中真实 prefab，缺资源时仍回退 placeholder。
+1. 做一次 P1 收口验收：teacher / barista / police 的 male / female fixed payload 逐个加载，确认 resolver 命中对应真实 prefab，缺资源时仍回退 placeholder。
 2. 做一次 PICO 4 或移动端目标配置下的渲染预算检查，重点看 draw calls、材质数量和加载耗时。
 3. 若重新需要 props，再显式打开 `AvatarPresentationVoiceModule.attachProps` 并接入更多可复用道具，例如 `coffee_cup_prop_v1`、`tray_prop_v1`、`menu_prop_v1`。
 4. 若启用 props，再为常用道具补轻量 socket offset 调参记录，避免不同 Humanoid 骨骼缩放造成摆放偏移。

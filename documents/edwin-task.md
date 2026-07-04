@@ -14,9 +14,10 @@ Edwin 的模块应保持可替换、可降级、可联调：即使真实云服�
 2. 建立安全的后端语音网关：隐藏腾讯云等云厂商密钥，对 Unity 暴露统一协议，并保留 mock fallback。
 3. 建立 Avatar 资源匹配与加载链路：消费 Spring 的 `SpringScenePayload.avatarRole` 和 `appearance` 字段，选择合适角色 prefab 并实例化到 `AvatarRoot`。
 4. 保证 Avatar 资源缺失、语音服务失败、字段不完整时仍可回退到默认角色或 demo 语音，不阻断整体练习流程。
-5. 为后续更多真实模型替换、PICO 真机麦克风验证、流式语音、口型同步和 LLM 对话记忆预留接口。
+5. 补齐角色性别表现支持：同一职业可根据 `genderPresentation` 选择男/女 Avatar，并让 TTS 跟随角色性别选择男声或女声。
+6. 为后续更多真实模型替换、PICO 真机麦克风验证、流式语音、口型同步和 LLM 对话记忆预留接口。
 
-## 当前完成进度（2026-06-30）
+## 当前完成进度（2026-07-04）
 
 ### 已完成
 
@@ -30,9 +31,12 @@ Edwin 的模块应保持可替换、可降级、可联调：即使真实云服�
 - 已生成 `barista_default`、`teacher_default`、`police_default` 三个占位 Avatar，分别覆盖咖啡店、课堂、警务/机场等演示场景。
 - 已建立 `AvatarCatalog.asset`，通过角色、环境、服装、配件、优先级和 fallback 规则匹配 Avatar。
 - 已完成 Avatar P1 三个 Humanoid 角色试点：`teacher_humanoid_v1`、`barista_humanoid_v1`、`police_humanoid_v1` 均已制作 prefab 并登记进 `AvatarCatalog.asset`。
+- 已补齐核心 demo 角色的 3 职业 x 2 性别最小矩阵：新增 `barista_male_humanoid_v1`、`teacher_female_humanoid_v1`、`police_female_humanoid_v1`，并在 `AvatarCatalog.asset` 中登记 `genderPresentations`。
+- 已提高 `AvatarPresetResolver` 中 gender 命中权重，使“男服务员 / 女教师 / 女警察”等明确性别请求优先命中同职业同 gender 的 prefab。
 - 已记录真实模型来源与授权：`AvatarHumanoidP1SourceLog.md`，当前 Humanoid 角色主要使用 Quaternius / Poly Pizza 授权资源。
 - 已建立共享 `AvatarCommonHumanoid.controller`，支持 `Idle` / `Think` / `Speak` / `Talk` 动作触发。
-- 已更新 demo payload，可根据输入关键词生成 barista / teacher / police 三类角色，并命中对应 Avatar。
+- 已更新 demo payload，可根据中英文输入关键词生成 barista / teacher / police 三类角色，并根据 male / female / 男 / 女 等关键词写入 `appearance.genderPresentation`。
+- 已更新 `RealLLMService` system prompt，要求真实 LLM 输出 `avatarRole.appearance.genderPresentation=male|female|unknown`。
 - 已完成 Avatar P0 稳定性验证：未知角色 fallback、旧 Avatar 清理、多轮替换、资源缺失时继续流程。
 - 已新增后端语音网关 `Server/voice-gateway`，提供 `/health`、`/api/voice/stt`、`/api/voice/tts` 和音频下载接口。
 - 语音网关已支持 `mock` provider：固定 transcript 与生成 WAV tone，用于离线演示。
@@ -42,6 +46,7 @@ Edwin 的模块应保持可替换、可降级、可联调：即使真实云服�
 - 已新增 Unity 侧 `VoiceGatewayClient`、`MicrophoneRecorder`、`GatewaySpeechInputModule`。
 - Unity 侧可录制默认麦克风音频，编码为 16-bit WAV base64 后上传给语音网关。
 - Unity 侧可请求 TTS、下载返回 WAV，并转换为 `AudioClip` 播放。
+- Unity 侧 TTS 请求已根据最终解析到的 Avatar preset 性别选择 `default_male_en` 或 `default_female_en`，缺失时回退默认 voiceId。
 - 已新增 `VoiceGatewaySettings.asset`，集中配置 `gatewayBaseUrl`，支持团队通过局域网共用一台语音网关主机。
 - 已新增 `SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway`，可在现有 demo rig 上切换到真实语音网关路径，不重建场景生成、UI 或 Avatar 配置。
 - 已合入 Vitor 的连续回合框架；同一场景内可重复触发 `STT -> Brain -> TTS -> Avatar 回复`，但 LLM 对话历史仍由 Spring 的 Brain 层负责。
@@ -53,7 +58,8 @@ Edwin 的模块应保持可替换、可降级、可联调：即使真实云服�
 - 录音结束策略仍偏 P0，后续需要手动结束录音、基础静音检测或 VAD。
 - STT/TTS 目前以 turn-based 整段上传和整段播放为主，尚未实现流式 STT、TTS 分段播放和 barge-in 打断。
 - 语音日志、错误码、延迟统计、成本统计和日志脱敏还需补齐。
-- Avatar 真实模型已有 teacher、barista、police 三个 Humanoid 试点；后续若需要更多角色、LOD、Addressables 或更高质量资产，还需继续扩展。
+- 新增性别模型已导入并通过 Unity 菜单生成 prefab；仍需在实际 Play Mode / PICO 视角下逐个做可视验收，确认朝向、比例、材质和动画表现符合 demo 需要。
+- Spring/RealLLM 侧已在客户端 prompt 中要求输出 `appearance.genderPresentation`；仍需与 Spring 的最终 Brain/prompt 联调，确认线上路径稳定产出 `male | female | unknown`。
 - 真实口型同步尚未实现；当前主要是播放 TTS 音频并触发基础 speaking 动画。
 - Addressables、远程 Avatar 加载、Avatar 缓存和 LOD 尚未实现。
 - 当前连续回合框架已经可重复调用 Edwin 的语音和 Avatar 播放链路；完整多轮智能仍需要 Spring 的多轮 LLM Brain 维护历史、Prompt 和上下文策略。
@@ -65,6 +71,7 @@ Edwin 的模块应保持可替换、可降级、可联调：即使真实云服�
 - PICO 真机测试时确认 Android 麦克风权限、网络访问权限和与网关主机的同网段连通性。
 - 为新增真实 Avatar 模型确认来源、授权、模型格式、面数、贴图尺寸和课程/论文/demo 展示许可。
 - 若接入口型同步插件，需要确认插件授权、Unity 6 兼容性、PICO/Android 兼容性和模型 BlendShape/骨骼支持情况。
+- 新增性别模型来源、授权、面数、材质与 Humanoid Rig 导入结果已记录在 `AvatarHumanoidP1SourceLog.md`；其中 `Suit` 与 `Soldier` 为 Creative Commons Attribution，展示/文档中需要保留 Quaternius / Poly Pizza 署名。
 
 ## 阶段计划
 
@@ -97,6 +104,9 @@ Edwin 的模块应保持可替换、可降级、可联调：即使真实云服�
 - [ ] 补齐语音网关结构化日志：provider、耗时、错误码、fallback level、音频时长和缓存状态。
 - [ ] 补齐日志脱敏策略：默认不保存原始音频和完整 transcript。
 - [x] 完成至少 3 个真实或半真实 Humanoid Avatar：teacher、barista、police。
+- [x] 补齐性别矩阵：每个核心职业至少有 male / female 两个可选 Humanoid preset。
+- [x] 在 `AvatarCatalog.asset` 中为每个性别版本登记 `genderPresentations`、role、environment、outfit 和 priority，保留原 placeholder fallback。
+- [ ] 与 Spring 的 payload 联调，确保用户说“男教师”“女警察”等需求时稳定输出 `avatarRole.appearance.genderPresentation`。
 - [x] 为真实 Avatar 统一基本 idle / thinking / speaking / follow-up talking 动画触发。
 - [ ] 继续保留 placeholder prefab 作为 fallback，避免真实模型导入失败影响演示。
 - [ ] 与 Spring 的真实 LLM/场景 payload 联调，确认 `avatarRole` 与 `appearance` 字段稳定。
@@ -126,10 +136,11 @@ Edwin 的模块应保持可替换、可降级、可联调：即使真实云服�
 
 - 从 `SpringScenePayload.dialogueReply` 读取 Avatar 要说的话。
 - 从 `avatarRole` 读取语速、口音、态度、角色等语音画像。
+- 从 `avatarRole.appearance.genderPresentation` 或当前 resolved Avatar preset 推导基础 voiceId：`male` 使用 `default_male_en`，`female` 使用 `default_female_en`，缺失或 `unknown` 时回退当前默认值。
 - 经由 `VoiceGatewayClient` 调用 `/api/voice/tts`。
 - 下载网关返回的 WAV，转成 `AudioClip` 后由 Unity `AudioSource` 播放。
 - TTS 失败时回退 demo 音频或 fallback speaking 等待。
-- 后续补齐分段合成、音频缓存、播放队列和打断能力。
+- 后续补齐角色 voice profile catalog、分段合成、音频缓存、播放队列和打断能力。
 
 ### 3. 后端语音网关
 
@@ -156,7 +167,7 @@ Edwin 的模块应保持可替换、可降级、可联调：即使真实云服�
 - 真实模型应制作正式 prefab，再登记进 `AvatarCatalog.asset`，不在运行时代码里硬编码路径。
 - 面向 PICO 4 时优先低到中等复杂度模型，避免过高面数、过多材质和过大贴图。
 - 每个真实角色都保留 placeholder fallback。
-- 当前试点为 `teacher_humanoid_v1`、`barista_humanoid_v1` 和 `police_humanoid_v1`；下一步建议做移动端预算检查、LOD/Addressables 规划和更多角色扩展。
+- 当前核心 demo 角色已形成 3 职业 x 2 性别的最小覆盖：女服务员 `barista_humanoid_v1`、男服务员 `barista_male_humanoid_v1`、男教师 `teacher_humanoid_v1`、女教师 `teacher_female_humanoid_v1`、男警察 `police_humanoid_v1`、女警察 `police_female_humanoid_v1`。
 
 ### 6. Avatar 语音表现与口型同步
 

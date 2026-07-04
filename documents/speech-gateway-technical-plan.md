@@ -390,6 +390,8 @@ Content-Type: application/json
 }
 ```
 
+`voiceId` 不再长期写死为女声。P1 性别支持中，Unity 侧 `AvatarPresentationVoiceModule` 会优先根据当前 resolved Avatar preset 的 `genderPresentations`，其次根据 payload 的 `avatarRole.appearance.genderPresentation`，传入 `default_male_en` / `default_female_en`；网关只负责把该 alias 映射到具体腾讯云 voice type。
+
 响应可以二选一：
 
 ```json
@@ -708,8 +710,9 @@ Edwin 语音 P2 阶段完成时，应满足：
 控制方式：
 
 - P0 先用低成本精品音色。
+- P1 已补最小性别声线选择：resolved Avatar 或 `avatarRole.appearance.genderPresentation=male` 时使用 `default_male_en`，`female` 时使用 `default_female_en`，缺失或 `unknown` 时继续使用 Unity 侧默认值。
 - 对 `speakingSpeed`、`accent`、`attitude` 做服务端映射表。
-- P3 再测试腾讯云大模型音色、音色复刻或 Azure custom voice。
+- P2/P3 再做角色 voice profile catalog，例如按 `role + gender + accent` 映射更细的腾讯云音色、腾讯云大模型音色、音色复刻或 Azure custom voice。
 
 ### 11.5 PICO 麦克风和回声问题
 
@@ -744,6 +747,7 @@ VR 设备中 Avatar 播放的声音可能被麦克风再次采集，影响下一
 - VAD、降噪、回声抑制。
 - 口型同步。
 - 角色 voice profile catalog。
+- Avatar 性别驱动 voiceId 选择已接入，先复用 `default_male_en` / `default_female_en`，后续再扩展为角色级音色表。
 - 单会话成本统计面板。
 
 这些扩展必须保持在语音网关 provider 边界内，不应反向污染 `SceneTalkOrchestrator`。
@@ -756,13 +760,14 @@ P0 最小真实链路已经完成。建议下一步进入 Edwin 语音 P1 验证
 2. 增加手动结束录音、静音结束或基础 VAD，避免固定录音时长影响交互。
 3. 增加结构化日志：字符数、音频时长、错误码、单次练习估算成本。
 4. 明确云服务失败时的 UI 提示和 demo fallback 行为。
-5. 继续强化 Avatar TTS 播放完成信号和录音禁用时机，确保 Vitor 的连续回合框架不会在 Avatar 还没说完时误触发下一轮。
-6. 再评估是否接入腾讯云实时 ASR WebSocket、TTS 分段播放和 barge-in 打断。
+5. 做一轮男女角色 TTS smoke test，确认男角色请求落到 `default_male_en`，女角色请求落到 `default_female_en`。
+6. 继续强化 Avatar TTS 播放完成信号和录音禁用时机，确保 Vitor 的连续回合框架不会在 Avatar 还没说完时误触发下一轮。
+7. 再评估是否接入腾讯云实时 ASR WebSocket、TTS 分段播放和 barge-in 打断。
 
 如果时间紧，优先保证：
 
 ```text
-真实 STT transcript + 真实 TTS 音频播放 + 云密钥不进 Unity + Demo fallback 可用
+真实 STT transcript + 性别匹配的真实 TTS 音频播放 + 云密钥不进 Unity + Demo fallback 可用
 ```
 
 流式、打断、缓存、发音评估和口型同步可以排到 P1/P2/P3。

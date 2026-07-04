@@ -114,7 +114,7 @@ namespace SceneTalkVR.AvatarSystem
 
             if (Contains(candidate.genderPresentations, appearance.genderPresentation))
             {
-                score += 5;
+                score += 25;
             }
 
             if (Contains(candidate.ageBuckets, appearance.ageBucket))
