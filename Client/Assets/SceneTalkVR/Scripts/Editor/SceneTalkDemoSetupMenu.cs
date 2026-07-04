@@ -116,7 +116,6 @@ namespace SceneTalkVR.EditorTools
             SetString(realLlm, "apiUrl", "https://models.sjtu.edu.cn/api/v1/chat/completions");
             SetString(realLlm, "apiKey", "");
             SetString(realLlm, "modelName", "minimax-m2.7");
-            SetString(realLlm, "systemPrompt", "You are a VR scene dispatcher and an English tutor. Based on the user's input, generate a JSON response that matches the following structure:\n{\n  \"taskType\": \"string\",\n  \"environmentType\": \"string\",\n  \"dialogueReply\": \"string\",\n  \"avatarRole\": { \"role\": \"string\", \"speakingSpeed\": \"string\", \"accent\": \"string\", \"attitude\": \"string\" },\n  \"scene\": { \"mode\": \"skybox\", \"skyboxUrl\": \"\" }\n}\nEnsure the output is ONLY the JSON object, no markdown, no conversational filler. The 'dialogueReply' should be in character based on the 'environmentType' and 'avatarRole.role'.");
 
             var panorama = root.GetComponent<SceneTalkVR.Runtime.Services.PanoramaSceneService>();
             if (panorama == null) panorama = root.AddComponent<SceneTalkVR.Runtime.Services.PanoramaSceneService>();
