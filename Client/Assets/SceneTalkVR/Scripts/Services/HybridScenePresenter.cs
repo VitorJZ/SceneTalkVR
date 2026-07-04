@@ -18,15 +18,11 @@ namespace SceneTalkVR.Runtime.Services
         [Header("Settings")]
         [SerializeField] private Transform sceneRoot;
         [SerializeField] private float spawnScale = 1.0f;
+        [SerializeField] private bool autoCenterObjects = true;
+        [SerializeField] private Vector3 sceneOffset = new Vector3(0, 0, 2.5f); // Move objects 2.5m forward
         
-        [Serializable]
-        private struct PrefabMapping
-        {
-            public string key;
-            public GameObject prefab;
-        }
-        
-        [SerializeField] private List<PrefabMapping> objectLibrary = new List<PrefabMapping>();
+        [Header("Asset Configuration")]
+        [SerializeField] private SceneTalkAssetCatalog assetCatalog;
 
         public IEnumerator PresentScene(SpringScenePayload payload, Action onComplete, Action<string> onError)
         {
@@ -88,6 +84,29 @@ namespace SceneTalkVR.Runtime.Services
         {
             if (response?.objects == null || sceneRoot == null) return;
 
+            Debug.Log($"[HybridScenePresenter] Received {response.objects.Length} objects from backend.");
+
+            Vector3 centerOffset = Vector3.zero;
+            if (autoCenterObjects && response.objects.Length > 0)
+            {
+                Vector3 sum = Vector3.zero;
+                int count = 0;
+                foreach (var obj in response.objects)
+                {
+                    if (obj.position != null && obj.position.Length >= 3)
+                    {
+                        sum += new Vector3(obj.position[0], obj.position[1], obj.position[2]);
+                        count++;
+                    }
+                }
+                if (count > 0)
+                {
+                    centerOffset = sum / count;
+                    centerOffset.y = 0; // Keep objects on ground
+                    Debug.Log($"[HybridScenePresenter] Auto-centering scene. Applied offset: {-centerOffset}");
+                }
+            }
+
             foreach (var objData in response.objects)
             {
                 // 1. Map Holodeck Name to PrefabKey Whitelist
@@ -97,8 +116,19 @@ namespace SceneTalkVR.Runtime.Services
                 GameObject prefab = FindPrefab(mappedKey);
                 if (prefab == null)
                 {
-                    Debug.LogWarning($"[HybridScenePresenter] No prefab mapped for: '{mappedKey}' (Original: '{objData.name}'). Using generic fallback.");
-                    prefab = GetGenericFallback(mappedKey);
+                    string fallbackKey = "generic_decor";
+                    if (mappedKey.Contains("table")) fallbackKey = "generic_table";
+                    else if (mappedKey.Contains("chair") || mappedKey.Contains("sofa")) fallbackKey = "generic_chair";
+
+                    prefab = FindPrefab(fallbackKey);
+                    
+                    if (prefab == null)
+                    {
+                        Debug.LogWarning($"[HybridScenePresenter] No prefab or fallback mapped for: '{mappedKey}' (Original: '{objData.name}'). Skipping instantiation.");
+                        continue;
+                    }
+                    
+                    Debug.Log($"[HybridScenePresenter] Mapped '{objData.name}' to fallback prefab '{fallbackKey}'");
                 }
 
                 // 3. Handle coordinate format from Python backend
@@ -108,6 +138,9 @@ namespace SceneTalkVR.Runtime.Services
                     pos = new Vector3(objData.position[0], objData.position[1], objData.position[2]);
                 }
                 
+                pos -= centerOffset; // Move objects to be centered around user
+                pos += sceneOffset; // Apply manual viewing offset
+
                 Quaternion rot = Quaternion.Euler(0, objData.rotation, 0);
 
                 var instance = Instantiate(prefab, pos, rot, sceneRoot);
@@ -144,46 +177,13 @@ namespace SceneTalkVR.Runtime.Services
 
         private GameObject FindPrefab(string key)
         {
-            foreach (var mapping in objectLibrary)
+            if (assetCatalog == null)
             {
-                if (string.Equals(key, mapping.key, StringComparison.OrdinalIgnoreCase))
-                    return mapping.prefab;
+                Debug.LogWarning("[HybridScenePresenter] Asset Catalog is not assigned.");
+                return null;
             }
-            return null;
+            return assetCatalog.FindPrefab(key);
         }
 
-        private GameObject GetGenericFallback(string key)
-        {
-            PrimitiveType type = PrimitiveType.Cube;
-            Vector3 scale = new Vector3(0.3f, 0.3f, 0.3f);
-            
-            if (key.Contains("table"))
-            {
-                type = PrimitiveType.Cube;
-                scale = new Vector3(1.2f, 0.8f, 1.2f);
-            }
-            else if (key.Contains("chair") || key.Contains("sofa"))
-            {
-                type = PrimitiveType.Cylinder;
-                scale = new Vector3(0.5f, 0.5f, 0.5f);
-            }
-            else if (key.Contains("plant"))
-            {
-                type = PrimitiveType.Sphere;
-                scale = new Vector3(0.4f, 0.6f, 0.4f);
-            }
-
-            var go = GameObject.CreatePrimitive(type);
-            go.transform.localScale = scale;
-            
-            // Visual indicator for generic fallbacks
-            var renderer = go.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                renderer.material.color = Color.cyan;
-            }
-            
-            return go;
-        }
     }
 }

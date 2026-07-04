@@ -57,26 +57,47 @@ namespace SceneTalkVR.EditorTools
 
         private static void CreateCleanDemoRig(bool useVoiceGateway)
         {
-            CleanupGeneratedDemoObjects();
+            var root = GameObject.Find(DemoRigName);
+            if (root == null)
+            {
+                root = new GameObject(DemoRigName);
+            }
 
-            var root = new GameObject(DemoRigName);
-            var sceneRoot = new GameObject(SceneRootName).transform;
-            sceneRoot.SetParent(root.transform);
-            var avatarRoot = new GameObject(AvatarRootName).transform;
-            avatarRoot.SetParent(root.transform);
-            avatarRoot.localPosition = new Vector3(0f, 0f, 2.6f);
-            avatarRoot.localRotation = Quaternion.identity;
-            avatarRoot.localScale = Vector3.one * 1.25f;
+            var sceneRootTransform = root.transform.Find(SceneRootName);
+            if (sceneRootTransform == null)
+            {
+                sceneRootTransform = new GameObject(SceneRootName).transform;
+                sceneRootTransform.SetParent(root.transform);
+            }
+
+            var avatarRootTransform = root.transform.Find(AvatarRootName);
+            if (avatarRootTransform == null)
+            {
+                avatarRootTransform = new GameObject(AvatarRootName).transform;
+                avatarRootTransform.SetParent(root.transform);
+                avatarRootTransform.localPosition = new Vector3(0f, 0f, 2.6f);
+                avatarRootTransform.localRotation = Quaternion.identity;
+                avatarRootTransform.localScale = Vector3.one * 1.25f;
+            }
+
             var interactionCamera = ConfigureMainCamera();
             EnsureInputEventSystem();
 
-            var audioSource = root.AddComponent<AudioSource>();
+            var audioSource = root.GetComponent<AudioSource>();
+            if (audioSource == null) audioSource = root.AddComponent<AudioSource>();
+
             MonoBehaviour speech;
             if (useVoiceGateway)
             {
-                var gatewayClient = root.AddComponent<VoiceGatewayClient>();
-                var microphoneRecorder = root.AddComponent<MicrophoneRecorder>();
-                var gatewaySpeech = root.AddComponent<GatewaySpeechInputModule>();
+                var gatewayClient = root.GetComponent<VoiceGatewayClient>();
+                if (gatewayClient == null) gatewayClient = root.AddComponent<VoiceGatewayClient>();
+
+                var microphoneRecorder = root.GetComponent<MicrophoneRecorder>();
+                if (microphoneRecorder == null) microphoneRecorder = root.AddComponent<MicrophoneRecorder>();
+
+                var gatewaySpeech = root.GetComponent<GatewaySpeechInputModule>();
+                if (gatewaySpeech == null) gatewaySpeech = root.AddComponent<GatewaySpeechInputModule>();
+
                 SetObject(gatewayClient, "settings", EnsureVoiceGatewaySettings());
                 SetObject(gatewaySpeech, "gatewayClient", gatewayClient);
                 SetObject(gatewaySpeech, "microphoneRecorder", microphoneRecorder);
@@ -84,33 +105,89 @@ namespace SceneTalkVR.EditorTools
             }
             else
             {
-                speech = root.AddComponent<DemoSpeechInputModule>();
+                speech = root.GetComponent<DemoSpeechInputModule>();
+                if (speech == null) speech = root.AddComponent<DemoSpeechInputModule>();
             }
 
-            var brain = root.AddComponent<DemoBrainModule>();
-            var scenePresenter = root.AddComponent<SceneTalkScenePresenter>();
-            var avatarResolver = root.AddComponent<AvatarPresetResolver>();
-            var avatarLoader = root.AddComponent<PrefabAvatarInstanceLoader>();
-            var avatarAnimation = root.AddComponent<AvatarAnimationDriver>();
-            var avatarProps = root.AddComponent<AvatarPropPresenter>();
-            var avatarVoice = root.AddComponent<AvatarPresentationVoiceModule>();
-            var orchestrator = root.AddComponent<SceneTalkOrchestrator>();
-            var interactionBootstrap = root.AddComponent<SceneTalkInteractionBootstrap>();
+            // Check for modern components (RealLLM, Panorama, Holodeck, HybridPresenter)
+            var realLlm = root.GetComponent<SceneTalkVR.Runtime.Services.RealLLMService>();
+            if (realLlm == null) realLlm = root.AddComponent<SceneTalkVR.Runtime.Services.RealLLMService>();
+            SetString(realLlm, "apiUrl", "https://models.sjtu.edu.cn/api/v1/chat/completions");
+            SetString(realLlm, "apiKey", "");
+            SetString(realLlm, "modelName", "minimax-m2.7");
+            SetString(realLlm, "systemPrompt", "You are a VR scene dispatcher and an English tutor. Based on the user's input, generate a JSON response that matches the following structure:\n{\n  \"taskType\": \"string\",\n  \"environmentType\": \"string\",\n  \"dialogueReply\": \"string\",\n  \"avatarRole\": { \"role\": \"string\", \"speakingSpeed\": \"string\", \"accent\": \"string\", \"attitude\": \"string\" },\n  \"scene\": { \"mode\": \"skybox\", \"skyboxUrl\": \"\" }\n}\nEnsure the output is ONLY the JSON object, no markdown, no conversational filler. The 'dialogueReply' should be in character based on the 'environmentType' and 'avatarRole.role'.");
 
+            var panorama = root.GetComponent<SceneTalkVR.Runtime.Services.PanoramaSceneService>();
+            if (panorama == null) panorama = root.AddComponent<SceneTalkVR.Runtime.Services.PanoramaSceneService>();
+            SetString(panorama, "apiKey", "");
+            SetString(panorama, "modelName", "Tongyi-MAI/Z-Image");
+            SetString(panorama, "imageSize", "1024x1024");
+            SetString(panorama, "localFallbackPath", "SceneTalkVR/Textures/FallbackPanorama");
+            var fallbackTex = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/SceneTalkVR/Textures/FallbackPanorama.png");
+            SetObject(panorama, "fallbackTexture", fallbackTex);
+            SetBool(panorama, "forceUseFallback", false);
+            SetBool(panorama, "useSkySphere", false);
+            SetFloat(panorama, "skySphereScale", 20.0f);
+            SetVector3(panorama, "skySpherePositionOffset", new Vector3(0f, -1.6f, 0f));
+
+            var holodeck = root.GetComponent<SceneTalkVR.Runtime.Services.HolodeckSceneService>();
+            if (holodeck == null) holodeck = root.AddComponent<SceneTalkVR.Runtime.Services.HolodeckSceneService>();
+            SetBool(holodeck, "useLocalBackend", true);
+            SetString(holodeck, "backendUrl", "http://localhost:8080/generate_scene");
+
+            var hybridPresenter = root.GetComponent<SceneTalkVR.Runtime.Services.HybridScenePresenter>();
+            if (hybridPresenter == null) hybridPresenter = root.AddComponent<SceneTalkVR.Runtime.Services.HybridScenePresenter>();
+            SetObject(hybridPresenter, "panoramaService", panorama);
+            SetObject(hybridPresenter, "holodeckService", holodeck);
+            SetObject(hybridPresenter, "sceneRoot", sceneRootTransform);
+            SetFloat(hybridPresenter, "spawnScale", 1.0f);
+            SetBool(hybridPresenter, "autoCenterObjects", true);
+            SetVector3(hybridPresenter, "sceneOffset", new Vector3(0f, 0f, 2.5f));
+            var assetCatalog = AssetDatabase.LoadAssetAtPath<SceneTalkAssetCatalog>("Assets/SceneTalkVR/Prefabs/SceneTalkAssetCatalog.asset");
+            SetObject(hybridPresenter, "assetCatalog", assetCatalog);
+
+            MonoBehaviour brainToUse = realLlm;
+            MonoBehaviour presenterToUse = hybridPresenter;
+
+            var avatarResolver = root.GetComponent<AvatarPresetResolver>();
+            if (avatarResolver == null) avatarResolver = root.AddComponent<AvatarPresetResolver>();
+            
+            var avatarLoader = root.GetComponent<PrefabAvatarInstanceLoader>();
+            if (avatarLoader == null) avatarLoader = root.AddComponent<PrefabAvatarInstanceLoader>();
+            
+            var avatarAnimation = root.GetComponent<AvatarAnimationDriver>();
+            if (avatarAnimation == null) avatarAnimation = root.AddComponent<AvatarAnimationDriver>();
+            
+            var avatarProps = root.GetComponent<AvatarPropPresenter>();
+            if (avatarProps == null) avatarProps = root.AddComponent<AvatarPropPresenter>();
+            
+            var avatarVoice = root.GetComponent<AvatarPresentationVoiceModule>();
+            if (avatarVoice == null) avatarVoice = root.AddComponent<AvatarPresentationVoiceModule>();
+            
+            var orchestrator = root.GetComponent<SceneTalkOrchestrator>();
+            if (orchestrator == null) orchestrator = root.AddComponent<SceneTalkOrchestrator>();
+            
+            var interactionBootstrap = root.GetComponent<SceneTalkInteractionBootstrap>();
+            if (interactionBootstrap == null) interactionBootstrap = root.AddComponent<SceneTalkInteractionBootstrap>();
+
+            // Cleanup old UI to avoid duplicates
+            var existingUi = root.transform.Find(WorldUiName);
+            if (existingUi != null) Object.DestroyImmediate(existingUi.gameObject);
             var ui = CreateWorldSpaceUi(root.transform, interactionCamera);
             var avatarPropCatalog = LoadAvatarPropCatalog();
 
-            SetObject(scenePresenter, "sceneRoot", sceneRoot);
+            SetObject(scenePresenter, "sceneRoot", sceneRootTransform);
             SetObject(avatarResolver, "catalog", LoadAvatarCatalog());
             SetObject(avatarProps, "catalog", avatarPropCatalog);
             SetObject(avatarVoice, "resolver", avatarResolver);
             SetObject(avatarVoice, "loaderModule", avatarLoader);
-            SetObject(avatarVoice, "avatarRoot", avatarRoot);
+            SetObject(avatarVoice, "avatarRoot", avatarRootTransform);
             SetObject(avatarVoice, "propPresenter", avatarProps);
             SetObject(avatarVoice, "propCatalog", avatarPropCatalog);
             SetObject(avatarVoice, "audioSource", audioSource);
             SetObject(avatarVoice, "animationDriver", avatarAnimation);
             SetObject(avatarVoice, "defaultAnimatorController", LoadAvatarCommonController());
+            
             if (useVoiceGateway && speech is GatewaySpeechInputModule)
             {
                 var gatewayClient = root.GetComponent<VoiceGatewayClient>();
@@ -119,14 +196,15 @@ namespace SceneTalkVR.EditorTools
             }
 
             SetObject(orchestrator, "speechInputModule", speech);
-            SetObject(orchestrator, "brainModule", brain);
-            SetObject(orchestrator, "scenePresenterModule", scenePresenter);
+            SetObject(orchestrator, "brainModule", brainToUse);
+            SetObject(orchestrator, "scenePresenterModule", presenterToUse);
             SetObject(orchestrator, "avatarVoiceModule", avatarVoice);
             SetObject(interactionBootstrap, "orchestrator", orchestrator);
             SetObject(interactionBootstrap, "interactionCamera", interactionCamera);
             SetObject(interactionBootstrap, "worldCanvas", ui.canvas);
 
-            var flowUi = root.AddComponent<SceneTalkFlowUiController>();
+            var flowUi = root.GetComponent<SceneTalkFlowUiController>();
+            if (flowUi == null) flowUi = root.AddComponent<SceneTalkFlowUiController>();
             flowUi.Configure(orchestrator, ui.canvas, interactionBootstrap);
 
             Selection.activeObject = root;
@@ -495,6 +573,39 @@ namespace SceneTalkVR.EditorTools
             var property = serializedObject.FindProperty(propertyName);
             property.boolValue = value;
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetString(Object target, string propertyName, string value)
+        {
+            var serializedObject = new SerializedObject(target);
+            var property = serializedObject.FindProperty(propertyName);
+            if (property != null)
+            {
+                property.stringValue = value;
+                serializedObject.ApplyModifiedPropertiesWithoutUndo();
+            }
+        }
+
+        private static void SetFloat(Object target, string propertyName, float value)
+        {
+            var serializedObject = new SerializedObject(target);
+            var property = serializedObject.FindProperty(propertyName);
+            if (property != null)
+            {
+                property.floatValue = value;
+                serializedObject.ApplyModifiedPropertiesWithoutUndo();
+            }
+        }
+
+        private static void SetVector3(Object target, string propertyName, Vector3 value)
+        {
+            var serializedObject = new SerializedObject(target);
+            var property = serializedObject.FindProperty(propertyName);
+            if (property != null)
+            {
+                property.vector3Value = value;
+                serializedObject.ApplyModifiedPropertiesWithoutUndo();
+            }
         }
 
         private static T FindFirst<T>() where T : Object

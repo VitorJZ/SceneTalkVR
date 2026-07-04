@@ -50,3 +50,7 @@ Server/voice-gateway/voice-gateway.local.json
 # OS metadata
 Thumbs.db
 Desktop.ini
+
+# Local Env Secrets
+.env
+.env.local
