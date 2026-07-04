@@ -96,4 +96,8 @@ namespace SceneTalkVR.Core
         public string avatarPrefabKey;
         public string avatarStatus;
     }
+    public interface ISceneTalkSessionReset
+    {
+        void ResetSession();
+    }
 }
