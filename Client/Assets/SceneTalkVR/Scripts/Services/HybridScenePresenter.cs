@@ -201,22 +201,34 @@ namespace SceneTalkVR.Runtime.Services
             
             string lowerName = originalName.ToLowerInvariant();
             
-            // Strict mapping to docs/PrefabKeyWhitelist.md
-            if (lowerName.Contains("counter")) return "coffee_counter";
-            if (lowerName.Contains("cafe") && lowerName.Contains("table")) return "cafe_table";
-            if (lowerName.Contains("sofa") || lowerName.Contains("couch")) return "sofa";
-            if (lowerName.Contains("chair")) return "chair";
+            // Fuzzy match table/desk/counter elements to generic_table
+            if (lowerName.Contains("table") || 
+                lowerName.Contains("desk") || 
+                lowerName.Contains("counter") || 
+                lowerName.Contains("communal") || 
+                lowerName.Contains("bench") || 
+                lowerName.Contains("bar"))
+            {
+                return "generic_table";
+            }
+
+            // Fuzzy match chairs/stools/sofas to generic_chair
+            if (lowerName.Contains("chair") || 
+                lowerName.Contains("stool") || 
+                lowerName.Contains("sofa") || 
+                lowerName.Contains("couch") || 
+                lowerName.Contains("seat"))
+            {
+                return "generic_chair";
+            }
+            
+            // Decor elements mapping
             if (lowerName.Contains("plant") || lowerName.Contains("succulent") || lowerName.Contains("flower")) return "plant";
             if (lowerName.Contains("shelf")) return "wall_shelf";
             if (lowerName.Contains("menu")) return "menu_board";
             if (lowerName.Contains("register") || lowerName.Contains("cash")) return "cash_register";
             if (lowerName.Contains("mug") || lowerName.Contains("cup")) return "coffee_mug";
             if (lowerName.Contains("lamp") || lowerName.Contains("light")) return "lamp";
-            if (lowerName.Contains("table")) return "cafe_table";
-            
-            // Generic fallbacks
-            if (lowerName.Contains("desk") || lowerName.Contains("table")) return "generic_table";
-            if (lowerName.Contains("seat") || lowerName.Contains("stool")) return "generic_chair";
 
             return "generic_decor";
         }
