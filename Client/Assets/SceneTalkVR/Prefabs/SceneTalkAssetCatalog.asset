@@ -14,16 +14,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.SceneTalkAssetCatalog
   mappings:
   - key: cafe_table
-    prefab: {fileID: 3260861638834122554, guid: 2462142bcda5dad45975add9996018e1, type: 3}
-  - key: chair
-    prefab: {fileID: 6883192621741307245, guid: 89332c33c06293b429a383f9e1383d18, type: 3}
-  - key: sofa
-    prefab: {fileID: 7169782441327115028, guid: e92f236a79af052448e39adec40a713d, type: 3}
-  - key: coffee_mug
-    prefab: {fileID: 6312753954431593307, guid: 317a033dec0d59f4f81b1a7063210dad, type: 3}
+    prefab: {fileID: 5643922535563859072, guid: 597097aa60fdf33429bf89ca26cd23ad, type: 3}
   - key: generic_table
-    prefab: {fileID: 3260861638834122554, guid: 2462142bcda5dad45975add9996018e1, type: 3}
+    prefab: {fileID: 5643922535563859072, guid: 597097aa60fdf33429bf89ca26cd23ad, type: 3}
+  - key: chair
+    prefab: {fileID: 2793230939928119737, guid: 5aab8f7dda1f96a4a8dab9d3158e3acf, type: 3}
   - key: generic_chair
-    prefab: {fileID: 6883192621741307245, guid: 89332c33c06293b429a383f9e1383d18, type: 3}
-  - key: generic_decor
-    prefab: {fileID: 6312753954431593307, guid: 317a033dec0d59f4f81b1a7063210dad, type: 3}
+    prefab: {fileID: 2793230939928119737, guid: 5aab8f7dda1f96a4a8dab9d3158e3acf, type: 3}
+  - key: plant
+    prefab: {fileID: 6428624735215567318, guid: b23c6045a911bba46bd3d207a02a7e11, type: 3}
