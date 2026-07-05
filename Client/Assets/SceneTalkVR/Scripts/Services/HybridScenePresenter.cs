@@ -27,6 +27,17 @@ namespace SceneTalkVR.Runtime.Services
         [Header("Render Mode")]
         [SerializeField] private bool onlyUsePanorama = false;
 
+        [Header("Safe Spatial Bounds (Clipper)")]
+        [SerializeField] private bool enableSpatialClipping = true;
+        [SerializeField] private float minX = -1.2f;
+        [SerializeField] private float maxX = 1.2f;
+        [SerializeField] private float minZ = 1.0f;
+        [SerializeField] private float maxZ = 2.5f;
+
+        [Header("Asset Filters")]
+        [SerializeField] private int maxSpawnCount = 2;
+        [SerializeField] private List<string> prefabWhitelist = new List<string> { "cafe_table", "chair", "generic_table", "generic_chair" };
+
         public IEnumerator PresentScene(SpringScenePayload payload, Action onComplete, Action<string> onError)
         {
             if (payload == null)
@@ -115,11 +126,23 @@ namespace SceneTalkVR.Runtime.Services
                 }
             }
 
+            int spawnedCount = 0;
+
             foreach (var objData in response.objects)
             {
                 // 1. Map Holodeck Name to PrefabKey Whitelist
                 string mappedKey = MapToPrefabKey(objData.name);
                 
+                // Whitelist filter check
+                if (prefabWhitelist != null && prefabWhitelist.Count > 0)
+                {
+                    if (!prefabWhitelist.Contains(mappedKey))
+                    {
+                        Debug.Log($"[HybridScenePresenter] Skipping '{mappedKey}' (Original: '{objData.name}') - not in whitelist.");
+                        continue;
+                    }
+                }
+
                 // 2. Find mapped prefab
                 GameObject prefab = FindPrefab(mappedKey);
                 if (prefab == null)
@@ -149,11 +172,26 @@ namespace SceneTalkVR.Runtime.Services
                 pos -= centerOffset; // Move objects to be centered around user
                 pos += sceneOffset; // Apply manual viewing offset
 
+                // Apply spatial bounds clamping to prevent visual collisions with skybox furniture
+                if (enableSpatialClipping)
+                {
+                    pos.x = Mathf.Clamp(pos.x, minX, maxX);
+                    pos.z = Mathf.Clamp(pos.z, minZ, maxZ);
+                    pos.y = 0f; // Force flat ground level
+                }
+
                 Quaternion rot = Quaternion.Euler(0, objData.rotation, 0);
 
                 var instance = Instantiate(prefab, pos, rot, sceneRoot);
                 instance.name = $"{mappedKey}_{Guid.NewGuid().ToString().Substring(0, 4)}";
                 instance.transform.localScale = Vector3.one * spawnScale;
+
+                spawnedCount++;
+                if (spawnedCount >= maxSpawnCount)
+                {
+                    Debug.Log($"[HybridScenePresenter] Reached max spawn limit of {maxSpawnCount}. Stopping instantiation.");
+                    break;
+                }
             }
         }
 
