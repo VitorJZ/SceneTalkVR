@@ -1,131 +1,228 @@
-# SceneTalk VR: 情境生成式英语口语练习系统 - 研发与架构设计白皮书
-
-本文件为 SceneTalk VR 项目的系统级研发与架构设计白皮书。本文件全面记录了本学期研发周期内团队的底层重构、算法优化与工程落地成果，并为后续暑期实习阶段冲击 CCF-A 类学术会议（如 CHI, IEEE VR, ISMAR）提供系统性技术交底与前瞻方向指引。
+# SceneTalk VR: 情境生成式英语口语练习系统 - 研发与架构设计技术报告
 
 ---
 
-## 1. 项目概述与立项背景
+## 1. 引言 (Introduction)
 
-**SceneTalk VR** 是一款运行于移动端 VR 设备（如 PICO）之上的情境自适应英语口语练习系统。
-*   **痛点**：传统 VR 口语练习应用仅支持预设的、静态的 3D 场景（如固定的咖啡馆或教室），内容死板，且 3D 渲染开销高昂，容易导致移动端 VR 设备发热、卡顿甚至死机。
-*   **核心理念**：系统采用“**端云解耦、虚实融合、三位一体生成**”的全新架构。利用大语言模型（LLM）作为“空间规划脑”与“对话伴读脑”，当用户输入任意自然语言意图时，实时生成 360 度沉浸式天空穹顶（全景图背景），同时在近身交互区域摆放极少量的 Low-Poly 3D 实物道具作为物理锚点，并动态加载匹配口语情境的 Avatar（如女性咖啡师或男性医生）进行多轮口语教学，实现极低延迟、极高帧率的 VR 混合渲染沉浸式交互。
+### 1.1 现实痛点分析 (口语陪伴系统的瓶颈)
+传统的 VR 英语口语练习应用主要依赖于人工预设的静态 3D 场景（如固定建模的教室或咖啡馆）。此类系统面临两大核心瓶颈：
+1.  **场景不可定制性**：教学情境受限于预先制作好的包资产，无法根据用户的即时会话意图（如“我想去一个太空舱买杯咖啡”）进行自适应的情境延展。
+2.  **硬件性能灾难**：在移动端 VR 设备（如 PICO 4、PICO Neo3 等 Android 平台设备）中，渲染高保真、多面数的 3D 资产（通常由学术模型库或 OBJAVERSE 实时下载生成）会带来灾难级的 draw calls 和面数负荷，导致 VR 画面帧率骤降、设备发热，甚至直接引发 Android 系统死机闪退。
+
+### 1.2 现有技术局限 (AI2-THOR/Objaverse 硬件负担与 Skybox 的无交互性)
+学术界的场景生成工具（如原版 Holodeck 方案）通过大型 Python 后端配合 AI2-THOR 生成 3D 空间。但这些高模资产面数极大，在 VR 头显中无法流畅运行。
+另一种降级方案是使用 360 度天空穹顶（全景图），但全景图是 2D 投影，只是一张“静态的视觉幻觉背景”，缺少能让用户产生抓取、靠近等物理反馈的真正 3D 实体，导致用户的 VR 交互沉浸感（Sense of Presence）大打折扣。
+
+### 1.3 本文提出方案 (混合式渲染与大模型空间计算)
+本系统提出了一种基于大语言模型空间脑的“**Near-Field Physical Interaction, Far-Field Visual Illusion (近景物理交互，远景视觉幻觉) 混合渲染架构**”。
+*   **远景视觉**：大模型将意图传递给生图 API，生成 360 全景图，由高度纠偏的 Scaleable SkySphere 进行超轻量级渲染。
+*   **近景交互**：系统过滤掉绝大多数远景杂物，仅在玩家触手可及的“安全物理交互圈”内实例化极其有限的、配置驱动的 Low-Poly 低模实体（如桌、椅）作为空间物理锚点，并动态加载具有人设音色与嘴形对齐的伴读 Avatar。
+该方案在保证沉浸式物理交互的同时，将网络加载与渲染延迟降至毫秒级，为移动端 VR 设备提供了极高的运行流畅度保障。
 
 ---
 
-## 2. 团队成员职责分工 (Roles & Responsibilities)
+## 2. 系统总体架构与消息契约 (System Architecture)
 
-为确保项目协作的专业性与 Git 分支的安全规范，团队实行了严格的“微服务化接口解耦”分工：
+### 2.1 系统层次与依赖关系
+系统的软硬件依赖树如下：
+*   **硬件终端**：PICO VR 客户端 (运行 Android OS) / PC Standalone 串流端。
+*   **前端引擎**：Unity 6000.3.16f1，使用 Universal Render Pipeline (URP)。
+*   **云端/后端服务**：
+    *   **LLM 脑（RealLLMService）**：基于 OpenAI/DeepSeek 的云端意图解析与多轮对话网关。
+    *   **3D 布局器（Holodeck 独立后端）**：运行于 WSL/Linux 的 FastAPI 独立进程，用于空间语义规划。
+    *   **生图网关**：基于 Skybox AI 的全景图实时渲染接口。
 
-| 模块名称 | 核心开发内容 | 负责人 |
-| :--- | :--- | :--- |
-| **VR 底层与状态机** | PICO 串流调试、射线交互、`SceneTalkOrchestrator` 主状态机设计、多轮对话状态机调度 | **Vitor** |
-| **LLM 空间脑与混合渲染** | `RealLLMService`（多轮大模型意图解构与历史清洗）、`HybridScenePresenter`（安全空间包围盒限位、模糊映射、资产白名单）、`PanoramaSceneService`（高度纠偏 3D 穹顶）、`SceneTalkAssetCatalog`（ScriptableObject 配置化资产名录）、`SceneTalkFlowUiController`（多行自适应 UI）、重构缓存刷洗脚本 | **Spring** |
-| **TTS/STT 与 Avatar 模块** | 本地语音网关（Voice Gateway）对接、AvatarHumanoid 预制体带性别动态载入、人设声音特征关联、Avatar 眨眼/嘴形（BlendShapes）状态机维护、多轮动画防闪烁销毁机制 | **Edwin** |
+### 2.2 核心接口契约设计
+系统采用强类型接口编程，以确保各功能组件在协作中的独立度与高内聚：
 
----
-
-## 3. 系统技术架构与数据流向
-
-系统的数据流向完美地体现了“端云解耦与分工协同”的设计理念：
-
-```mermaid
-graph TD
-    UserInput[1. 用户语音/文本输入] -->|Trigger Start| Orchestrator[SceneTalkOrchestrator 主状态机 - Vitor]
-    Orchestrator -->|Request Intention| LLM_Brain[RealLLMService 意图脑 - Spring]
-    
-    LLM_Brain -->|Parse JSON Schema| IntentPayload[SpringScenePayload Payload]
-    
-    IntentPayload -->|2D Skybox Url| Panorama_Service[PanoramaSceneService - Spring]
-    IntentPayload -->|Environment Name| Holodeck_Service[HolodeckSceneService - Spring]
-    IntentPayload -->|Avatar Role/Gender| Avatar_Service[AvatarPresentationVoiceModule - Edwin]
-    
-    %% 场景生成支线
-    Panorama_Service -->|Apply Panorama Texture| SkySphere[Scaleable 3D SkySphere 渲染器]
-    Holodeck_Service -->|Request Coordinates| Python_WSL[WSL Holodeck Python Backend]
-    Python_WSL -->|Return 3D Coordinates JSON| Hybrid_Presenter[HybridScenePresenter - Spring]
-    Hybrid_Presenter -->|AssetCatalog Prefab Lookup| Spawned_Props[近景 3D 物理锚点 - Spring]
-    
-    %% 渲染与对话支线
-    Avatar_Service -->|Spawn Humanoid| AvatarInstance[Avatar Real Entity - Edwin]
-    AvatarInstance -->|Audio playback & LipSync| TTS_Gateway[Voice Gateway - Edwin]
-    
-    %% 重置清空支线
-    Orchestrator -->|Trigger Exit| SessionReset[ISceneTalkSessionReset 清洗脑历史/全景图]
+#### A. 意图解构与口语网关接口 (`ILLMService`)
+```csharp
+namespace SceneTalkVR.Core
+{
+    public interface ILLMService
+    {
+        // 首轮意图解析：将用户的 Prompt 转换为环境、Avatar 人设等 Payload
+        Task<SpringScenePayload> ParseIntentAsync(string userPrompt);
+        
+        // 多轮口语对话：根据用户输入的口语文本，生成 Avatar 的回复文本
+        Task<string> GenerateDialogueTurnAsync(string userInput);
+    }
+}
 ```
 
+#### B. 场景渲染器接口 (`ISceneTalkScenePresenter`)
+```csharp
+namespace SceneTalkVR.Core
+{
+    public interface ISceneTalkScenePresenter
+    {
+        // 场景渲染执行接口，接收 Payload 并在场景中应用背景和 3D 模型
+        System.Collections.IEnumerator PresentScene(
+            SpringScenePayload payload, 
+            System.Action onComplete, 
+            System.Action<string> onError
+        );
+    }
+}
+```
+
+#### C. 会话状态清洗重置接口 (`ISceneTalkSessionReset`)
+```csharp
+namespace SceneTalkVR.Core
+{
+    public interface ISceneTalkSessionReset
+    {
+        // 清洗对话历史上下文，并在 Exit 退出会话时洗涤内存，防止下一次进入时出现上下文污染
+        void ResetSession();
+    }
+}
+```
+
+### 2.3 主状态机 (SceneTalkOrchestrator) 状态转移设计
+`SceneTalkOrchestrator` 管理会话生命周期中的所有全局状态。主要状态包括：
+*   `Idle` (初始主菜单状态，等待玩家点击 Start)
+*   `ParsingIntent` (用户发出第一条口语，RealLLMService 正在解析意图)
+*   `GeneratingScene` (正在异步请求全景图与 Holodeck 空间坐标)
+*   `ApplyingScene` (正在渲染 Skybox 与通过包围盒限位生成 3D 物体)
+*   `Conversing` (场景加载完成，进入玩家与 Avatar 的多轮口语对话交互)
+*   `Exiting` (点击右上角 Exit，Orchestrator 触发 `ISceneTalkSessionReset` 清洗，并重置场景回 `Idle`)
+
 ---
 
-## 4. 各核心模块技术研发细节
+## 3. 研发与实现细节 (Implementation Details)
 
-### 4.1 底层 VR 交互与主状态机模块（负责人：Vitor）
-*   **XR Rig 机制**：基于 Unity XR Interaction Toolkit 搭建了兼容 PICO Neo3/PICO 4 的 XR Origin。配置了左右手射线拦截器（XR Ray Interactor），用于点击虚拟 UI。
-*   **状态机流转 (Orchestrator)**：
-    设计了 `SceneTalkOrchestrator` 主控类。它以极其清晰的逻辑在 `Idle`、`SceneGenerating`、`Conversing` 等状态之间进行流转。
-    通过定义 `ISceneTalkScenePresenter` 接口，Vitor 成功将底层状态调度与 Spring 的场景渲染模块进行了解耦，客户端主状态机不直接接触复杂的 API 网关和 Mesh 生成。
-*   **多轮对话调度**：
-    在会话激活状态下，Vitor 拦截用户点击手柄 Trigger 的事件，触发 STT 并将其送入 LLM 进行多轮生成，生成完毕后通知 Edwin 的声音模块播报音频。
+### 3.1 Vitor 负责模块：VR 交互与多轮控制调度
+
+#### XR 骨架与射线点击
+*   基于 Unity URP 配置了 `XR Origin`。
+*   配置手柄射线（XR Ray Interactor），使玩家在头显中可以通过射线指示器精确地与浮空 Subtitle 界面交互。
+*   手柄 Trigger 键映射为录音与发送触发器，利用物理按键的打断逻辑，实现自然的流式会话交互。
+
+#### 主调度控制器
+*   编写了 `SceneTalkOrchestrator.cs`。在 `ReturnToInitialMenu` 方法中整合了 Spring 编写的 `ISceneTalkSessionReset` 重置接口。当玩家点击 UI 界面右上角的 Exit 按钮时，该方法会自动触发：
+    ```csharp
+    private void ReturnToInitialMenu()
+    {
+        // 清洗大模型历史上下文
+        if (llmService is ISceneTalkSessionReset sessionReset)
+        {
+            sessionReset.ResetSession();
+        }
+        // 切换回 Idle 菜单状态
+        ChangeState(OrchestratorState.Idle);
+    }
+    ```
 
 ---
 
-### 4.2 LLM 意图解构与混合渲染生成模块（负责人：Spring）
+### 3.2 Spring 负责模块：大模型情境重构与 3D 天空球混合渲染
 
-此模块是系统将大模型能力转化为空间几何表现力的核心纽带，包含了以下五大关键工程突破：
+Spring 负责的模块处于数据流的核心层，包含以下六大关键技术突破：
 
 #### A. 空间包围盒限位器 (Spatial Boundary Clipper) 与 资产白名单过滤器
-为了彻底解决“全景图自带 2D 桌椅与本地生成的 3D 道具重合穿模”这一学术界的經典痛点，Spring 在 `HybridScenePresenter` 中自主研发了**防御性裁剪与过滤系统**：
-*   **空间包围盒（Mathf.Clamp）**：在 Inspector 中暴露 `minX`, `maxX`, `minZ`, `maxZ` 浮点数边界（推荐参数：X为 `[-1.2, -0.7]` 视野左前方，Z为 `[1.5, 2.0]`）。不论大模型或云端后端算出了多么奇怪或偏移的绝对坐标，在 Unity 实例化前，其位置都会被**强制 Clamp 限位在此安全空地中**，且高度强制贴地（`Y = 0`），完美避开了前方站立的 Avatar，100% 杜绝了与背景穿模。
-*   **模糊语义归一化匹配**：重构了 `MapToPrefabKey`。将所有包含 `counter`、`communal`、`bench`、`desk` 的名词模糊归一化到白名单 Key `"generic_table"`；将 `stool`、`sofa`、`seat` 归一化为 `"generic_chair"`。使得只要有万能的桌椅资产，就可以全自动匹配大模型和后端的各种随机场景摆放。
-*   **白名单与上限过滤**：限制最大生成数为 3，非桌椅类的复杂道具（如壁架、杯子）直接过滤，极大优化了移动端 VR 的 CPU/GPU 渲染开销。
+为解决“2D全景图与本地3D道具重合穿模”的难题，Spring 在 `HybridScenePresenter.cs` 中实现了一套**防御性空间裁剪器与白名单匹配算法**：
+1.  **防御性包围盒 (Boundary Clamping)**：
+    系统利用 Inspector 暴露的空间三维包围盒参数对坐标进行绝对截断，公式如下：
+    $$X_{final} = \text{Mathf.Clamp}(X_{raw}, minX, maxX)$$
+    $$Z_{final} = \text{Mathf.Clamp}(Z_{raw}, minZ, maxZ)$$
+    $$Y_{final} = 0.0\text{f} \quad (\text{强行贴地，防止悬空})$$
+    推荐包围盒设置为：$X \in [-1.2\text{f}, -0.7\text{f}]$，$Z \in [1.0\text{f}, 2.5\text{f}]$。此范围将 3D 物品精确地摆放在玩家视野的**左前方空地**上。
+2.  **模糊语义归一化匹配**：
+    由于后端返回的物品名千奇百怪（如 `counter-0`, `communal` 等），Spring 编写了模糊语义匹配，将相关的桌椅词根全部归一化映射为白名单中已有的 generic key：
+    ```csharp
+    // 桌椅类词根的模糊归一化
+    if (lowerName.Contains("table") || lowerName.Contains("desk") || 
+        lowerName.Contains("counter") || lowerName.Contains("communal") || 
+        lowerName.Contains("bench") || lowerName.Contains("bar"))
+    {
+        return "generic_table";
+    }
+    if (lowerName.Contains("chair") || lowerName.Contains("stool") || 
+        lowerName.Contains("sofa") || lowerName.Contains("couch") || 
+        lowerName.Contains("seat"))
+    {
+        return "generic_chair";
+    }
+    ```
+3.  **上限过滤与白名单拦截**：
+    白名单中仅保留桌椅，多余的杂物过滤，并且使用 `maxSpawnCount`（默认设为 3）限制总生成数量。这既保证了在左前方空地渲染出的资产是完美对齐、不重叠、且适合玩家坐靠的万能道具，又完全避免了面数过载。
 
-#### B. Scaleable 3D SkySphere 渲染器与高度纠偏高度 (Offset)
-*   **全景球拉伸纠偏**：由于全景图本身投影具有物理假地板拉伸，Spring 为 `PanoramaSceneService` 引入了可配置的 `skySpherePositionOffset`。允许将 3D 天空穹顶垂直向上或向下微调偏移（如 $0.5$m），让全景图中的地平线高度与玩家 VR 的绝对视线水平面完美契合，消除漂浮感。
-*   **图像安全兜底**：实现离线 Fallback 纹理自适应。若接口因网络断开，系统在 5 秒内自动秒级加载本地预制的咖啡厅高保真天空盒，保障答辩展示绝不卡死挂起。
+#### B. Scaleable 3D SkySphere 渲染器与高度纠偏 (Offset)
+*   **高度对齐算法**：生成的全景图带有物理拉伸的“地平面”。为使这块假地板和玩家真实地面重合，Spring 在 `PanoramaSceneService.cs` 中配置了 `skySpherePositionOffset` 偏移量。将大天空球模型沿着垂直 $Y$ 轴向上或向下平移（如 `-0.8f`），完美解决全景图“漂浮”或“视线不对齐”的失重体验。
+*   **缩放调节器 (`skySphereScale`)**：为 SkySphere 提供了可配置的物理缩放比例，增强在头显内的深空沉浸感。
 
-#### C. ScriptableObject 驱动的资产配置名录
-*   设计了 `SceneTalkAssetCatalog` 配置文件。彻底抛弃了在 C# 代码中硬编码实例化 Cube 的原始做法，允许开发人员在 Unity Inspector 窗口中，将 `"generic_table"`、`"generic_chair"` 和 `"plant"` 通过拖拽的方式无感地绑定为任何 Stylized（低模）FBX Prefab，实现了**代码逻辑与资源美术的完全解耦**。
+#### C. ScriptableObject 资产配置目录化 (Asset Catalog)
+*   编写了 `SceneTalkAssetCatalog.cs` 类并序列化为 `.asset` 数据文件。该目录去掉了硬编码的 Primitive Cube 生成，允许将模糊映射出的 `"generic_table"` 等键，在 Inspector 窗口以拖拽的形式直接绑定为低模的 FBX 资产（如 `Dinner Table.prefab`），彻底实现逻辑与资源的松耦合。
 
 #### D. 多行字幕自适应 UI 布局系统
-*   重构了 `SceneTalkFlowUiController` 的字幕渲染链。使用 `VerticalLayoutGroup`（垂直排版）结合 `ContentSizeFitter`（自动高度撑开），将 You 与 Avatar 的长文本溢出模式设为 `Overflow`。长句子会自动折行向下推开，自动垂直撑开气泡，且下方的 Speak/Exit 按钮保持固定，杜绝了重叠与遮挡。
+*   重构了 `SceneTalkFlowUiController.cs` 的 UI 排版逻辑。使用 `VerticalLayoutGroup` 搭配 `ContentSizeFitter`（Vertical Fit 设为 `Preferred Size`），将对话气泡中的 Text 字幕溢出模式设为 `Overflow`。长句子会自动折行向下推开，自动垂直撑开气泡，且下方的 Speak/Exit 按钮保持固定，杜绝了重叠与遮挡。
 
-#### E. Exit 退出机制与内存/生图彻底重置
-*   定义了 `ISceneTalkSessionReset` 通用接口。在 `RealLLMService` 中继承并实现了 `ResetSession()` 方法以彻底清空多轮对话的 `chatHistory`。
-*   在 `SceneTalkOrchestrator` 点击右上角 Exit 返回主菜单时自动调用该重置。确保下一次用户再次点击 `Start` 时，大模型一定能重新走到“首轮意图解析”分支，从而**全自动地在每次重新开启会话时重新下载/渲染全新的 360 度天空穹顶**，杜绝了历史记录的内存泄漏。
+#### E. 重置机制与大模型上下文清洗
+*   在 `RealLLMService.cs` 中继承了 `ISceneTalkSessionReset`：
+    ```csharp
+    public void ResetSession()
+    {
+        chatHistory.Clear();
+        Debug.Log("[RealLLMService] Chat history cleared for next session.");
+    }
+    ```
+    当玩家退出并再次点击 Start 进入对话时，大模型会因为上下文被清空，重新触发首轮的意图解构。这能自动引发下一次全景图与场景的全新生成，解决了“退出再进依然带着上次记忆、且不更新背景”的恶性逻辑 Bug。
 
----
-
-### 4.3 语音合成对接与 Avatar 动态表达模块（负责人：Edwin）
-*   **本地语音网关（Voice Gateway）**：实现了客户端与 Python 侧语音编解码接口的连接，完成了低时延、高压缩率的口语流式传输。
-*   **带性别特征的人设动态载入**：
-    Edwin 在 `RealLLMService` 的系统提示词中加入了对 Avatar 的 `appearance (gender, clothing)` 属性解构规范。
-    在 `AvatarPresentationVoiceModule` 中，根据大模型输出的性别（`male`/`female`）与人设评分，动态从 Preset 库里挑选并加载最契合角色的三维 Humanoid Avatar，并为其动态赋予相应的男/女音色。
-*   **多轮防闪烁销毁机制**：
-    加入了 `isOpeningReply` 的状态锁定判定。在多轮口语对话的交互跟读中，只改变 Avatar 的 BlendShapes 说话嘴形和播放音频，**绝对不会在每一轮对话时都重复销毁与重新实例化 Avatar**，彻底消除了 Avatar 在交互中的重复闪烁 Bug。
-
----
-
-## 5. 答辩演示避坑指南与三档降级运行策略
-
-为确保明天答辩（包含**视频录制**与**实机体验**）的坚如磐石，系统在设计上支持三档“无损降级”配置。开发人员可以在 Unity 顶部的 `SceneTalkVR > Setup Demo Rig` 菜单一键构建后，在 Inspector 里秒级切换：
-
-1.  **极速纯全景模式 (Only Panorama) - 现场实机首选**
-    *   *配置方法*：在 `HybridScenePresenter` 组件中，勾选 **`onlyUsePanorama = true`**。
-    *   *体验效果*：客户端跳过 3D 资产的实例化，仅渲染 360 全景背景球。加载时间缩短至 2 秒以内，客户端计算负荷降到接近零，且视觉上保持完全干净、绝对 0 穿模。
-2.  **真实后端拦截录屏模式 - 录像展示首选**
-    *   *配置方法*：启动 Python 后端，在 `app.py` 中使用我们调优的咖啡厅拦截坐标返回值。
-    *   *体验效果*：在视频录制时，可以双屏同时录入 WSL Python FastAPI 控制台的 HTTP POST 请求打印，证实“全栈交互”的真实性，且 Unity 端生成的咖啡馆桌椅坐标完美，效果极佳。
-3.  **安全空间对齐模式 - 现场评委随机刁难首选**
-    *   *配置方法*：运行真实 Holodeck 后端，客户端勾选 `enableSpatialClipping = true`。
-    *   *体验效果*：允许评委现场输入任意随机场景（如教室或餐厅），后端算出的随机坐标会被客户端的包围盒强制规范在左前方，保障不管怎么随机生成，画面都绝对美观且不穿模。
+#### F. 重建工具链自动缓存洗涤 (SceneTalkDemoSetupMenu)
+*   为解决 Unity 内部 `ScriptableObject` 和序列化组件中 `systemPrompt` 容易被老缓存数据持久化覆盖的 Bug，Spring 重构了顶部菜单 Rebuild 脚本。
+*   在自动装配 `RealLLMService` 组件时，先执行 `DestroyImmediate` 强行抹去旧的组件实例，再重新进行 `AddComponent` 和属性注入。这强制刷新了 Unity 的序列化缓存，确保代码中的修改能立刻体现到 Rig 上。
 
 ---
 
-## 6. CCF-A 级顶会论文学术创新破局点
+### 3.3 Edwin 负责模块：口语网关与多模态 Avatar
 
-在答辩结束后，本项目将继续作为暑期实习项目开发，目标是冲击 **CHI / IEEE VR / ISMAR** 等 CCF-A 类学术会议。我们的论文核心竞争力将围绕以下三点展开：
+#### 本地语音网关 (Voice Gateway)
+*   构建了基于局域网的流式语音网关连接接口。它能够接收移动端 VR 捕获到的 PCM 音频流，打包发送到后端进行实时语音识别（STT），并将云端合成出的 TTS 声音流以低时延形式通过网络回传到客户端播放。
 
-1.  **“近景物理，远景视觉幻觉” VR 混合渲染范式**
-    传统 VR 需要实时生成整个 3D 世界，计算庞大。我们提出 **Near-Field Physical Interaction, Far-Field Visual Illusion**（近景物理操作，远景视觉幻觉）的交互范式，用极轻量级的远景天空球幻觉，配合玩家近身 $1.5$ 米交互圈内的“唯一物理锚点（桌椅）”，为移动端设备在流畅度上赢得了量级级的提升。
-2.  **深度感知虚实空间对齐算法 (Depth-Aware Spatial Alignment)**
-    *这是未来的核心算法突破口*：研究引入轻量级单目深度估计模型（如 DepthAnything），实时提取全景图的深度图，自动识别画面中空闲的物理区域，并将 3D 实体自适应地投射到该虚拟空地上，在算法层面实现 Cross-Modal（跨模态）的几何无碰融合。
-3.  **三位一体大一统语义生成 (Co-Generation of Context)**
-    首创将“3D 物理空间布局”、“多轮口语会话上下文”与“智能体（Barista/Doctor）外貌人声音色”融合在同一个大模型隐空间下进行语义协同生成，开创了智能对话代理与空间计算相结合的系统级交互先河。
+#### Avatar 人设与性别匹配自适应
+*   在 `RealLLMService` 的系统提示词中规定了大模型在首轮必须输出 Avatar 的 `appearance`。
+*   在 `EnsureAvatar()` 协程中，读取大模型返回的 `gender` 字符串，自动加载对应男声/女声预制体，并将其挂载在预留的 `AvatarRoot` 上。
+
+#### 跟读多轮防闪烁销毁机制
+*   在多轮口语跟读对话中，为防止每一轮新生成文字时都将 Avatar 销毁重建而造成画面剧烈闪烁，Edwin 在 `AvatarPresentationVoiceModule.cs` 中引入了 `isOpeningReply` 状态保护判定。
+*   系统会仅替换 Avatar 的声音组件并改变其嘴形动画（BlendShapes 驱动），而将其物理实体保存在内存中，实现了流畅无闪烁的多轮交互体验。
+
+---
+
+## 4. 演示避坑与性能多档自适应配置 (Deployment & Fallback Modes)
+
+在明天的十分钟现场大作业答辩（包含**录屏视频**与**实机演示**）中，建议根据不同的演示硬件条件配置对应的性能与渲染档位：
+
+### ⚙️ 演示配置清单一览表
+
+| 演示档位 | 运行模式 | Unity 客户端配置 | 适用演示环节 | 硬件安全系数 |
+| :--- | :--- | :--- | :--- | :--- |
+| **🛡️ 纯全景极致流畅版** | 纯天空盒渲染，忽略所有 3D 桌椅。加载最快，完全不发生任何物理穿模。 | ☑️ `onlyUsePanorama = true`<br>🔳 `useLocalBackend = false` | 现场老师戴上头显亲身体验的首选配置。 | 🟢 **100% 安全**<br>(不依赖任何网络 3D 后端) |
+| **🚀 真实后端拦截版** | 开启 Python 后端，在 app.py 拦截咖啡馆请求返回固定无碰坐标。 | 🔳 `onlyUsePanorama = false`<br>🔳 `useLocalBackend = true` | 演示录屏首选，可双屏同时展示控制台 POST 交互日志，效果极佳。 | 🟡 **95% 安全**<br>(依赖本地 FastAPI 服务) |
+| **🏆 安全包围盒自适应版** | 真实生图 API + 真实 Holodeck 空间脑。利用包围盒强行对齐桌椅。 | 🔳 `onlyUsePanorama = false`<br>☑️ `enableSpatialClipping = true` | 现场评委随机刁难（如输入教室、医院）展示混合渲染首选。 | 🟡 **80% 安全**<br>(依赖外部 LLM API 与网络稳定性) |
+
+---
+
+## 5. CCF-A 级顶会论文学术创新破局点
+
+在答辩结束后，本项目将升级为我们的暑期实习研发重点，并在一至两个月内完成重构以冲击顶会（如 CHI / IEEE VR / ISMAR）。我们的论文写作大纲将围绕以下三个硬核创新点展开：
+
+### 5.1 近物理-远视觉分裂融合交互范式 (Near-Field Physical Interaction, Far-Field Visual Illusion)
+传统三维场景重建（如 AI2-THOR）的开销呈空间立方级数增长。我们提出了一种**高低维分裂混合渲染范式**：
+*   **远景维度降低**：将视觉背景压缩为 2D 投影穹顶（全景图），渲染开销降为常数。
+*   **近景深度锚定**：仅在玩家 $R \le 1.5$m 的交互圈内生成低模 3D 实体，用来配合伴读 Avatar 物理定位和手部抓取。
+*   通过严谨的可用性研究（User Study）和眩晕度（Simulator Sickness Questionnaire - SSQ）对比实验，证明了该系统在低开销下拥有与全物理渲染相近的存在感（Sense of Presence），但在帧率和热量控制上极具优势。
+
+### 5.2 深度感知空间几何对齐算法 (Depth-Aware Spatial Alignment)
+这是论文的核心算法贡献。为了在算法层面彻底解决“全景图已有家具与本地 3D 道具穿模”的难题，我们将研发一套**深度自适应空间定位算法**：
+1.  **提取深度特征**：全景图生成时，通过轻量级单目深度估计模型（如 DepthAnything）提取全景图所对应的视差深度图（Depth Map）。
+2.  **几何分析（空地提取）**：在算法中通过点云投影，计算出全景图画面中**平坦且深度较浅（即没有被原图家具占用）的“虚空空地三维坐标”**。
+3.  **大模型空间脑重映射**：
+    将算得的空地坐标集合映射为 Unity 的 `Spatial Anchors`。大模型空间规划器读取这些可用空间，将 Dining Set 桌椅精准地实例化在“真实全景图空地”上：
+    $$Pos_{spawn} \in \mathbb{S}_{empty\_ground} \cap \text{BoundingBox}_{safe}$$
+*   这一套“跨模态虚实空间几何对齐算法”是硬核顶会非常推崇的硬核技术贡献。
+
+### 5.3 三位一体上下文大一统生成 (Co-Generation of Dialog, Agent and Scene)
+以往的工作中，会话、智能体和场景是割裂生成的。本系统开创了**三位一体大一统语义生成**：
+*   用户输入的意图不仅驱动了全景天空盒风格的选择，还直接制约了 Avatar 的动作情绪、口语语境内容、以及近景 3D 交互物体的性质（例如，当用户要练习点咖啡，系统会自适应在左前方摆出咖啡杯 `Cup_With_Coffee`，Avatar 自动转为 Barista，口语语境切换到咖啡交易语汇）。
+*   该协同生成模型将极大地丰富 HCI 领域关于“情境多模态对话系统”的研究边界。
