@@ -66,7 +66,7 @@ namespace SceneTalkVR.Runtime.Services
                 {
                     new HolodeckObject { name = "coffee_counter", position = new float[] { 0f, 0f, 2.5f }, rotation = 0 },
                     new HolodeckObject { name = "cafe_table", position = new float[] { 1.5f, 0f, 1.2f }, rotation = 45 },
-                    new HolodeckObject { name = "chair", position = new float[] { 2.6f, 0f, 1.2f }, rotation = -90 },
+                    new HolodeckObject { name = "chair", position = new float[] { 2.6f, 0f, 1.2f }, rotation = 90 },
                     new HolodeckObject { name = "plant", position = new float[] { -1.5f, 0f, 2.5f }, rotation = 0 }
                 }
             };
