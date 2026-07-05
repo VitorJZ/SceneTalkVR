@@ -24,6 +24,9 @@ namespace SceneTalkVR.Runtime.Services
         [Header("Asset Configuration")]
         [SerializeField] private SceneTalkAssetCatalog assetCatalog;
 
+        [Header("Render Mode")]
+        [SerializeField] private bool onlyUsePanorama = false;
+
         public IEnumerator PresentScene(SpringScenePayload payload, Action onComplete, Action<string> onError)
         {
             if (payload == null)
@@ -82,6 +85,11 @@ namespace SceneTalkVR.Runtime.Services
 
         private void InstantiateHolodeckObjects(HolodeckSceneService.HolodeckResponse response)
         {
+            if (onlyUsePanorama)
+            {
+                Debug.Log("[HybridScenePresenter] onlyUsePanorama is enabled. Skipping 3D object instantiation.");
+                return;
+            }
             if (response?.objects == null || sceneRoot == null) return;
 
             Debug.Log($"[HybridScenePresenter] Received {response.objects.Length} objects from backend.");
