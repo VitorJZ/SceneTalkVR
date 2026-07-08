@@ -126,6 +126,13 @@ namespace SceneTalkVR.Runtime
             IsDialogueActive = false;
             ClearPresentedSceneIfSupported();
             AvatarSessionReset?.ClearAvatar();
+            
+            // Clear Brain history if it supports session reset
+            if (brainModule is ISceneTalkSessionReset brainReset)
+            {
+                brainReset.ResetSession();
+            }
+
             SetState(SceneTalkState.Idle);
         }
 

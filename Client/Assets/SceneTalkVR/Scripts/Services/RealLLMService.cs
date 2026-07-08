@@ -12,7 +12,7 @@ namespace SceneTalkVR.Runtime.Services
     /// <summary>
     /// Real implementation of LLM service using SJTU Local API (OpenAI compatible).
     /// </summary>
-    public sealed class RealLLMService : MonoBehaviour, ISceneTalkBrain, ILLMService
+    public sealed class RealLLMService : MonoBehaviour, ISceneTalkBrain, ILLMService, ISceneTalkSessionReset
     {
         [Header("API Configuration")]
         [SerializeField] private string apiUrl = "https://models.sjtu.edu.cn/api/v1/chat/completions";
@@ -217,6 +217,15 @@ namespace SceneTalkVR.Runtime.Services
                         chatHistory.Clear();
                     }
                 }
+            }
+        }
+
+        public void ResetSession()
+        {
+            if (chatHistory != null)
+            {
+                chatHistory.Clear();
+                Debug.Log("[RealLLMService] Chat history cleared on explicit session reset.");
             }
         }
 

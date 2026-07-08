@@ -24,6 +24,20 @@ namespace SceneTalkVR.Runtime.Services
         [Header("Asset Configuration")]
         [SerializeField] private SceneTalkAssetCatalog assetCatalog;
 
+        [Header("Render Mode")]
+        [SerializeField] private bool onlyUsePanorama = false;
+
+        [Header("Safe Spatial Bounds (Clipper)")]
+        [SerializeField] private bool enableSpatialClipping = true;
+        [SerializeField] private float minX = -1.2f;
+        [SerializeField] private float maxX = 1.2f;
+        [SerializeField] private float minZ = 1.0f;
+        [SerializeField] private float maxZ = 2.5f;
+
+        [Header("Asset Filters")]
+        [SerializeField] private int maxSpawnCount = 2;
+        [SerializeField] private List<string> prefabWhitelist = new List<string> { "cafe_table", "chair", "generic_table", "generic_chair" };
+
         public IEnumerator PresentScene(SpringScenePayload payload, Action onComplete, Action<string> onError)
         {
             if (payload == null)
@@ -82,6 +96,11 @@ namespace SceneTalkVR.Runtime.Services
 
         private void InstantiateHolodeckObjects(HolodeckSceneService.HolodeckResponse response)
         {
+            if (onlyUsePanorama)
+            {
+                Debug.Log("[HybridScenePresenter] onlyUsePanorama is enabled. Skipping 3D object instantiation.");
+                return;
+            }
             if (response?.objects == null || sceneRoot == null) return;
 
             Debug.Log($"[HybridScenePresenter] Received {response.objects.Length} objects from backend.");
@@ -107,11 +126,23 @@ namespace SceneTalkVR.Runtime.Services
                 }
             }
 
+            int spawnedCount = 0;
+
             foreach (var objData in response.objects)
             {
                 // 1. Map Holodeck Name to PrefabKey Whitelist
                 string mappedKey = MapToPrefabKey(objData.name);
                 
+                // Whitelist filter check
+                if (prefabWhitelist != null && prefabWhitelist.Count > 0)
+                {
+                    if (!prefabWhitelist.Contains(mappedKey))
+                    {
+                        Debug.Log($"[HybridScenePresenter] Skipping '{mappedKey}' (Original: '{objData.name}') - not in whitelist.");
+                        continue;
+                    }
+                }
+
                 // 2. Find mapped prefab
                 GameObject prefab = FindPrefab(mappedKey);
                 if (prefab == null)
@@ -141,11 +172,26 @@ namespace SceneTalkVR.Runtime.Services
                 pos -= centerOffset; // Move objects to be centered around user
                 pos += sceneOffset; // Apply manual viewing offset
 
+                // Apply spatial bounds clamping to prevent visual collisions with skybox furniture
+                if (enableSpatialClipping)
+                {
+                    pos.x = Mathf.Clamp(pos.x, minX, maxX);
+                    pos.z = Mathf.Clamp(pos.z, minZ, maxZ);
+                    pos.y = 0f; // Force flat ground level
+                }
+
                 Quaternion rot = Quaternion.Euler(0, objData.rotation, 0);
 
                 var instance = Instantiate(prefab, pos, rot, sceneRoot);
                 instance.name = $"{mappedKey}_{Guid.NewGuid().ToString().Substring(0, 4)}";
                 instance.transform.localScale = Vector3.one * spawnScale;
+
+                spawnedCount++;
+                if (spawnedCount >= maxSpawnCount)
+                {
+                    Debug.Log($"[HybridScenePresenter] Reached max spawn limit of {maxSpawnCount}. Stopping instantiation.");
+                    break;
+                }
             }
         }
 
@@ -155,22 +201,34 @@ namespace SceneTalkVR.Runtime.Services
             
             string lowerName = originalName.ToLowerInvariant();
             
-            // Strict mapping to docs/PrefabKeyWhitelist.md
-            if (lowerName.Contains("counter")) return "coffee_counter";
-            if (lowerName.Contains("cafe") && lowerName.Contains("table")) return "cafe_table";
-            if (lowerName.Contains("sofa") || lowerName.Contains("couch")) return "sofa";
-            if (lowerName.Contains("chair")) return "chair";
+            // Fuzzy match table/desk/counter elements to generic_table
+            if (lowerName.Contains("table") || 
+                lowerName.Contains("desk") || 
+                lowerName.Contains("counter") || 
+                lowerName.Contains("communal") || 
+                lowerName.Contains("bench") || 
+                lowerName.Contains("bar"))
+            {
+                return "generic_table";
+            }
+
+            // Fuzzy match chairs/stools/sofas to generic_chair
+            if (lowerName.Contains("chair") || 
+                lowerName.Contains("stool") || 
+                lowerName.Contains("sofa") || 
+                lowerName.Contains("couch") || 
+                lowerName.Contains("seat"))
+            {
+                return "generic_chair";
+            }
+            
+            // Decor elements mapping
             if (lowerName.Contains("plant") || lowerName.Contains("succulent") || lowerName.Contains("flower")) return "plant";
             if (lowerName.Contains("shelf")) return "wall_shelf";
             if (lowerName.Contains("menu")) return "menu_board";
             if (lowerName.Contains("register") || lowerName.Contains("cash")) return "cash_register";
             if (lowerName.Contains("mug") || lowerName.Contains("cup")) return "coffee_mug";
             if (lowerName.Contains("lamp") || lowerName.Contains("light")) return "lamp";
-            if (lowerName.Contains("table")) return "cafe_table";
-            
-            // Generic fallbacks
-            if (lowerName.Contains("desk") || lowerName.Contains("table")) return "generic_table";
-            if (lowerName.Contains("seat") || lowerName.Contains("stool")) return "generic_chair";
 
             return "generic_decor";
         }
