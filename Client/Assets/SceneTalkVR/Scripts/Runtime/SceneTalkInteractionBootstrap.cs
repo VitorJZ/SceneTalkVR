@@ -7,7 +7,11 @@ using UnityEngine.UI;
 using UnityEngine.XR;
 
 #if ENABLE_INPUT_SYSTEM
+using InputAction = UnityEngine.InputSystem.InputAction;
+using InputActionProperty = UnityEngine.InputSystem.InputActionProperty;
+using InputActionSetupExtensions = UnityEngine.InputSystem.InputActionSetupExtensions;
 using UnityEngine.InputSystem.UI;
+using XRTrackedPoseDriver = UnityEngine.InputSystem.XR.TrackedPoseDriver;
 #endif
 
 namespace SceneTalkVR.Runtime
@@ -194,6 +198,7 @@ namespace SceneTalkVR.Runtime
             }
 
             cameraToConfigure.tag = "MainCamera";
+            EnsureTrackedPoseDriver(cameraToConfigure);
 
             if (IsTrackedCamera(cameraToConfigure))
             {
@@ -1206,6 +1211,89 @@ namespace SceneTalkVR.Runtime
 
             return false;
         }
+
+        private static void EnsureTrackedPoseDriver(Camera cameraToConfigure)
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (cameraToConfigure == null)
+            {
+                return;
+            }
+
+            var trackedPoseDriver = cameraToConfigure.GetComponent<XRTrackedPoseDriver>();
+            if (trackedPoseDriver != null)
+            {
+                ConfigureTrackedPoseDriver(trackedPoseDriver);
+                return;
+            }
+
+            if (IsTrackedCamera(cameraToConfigure))
+            {
+                return;
+            }
+
+            if (!ShouldAutoAddTrackedPoseDriver())
+            {
+                return;
+            }
+
+            trackedPoseDriver = cameraToConfigure.gameObject.AddComponent<XRTrackedPoseDriver>();
+            ConfigureTrackedPoseDriver(trackedPoseDriver);
+#endif
+        }
+
+#if ENABLE_INPUT_SYSTEM
+        private static bool ShouldAutoAddTrackedPoseDriver()
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            return true;
+#else
+            return false;
+#endif
+        }
+
+        private static void ConfigureTrackedPoseDriver(XRTrackedPoseDriver trackedPoseDriver)
+        {
+            if (trackedPoseDriver == null)
+            {
+                return;
+            }
+
+            trackedPoseDriver.trackingType = XRTrackedPoseDriver.TrackingType.RotationAndPosition;
+            trackedPoseDriver.updateType = XRTrackedPoseDriver.UpdateType.UpdateAndBeforeRender;
+            trackedPoseDriver.ignoreTrackingState = false;
+            trackedPoseDriver.positionInput = new InputActionProperty(CreatePoseAction(
+                "Position",
+                "<XRHMD>/centerEyePosition",
+                "Vector3",
+                "<HandheldARInputDevice>/devicePosition"));
+            trackedPoseDriver.rotationInput = new InputActionProperty(CreatePoseAction(
+                "Rotation",
+                "<XRHMD>/centerEyeRotation",
+                "Quaternion",
+                "<HandheldARInputDevice>/deviceRotation"));
+            trackedPoseDriver.trackingStateInput = new InputActionProperty(CreatePoseAction(
+                "Tracking State",
+                "<XRHMD>/trackingState",
+                "Integer",
+                null));
+        }
+
+        private static InputAction CreatePoseAction(
+            string actionName,
+            string binding,
+            string expectedControlType,
+            string fallbackBinding)
+        {
+            var action = new InputAction(actionName, binding: binding, expectedControlType: expectedControlType);
+            if (!string.IsNullOrEmpty(fallbackBinding))
+            {
+                InputActionSetupExtensions.AddBinding(action, fallbackBinding);
+            }
+
+            return action;
+        }
+#endif
 
         private static void NormalizeTrackedCameraOrigin(Transform cameraTransform, float cameraYOffset)
         {

@@ -7,8 +7,10 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
+using XRTrackedPoseDriver = UnityEngine.InputSystem.XR.TrackedPoseDriver;
 
 namespace SceneTalkVR.EditorTools
 {
@@ -431,12 +433,15 @@ namespace SceneTalkVR.EditorTools
             }
 
             camera.tag = "MainCamera";
+            var hadTrackedCamera = IsTrackedCamera(camera);
 
-            if (!IsTrackedCamera(camera))
+            if (!hadTrackedCamera)
             {
                 camera.transform.position = new Vector3(0f, 1.6f, -1.5f);
                 camera.transform.rotation = Quaternion.identity;
             }
+
+            EnsureTrackedPoseDriver(camera);
 
             camera.fieldOfView = 60f;
             camera.nearClipPlane = 0.01f;
@@ -485,6 +490,71 @@ namespace SceneTalkVR.EditorTools
             }
 
             return false;
+        }
+
+        private static void EnsureTrackedPoseDriver(Camera camera)
+        {
+            if (camera == null)
+            {
+                return;
+            }
+
+            var trackedPoseDriver = camera.GetComponent<XRTrackedPoseDriver>();
+            if (trackedPoseDriver != null)
+            {
+                ConfigureTrackedPoseDriver(trackedPoseDriver);
+                return;
+            }
+
+            if (IsTrackedCamera(camera))
+            {
+                return;
+            }
+
+            trackedPoseDriver = camera.gameObject.AddComponent<XRTrackedPoseDriver>();
+            ConfigureTrackedPoseDriver(trackedPoseDriver);
+        }
+
+        private static void ConfigureTrackedPoseDriver(XRTrackedPoseDriver trackedPoseDriver)
+        {
+            if (trackedPoseDriver == null)
+            {
+                return;
+            }
+
+            trackedPoseDriver.trackingType = XRTrackedPoseDriver.TrackingType.RotationAndPosition;
+            trackedPoseDriver.updateType = XRTrackedPoseDriver.UpdateType.UpdateAndBeforeRender;
+            trackedPoseDriver.ignoreTrackingState = false;
+            trackedPoseDriver.positionInput = new InputActionProperty(CreatePoseAction(
+                "Position",
+                "<XRHMD>/centerEyePosition",
+                "Vector3",
+                "<HandheldARInputDevice>/devicePosition"));
+            trackedPoseDriver.rotationInput = new InputActionProperty(CreatePoseAction(
+                "Rotation",
+                "<XRHMD>/centerEyeRotation",
+                "Quaternion",
+                "<HandheldARInputDevice>/deviceRotation"));
+            trackedPoseDriver.trackingStateInput = new InputActionProperty(CreatePoseAction(
+                "Tracking State",
+                "<XRHMD>/trackingState",
+                "Integer",
+                null));
+        }
+
+        private static InputAction CreatePoseAction(
+            string actionName,
+            string binding,
+            string expectedControlType,
+            string fallbackBinding)
+        {
+            var action = new InputAction(actionName, binding: binding, expectedControlType: expectedControlType);
+            if (!string.IsNullOrEmpty(fallbackBinding))
+            {
+                action.AddBinding(fallbackBinding);
+            }
+
+            return action;
         }
 
         private static void ConfigureWorldCanvas(Canvas canvas, Camera interactionCamera)

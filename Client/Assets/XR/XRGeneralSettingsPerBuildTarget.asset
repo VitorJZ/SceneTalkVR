@@ -28,10 +28,10 @@ MonoBehaviour:
   m_Name: Android Providers
   m_EditorClassIdentifier: Unity.XR.Management::UnityEngine.XR.Management.XRManagerSettings
   m_RequiresSettingsUpdate: 0
-  m_AutomaticLoading: 0
-  m_AutomaticRunning: 0
+  m_AutomaticLoading: 1
+  m_AutomaticRunning: 1
   m_Loaders:
-  - {fileID: 11400000, guid: b57c8a6af99b2fe4dbc74c36494e2c7c, type: 2}
+  - {fileID: 11400000, guid: 5ce84a35232417e46a0de775c325db5d, type: 2}
 --- !u!114 &8118569748906361818
 MonoBehaviour:
   m_ObjectHideFlags: 0

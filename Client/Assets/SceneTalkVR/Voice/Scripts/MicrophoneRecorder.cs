@@ -4,6 +4,10 @@ using System.IO;
 using System.Text;
 using UnityEngine;
 
+#if UNITY_ANDROID && !UNITY_EDITOR
+using UnityEngine.Android;
+#endif
+
 namespace SceneTalkVR.Voice
 {
     public sealed class MicrophoneRecorder : MonoBehaviour
@@ -19,6 +23,14 @@ namespace SceneTalkVR.Voice
 
         public IEnumerator RecordWavBase64(Action<string> onComplete, Action<string> onError)
         {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            yield return EnsureMicrophonePermission(onError);
+            if (!Permission.HasUserAuthorizedPermission(Permission.Microphone))
+            {
+                yield break;
+            }
+#endif
+
             if (Microphone.devices == null || Microphone.devices.Length == 0)
             {
                 onError?.Invoke("No microphone device is available.");
@@ -98,6 +110,30 @@ namespace SceneTalkVR.Voice
 
             return Microphone.devices[0];
         }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+        private static IEnumerator EnsureMicrophonePermission(Action<string> onError)
+        {
+            if (Permission.HasUserAuthorizedPermission(Permission.Microphone))
+            {
+                yield break;
+            }
+
+            Permission.RequestUserPermission(Permission.Microphone);
+
+            var timeoutAt = Time.realtimeSinceStartup + 30f;
+            while (!Permission.HasUserAuthorizedPermission(Permission.Microphone)
+                   && Time.realtimeSinceStartup < timeoutAt)
+            {
+                yield return null;
+            }
+
+            if (!Permission.HasUserAuthorizedPermission(Permission.Microphone))
+            {
+                onError?.Invoke("Microphone permission was not granted on this Android device.");
+            }
+        }
+#endif
 
         private static byte[] EncodeRecordedClipToWav(AudioClip clip, int recordedSamples)
         {
