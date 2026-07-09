@@ -18,6 +18,8 @@ namespace SceneTalkVR.Runtime
 {
     public sealed class SceneTalkInteractionBootstrap : MonoBehaviour
     {
+        private const float DefaultCanvasScale = 0.005f;
+
         private enum ControllerTriggerOwner
         {
             None,
@@ -71,6 +73,7 @@ namespace SceneTalkVR.Runtime
         private bool unknownTriggerHeld;
         private ControllerTriggerOwner activeSpeechTriggerOwner = ControllerTriggerOwner.None;
         private GameObject hoveredRayTarget;
+        private PointerEventData hoveredRayPointerEventData;
 
         private void Awake()
         {
@@ -149,6 +152,23 @@ namespace SceneTalkVR.Runtime
 #else
             Application.Quit();
 #endif
+        }
+
+        public void ApplyUserSettings(SceneTalkUserSettings settings)
+        {
+            if (settings == null)
+            {
+                return;
+            }
+
+            worldCanvas = ResolveCanvas(worldCanvas);
+            if (worldCanvas == null)
+            {
+                return;
+            }
+
+            canvasScale = DefaultCanvasScale * settings.uiScale;
+            worldCanvas.transform.localScale = Vector3.one * canvasScale;
         }
 
         private Camera ResolveCamera(Camera preferredCamera)
@@ -738,6 +758,11 @@ namespace SceneTalkVR.Runtime
         {
             if (hoveredRayTarget == nextTarget)
             {
+                if (pointerEventData != null)
+                {
+                    hoveredRayPointerEventData = pointerEventData;
+                }
+
                 return;
             }
 
@@ -748,6 +773,7 @@ namespace SceneTalkVR.Runtime
             }
 
             hoveredRayTarget = nextTarget;
+            hoveredRayPointerEventData = nextTarget == null ? null : eventData;
 
             if (hoveredRayTarget != null && eventData != null)
             {
@@ -1230,6 +1256,17 @@ namespace SceneTalkVR.Runtime
             orchestrator = ResolveOrchestrator(orchestrator);
 
             if (orchestrator == null)
+            {
+                return;
+            }
+
+            if (hoveredRayTarget != null)
+            {
+                DispatchRayClick(hoveredRayTarget, hoveredRayPointerEventData ?? CreateFallbackPointerEventData());
+                return;
+            }
+
+            if (orchestrator.CurrentState == SceneTalkState.Settings)
             {
                 return;
             }

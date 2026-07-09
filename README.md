@@ -26,14 +26,14 @@ SceneTalkVR 是一个面向 PICO/VR 的英语情景练习课程项目。当前�
 3. 打开 `Assets/Scenes/SampleScene.unity`。
 4. 在 Unity 顶部菜单运行 `SceneTalkVR/Setup/Apply Recommended Project Settings`。如果 Unity 触发重新编译，等待完成后再运行一次。
 5. 运行 `SceneTalkVR/Setup/Rebuild Demo Rig`。
-6. 点击 Play，在初始界面点击 `Start`；初始界面只显示纵向排列的 `Start` 和 `Quit`。
+6. 点击 Play，在初始界面点击 `Start`；初始界面显示纵向排列的 `Start`、`Settings` 和 `Quit`。
 7. 运行 `SceneTalkVR/Diagnostics/Run Preflight Check` 查看当前环境报告：`Client/Assets/SceneTalkVR/Docs/VitorPreflightReport.md`。
 
 ### PICO 手柄操作
 
 真机运行时，Demo 支持 PICO/OpenXR 通用手柄输入：
 
-- 左右手柄会显示轻量 3D 手柄代理和射线；射线命中世界空间 UI 按钮时，扳机键用于确认点击；未命中按钮且处于需求录音或对话录音可用阶段时，按住任一扳机开始录音，松开同一扳机结束录音。
+- 左右手柄会显示轻量 3D 手柄代理和射线；任一扳机在射线命中世界空间 UI 按钮时确认点击，未命中按钮且处于需求录音或对话录音可用阶段时，按住开始录音、松开同一扳机结束录音。
 - `A / X`：保留为开始/确认快捷键；错误状态下用于重试。
 - `B / Y` 或菜单键：返回初始界面。
 - 握持键或摇杆按下：把世界空间面板重新居中到当前头显正前方。
@@ -43,10 +43,11 @@ SceneTalkVR 是一个面向 PICO/VR 的英语情景练习课程项目。当前�
 
 当前 Demo UI 分为四个阶段：
 
-1. 初始界面：只显示 `Start` 和 `Quit`，没有 `Exit`。
-2. 场景/人物需求确认：点击 `Start` 后进入待录音状态，`Listen` 按钮可切换为 `End` 并手动结束录音；录音转写完成后同一按钮显示 `Retry`，并提供 `Confirm`；右上角 `Exit` 返回初始界面。
-3. 加载界面：点击 `Confirm` 后显示场景和人物加载状态；右上角 `Exit` 返回初始界面。
-4. 对话界面：加载完成后中间面板消失，底部显示玩家与 Avatar 的彩色字幕；右上角 `Exit` 返回初始界面。
+1. 初始界面：显示 `Start`、`Settings` 和 `Quit`，没有 `Exit`。
+2. 设置界面：点击 `Settings` 后进入；可设置字体大小、界面大小（50%-125%）和是否隐藏对话字幕；右上角 `Exit` 返回初始界面。
+3. 场景/人物需求确认：点击 `Start` 后进入待录音状态，`Listen` 按钮可切换为 `End` 并手动结束录音；录音转写完成后同一按钮显示 `Retry`，并提供 `Confirm`；右上角 `Exit` 返回初始界面。
+4. 加载界面：点击 `Confirm` 后显示场景和人物加载状态；右上角 `Exit` 返回初始界面。
+5. 对话界面：加载完成后中间面板消失，底部显示玩家与 Avatar 的彩色字幕；如果在设置中隐藏字幕，底部区域会收缩为紧凑操作条，仅保留对话操作与状态；右上角 `Exit` 返回初始界面。
 
 启动时客户端会等待头显位姿更新，然后把 Demo 面板放到当前视线前方。XR 相机带 `TrackedPoseDriver` 时不会再被脚本强制写入固定世界坐标，避免真机初始视角偏移。
 
@@ -187,14 +188,14 @@ SceneTalkVR is a PICO/VR English scenario practice project. The current architec
 3. Open `Assets/Scenes/SampleScene.unity`.
 4. Run `SceneTalkVR/Setup/Apply Recommended Project Settings`. If Unity recompiles, wait until it finishes and run the same menu once more.
 5. Run `SceneTalkVR/Setup/Rebuild Demo Rig`.
-6. Press Play and click `Start` on the initial panel. The initial panel only shows vertically stacked `Start` and `Quit` buttons.
+6. Press Play and click `Start` on the initial panel. The initial panel shows `Start`, `Settings`, and `Quit`.
 7. Run `SceneTalkVR/Diagnostics/Run Preflight Check` to generate the environment report at `Client/Assets/SceneTalkVR/Docs/VitorPreflightReport.md`.
 
 ### PICO Controller Input
 
 On device, the demo supports generic PICO/OpenXR controller input:
 
-- Both controllers show lightweight 3D controller proxies and UI rays. Pull the trigger while the ray is over a world-space UI button to confirm the click. When the ray is not over a button and request/dialogue recording is available, hold either trigger to record and release the same trigger to stop recording.
+- Both controllers show lightweight 3D controller proxies and UI rays. Either trigger clicks a world-space UI button when the ray is over it. When the ray is not over a button and request/dialogue recording is available, hold either trigger to capture speech and release the same trigger to stop.
 - `A / X`: kept as a start/confirm shortcut; retries when the demo is in an error state.
 - `B / Y` or menu: returns to the initial panel.
 - Grip or thumbstick click: recenter the world-space panel in front of the current headset pose.
@@ -204,10 +205,11 @@ On device, the demo supports generic PICO/OpenXR controller input:
 
 The current demo UI has four stages:
 
-1. Initial panel: shows only `Start` and `Quit`; no `Exit` button.
-2. Scene/avatar request confirmation: after `Start`, the client waits for manual recording. `Listen` switches to `End` while recording, then to `Retry` after STT completes, with `Confirm` available for the transcript; top-right `Exit` returns to the initial panel.
-3. Loading panel: after `Confirm`, the client shows scene and avatar loading state; top-right `Exit` returns to the initial panel.
-4. Dialogue panel: after loading, the central panel disappears and colored subtitles appear at the bottom for player and Avatar lines; top-right `Exit` returns to the initial panel.
+1. Initial panel: shows `Start`, `Settings`, and `Quit`; no `Exit` button.
+2. Settings panel: opened from the initial panel. It controls font size, interface size (50%-125%), and dialogue subtitle visibility. The top-right `Exit` returns to the initial panel.
+3. Scene/avatar request confirmation: after `Start`, the client waits for manual recording. `Listen` switches to `End` while recording, then to `Retry` after STT completes, with `Confirm` available for the transcript; top-right `Exit` returns to the initial panel.
+4. Loading panel: after `Confirm`, the client shows scene and avatar loading state; top-right `Exit` returns to the initial panel.
+5. Dialogue panel: after loading, the central panel disappears and colored subtitles appear at the bottom for player and Avatar lines. If subtitles are hidden in Settings, the bottom area collapses into a compact control bar with only dialogue status and controls; top-right `Exit` returns to the initial panel.
 
 At startup, the client waits for headset tracking and places the demo panel in front of the current view. If the camera has a `TrackedPoseDriver`, the bootstrap no longer writes a fixed world position into the camera transform, which avoids incorrect initial view offsets on device.
 

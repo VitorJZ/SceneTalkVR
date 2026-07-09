@@ -58,7 +58,7 @@ Edwin 当前不负责：
 - 已生成 `barista_default`、`teacher_default`、`police_default` 三个占位 Avatar prefab。
 - 已生成 `AvatarCatalog.asset`，并登记上述三个占位角色的 role、environment、outfit、accessory、must-have 等匹配标签。
 - 已更新 `SceneTalkVR/Setup/Rebuild Demo Rig`，自动挂载 `AvatarPresetResolver`、`PrefabAvatarInstanceLoader`、`AvatarPresentationVoiceModule`，并把 catalog 赋给 resolver。
-- 已在 Play Mode 中验证 `Start Practice` 后 `barista_default` 会根据 demo payload 自动加载出来。
+- 已在 Play Mode 中验证点击初始界面的 `Start` 后，`barista_default` 会根据 demo payload 自动加载出来。
 - 已更新 `DemoBrainModule`，可根据输入关键词生成 barista / teacher / police 三类 demo payload，并已验证会分别命中对应 Avatar key。
 - 已验证未知角色 fallback、旧 Avatar 清理、多轮替换、Avatar 资源缺失时继续流程等 P0 稳定性项。
 
@@ -612,7 +612,7 @@ flowchart TD
 - [x] 验证 Avatar 切换时旧实例会被清理。
 - [x] 验证 speaking/thinking 动画触发不报错。
 - [x] 验证没有 Avatar 资源时，流程仍能播放回复或进入可恢复错误。
-- [x] 记录一次 demo 运行路径：Play Mode 点击 `Start Practice` 后，demo payload 成功解析并实例化 `barista_default`。
+- [x] 记录一次 demo 运行路径：Play Mode 点击初始界面的 `Start` 后，demo payload 成功解析并实例化 `barista_default`。
 
 ### 9.5 P1 已完成任务
 

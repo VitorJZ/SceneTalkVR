@@ -55,8 +55,32 @@ namespace SceneTalkVR.Runtime
             RefreshUi();
         }
 
+        public void OpenSettings()
+        {
+            if (currentTurn != null || IsSpeechRecording)
+            {
+                return;
+            }
+
+            LastError = string.Empty;
+            SetState(SceneTalkState.Settings);
+        }
+
+        public void CloseSettings()
+        {
+            if (CurrentState == SceneTalkState.Settings)
+            {
+                SetState(SceneTalkState.Idle);
+            }
+        }
+
         public void StartPractice()
         {
+            if (CurrentState == SceneTalkState.Settings)
+            {
+                return;
+            }
+
             finishRequested = false;
             EnterRequestReadyState(true);
         }

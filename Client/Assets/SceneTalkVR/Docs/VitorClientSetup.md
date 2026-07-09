@@ -18,6 +18,7 @@
 - 构建预检入口：`SceneTalkVR/Diagnostics/Run Preflight Check`。
 - 高级清理入口：`SceneTalkVR/Advanced/Clear Generated Demo Rig`。
 - OpenXR 兜底控制器入口：`SceneTalkVR/Advanced/Enable OpenXR Fallback Controller Profile`。
+- 运行时设置页：初始界面提供 `Settings`，支持字体大小、界面大小和对话字幕隐藏。
 
 ## Unity 使用步骤
 
@@ -25,7 +26,7 @@
 2. 打开 `Assets/Scenes/SampleScene.unity`。
 3. 在 Unity 顶部菜单运行 `SceneTalkVR/Setup/Apply Recommended Project Settings`；如果 Unity 重新编译，完成后再运行一次。
 4. 运行 `SceneTalkVR/Setup/Rebuild Demo Rig`。
-5. 点击 Play，在世界空间面板里点击 `Start Practice`。
+5. 点击 Play，在初始世界空间面板里点击 `Start`；也可以先进入 `Settings` 调整显示和按键。
 6. 需求阶段点击 `Listen` 开始录音、点击 `End` 结束录音；完成转写后同一按钮显示 `Retry`，可再次录音。
 7. Avatar 对话阶段点击 `Speak` 开始录音、点击 `End` 结束录音。
 
@@ -35,14 +36,22 @@
 
 如果只想清空旧生成物，不立刻重建，运行 `SceneTalkVR/Advanced/Clear Generated Demo Rig`。
 
+## 运行时设置页
+
+初始界面显示 `Start`、`Settings` 和 `Quit`。点击 `Settings` 后进入设置页，右上角 `Exit` 会返回初始界面。
+
+- 设置页用于调整字体大小、世界空间 UI 整体大小（50%-125%），以及是否隐藏对话字幕。
+- 隐藏对话字幕会隐藏 `You:` 和 `Avatar:` 两行对话文本，并把底部字幕框收缩为紧凑操作条；按钮、状态提示和错误信息仍保留。
+- 设置保存到本机 `PlayerPrefs`，下次启动 Demo 会继续使用。
+
 ## PICO 手柄与头显视角
 
 真机运行时，`SceneTalkInteractionBootstrap` 会读取 PICO/OpenXR 通用手柄输入：
 
-- 左右手柄会显示轻量 3D 手柄代理和射线；射线命中世界空间 UI 按钮时，扳机键用于确认点击。
-- 在需求阶段或 Avatar 对话阶段，如果射线没有命中任何按钮，按住任一手柄扳机开始录音，松开同一手柄扳机结束录音。
+- 左右手柄会显示轻量 3D 手柄代理和射线；射线命中世界空间 UI 按钮时，任一扳机用于确认点击。
+- 在需求阶段或 Avatar 对话阶段，如果射线没有命中任何按钮，按住任一扳机开始录音，松开同一扳机结束录音。
 - `A / X`：保留为开始练习快捷键；错误状态下用于重试。
-- `B / Y` 或菜单键：结束当前练习。
+- `B / Y` 或菜单键：结束当前练习/返回初始界面。
 - 握持键或摇杆按下：把世界空间 UI 面板重新放到当前头显正前方。
 - `Quit` 按钮：退出当前应用；在 Unity Editor Play 模式下会停止播放。
 
