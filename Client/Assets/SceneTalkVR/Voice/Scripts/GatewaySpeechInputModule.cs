@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace SceneTalkVR.Voice
 {
-    public sealed class GatewaySpeechInputModule : MonoBehaviour, ISceneTalkSpeechInput
+    public sealed class GatewaySpeechInputModule : MonoBehaviour, ISceneTalkSpeechInput, ISceneTalkManualSpeechInput
     {
         [SerializeField] private VoiceGatewayClient gatewayClient;
         [SerializeField] private MicrophoneRecorder microphoneRecorder;
@@ -19,8 +19,14 @@ namespace SceneTalkVR.Voice
         [SerializeField] private string fallbackTranscript = "I want to practice ordering coffee with a fast-speaking foreign barista.";
         [SerializeField] private bool useFallbackTranscriptOnError = true;
 
+        private bool stopCaptureRequested;
+        private bool cancelCaptureRequested;
+
         public IEnumerator CaptureSpeech(Action<string> onComplete, Action<string> onError)
         {
+            stopCaptureRequested = false;
+            cancelCaptureRequested = false;
+
             var client = ResolveGatewayClient();
             if (client == null)
             {
@@ -41,9 +47,15 @@ namespace SceneTalkVR.Voice
                 }
 
                 string recordingError = null;
-                yield return recorder.RecordWavBase64(
+                yield return recorder.RecordWavBase64UntilStopped(
+                    () => stopCaptureRequested,
                     value => audioBase64 = value,
                     message => recordingError = message);
+
+                if (cancelCaptureRequested)
+                {
+                    yield break;
+                }
 
                 if (!string.IsNullOrWhiteSpace(recordingError))
                 {
@@ -103,6 +115,19 @@ namespace SceneTalkVR.Voice
                 $"[SceneTalkVR] Gateway STT transcript ({response.provider}, {response.latencyMs} ms): {response.transcript}",
                 this);
             onComplete?.Invoke(response.transcript);
+        }
+
+        public void RequestStopCapture()
+        {
+            stopCaptureRequested = true;
+            ResolveMicrophoneRecorder()?.RequestStopRecording();
+        }
+
+        public void CancelCapture()
+        {
+            cancelCaptureRequested = true;
+            stopCaptureRequested = true;
+            ResolveMicrophoneRecorder()?.CancelRecording();
         }
 
         private VoiceGatewayClient ResolveGatewayClient()

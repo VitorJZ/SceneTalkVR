@@ -21,7 +21,6 @@ namespace SceneTalkVR.Runtime
         private Button startButton;
         private Button quitButton;
         private Button listenButton;
-        private Button retryButton;
         private Button confirmButton;
         private Button exitButton;
         private Button dialogueListenButton;
@@ -100,9 +99,8 @@ namespace SceneTalkVR.Runtime
             requestStatusText = CreateText(requestPanel.transform, "Status", "Listening...", new Vector2(0f, 104f), new Vector2(640f, 34f), 20, TextAnchor.MiddleCenter, new Color(0.74f, 0.86f, 1f, 1f));
             requestTranscriptText = CreateText(requestPanel.transform, "Transcript", "Transcript: -", new Vector2(0f, 28f), new Vector2(620f, 112f), 22, TextAnchor.MiddleCenter, Color.white);
             requestErrorText = CreateText(requestPanel.transform, "Error", string.Empty, new Vector2(0f, -64f), new Vector2(620f, 34f), 18, TextAnchor.MiddleCenter, new Color(1f, 0.45f, 0.35f, 1f));
-            listenButton = CreateButton(requestPanel.transform, "ListenButton", "Listen", new Vector2(-210f, -142f), new Vector2(150f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f));
-            retryButton = CreateButton(requestPanel.transform, "RetryButton", "Retry", new Vector2(0f, -142f), new Vector2(150f, 54f), new Color(0.22f, 0.34f, 0.54f, 1f));
-            confirmButton = CreateButton(requestPanel.transform, "ConfirmButton", "Confirm", new Vector2(210f, -142f), new Vector2(150f, 54f), new Color(0.12f, 0.52f, 0.38f, 1f));
+            listenButton = CreateButton(requestPanel.transform, "ListenButton", "Listen", new Vector2(-110f, -142f), new Vector2(150f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f));
+            confirmButton = CreateButton(requestPanel.transform, "ConfirmButton", "Confirm", new Vector2(110f, -142f), new Vector2(150f, 54f), new Color(0.12f, 0.52f, 0.38f, 1f));
 
             loadingPanel = CreatePanel(root, "LoadingPanel", new Vector2(0f, 0f), new Vector2(540f, 220f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
             loadingText = CreateText(loadingPanel.transform, "LoadingText", "Loading scene and avatar...", new Vector2(0f, 0f), new Vector2(480f, 80f), 26, TextAnchor.MiddleCenter, Color.white);
@@ -156,13 +154,7 @@ namespace SceneTalkVR.Runtime
             if (listenButton != null)
             {
                 listenButton.onClick.RemoveAllListeners();
-                listenButton.onClick.AddListener(() => orchestrator?.StartPractice());
-            }
-
-            if (retryButton != null)
-            {
-                retryButton.onClick.RemoveAllListeners();
-                retryButton.onClick.AddListener(() => orchestrator?.RetryListening());
+                listenButton.onClick.AddListener(() => orchestrator?.ToggleRequestSpeechCapture());
             }
 
             if (confirmButton != null)
@@ -174,7 +166,7 @@ namespace SceneTalkVR.Runtime
             if (dialogueListenButton != null)
             {
                 dialogueListenButton.onClick.RemoveAllListeners();
-                dialogueListenButton.onClick.AddListener(() => orchestrator?.StartDialogueTurn());
+                dialogueListenButton.onClick.AddListener(() => orchestrator?.ToggleDialogueSpeechCapture());
             }
 
             if (exitButton != null)
@@ -194,7 +186,11 @@ namespace SceneTalkVR.Runtime
             var state = orchestrator.CurrentState;
             var dialogueActive = orchestrator.IsDialogueActive;
             var showMain = state == SceneTalkState.Idle || state == SceneTalkState.Finished;
-            var showRequest = !dialogueActive && (state == SceneTalkState.Listening || state == SceneTalkState.Error);
+            var showRequest = !dialogueActive
+                && (state == SceneTalkState.Listening
+                    || state == SceneTalkState.Recording
+                    || state == SceneTalkState.Transcribing
+                    || state == SceneTalkState.Error);
             var showLoading = !dialogueActive && (state == SceneTalkState.Processing || state == SceneTalkState.SceneReady);
             var showDialogue = dialogueActive || state == SceneTalkState.AvatarSpeaking;
 
@@ -217,6 +213,8 @@ namespace SceneTalkVR.Runtime
             }
 
             var isRunning = orchestrator.IsTurnRunning;
+            var isRecording = orchestrator.IsSpeechRecording;
+            var isTranscribing = orchestrator.CurrentState == SceneTalkState.Transcribing;
             var hasTranscript = !string.IsNullOrWhiteSpace(orchestrator.LastTranscript);
             var hasError = !string.IsNullOrWhiteSpace(orchestrator.LastError);
 
@@ -227,7 +225,22 @@ namespace SceneTalkVR.Runtime
 
             if (requestStatusText != null)
             {
-                requestStatusText.text = isRunning ? "Listening to your voice..." : "Review the transcript, then confirm.";
+                if (isRecording)
+                {
+                    requestStatusText.text = "Recording your request...";
+                }
+                else if (isTranscribing)
+                {
+                    requestStatusText.text = "Transcribing your voice...";
+                }
+                else if (hasTranscript)
+                {
+                    requestStatusText.text = "Review the transcript, then confirm.";
+                }
+                else
+                {
+                    requestStatusText.text = "Press Listen or hold a trigger to record.";
+                }
             }
 
             if (requestTranscriptText != null)
@@ -242,8 +255,8 @@ namespace SceneTalkVR.Runtime
                 requestErrorText.text = hasError ? orchestrator.LastError : string.Empty;
             }
 
-            SetInteractable(listenButton, !isRunning);
-            SetInteractable(retryButton, !isRunning);
+            SetButtonLabel(listenButton, ResolveRequestListenButtonLabel(isRecording, hasTranscript, hasError));
+            SetInteractable(listenButton, isRecording || !isRunning);
             SetInteractable(confirmButton, !isRunning && hasTranscript);
         }
 
@@ -290,9 +303,20 @@ namespace SceneTalkVR.Runtime
 
             if (dialogueListenButton != null)
             {
-                SetButtonLabel(dialogueListenButton, orchestrator.CurrentState == SceneTalkState.Error ? "Retry" : "Speak");
-                SetInteractable(dialogueListenButton, !orchestrator.IsTurnRunning);
+                var isRecording = orchestrator.IsSpeechRecording;
+                SetButtonLabel(dialogueListenButton, isRecording ? "End" : "Speak");
+                SetInteractable(dialogueListenButton, isRecording || !orchestrator.IsTurnRunning);
             }
+        }
+
+        private static string ResolveRequestListenButtonLabel(bool isRecording, bool hasTranscript, bool hasError)
+        {
+            if (isRecording)
+            {
+                return "End";
+            }
+
+            return hasTranscript || hasError ? "Retry" : "Listen";
         }
 
         private string ResolveDialogueStatusText()
@@ -309,9 +333,14 @@ namespace SceneTalkVR.Runtime
 
             if (orchestrator.IsTurnRunning)
             {
-                if (orchestrator.CurrentState == SceneTalkState.Listening)
+                if (orchestrator.CurrentState == SceneTalkState.Recording)
                 {
-                    return "Listening...";
+                    return "Recording...";
+                }
+
+                if (orchestrator.CurrentState == SceneTalkState.Transcribing)
+                {
+                    return "Transcribing...";
                 }
 
                 if (orchestrator.CurrentState == SceneTalkState.Processing)

@@ -7,6 +7,7 @@
 - 客户端主流程状态机：`SceneTalkOrchestrator`。
 - Spring/Edwin 联调接口：
   - `ISceneTalkSpeechInput`
+  - `ISceneTalkManualSpeechInput`
   - `ISceneTalkBrain`
   - `ISceneTalkScenePresenter`
   - `ISceneTalkAvatarVoice`
@@ -25,6 +26,8 @@
 3. 在 Unity 顶部菜单运行 `SceneTalkVR/Setup/Apply Recommended Project Settings`；如果 Unity 重新编译，完成后再运行一次。
 4. 运行 `SceneTalkVR/Setup/Rebuild Demo Rig`。
 5. 点击 Play，在世界空间面板里点击 `Start Practice`。
+6. 需求阶段点击 `Listen` 开始录音、点击 `End` 结束录音；完成转写后同一按钮显示 `Retry`，可再次录音。
+7. Avatar 对话阶段点击 `Speak` 开始录音、点击 `End` 结束录音。
 
 当前 Demo 先使用假数据，目的是保证 Unity 客户端底座稳定。Spring 和 Edwin 后续可以把假模块替换为真实的 LLM、STT、TTS、Avatar 和 Holodeck/全景图服务。
 
@@ -37,6 +40,7 @@
 真机运行时，`SceneTalkInteractionBootstrap` 会读取 PICO/OpenXR 通用手柄输入：
 
 - 左右手柄会显示轻量 3D 手柄代理和射线；射线命中世界空间 UI 按钮时，扳机键用于确认点击。
+- 在需求阶段或 Avatar 对话阶段，如果射线没有命中任何按钮，按住任一手柄扳机开始录音，松开同一手柄扳机结束录音。
 - `A / X`：保留为开始练习快捷键；错误状态下用于重试。
 - `B / Y` 或菜单键：结束当前练习。
 - 握持键或摇杆按下：把世界空间 UI 面板重新放到当前头显正前方。

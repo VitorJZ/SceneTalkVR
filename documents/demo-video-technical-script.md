@@ -40,10 +40,10 @@ AI / 场景 / 语音能力通过服务端接口解耦接入
 
 ## 暂停点 1：点击 Start 后 0:40-1:30
 
-这里暂停一下。客户端架构的核心是 `SceneTalkOrchestrator`，它把整个流程拆成四个接口模块：
+这里暂停一下。客户端架构的核心是 `SceneTalkOrchestrator`，它把整个流程拆成几个核心接口模块：
 
 ```text
-ISceneTalkSpeechInput
+ISceneTalkSpeechInput / ISceneTalkManualSpeechInput
 -> ISceneTalkBrain
 -> ISceneTalkScenePresenter
 -> ISceneTalkAvatarVoice
@@ -51,7 +51,7 @@ ISceneTalkSpeechInput
 
 也就是说，第一步采集用户语音，第二步让大模型生成结构化结果，第三步把场景显示出来，第四步让 Avatar 说话。这样的设计好处是模块可以替换：Demo 模块、真实 LLM、真实 STT/TTS、真实 Avatar 系统都可以通过同一套接口接入，不需要改 VR 底层交互代码。
 
-客户端使用 Unity 6，配合 OpenXR、XR Interaction Toolkit 和 PICO Unity Integration SDK。PICO 手柄通过射线点击世界空间 UI，用户可以 Start、Retry、Confirm，也可以退出或重置面板位置。
+客户端使用 Unity 6，配合 OpenXR、XR Interaction Toolkit 和 PICO Unity Integration SDK。PICO 手柄通过射线点击世界空间 UI，用户可以 Start、Listen/End/Retry、Confirm 和 Speak/End；当射线没有指向按钮时，也可以按住扳机录音、松开结束录音，或退出和重置面板位置。
 
 屏幕叠字：
 
@@ -272,7 +272,7 @@ Avatar 外观、回复内容、声音参数
 
 第一，近景 3D 资产还不够丰富。现在为了保证 PICO 端稳定性，近景物体采用白名单 prefab 和低模 fallback，优先保证“能生成、能加载、不卡顿”。后续会继续增加更多语义明确的低模模型，比如更真实的咖啡机、柜台、菜单牌、机场柜台、行李箱、餐桌和办公室道具，并保持同一套 `PrefabKey` 白名单协议。这样后端不需要改输出格式，Unity 只需要扩展本地资源库，就能让场景更细致。
 
-第二，当前语音流程更接近单轮或回合式闭环，还不是连续多轮对话。后续会在 LLM 侧增加 conversation state，把用户历史发言、Avatar 历史回复、当前任务目标和纠错信息一起传入模型，让 Avatar 能围绕同一个情境持续追问、纠错和反馈。同时可以增加手动结束录音、基础 VAD、打断播放和下一轮开始信号，让 VR 里的口语练习更自然。
+第二，当前语音流程更接近单轮或回合式闭环，还不是连续多轮对话。Unity 侧已经接入手动结束录音，后续会在 LLM 侧增加 conversation state，把用户历史发言、Avatar 历史回复、当前任务目标和纠错信息一起传入模型，让 Avatar 能围绕同一个情境持续追问、纠错和反馈。同时可以继续增加基础 VAD、打断播放和下一轮开始信号，让 VR 里的口语练习更自然。
 
 第三，场景生成和云服务调用仍然受网络和模型延迟影响。Holodeck、全景图生成、STT 和 TTS 都可能出现冷启动或网络波动。后续方案是增加缓存和分级 fallback：常见场景如 coffee shop、airport、restaurant 可以预生成或本地缓存；相同 `environmentType` 第二次进入时优先读取缓存；云服务失败时回退到本地 skybox、mock transcript、demo audio 或默认 Avatar，保证课堂展示不中断。
 

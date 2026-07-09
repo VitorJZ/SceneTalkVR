@@ -8,6 +8,13 @@ namespace SceneTalkVR.Runtime
 {
     public sealed class SceneTalkOrchestrator : MonoBehaviour
     {
+        private enum SpeechCaptureMode
+        {
+            None,
+            Request,
+            Dialogue
+        }
+
         [Header("Module adapters")]
         [SerializeField] private MonoBehaviour speechInputModule;
         [SerializeField] private MonoBehaviour brainModule;
@@ -29,11 +36,14 @@ namespace SceneTalkVR.Runtime
         public string LastError { get; private set; }
         public bool IsTurnRunning => currentTurn != null;
         public bool IsDialogueActive { get; private set; }
+        public bool IsSpeechRecording { get; private set; }
 
         private Coroutine currentTurn;
         private bool finishRequested;
+        private SpeechCaptureMode activeSpeechCaptureMode = SpeechCaptureMode.None;
 
         private ISceneTalkSpeechInput SpeechInput => speechInputModule as ISceneTalkSpeechInput;
+        private ISceneTalkManualSpeechInput ManualSpeechInput => speechInputModule as ISceneTalkManualSpeechInput;
         private ISceneTalkBrain Brain => brainModule as ISceneTalkBrain;
         private ISceneTalkScenePresenter ScenePresenter => scenePresenterModule as ISceneTalkScenePresenter;
         private ISceneTalkAvatarVoice AvatarVoice => avatarVoiceModule as ISceneTalkAvatarVoice;
@@ -48,23 +58,23 @@ namespace SceneTalkVR.Runtime
         public void StartPractice()
         {
             finishRequested = false;
-            StartListeningTurn();
+            EnterRequestReadyState(true);
         }
 
         public void StartPracticeTurn()
         {
-            StartListeningTurn();
+            BeginRequestSpeechCapture();
         }
 
         public void RetryListening()
         {
             if (IsDialogueActive)
             {
-                StartDialogueTurn();
+                BeginDialogueSpeechCapture();
                 return;
             }
 
-            StartListeningTurn();
+            BeginRequestSpeechCapture();
         }
 
         public void ConfirmPracticeRequest()
@@ -85,24 +95,80 @@ namespace SceneTalkVR.Runtime
 
         public void StartDialogueTurn()
         {
+            BeginDialogueSpeechCapture();
+        }
+
+        public void ToggleRequestSpeechCapture()
+        {
+            if (IsSpeechRecording && activeSpeechCaptureMode == SpeechCaptureMode.Request)
+            {
+                RequestStopSpeechCapture();
+                return;
+            }
+
+            BeginRequestSpeechCapture();
+        }
+
+        public void ToggleDialogueSpeechCapture()
+        {
+            if (IsSpeechRecording && activeSpeechCaptureMode == SpeechCaptureMode.Dialogue)
+            {
+                RequestStopSpeechCapture();
+                return;
+            }
+
+            BeginDialogueSpeechCapture();
+        }
+
+        public bool TryBeginControllerSpeechCapture()
+        {
+            if (IsSpeechRecording || currentTurn != null)
+            {
+                return false;
+            }
+
+            if (IsDialogueActive)
+            {
+                return BeginDialogueSpeechCapture();
+            }
+
+            if (CurrentState == SceneTalkState.Listening || CurrentState == SceneTalkState.Error)
+            {
+                return BeginRequestSpeechCapture();
+            }
+
+            return false;
+        }
+
+        public bool TryEndControllerSpeechCapture()
+        {
+            if (!IsSpeechRecording)
+            {
+                return false;
+            }
+
+            RequestStopSpeechCapture();
+            return true;
+        }
+
+        public bool CanUseControllerSpeechCapture()
+        {
+            if (IsSpeechRecording)
+            {
+                return true;
+            }
+
             if (currentTurn != null)
             {
-                return;
+                return false;
             }
 
-            if (!IsDialogueActive)
+            if (IsDialogueActive)
             {
-                StartListeningTurn();
-                return;
+                return CurrentState == SceneTalkState.AvatarSpeaking || CurrentState == SceneTalkState.Error;
             }
 
-            if (!ValidateSpeechModule() || !ValidateDialogueModules())
-            {
-                return;
-            }
-
-            finishRequested = false;
-            currentTurn = StartCoroutine(RunDialogueTurn());
+            return CurrentState == SceneTalkState.Listening || CurrentState == SceneTalkState.Error;
         }
 
         public void FinishPractice()
@@ -113,6 +179,7 @@ namespace SceneTalkVR.Runtime
         public void ReturnToInitialMenu()
         {
             finishRequested = true;
+            CancelActiveSpeechCapture();
 
             if (currentTurn != null)
             {
@@ -124,6 +191,8 @@ namespace SceneTalkVR.Runtime
             LastScenePayload = null;
             LastError = string.Empty;
             IsDialogueActive = false;
+            IsSpeechRecording = false;
+            activeSpeechCaptureMode = SpeechCaptureMode.None;
             ClearPresentedSceneIfSupported();
             AvatarSessionReset?.ClearAvatar();
             
@@ -144,17 +213,46 @@ namespace SceneTalkVR.Runtime
             }
         }
 
-        private void StartListeningTurn()
+        private void EnterRequestReadyState(bool clearTranscript)
         {
             if (currentTurn != null)
             {
+                CancelActiveSpeechCapture();
+                StopCoroutine(currentTurn);
+                currentTurn = null;
+            }
+
+            IsSpeechRecording = false;
+            activeSpeechCaptureMode = SpeechCaptureMode.None;
+            LastError = string.Empty;
+            IsDialogueActive = false;
+
+            if (clearTranscript)
+            {
+                LastTranscript = string.Empty;
+                LastScenePayload = null;
+            }
+
+            SetState(SceneTalkState.Listening);
+        }
+
+        private bool BeginRequestSpeechCapture()
+        {
+            if (currentTurn != null)
+            {
+                if (IsSpeechRecording && activeSpeechCaptureMode == SpeechCaptureMode.Request)
+                {
+                    RequestStopSpeechCapture();
+                    return true;
+                }
+
                 StopCoroutine(currentTurn);
             }
 
             if (!ValidateSpeechModule())
             {
                 currentTurn = null;
-                return;
+                return false;
             }
 
             finishRequested = false;
@@ -162,22 +260,90 @@ namespace SceneTalkVR.Runtime
             LastScenePayload = null;
             LastError = string.Empty;
             IsDialogueActive = false;
-            currentTurn = StartCoroutine(RunSpeechCaptureTurn());
+            currentTurn = StartCoroutine(RunRequestSpeechCaptureTurn());
+            return true;
         }
 
-        private IEnumerator RunSpeechCaptureTurn()
+        private bool BeginDialogueSpeechCapture()
+        {
+            if (currentTurn != null)
+            {
+                if (IsSpeechRecording && activeSpeechCaptureMode == SpeechCaptureMode.Dialogue)
+                {
+                    RequestStopSpeechCapture();
+                    return true;
+                }
+
+                return false;
+            }
+
+            if (!IsDialogueActive)
+            {
+                return BeginRequestSpeechCapture();
+            }
+
+            if (!ValidateSpeechModule() || !ValidateDialogueModules())
+            {
+                return false;
+            }
+
+            finishRequested = false;
+            currentTurn = StartCoroutine(RunDialogueTurn());
+            return true;
+        }
+
+        private void RequestStopSpeechCapture()
+        {
+            if (!IsSpeechRecording)
+            {
+                return;
+            }
+
+            IsSpeechRecording = false;
+            ManualSpeechInput?.RequestStopCapture();
+            SetState(SceneTalkState.Transcribing);
+        }
+
+        private void CancelActiveSpeechCapture()
+        {
+            if (!IsSpeechRecording && activeSpeechCaptureMode == SpeechCaptureMode.None)
+            {
+                return;
+            }
+
+            IsSpeechRecording = false;
+            activeSpeechCaptureMode = SpeechCaptureMode.None;
+            ManualSpeechInput?.CancelCapture();
+        }
+
+        private void BeginSpeechCaptureState(SpeechCaptureMode mode)
+        {
+            activeSpeechCaptureMode = mode;
+            IsSpeechRecording = true;
+            SetState(SceneTalkState.Recording);
+        }
+
+        private void CompleteSpeechCaptureState()
+        {
+            IsSpeechRecording = false;
+            activeSpeechCaptureMode = SpeechCaptureMode.None;
+        }
+
+        private IEnumerator RunRequestSpeechCaptureTurn()
         {
             LastTranscript = string.Empty;
             LastError = string.Empty;
             RefreshUi();
 
-            SetState(SceneTalkState.Listening);
+            BeginSpeechCaptureState(SpeechCaptureMode.Request);
 
             string transcript = null;
             string error = null;
             yield return SpeechInput.CaptureSpeech(
                 value => transcript = value,
                 message => error = message);
+
+            CompleteSpeechCaptureState();
 
             if (HandleErrorOrFinish(error, "Speech input failed."))
             {
@@ -250,13 +416,15 @@ namespace SceneTalkVR.Runtime
             LastError = string.Empty;
             RefreshUi();
 
-            SetState(SceneTalkState.Listening);
+            BeginSpeechCaptureState(SpeechCaptureMode.Dialogue);
 
             string transcript = null;
             string error = null;
             yield return SpeechInput.CaptureSpeech(
                 value => transcript = value,
                 message => error = message);
+
+            CompleteSpeechCaptureState();
 
             if (HandleErrorOrFinish(error, "Speech input failed."))
             {

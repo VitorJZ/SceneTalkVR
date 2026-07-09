@@ -45,6 +45,7 @@ Edwin 的模块应保持可替换、可降级、可联调：即使真实云服�
 - 已支持 `TENCENT_FALLBACK_TO_MOCK=true`，腾讯云失败时自动回退 mock，保证 demo 不因云服务失败中断。
 - 已新增 Unity 侧 `VoiceGatewayClient`、`MicrophoneRecorder`、`GatewaySpeechInputModule`。
 - Unity 侧可录制默认麦克风音频，编码为 16-bit WAV base64 后上传给语音网关。
+- Unity 侧 `MicrophoneRecorder`、`GatewaySpeechInputModule` 和 demo speech path 已支持手动结束录音，可由按钮或 PICO/OpenXR 空指向扳机触发停止。
 - Unity 侧可请求 TTS、下载返回 WAV，并转换为 `AudioClip` 播放。
 - Unity 侧 TTS 请求已根据最终解析到的 Avatar preset 性别选择 `default_male_en` 或 `default_female_en`，缺失时回退默认 voiceId。
 - 已新增 `VoiceGatewaySettings.asset`，集中配置 `gatewayBaseUrl`，支持团队通过局域网共用一台语音网关主机。
@@ -55,7 +56,7 @@ Edwin 的模块应保持可替换、可降级、可联调：即使真实云服�
 ### 仍未完成
 
 - PICO 4 真机上的麦克风权限、录音设备、采样率、上传、识别和播放尚需回归验证。
-- 录音结束策略仍偏 P0，后续需要手动结束录音、基础静音检测或 VAD。
+- Unity 侧手动结束录音已接入；仍需 PICO 4 真机回归，并补齐基础静音检测或 VAD。
 - STT/TTS 目前以 turn-based 整段上传和整段播放为主，尚未实现流式 STT、TTS 分段播放和 barge-in 打断。
 - 语音日志、错误码、延迟统计、成本统计和日志脱敏还需补齐。
 - 新增性别模型已导入并通过 Unity 菜单生成 prefab；仍需在实际 Play Mode / PICO 视角下逐个做可视验收，确认朝向、比例、材质和动画表现符合 demo 需要。
@@ -93,6 +94,7 @@ Edwin 的模块应保持可替换、可降级、可联调：即使真实云服�
 - [x] Unity 侧新增 `MicrophoneRecorder`，完成麦克风录音和 WAV base64 编码。
 - [x] Unity 侧新增 `VoiceGatewayClient`，统一访问 STT/TTS API。
 - [x] Unity 侧新增 `GatewaySpeechInputModule`，替换假 STT 输入。
+- [x] Unity 侧支持手动结束录音，保留最大录音时长作为安全上限。
 - [x] 扩展 `AvatarPresentationVoiceModule`，支持优先播放语音网关 TTS 音频。
 - [x] 提供 `Rebuild Demo Rig With Voice Gateway`，方便一键切换到真实语音路径，且只修改语音组件和引用。
 - [x] 在 Unity Editor 中完成真实语音闭环验证。
@@ -100,7 +102,8 @@ Edwin 的模块应保持可替换、可降级、可联调：即使真实云服�
 ### 第 3 阶段：联调期 - PICO 真机、真实 Avatar 和语音体验增强
 
 - [ ] 在 PICO 4 上验证麦克风录音、上传、腾讯云 ASR、TTS 下载和播放。
-- [ ] 增加手动结束录音和基础静音检测，避免固定录音时长影响体验。
+- [x] 增加手动结束录音，避免固定录音时长影响体验。
+- [ ] 增加基础静音检测或 VAD。
 - [ ] 补齐语音网关结构化日志：provider、耗时、错误码、fallback level、音频时长和缓存状态。
 - [ ] 补齐日志脱敏策略：默认不保存原始音频和完整 transcript。
 - [x] 完成至少 3 个真实或半真实 Humanoid Avatar：teacher、barista、police。
@@ -130,7 +133,7 @@ Edwin 的模块应保持可替换、可降级、可联调：即使真实云服�
 - 经由 `VoiceGatewayClient` 调用 `/api/voice/stt`。
 - 将返回 transcript 交给 `SceneTalkOrchestrator`，再由 Spring Brain 生成场景和回复。
 - 保留 mock transcript，云服务失败时可继续演示。
-- 后续补齐 PICO 真机权限、录音结束、静音检测和错误提示。
+- 后续回归 PICO 真机权限、手动结束录音路径，并补齐静音检测和错误提示。
 
 ### 2. TTS 语音合成
 

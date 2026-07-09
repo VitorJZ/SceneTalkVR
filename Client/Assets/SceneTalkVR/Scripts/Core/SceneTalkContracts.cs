@@ -9,6 +9,13 @@ namespace SceneTalkVR.Core
         IEnumerator CaptureSpeech(Action<string> onComplete, Action<string> onError);
     }
 
+    public interface ISceneTalkManualSpeechInput
+    {
+        void RequestStopCapture();
+
+        void CancelCapture();
+    }
+
     public interface ISceneTalkBrain
     {
         IEnumerator GenerateSceneAndReply(string userText, Action<SpringScenePayload> onComplete, Action<string> onError);

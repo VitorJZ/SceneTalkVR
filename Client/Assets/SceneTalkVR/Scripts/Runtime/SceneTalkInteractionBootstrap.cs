@@ -18,6 +18,14 @@ namespace SceneTalkVR.Runtime
 {
     public sealed class SceneTalkInteractionBootstrap : MonoBehaviour
     {
+        private enum ControllerTriggerOwner
+        {
+            None,
+            Left,
+            Right,
+            Unknown
+        }
+
         [SerializeField] private SceneTalkOrchestrator orchestrator;
         [SerializeField] private Camera interactionCamera;
         [SerializeField] private Canvas worldCanvas;
@@ -58,9 +66,10 @@ namespace SceneTalkVR.Runtime
         private bool primaryShortcutHeld;
         private bool finishShortcutHeld;
         private bool recenterShortcutHeld;
-        private bool leftTriggerRayClickHeld;
-        private bool rightTriggerRayClickHeld;
-        private bool unknownTriggerRayClickHeld;
+        private bool leftTriggerHeld;
+        private bool rightTriggerHeld;
+        private bool unknownTriggerHeld;
+        private ControllerTriggerOwner activeSpeechTriggerOwner = ControllerTriggerOwner.None;
         private GameObject hoveredRayTarget;
 
         private void Awake()
@@ -533,25 +542,25 @@ namespace SceneTalkVR.Runtime
                     nextHoverEventData = pointerEventData;
                 }
 
-                if (ConsumeControllerTriggerPress(device, ReadTriggerPressed(device)) && clickTarget != null)
-                {
-                    DispatchRayClick(clickTarget, pointerEventData);
-                }
+                HandleControllerTrigger(device, ReadTriggerPressed(device), clickTarget, pointerEventData);
             }
 
             if (!hasLeftController)
             {
-                leftTriggerRayClickHeld = false;
+                ReleaseMissingControllerTrigger(ControllerTriggerOwner.Left);
+                leftTriggerHeld = false;
             }
 
             if (!hasRightController)
             {
-                rightTriggerRayClickHeld = false;
+                ReleaseMissingControllerTrigger(ControllerTriggerOwner.Right);
+                rightTriggerHeld = false;
             }
 
             if (!hasUnknownController)
             {
-                unknownTriggerRayClickHeld = false;
+                ReleaseMissingControllerTrigger(ControllerTriggerOwner.Unknown);
+                unknownTriggerHeld = false;
             }
 
             UpdateHoveredRayTarget(nextHoverTarget, nextHoverEventData);
@@ -1100,19 +1109,110 @@ namespace SceneTalkVR.Runtime
                 && triggerValue >= triggerPressThreshold;
         }
 
-        private bool ConsumeControllerTriggerPress(InputDevice device, bool isPressed)
+        private void HandleControllerTrigger(
+            InputDevice device,
+            bool isPressed,
+            GameObject clickTarget,
+            PointerEventData pointerEventData)
+        {
+            var owner = ResolveTriggerOwner(device);
+            var wasPressed = GetControllerTriggerHeld(owner);
+
+            if (isPressed && !wasPressed)
+            {
+                SetControllerTriggerHeld(owner, true);
+
+                if (clickTarget != null)
+                {
+                    DispatchRayClick(clickTarget, pointerEventData);
+                    return;
+                }
+
+                TryBeginSpeechTriggerCapture(owner);
+                return;
+            }
+
+            if (!isPressed && wasPressed)
+            {
+                SetControllerTriggerHeld(owner, false);
+                TryEndSpeechTriggerCapture(owner);
+            }
+        }
+
+        private ControllerTriggerOwner ResolveTriggerOwner(InputDevice device)
         {
             if (IsLeftController(device))
             {
-                return ConsumePress(isPressed, ref leftTriggerRayClickHeld);
+                return ControllerTriggerOwner.Left;
             }
 
             if (IsRightController(device))
             {
-                return ConsumePress(isPressed, ref rightTriggerRayClickHeld);
+                return ControllerTriggerOwner.Right;
             }
 
-            return ConsumePress(isPressed, ref unknownTriggerRayClickHeld);
+            return ControllerTriggerOwner.Unknown;
+        }
+
+        private bool GetControllerTriggerHeld(ControllerTriggerOwner owner)
+        {
+            return owner switch
+            {
+                ControllerTriggerOwner.Left => leftTriggerHeld,
+                ControllerTriggerOwner.Right => rightTriggerHeld,
+                ControllerTriggerOwner.Unknown => unknownTriggerHeld,
+                _ => false
+            };
+        }
+
+        private void SetControllerTriggerHeld(ControllerTriggerOwner owner, bool isHeld)
+        {
+            switch (owner)
+            {
+                case ControllerTriggerOwner.Left:
+                    leftTriggerHeld = isHeld;
+                    break;
+                case ControllerTriggerOwner.Right:
+                    rightTriggerHeld = isHeld;
+                    break;
+                case ControllerTriggerOwner.Unknown:
+                    unknownTriggerHeld = isHeld;
+                    break;
+            }
+        }
+
+        private void TryBeginSpeechTriggerCapture(ControllerTriggerOwner owner)
+        {
+            orchestrator = ResolveOrchestrator(orchestrator);
+            if (orchestrator == null || !orchestrator.CanUseControllerSpeechCapture())
+            {
+                return;
+            }
+
+            if (orchestrator.TryBeginControllerSpeechCapture())
+            {
+                activeSpeechTriggerOwner = owner;
+            }
+        }
+
+        private void TryEndSpeechTriggerCapture(ControllerTriggerOwner owner)
+        {
+            if (activeSpeechTriggerOwner != owner)
+            {
+                return;
+            }
+
+            orchestrator = ResolveOrchestrator(orchestrator);
+            orchestrator?.TryEndControllerSpeechCapture();
+            activeSpeechTriggerOwner = ControllerTriggerOwner.None;
+        }
+
+        private void ReleaseMissingControllerTrigger(ControllerTriggerOwner owner)
+        {
+            if (activeSpeechTriggerOwner == owner)
+            {
+                TryEndSpeechTriggerCapture(owner);
+            }
         }
 
         private static bool IsLeftController(InputDevice device)
@@ -1129,7 +1229,18 @@ namespace SceneTalkVR.Runtime
         {
             orchestrator = ResolveOrchestrator(orchestrator);
 
-            if (orchestrator == null || orchestrator.IsTurnRunning)
+            if (orchestrator == null)
+            {
+                return;
+            }
+
+            if (orchestrator.IsSpeechRecording)
+            {
+                orchestrator.TryEndControllerSpeechCapture();
+                return;
+            }
+
+            if (orchestrator.IsTurnRunning)
             {
                 return;
             }

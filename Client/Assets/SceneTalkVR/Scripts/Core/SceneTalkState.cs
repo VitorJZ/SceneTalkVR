@@ -4,6 +4,8 @@ namespace SceneTalkVR.Core
     {
         Idle,
         Listening,
+        Recording,
+        Transcribing,
         Processing,
         SceneReady,
         AvatarSpeaking,

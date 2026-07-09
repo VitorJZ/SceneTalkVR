@@ -19,8 +19,8 @@ Vitor 作为组长，负责 SceneTalk VR 的系统架构、Unity/PICO 客户端�
 ### 已完成
 
 - 已在 `Client/Assets/SceneTalkVR` 建立 Vitor 客户端侧工程骨架。
-- 已实现客户端主流程状态机 `SceneTalkOrchestrator`，覆盖 `Idle`、`Listening`、`Processing`、`SceneReady`、`AvatarSpeaking`、`Finished`、`Error` 等状态。
-- 已定义 Spring/Edwin 对接接口：`ISceneTalkSpeechInput`、`ISceneTalkBrain`、`ISceneTalkScenePresenter`、`ISceneTalkAvatarVoice`。
+- 已实现客户端主流程状态机 `SceneTalkOrchestrator`，覆盖 `Idle`、`Listening`、`Recording`、`Transcribing`、`Processing`、`SceneReady`、`AvatarSpeaking`、`Finished`、`Error` 等状态。
+- 已定义 Spring/Edwin 对接接口：`ISceneTalkSpeechInput`、`ISceneTalkManualSpeechInput`、`ISceneTalkBrain`、`ISceneTalkScenePresenter`、`ISceneTalkAvatarVoice`。
 - 已实现假数据联调模块：模拟 STT 输入、LLM/场景生成输出、Avatar 语音回复。
 - 已实现 `SceneTalkScenePresenter`，可消费 Spring 风格的场景数据，并限制动态生成物体数量与距离。
 - 已实现 Unity 编辑器菜单 `SceneTalkVR/Setup/Rebuild Demo Rig`，可一键生成或重建 Demo Rig。
@@ -37,7 +37,7 @@ Vitor 作为组长，负责 SceneTalk VR 的系统架构、Unity/PICO 客户端�
 - 已将 PICO OpenXR 默认配置合并到 `SceneTalkVR/Setup/Apply Recommended Project Settings`；该步骤需要 Unity 重新编译后再运行一次菜单完成启用。
 - 已完成 PICO OpenXR 基础验证：`PICO_OPENXR_SDK`、`OpenXRLoader`、`PICO XR Support`、`PICO OpenXR Features`、`PICO4 Touch Controller Profile` 均已通过预检。
 - 已完成 PICO/OpenXR Project Validation 基础配置：Android 保持 OpenXR 单一路线，Min SDK API 29、ARM64、IL2CPP、OpenGLES3、Run In Background 与 URP Quality 配置已落盘；本地调试默认使用 Unity debug signing，keystore 私钥文件不提交 Git。
-- 已接入 PICO/OpenXR 手柄交互：左右手柄显示轻量 3D 手柄代理和射线，射线命中世界空间 UI 时由扳机确认点击；`A/X` 保留为开始/重试快捷键，`B/Y` 或菜单结束，握持键或摇杆按下重置 UI 面板到头显正前方；UI 中新增 `Quit` 按钮用于退出应用。
+- 已接入 PICO/OpenXR 手柄交互：左右手柄显示轻量 3D 手柄代理和射线，射线命中世界空间 UI 时由扳机确认点击；射线未命中按钮且处于需求/Avatar 对话可录音阶段时，按住任一扳机开始录音、松开同一扳机结束录音；`A/X` 保留为开始/重试快捷键，`B/Y` 或菜单结束，握持键或摇杆按下重置 UI 面板到头显正前方；UI 中新增 `Quit` 按钮用于退出应用。
 - 已修正真机初始视角逻辑：带 `TrackedPoseDriver` 的 XR 相机不再被 Demo bootstrap 强制设置世界坐标，UI 面板改为启动后相对当前头显位置重居中。
 - 当前 Unity Editor 内 Demo 已能正常显示、点击并运行假数据闭环。
 
@@ -73,8 +73,8 @@ Vitor 作为组长，负责 SceneTalk VR 的系统架构、Unity/PICO 客户端�
 
 ### 第 2 阶段：原型期 - 主状态机、UI 和假数据联调
 
-- [x] 实现客户端主流程状态机，至少包含 `Idle`、`Listening`、`Processing`、`SceneReady`、`AvatarSpeaking`、`Finished`、`Error` 状态。
-- [x] 搭建基础 UI：开始练习、重试、结束练习、状态文本、转写文本、Avatar 回复、错误提示。
+- [x] 实现客户端主流程状态机，至少包含 `Idle`、`Listening`、`Recording`、`Transcribing`、`Processing`、`SceneReady`、`AvatarSpeaking`、`Finished`、`Error` 状态。
+- [x] 搭建基础 UI：开始练习、`Listen/End/Retry`、`Speak/End`、结束练习、状态文本、转写文本、Avatar 回复、错误提示。
 - [x] 用假数据模拟 Spring 模块输出，驱动场景承载逻辑和演示回复。
 - [x] 用假数据模拟 Edwin 模块输出，驱动 Avatar 语音回复流程。
 - [x] 为每个模块接入点保留异步接口，避免真实网络请求接入后阻塞 Unity 主线程。
@@ -113,10 +113,15 @@ Vitor 作为组长，负责 SceneTalk VR 的系统架构、Unity/PICO 客户端�
 ```text
 Idle
   -> Listening
+  -> Recording
+  -> Transcribing
   -> Processing
   -> SceneReady
   -> AvatarSpeaking
-  -> Listening
+  -> Recording
+  -> Transcribing
+  -> Processing
+  -> AvatarSpeaking
   -> Finished
 ```
 
@@ -209,7 +214,7 @@ Edwin 负责 STT、TTS、Avatar 加载和口型同步。Vitor 负责调度调用
 
 Vitor 需要保证客户端具备以下调度能力：
 
-- 在 `Listening` 状态启动录音或调用 Edwin 的 STT 模块。
+- 在 `Listening` 或可对话的 `AvatarSpeaking` 状态进入 `Recording`，由按钮或空指向扳机触发开始/结束录音，再进入 `Transcribing` 调用 Edwin 的 STT 模块。
 - 在 `Processing` 状态把 `sttText` 交给 Spring 的 LLM/场景模块。
 - 在 `AvatarSpeaking` 状态播放 `ttsAudioPath` 或 `AudioClip`，并通知 Avatar 进入说话动画。
 - 当实时 TTS 未返回时，允许播放预设短语音或思考动作，降低用户等待感。
