@@ -173,75 +173,6 @@ namespace SceneTalkVR.EditorTools
             Debug.Log($"[SceneTalkVR] Built P1 humanoid avatar prefabs and catalog entries: {TeacherHumanoidKey}, {BaristaHumanoidKey}, {PoliceHumanoidKey}, {MaleBaristaHumanoidKey}, {FemaleTeacherHumanoidKey}, {FemalePoliceHumanoidKey}.");
         }
 
-        [MenuItem("SceneTalkVR/Avatar/P1 Build Teacher Humanoid", false, 42)]
-        public static void BuildTeacherHumanoid()
-        {
-            BuildHumanoidAvatars();
-        }
-
-        [MenuItem("SceneTalkVR/Avatar/P1 Build Gender Humanoids", false, 43)]
-        public static void BuildGenderHumanoidAvatars()
-        {
-            EnsureFolders();
-            ConfigureHumanoidImporter(MaleBaristaModelPath, importAnimation: false);
-            ConfigureHumanoidImporter(FemaleTeacherModelPath, importAnimation: false);
-            ConfigureHumanoidImporter(FemalePoliceModelPath, importAnimation: false);
-
-            var maleBaristaSourceModel = AssetDatabase.LoadAssetAtPath<GameObject>(MaleBaristaModelPath);
-            if (maleBaristaSourceModel == null)
-            {
-                Debug.LogError($"[SceneTalkVR] P1 male barista humanoid source model not found at {MaleBaristaModelPath}.");
-                return;
-            }
-
-            var femaleTeacherSourceModel = AssetDatabase.LoadAssetAtPath<GameObject>(FemaleTeacherModelPath);
-            if (femaleTeacherSourceModel == null)
-            {
-                Debug.LogError($"[SceneTalkVR] P1 female teacher humanoid source model not found at {FemaleTeacherModelPath}.");
-                return;
-            }
-
-            var femalePoliceSourceModel = AssetDatabase.LoadAssetAtPath<GameObject>(FemalePoliceModelPath);
-            if (femalePoliceSourceModel == null)
-            {
-                Debug.LogError($"[SceneTalkVR] P1 female police humanoid source model not found at {FemalePoliceModelPath}.");
-                return;
-            }
-
-            var controller = LoadOrCreateCommonHumanoidAnimatorController();
-            var maleBaristaPrefab = CreateHumanoidPrefab(
-                maleBaristaSourceModel,
-                "barista_male_humanoid_v1",
-                "QuaterniusCasualCharacter",
-                MaleBaristaPrefabPath,
-                TargetHeightMeters,
-                180f,
-                controller);
-            var femaleTeacherPrefab = CreateHumanoidPrefab(
-                femaleTeacherSourceModel,
-                "teacher_female_humanoid_v1",
-                "QuaterniusSuit",
-                FemaleTeacherPrefabPath,
-                FemaleTeacherTargetHeightMeters,
-                180f,
-                controller);
-            var femalePolicePrefab = CreateHumanoidPrefab(
-                femalePoliceSourceModel,
-                "police_female_humanoid_v1",
-                "QuaterniusSoldier",
-                FemalePolicePrefabPath,
-                FemalePoliceTargetHeightMeters,
-                180f,
-                controller);
-
-            UpsertGenderCatalogEntries(maleBaristaPrefab, femaleTeacherPrefab, femalePolicePrefab);
-
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
-            Selection.activeObject = femalePolicePrefab;
-            Debug.Log($"[SceneTalkVR] Built gender humanoid avatar prefabs and catalog entries: {MaleBaristaHumanoidKey}, {FemaleTeacherHumanoidKey}, {FemalePoliceHumanoidKey}.");
-        }
-
         private static void EnsureFolders()
         {
             EnsureFolder("Assets/SceneTalkVR", "Avatar");
@@ -899,41 +830,6 @@ namespace SceneTalkVR.EditorTools
             InsertBeforePlaceholder(presets, CreateBaristaEntry(baristaPrefab), BaristaPlaceholderKey);
             InsertBeforePlaceholder(presets, CreateMaleBaristaEntry(maleBaristaPrefab), BaristaPlaceholderKey);
             InsertBeforePlaceholder(presets, CreatePoliceEntry(policePrefab), PolicePlaceholderKey);
-            InsertBeforePlaceholder(presets, CreateFemalePoliceEntry(femalePolicePrefab), PolicePlaceholderKey);
-            catalog.presets = presets.ToArray();
-            EditorUtility.SetDirty(catalog);
-        }
-
-        private static void UpsertGenderCatalogEntries(
-            GameObject maleBaristaPrefab,
-            GameObject femaleTeacherPrefab,
-            GameObject femalePolicePrefab)
-        {
-            if (maleBaristaPrefab == null || femaleTeacherPrefab == null || femalePolicePrefab == null)
-            {
-                Debug.LogError("[SceneTalkVR] P1 gender humanoid prefab creation failed.");
-                return;
-            }
-
-            var catalog = AssetDatabase.LoadAssetAtPath<AvatarCatalog>(CatalogPath);
-            if (catalog == null)
-            {
-                catalog = ScriptableObject.CreateInstance<AvatarCatalog>();
-                AssetDatabase.CreateAsset(catalog, CatalogPath);
-                catalog.defaultAvatarKey = TeacherPlaceholderKey;
-            }
-
-            var presets = catalog.presets == null
-                ? new List<AvatarPresetEntry>()
-                : new List<AvatarPresetEntry>(catalog.presets);
-
-            presets.RemoveAll(entry => entry != null
-                && (entry.key == MaleBaristaHumanoidKey
-                    || entry.key == FemaleTeacherHumanoidKey
-                    || entry.key == FemalePoliceHumanoidKey));
-
-            InsertBeforePlaceholder(presets, CreateFemaleTeacherEntry(femaleTeacherPrefab), TeacherPlaceholderKey);
-            InsertBeforePlaceholder(presets, CreateMaleBaristaEntry(maleBaristaPrefab), BaristaPlaceholderKey);
             InsertBeforePlaceholder(presets, CreateFemalePoliceEntry(femalePolicePrefab), PolicePlaceholderKey);
             catalog.presets = presets.ToArray();
             EditorUtility.SetDirty(catalog);
