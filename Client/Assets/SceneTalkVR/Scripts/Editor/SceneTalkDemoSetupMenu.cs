@@ -157,7 +157,10 @@ namespace SceneTalkVR.EditorTools
             var assetCatalog = AssetDatabase.LoadAssetAtPath<SceneTalkAssetCatalog>("Assets/SceneTalkVR/Prefabs/SceneTalkAssetCatalog.asset");
             SetObject(hybridPresenter, "assetCatalog", assetCatalog);
 
-            MonoBehaviour brainToUse = realLlm;
+            var demoBrain = root.GetComponent<DemoBrainModule>();
+            if (demoBrain == null) demoBrain = root.AddComponent<DemoBrainModule>();
+
+            MonoBehaviour brainToUse = demoBrain;
             MonoBehaviour presenterToUse = hybridPresenter;
 
             var avatarResolver = root.GetComponent<AvatarPresetResolver>();
@@ -284,7 +287,7 @@ namespace SceneTalkVR.EditorTools
             var catalog = AssetDatabase.LoadAssetAtPath<AvatarCatalog>(AvatarCatalogPath);
             if (catalog == null)
             {
-                Debug.LogWarning($"[SceneTalkVR] Avatar catalog not found at {AvatarCatalogPath}. Run SceneTalkVR/Avatar/Generate Placeholder Avatars first.");
+                Debug.LogWarning($"[SceneTalkVR] Avatar catalog not found at {AvatarCatalogPath}. Run SceneTalkVR/Avatar/P1 Build Humanoid Avatars first.");
             }
 
             return catalog;
