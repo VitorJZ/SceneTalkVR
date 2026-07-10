@@ -19,6 +19,10 @@ namespace SceneTalkVR.Runtime.Services
         [SerializeField] private string apiKey = ""; 
         [SerializeField] private string modelName = "minimax-m2.7";
         
+        [Header("Feedback Strategy")]
+        [Tooltip("Feedback strictness: conservative (only severe errors), moderate (general errors), active (almost all errors)")]
+        [SerializeField] private string feedbackSensitivity = "moderate"; // conservative | moderate | active
+
         [Header("Prompts")]
         [TextArea(10, 20)]
         [SerializeField] private string systemPrompt = "You are a VR scene dispatcher and an English tutor. Based on the user's input, generate a JSON response that matches the following structure:\n" +
@@ -59,12 +63,31 @@ namespace SceneTalkVR.Runtime.Services
                                                       "The 'dialogueReply' should be in character based on the 'environmentType' and 'avatarRole.role'.";
 
         private readonly List<OpenAiMessage> chatHistory = new List<OpenAiMessage>();
+        private readonly List<string> sessionErrorHistory = new List<string>();
         private SceneTalkOrchestrator cachedOrchestrator;
         private CorrectionExperimentCondition currentCondition;
 
         private float lastSttConfidence = 1.0f;
         private float lastRecordingDurationMs = 0f;
         private string lastRecordingStopReason = "unknown";
+
+        public string GetSessionErrorSummary()
+        {
+            if (sessionErrorHistory.Count == 0) return "No errors detected in this session.";
+            var counts = new Dictionary<string, int>();
+            foreach (var err in sessionErrorHistory)
+            {
+                if (string.IsNullOrEmpty(err)) continue;
+                counts[err] = counts.TryGetValue(err, out int c) ? c + 1 : 1;
+            }
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"Total feedback triggered: {sessionErrorHistory.Count}");
+            foreach (var kvp in counts)
+            {
+                sb.AppendLine($"- {kvp.Key}: {kvp.Value} times");
+            }
+            return sb.ToString();
+        }
 
         public void SetExperimentCondition(CorrectionExperimentCondition condition)
         {
@@ -308,11 +331,15 @@ namespace SceneTalkVR.Runtime.Services
                 ? string.Empty
                 : string.Join("; ", task.goals);
 
+            string historyCsv = sessionErrorHistory.Count > 0 ? string.Join(", ", sessionErrorHistory) : "none";
+
             builder.AppendLine("=== EXPERIMENT & TASK CONTEXT ===");
             builder.AppendLine("The experiment condition is FIXED by the client. Do NOT change provider or style in the JSON output.");
             builder.AppendLine($"- scenarioId: {currentCondition.scenarioId}");
             builder.AppendLine($"- feedbackProvider: {currentCondition.provider} (dialogue_avatar means you, the roleplay character; assistant_agent means a separate AI assistant helper)");
             builder.AppendLine($"- feedbackStyle: {currentCondition.style} (explicit means direct correction; recast means natural conversational reformulation)");
+            builder.AppendLine($"- feedbackSensitivity: {feedbackSensitivity} (conservative means correct only severe errors that block understanding; moderate means correct clear grammar/vocab errors; active means correct even minor unnatural expressions/repetitions)");
+            builder.AppendLine($"- correctedErrorsInSession: [{historyCsv}] (types of errors already corrected in this session)");
             
             if (task != null)
             {
@@ -345,9 +372,13 @@ namespace SceneTalkVR.Runtime.Services
 
             builder.AppendLine("\n=== LANGUAGE CORRECTION INSTRUCTIONS ===");
             builder.AppendLine("1. Detect at most ONE major error per turn (grammar, unnatural expression, vocabulary misuse, or incomplete sentence).");
-            builder.AppendLine("2. Only correct actual errors that hinder communication or are clearly grammatically incorrect. Do not correct natural pauses, filler words, minor repetitions, or self-corrections.");
-            builder.AppendLine("3. If there is no clear error, set hasFeedback = false in correctionFeedback and leave originalText/correctedText/feedbackText/targetSpan empty.");
-            builder.AppendLine("4. Customize feedbackText based on feedbackStyle and feedbackProvider:");
+            builder.AppendLine("2. Respect the 'feedbackSensitivity' level:");
+            builder.AppendLine("   - If 'conservative': Only correct severe grammar/vocab errors that clearly hinder understanding. Ignore minor unnaturalness.");
+            builder.AppendLine("   - If 'moderate': Correct clear grammar, unnatural expressions, and vocabulary misuse. Ignore minor self-corrections or normal pauses.");
+            builder.AppendLine("   - If 'active': Be highly strict. Correct even minor slips, awkward phrasing, and slang/informal style.");
+            builder.AppendLine("3. Manage repetitive errors: Consult 'correctedErrorsInSession'. If the same errorType was corrected recently, try to be more tolerant (set hasFeedback=false) or prefer the softer 'recast' feedbackStyle to avoid annoying the user.");
+            builder.AppendLine("4. If no error is detected or it is skipped based on sensitivity/history, set hasFeedback = false and leave originalText/correctedText/feedbackText/targetSpan empty.");
+            builder.AppendLine("5. Customize feedbackText based on feedbackStyle and feedbackProvider:");
             builder.AppendLine("   - If style is 'explicit':");
             builder.AppendLine("     * If provider is 'dialogue_avatar': Keep it brief and character-appropriate. Example: 'You can say: I really like this topic.'");
             builder.AppendLine("     * If provider is 'assistant_agent': Act as an instructor helper. Example: 'Grammar tip: Remember to say: I really like this topic, not I very like this topic.'");
@@ -379,7 +410,8 @@ namespace SceneTalkVR.Runtime.Services
             builder.AppendLine("    \"correctedText\": \"the corrected sentence\",");
             builder.AppendLine("    \"feedbackText\": \"the feedback text to be spoken via TTS\",");
             builder.AppendLine("    \"targetSpan\": \"the specific wrong phrase or word that was corrected\",");
-            builder.AppendLine("    \"confidence\": 0.0-1.0");
+            builder.AppendLine("    \"confidence\": 0.0-1.0,");
+            builder.AppendLine("    \"rationaleTag\": \"short internal tag explaining the correction choice (e.g., subject_verb_agreement, active_sensitivity_filter, repeated_error_skipped, ok)\"");
             builder.AppendLine("  }");
             builder.AppendLine("}");
 
@@ -388,12 +420,24 @@ namespace SceneTalkVR.Runtime.Services
 
         private void ApplyExperimentConditionToPayload(SpringScenePayload payload)
         {
-            if (payload == null || currentCondition == null)
+            if (payload == null)
             {
                 return;
             }
 
             EnsurePayloadDefaults(payload);
+
+            // Log detected error type to session history for post-analysis and repetitive error management
+            if (payload.correctionFeedback != null && payload.correctionFeedback.hasFeedback && !string.IsNullOrEmpty(payload.correctionFeedback.errorType))
+            {
+                sessionErrorHistory.Add(payload.correctionFeedback.errorType);
+                Debug.Log($"[RealLLMService] Recorded session error: {payload.correctionFeedback.errorType}. Total count: {sessionErrorHistory.Count}");
+            }
+
+            if (currentCondition == null)
+            {
+                return;
+            }
 
             if (string.IsNullOrWhiteSpace(payload.taskType))
             {
@@ -440,10 +484,11 @@ namespace SceneTalkVR.Runtime.Services
                 var state = cachedOrchestrator.CurrentState;
                 if (state == SceneTalkState.Idle || state == SceneTalkState.Finished)
                 {
-                    if (chatHistory.Count > 0)
+                    if (chatHistory.Count > 0 || sessionErrorHistory.Count > 0)
                     {
-                        Debug.Log("[RealLLMService] Orchestrator is Idle/Finished. Clearing chat history.");
+                        Debug.Log("[RealLLMService] Orchestrator is Idle/Finished. Clearing chat history and session error history.");
                         chatHistory.Clear();
+                        sessionErrorHistory.Clear();
                     }
                 }
             }
@@ -454,8 +499,12 @@ namespace SceneTalkVR.Runtime.Services
             if (chatHistory != null)
             {
                 chatHistory.Clear();
-                Debug.Log("[RealLLMService] Chat history cleared on explicit session reset.");
             }
+            if (sessionErrorHistory != null)
+            {
+                sessionErrorHistory.Clear();
+            }
+            Debug.Log("[RealLLMService] Chat history and session error history cleared on explicit session reset.");
         }
 
         #endregion

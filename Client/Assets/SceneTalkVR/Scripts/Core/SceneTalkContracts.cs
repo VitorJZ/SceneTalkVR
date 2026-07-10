@@ -74,6 +74,7 @@ namespace SceneTalkVR.Core
         public string feedbackText;
         public string targetSpan;
         public float confidence;
+        public string rationaleTag;
     }
 
     [Serializable]
