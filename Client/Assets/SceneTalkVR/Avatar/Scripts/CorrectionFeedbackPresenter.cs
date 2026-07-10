@@ -25,16 +25,13 @@ namespace SceneTalkVR.AvatarSystem
             Recast
         }
 
-        [Header("Correction Feedback")]
         [SerializeField] private bool playCorrectionFeedback = true;
         [SerializeField] private CorrectionAgentPresenter correctionAgentPresenter;
         [SerializeField] private bool createCorrectionAgentIfMissing = true;
         [SerializeField] private string feedbackProvider = AssistantAgentProvider;
         [SerializeField] private string assistantAgentFallbackVoiceId = "default_female_en";
 
-        [Header("Correction Debug")]
         [SerializeField] private bool debugEnableCorrectionOverrides;
-        [SerializeField] private bool debugForceAssistantVisible;
         [SerializeField] private bool debugForceFeedback;
         [SerializeField] private CorrectionDebugProvider debugProvider = CorrectionDebugProvider.AssistantAgent;
         [SerializeField] private CorrectionDebugStyle debugStyle = CorrectionDebugStyle.Explicit;
@@ -46,13 +43,26 @@ namespace SceneTalkVR.AvatarSystem
 
         private AvatarSpeechPlayer SpeechPlayer => speechPlayer ??= new AvatarSpeechPlayer();
 
-        public string CurrentFeedbackProvider => string.IsNullOrWhiteSpace(currentFeedbackProvider)
-            ? NormalizeProvider(feedbackProvider)
-            : currentFeedbackProvider;
+        public string CurrentFeedbackProvider
+        {
+            get
+            {
+                if (debugEnableCorrectionOverrides)
+                {
+                    return ResolveDebugProvider();
+                }
+
+                return string.IsNullOrWhiteSpace(currentFeedbackProvider)
+                    ? NormalizeProvider(feedbackProvider)
+                    : currentFeedbackProvider;
+            }
+        }
 
         private void Start()
         {
-            ActivateFeedbackProvider(feedbackProvider);
+            currentFeedbackProvider = NormalizeProvider(feedbackProvider);
+            isSessionActive = false;
+            ApplyAssistantVisibility();
         }
 
         private void Update()
@@ -67,7 +77,15 @@ namespace SceneTalkVR.AvatarSystem
 
         public void SetFeedbackProvider(string provider)
         {
-            ActivateFeedbackProvider(provider);
+            feedbackProvider = NormalizeProvider(provider);
+            currentFeedbackProvider = feedbackProvider;
+            ApplyAssistantVisibility();
+        }
+
+        public void SetPresentationActive(bool active)
+        {
+            isSessionActive = active;
+            ApplyAssistantVisibility();
         }
 
         internal IEnumerator Present(
@@ -78,8 +96,7 @@ namespace SceneTalkVR.AvatarSystem
         {
             var feedback = payload != null ? payload.correctionFeedback : null;
             var provider = ResolveEffectiveProvider(feedback);
-            isSessionActive = true;
-            currentFeedbackProvider = provider;
+            currentFeedbackProvider = ResolveConfiguredProvider(feedback);
             ApplyAssistantVisibility();
 
             if (!ShouldPlayCorrectionFeedback(feedback))
@@ -202,14 +219,6 @@ namespace SceneTalkVR.AvatarSystem
             ResolveCorrectionAgentPresenter(false)?.HideImmediate();
         }
 
-        private void ActivateFeedbackProvider(string provider)
-        {
-            feedbackProvider = NormalizeProvider(provider);
-            currentFeedbackProvider = feedbackProvider;
-            isSessionActive = true;
-            ApplyAssistantVisibility();
-        }
-
         private bool ShouldPlayCorrectionFeedback(CorrectionFeedbackData feedback)
         {
             if (!playCorrectionFeedback)
@@ -228,8 +237,7 @@ namespace SceneTalkVR.AvatarSystem
 
         private bool ShouldKeepAssistantVisible()
         {
-            return debugEnableCorrectionOverrides && debugForceAssistantVisible
-                || isSessionActive
+            return isSessionActive
                 && string.Equals(
                     CurrentFeedbackProvider,
                     AssistantAgentProvider,
@@ -260,15 +268,25 @@ namespace SceneTalkVR.AvatarSystem
         {
             if (debugEnableCorrectionOverrides)
             {
-                return debugProvider == CorrectionDebugProvider.DialogueAvatar
-                    ? DialogueAvatarProvider
-                    : AssistantAgentProvider;
+                return ResolveDebugProvider();
             }
 
+            return ResolveConfiguredProvider(feedback);
+        }
+
+        private string ResolveConfiguredProvider(CorrectionFeedbackData feedback)
+        {
             var payloadProvider = feedback != null ? feedback.provider : string.Empty;
             return IsSupportedProvider(payloadProvider)
                 ? NormalizeProvider(payloadProvider)
                 : NormalizeProvider(feedbackProvider);
+        }
+
+        private string ResolveDebugProvider()
+        {
+            return debugProvider == CorrectionDebugProvider.DialogueAvatar
+                ? DialogueAvatarProvider
+                : AssistantAgentProvider;
         }
 
         private string ResolveEffectiveStyle(CorrectionFeedbackData feedback)
