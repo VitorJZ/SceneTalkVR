@@ -22,10 +22,17 @@ namespace SceneTalkVR.Voice
         private bool stopCaptureRequested;
         private bool cancelCaptureRequested;
 
+        public SttResponse LastSttResponse { get; private set; }
+        public float LastRecordingDurationMs { get; private set; }
+        public string LastRecordingStopReason { get; private set; }
+
         public IEnumerator CaptureSpeech(Action<string> onComplete, Action<string> onError)
         {
             stopCaptureRequested = false;
             cancelCaptureRequested = false;
+            LastSttResponse = null;
+            LastRecordingDurationMs = 0f;
+            LastRecordingStopReason = "unknown";
 
             var client = ResolveGatewayClient();
             if (client == null)
@@ -52,9 +59,19 @@ namespace SceneTalkVR.Voice
                     value => audioBase64 = value,
                     message => recordingError = message);
 
+                LastRecordingDurationMs = recorder.LastDurationMs;
                 if (cancelCaptureRequested)
                 {
+                    LastRecordingStopReason = "cancel";
                     yield break;
+                }
+                else if (stopCaptureRequested)
+                {
+                    LastRecordingStopReason = "button_end";
+                }
+                else
+                {
+                    LastRecordingStopReason = "timeout";
                 }
 
                 if (!string.IsNullOrWhiteSpace(recordingError))
@@ -111,6 +128,7 @@ namespace SceneTalkVR.Voice
                 yield break;
             }
 
+            LastSttResponse = response;
             Debug.Log(
                 $"[SceneTalkVR] Gateway STT transcript ({response.provider}, {response.latencyMs} ms): {response.transcript}",
                 this);

@@ -362,7 +362,8 @@ namespace SceneTalkVR.Demo
 
         private static CorrectionFeedbackData BuildCorrectionFeedback(string userText, CorrectionExperimentCondition condition)
         {
-            if (!ContainsAny(userText, "correction", "corrective", "feedback", "explicit", "recast", "纠错", "反馈", "更正"))
+            bool triggerCorrection = ContainsAny(userText, "correction", "corrective", "feedback", "explicit", "recast", "纠错", "反馈", "更正", "very like");
+            if (!triggerCorrection)
             {
                 return condition == null
                     ? null
@@ -374,18 +375,33 @@ namespace SceneTalkVR.Demo
                     };
             }
 
-            var provider = ContainsAny(userText, "assistant", "agent", "assistant_agent", "helper", "小助手", "辅助")
-                ? "assistant_agent"
-                : "dialogue_avatar";
-            if (ContainsAny(userText, "dialogue_avatar", "dialogue avatar", "main avatar", "avatar feedback", "主avatar", "对话角色"))
-            {
-                provider = "dialogue_avatar";
-            }
+            var provider = (condition != null && !string.IsNullOrEmpty(condition.provider)) 
+                ? condition.provider 
+                : (ContainsAny(userText, "assistant", "agent", "assistant_agent", "helper", "小助手", "辅助") ? "assistant_agent" : "dialogue_avatar");
 
-            var style = ContainsAny(userText, "recast", "natural", "重述", "自然")
-                ? "recast"
-                : "explicit";
+            var style = (condition != null && !string.IsNullOrEmpty(condition.style)) 
+                ? condition.style 
+                : (ContainsAny(userText, "recast", "natural", "重述", "自然") ? "recast" : "explicit");
+
             var recast = string.Equals(style, "recast", StringComparison.OrdinalIgnoreCase);
+
+            if (ContainsAny(userText, "very like"))
+            {
+                return new CorrectionFeedbackData
+                {
+                    hasFeedback = true,
+                    provider = provider,
+                    style = style,
+                    errorType = "grammar",
+                    originalText = "I very like this topic.",
+                    correctedText = "I really like this topic.",
+                    feedbackText = recast
+                        ? (string.Equals(provider, "assistant_agent") ? "You mean you really like this topic?" : "Oh, you really like this topic?")
+                        : (string.Equals(provider, "assistant_agent") ? "Remember to say: I really like this topic, not I very like this topic." : "You can say: I really like this topic."),
+                    targetSpan = "very like",
+                    confidence = 0.95f
+                };
+            }
 
             return new CorrectionFeedbackData
             {
@@ -396,8 +412,8 @@ namespace SceneTalkVR.Demo
                 originalText = "I want latte.",
                 correctedText = "I'd like a latte, please.",
                 feedbackText = recast
-                    ? "I'd like a latte, please."
-                    : "Try saying: I'd like a latte, please.",
+                    ? (string.Equals(provider, "assistant_agent") ? "You mean you'd like a latte?" : "Sure, a latte, please.")
+                    : (string.Equals(provider, "assistant_agent") ? "You should say: I'd like a latte, please." : "Try saying: I'd like a latte, please."),
                 targetSpan = "want latte",
                 confidence = 0.92f
             };

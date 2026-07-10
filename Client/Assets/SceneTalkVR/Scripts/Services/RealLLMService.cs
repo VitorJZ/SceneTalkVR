@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using SceneTalkVR.Core;
+using SceneTalkVR.Voice;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -19,6 +20,10 @@ namespace SceneTalkVR.Runtime.Services
         [SerializeField] private string apiKey = ""; 
         [SerializeField] private string modelName = "minimax-m2.7";
         
+        [Header("Feedback Strategy")]
+        [Tooltip("Feedback strictness: conservative (only severe errors), moderate (general errors), active (almost all errors)")]
+        [SerializeField] private string feedbackSensitivity = "moderate"; // conservative | moderate | active
+
         [Header("Prompts")]
         [TextArea(10, 20)]
         [SerializeField] private string systemPrompt = "You are a VR scene dispatcher and an English tutor. Based on the user's input, generate a JSON response that matches the following structure:\n" +
@@ -40,7 +45,18 @@ namespace SceneTalkVR.Runtime.Services
                                                       "      \"outfitColor\": \"string\"\n" +
                                                       "    }\n" +
                                                       "  },\n" +
-                                                      "  \"scene\": { \"mode\": \"skybox\", \"skyboxUrl\": \"\" }\n" +
+                                                      "  \"scene\": { \"mode\": \"skybox\", \"skyboxUrl\": \"\" },\n" +
+                                                      "  \"correctionFeedback\": {\n" +
+                                                      "    \"hasFeedback\": false,\n" +
+                                                      "    \"provider\": \"dialogue_avatar|assistant_agent\",\n" +
+                                                      "    \"style\": \"explicit|recast\",\n" +
+                                                      "    \"errorType\": \"grammar|unnatural|vocabulary|incomplete|unknown\",\n" +
+                                                      "    \"originalText\": \"string\",\n" +
+                                                      "    \"correctedText\": \"string\",\n" +
+                                                      "    \"feedbackText\": \"string\",\n" +
+                                                      "    \"targetSpan\": \"string\",\n" +
+                                                      "    \"confidence\": 1.0\n" +
+                                                      "  }\n" +
                                                       "}\n" +
                                                       "Ensure the output is ONLY the JSON object, no markdown, no conversational filler. " +
                                                       "Normalize avatarRole.role to barista, teacher, or police when the request matches a waiter/service worker, teacher, or police/security officer. " +
@@ -48,8 +64,31 @@ namespace SceneTalkVR.Runtime.Services
                                                       "The 'dialogueReply' should be in character based on the 'environmentType' and 'avatarRole.role'.";
 
         private readonly List<OpenAiMessage> chatHistory = new List<OpenAiMessage>();
+        private readonly List<string> sessionErrorHistory = new List<string>();
         private SceneTalkOrchestrator cachedOrchestrator;
         private CorrectionExperimentCondition currentCondition;
+
+        private float lastSttConfidence = 1.0f;
+        private float lastRecordingDurationMs = 0f;
+        private string lastRecordingStopReason = "unknown";
+
+        public string GetSessionErrorSummary()
+        {
+            if (sessionErrorHistory.Count == 0) return "No errors detected in this session.";
+            var counts = new Dictionary<string, int>();
+            foreach (var err in sessionErrorHistory)
+            {
+                if (string.IsNullOrEmpty(err)) continue;
+                counts[err] = counts.TryGetValue(err, out int c) ? c + 1 : 1;
+            }
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"Total feedback triggered: {sessionErrorHistory.Count}");
+            foreach (var kvp in counts)
+            {
+                sb.AppendLine($"- {kvp.Key}: {kvp.Value} times");
+            }
+            return sb.ToString();
+        }
 
         public void SetExperimentCondition(CorrectionExperimentCondition condition)
         {
@@ -60,6 +99,23 @@ namespace SceneTalkVR.Runtime.Services
         {
             Debug.Log($"[RealLLMService] Generating scene and reply for: {userText}");
             
+            // Retrieve latest STT metadata from GatewaySpeechInputModule if available
+            lastSttConfidence = 1.0f;
+            lastRecordingDurationMs = 0f;
+            lastRecordingStopReason = "unknown";
+            
+            var speechModule = FindObjectOfType<GatewaySpeechInputModule>();
+            if (speechModule != null)
+            {
+                lastRecordingDurationMs = speechModule.LastRecordingDurationMs;
+                lastRecordingStopReason = speechModule.LastRecordingStopReason;
+                if (speechModule.LastSttResponse != null)
+                {
+                    lastSttConfidence = speechModule.LastSttResponse.confidence;
+                }
+                Debug.Log($"[RealLLMService] STT Metadata - Duration: {lastRecordingDurationMs}ms, StopReason: {lastRecordingStopReason}, Confidence: {lastSttConfidence}");
+            }
+
             CheckAndResetSession();
 
             Task<SpringScenePayload> task;
@@ -264,11 +320,25 @@ namespace SceneTalkVR.Runtime.Services
 
         private string BuildExperimentPromptInstructions(bool includeScenePayload)
         {
+            var builder = new StringBuilder();
+            
             if (currentCondition == null)
             {
-                return includeScenePayload
-                    ? "When relevant, include a correctionFeedback object with hasFeedback=false if there is no language error."
-                    : "Return ONLY a JSON object with dialogueReply and correctionFeedback.";
+                builder.AppendLine("When analyzing the user's speech, you must also detect language errors and include a correctionFeedback object in your JSON response.");
+                builder.AppendLine("JSON structure for correctionFeedback:");
+                builder.AppendLine("  \"correctionFeedback\": {");
+                builder.AppendLine("    \"hasFeedback\": false,");
+                builder.AppendLine("    \"provider\": \"dialogue_avatar\",");
+                builder.AppendLine("    \"style\": \"explicit\",");
+                builder.AppendLine("    \"errorType\": \"no_feedback\",");
+                builder.AppendLine("    \"originalText\": \"\",");
+                builder.AppendLine("    \"correctedText\": \"\",");
+                builder.AppendLine("    \"feedbackText\": \"\",");
+                builder.AppendLine("    \"targetSpan\": \"\",");
+                builder.AppendLine("    \"confidence\": 1.0");
+                builder.AppendLine("  }");
+                builder.AppendLine("If no clear error, set hasFeedback=false.");
+                return builder.ToString();
             }
 
             var task = currentCondition.task;
@@ -276,53 +346,113 @@ namespace SceneTalkVR.Runtime.Services
                 ? string.Empty
                 : string.Join("; ", task.goals);
 
-            var builder = new StringBuilder();
-            builder.AppendLine("Experiment condition is fixed by the client. Do not change it.");
-            builder.AppendLine($"scenarioId: {currentCondition.scenarioId}");
-            builder.AppendLine($"feedback provider: {currentCondition.provider}");
-            builder.AppendLine($"feedback style: {currentCondition.style}");
+            string historyCsv = sessionErrorHistory.Count > 0 ? string.Join(", ", sessionErrorHistory) : "none";
+
+            builder.AppendLine("=== EXPERIMENT & TASK CONTEXT ===");
+            builder.AppendLine("The experiment condition is FIXED by the client. Do NOT change provider or style in the JSON output.");
+            builder.AppendLine($"- scenarioId: {currentCondition.scenarioId}");
+            builder.AppendLine($"- feedbackProvider: {currentCondition.provider} (dialogue_avatar means you, the roleplay character; assistant_agent means a separate AI assistant helper)");
+            builder.AppendLine($"- feedbackStyle: {currentCondition.style} (explicit means direct correction; recast means natural conversational reformulation)");
+            builder.AppendLine($"- feedbackSensitivity: {feedbackSensitivity} (conservative means correct only severe errors that block understanding; moderate means correct clear grammar/vocab errors; active means correct even minor unnatural expressions/repetitions)");
+            builder.AppendLine($"- correctedErrorsInSession: [{historyCsv}] (types of errors already corrected in this session)");
+            
             if (task != null)
             {
                 if (!string.IsNullOrWhiteSpace(task.context))
                 {
-                    builder.AppendLine($"task context: {task.context}");
+                    builder.AppendLine($"- taskContext: {task.context}");
                 }
-
                 if (!string.IsNullOrWhiteSpace(goals))
                 {
-                    builder.AppendLine($"task goals: {goals}");
+                    builder.AppendLine($"- taskGoals: {goals}");
                 }
-
                 if (!string.IsNullOrWhiteSpace(task.initialQuestion))
                 {
-                    builder.AppendLine($"opening question: {task.initialQuestion}");
+                    builder.AppendLine($"- openingQuestion: {task.initialQuestion}");
                 }
             }
 
+            builder.AppendLine("\n=== SPEECH CAPTURE METADATA ===");
+            builder.AppendLine($"- recordingDurationMs: {lastRecordingDurationMs} ms");
+            builder.AppendLine($"- recordingStopReason: {lastRecordingStopReason}");
+            builder.AppendLine($"- sttConfidence: {lastSttConfidence}");
+            if (lastSttConfidence < 0.5f)
+            {
+                builder.AppendLine("CRITICAL: STT/ASR confidence is extremely low. Do NOT perform any grammar correction (set hasFeedback = false) because the errors are likely STT recognition failures. Respond politely asking the user to repeat.");
+            }
+            if (lastRecordingDurationMs > 0 && lastRecordingDurationMs < 500f)
+            {
+                builder.AppendLine("CRITICAL: The user recording was too short (under 500ms), probably a misclick or accidental cancel. Do NOT perform grammar correction (set hasFeedback = false). Respond politely asking the user to repeat.");
+            }
+
+            builder.AppendLine("\n=== LANGUAGE CORRECTION INSTRUCTIONS ===");
+            builder.AppendLine("1. Detect at most ONE major error per turn (grammar, unnatural expression, vocabulary misuse, or incomplete sentence).");
+            builder.AppendLine("2. Respect the 'feedbackSensitivity' level:");
+            builder.AppendLine("   - If 'conservative': Only correct severe grammar/vocab errors that clearly hinder understanding. Ignore minor unnaturalness.");
+            builder.AppendLine("   - If 'moderate': Correct clear grammar, unnatural expressions, and vocabulary misuse. Ignore minor self-corrections or normal pauses.");
+            builder.AppendLine("   - If 'active': Be highly strict. Correct even minor slips, awkward phrasing, and slang/informal style.");
+            builder.AppendLine("3. Manage repetitive errors: Consult 'correctedErrorsInSession'. If the same errorType was corrected recently, try to be more tolerant (set hasFeedback=false) or prefer the softer 'recast' feedbackStyle to avoid annoying the user.");
+            builder.AppendLine("4. If no error is detected or it is skipped based on sensitivity/history, set hasFeedback = false and leave originalText/correctedText/feedbackText/targetSpan empty.");
+            builder.AppendLine("5. Customize feedbackText based on feedbackStyle and feedbackProvider:");
+            builder.AppendLine("   - If style is 'explicit':");
+            builder.AppendLine("     * If provider is 'dialogue_avatar': Keep it brief and character-appropriate. Example: 'You can say: I really like this topic.'");
+            builder.AppendLine("     * If provider is 'assistant_agent': Act as an instructor helper. Example: 'Grammar tip: Remember to say: I really like this topic, not I very like this topic.'");
+            builder.AppendLine("   - If style is 'recast':");
+            builder.AppendLine("     * Never use direct correction words like 'say', 'correct', 'instead', or 'not'. Formulate a natural conversational reformulation.");
+            builder.AppendLine("     * If provider is 'dialogue_avatar': The feedbackText should sound like the character natural confirmation or continuation of the talk. Example: 'Oh, you really like this topic?'");
+            builder.AppendLine("     * If provider is 'assistant_agent': The feedbackText should be a helpful recast hint. Example: 'You mean you really like this topic?'");
+            builder.AppendLine("5. Limit feedbackText to 1 or 2 short sentences suitable for spoken TTS in VR.");
+
+            builder.AppendLine("\n=== JSON OUTPUT FORMAT ===");
             if (includeScenePayload)
             {
-                builder.AppendLine("Return the normal scene JSON plus a correctionFeedback object.");
+                builder.AppendLine("Return a complete JSON containing taskType, environmentType, dialogueReply, avatarRole, scene, and correctionFeedback.");
             }
             else
             {
-                builder.AppendLine("Return ONLY JSON with dialogueReply and correctionFeedback. Do not return plain text.");
+                builder.AppendLine("Return ONLY a JSON object with: dialogueReply (string) and correctionFeedback (object). Do not include scene, avatarRole, etc. Do not include markdown code block syntax.");
             }
 
-            builder.AppendLine("correctionFeedback must contain hasFeedback, provider, style, errorType, originalText, correctedText, feedbackText, targetSpan, confidence.");
-            builder.AppendLine("If the learner made no clear grammar, vocabulary, naturalness, or incomplete-sentence error, set hasFeedback=false and keep provider/style fixed.");
-            builder.AppendLine("For explicit style, feedbackText should briefly point out the correction and correctedText should be the corrected expression.");
-            builder.AppendLine("For recast style, feedbackText should be a natural conversational reformulation, not a teacher-like explanation.");
+            builder.AppendLine("Ensure the JSON has the exact schema for correctionFeedback:");
+            builder.AppendLine("{");
+            builder.AppendLine("  \"dialogueReply\": \"character's reply text\",");
+            builder.AppendLine("  \"correctionFeedback\": {");
+            builder.AppendLine("    \"hasFeedback\": true/false,");
+            builder.AppendLine("    \"provider\": \"dialogue_avatar|assistant_agent\" (MATCH input provider exactly),");
+            builder.AppendLine("    \"style\": \"explicit|recast\" (MATCH input style exactly),");
+            builder.AppendLine("    \"errorType\": \"grammar|unnatural|vocabulary|incomplete|unknown\",");
+            builder.AppendLine("    \"originalText\": \"user's incorrect sentence\",");
+            builder.AppendLine("    \"correctedText\": \"the corrected sentence\",");
+            builder.AppendLine("    \"feedbackText\": \"the feedback text to be spoken via TTS\",");
+            builder.AppendLine("    \"targetSpan\": \"the specific wrong phrase or word that was corrected\",");
+            builder.AppendLine("    \"confidence\": 0.0-1.0,");
+            builder.AppendLine("    \"rationaleTag\": \"short internal tag explaining the correction choice (e.g., subject_verb_agreement, active_sensitivity_filter, repeated_error_skipped, ok)\"");
+            builder.AppendLine("  }");
+            builder.AppendLine("}");
+
             return builder.ToString();
         }
 
         private void ApplyExperimentConditionToPayload(SpringScenePayload payload)
         {
-            if (payload == null || currentCondition == null)
+            if (payload == null)
             {
                 return;
             }
 
             EnsurePayloadDefaults(payload);
+
+            // Log detected error type to session history for post-analysis and repetitive error management
+            if (payload.correctionFeedback != null && payload.correctionFeedback.hasFeedback && !string.IsNullOrEmpty(payload.correctionFeedback.errorType))
+            {
+                sessionErrorHistory.Add(payload.correctionFeedback.errorType);
+                Debug.Log($"[RealLLMService] Recorded session error: {payload.correctionFeedback.errorType}. Total count: {sessionErrorHistory.Count}");
+            }
+
+            if (currentCondition == null)
+            {
+                return;
+            }
 
             if (string.IsNullOrWhiteSpace(payload.taskType))
             {
@@ -369,10 +499,11 @@ namespace SceneTalkVR.Runtime.Services
                 var state = cachedOrchestrator.CurrentState;
                 if (state == SceneTalkState.Idle || state == SceneTalkState.Finished)
                 {
-                    if (chatHistory.Count > 0)
+                    if (chatHistory.Count > 0 || sessionErrorHistory.Count > 0)
                     {
-                        Debug.Log("[RealLLMService] Orchestrator is Idle/Finished. Clearing chat history.");
+                        Debug.Log("[RealLLMService] Orchestrator is Idle/Finished. Clearing chat history and session error history.");
                         chatHistory.Clear();
+                        sessionErrorHistory.Clear();
                     }
                 }
             }
@@ -383,8 +514,12 @@ namespace SceneTalkVR.Runtime.Services
             if (chatHistory != null)
             {
                 chatHistory.Clear();
-                Debug.Log("[RealLLMService] Chat history cleared on explicit session reset.");
             }
+            if (sessionErrorHistory != null)
+            {
+                sessionErrorHistory.Clear();
+            }
+            Debug.Log("[RealLLMService] Chat history and session error history cleared on explicit session reset.");
         }
 
         #endregion
