@@ -19,6 +19,17 @@ namespace SceneTalkVR.AvatarSystem
         [SerializeField] private AvatarPropPresenter propPresenter;
         [SerializeField] private AvatarPropCatalog propCatalog;
 
+        [Header("User Facing")]
+        [SerializeField] private Transform userFacingTarget;
+        [SerializeField] private bool faceUserOnSpawn = true;
+        [SerializeField] private float visualForwardYawOffset = 180f;
+        [SerializeField] private bool useHumanoidLookAt = true;
+        [SerializeField, Range(0f, 1f)] private float lookAtWeight = 0.9f;
+        [SerializeField, Range(0f, 1f)] private float lookAtBodyWeight = 0.05f;
+        [SerializeField, Range(0f, 1f)] private float lookAtHeadWeight = 0.65f;
+        [SerializeField, Range(0f, 1f)] private float lookAtEyesWeight = 0.15f;
+        [SerializeField, Range(0f, 1f)] private float lookAtClampWeight = 0.7f;
+
         [Header("Demo Voice")]
         [SerializeField] private AudioSource audioSource;
         [SerializeField] private AudioClip demoReplyClip;
@@ -135,6 +146,7 @@ namespace SceneTalkVR.AvatarSystem
                 createCorrectionFeedbackPresenterIfMissing);
             if (correctionPresenter != null)
             {
+                correctionPresenter.SetPresentationActive(currentAvatar != null);
                 yield return correctionPresenter.Present(
                     payload,
                     BuildSpeechPlaybackContext(),
@@ -291,6 +303,7 @@ namespace SceneTalkVR.AvatarSystem
             currentAvatarKey = string.IsNullOrWhiteSpace(avatarKey) ? string.Empty : avatarKey;
             currentAnimator = currentAvatar.GetComponentInChildren<Animator>();
             EnsureAnimatorController(currentAnimator);
+            ConfigureUserFacing(currentAvatar, currentAnimator);
 
             var driver = ResolveAnimationDriver();
             if (driver != null)
@@ -300,6 +313,40 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             RefreshProps(payload, currentAvatar);
+        }
+
+        private void ConfigureUserFacing(GameObject avatar, Animator animator)
+        {
+            if (avatar == null || (!faceUserOnSpawn && !useHumanoidLookAt))
+            {
+                return;
+            }
+
+            var host = animator != null ? animator.gameObject : avatar;
+            var facingController = host.GetComponent<AvatarUserFacingController>();
+            if (facingController == null)
+            {
+                facingController = host.AddComponent<AvatarUserFacingController>();
+            }
+
+            var target = userFacingTarget;
+            if (target == null && Camera.main != null)
+            {
+                target = Camera.main.transform;
+            }
+
+            facingController.Configure(
+                animator,
+                avatar.transform,
+                target,
+                faceUserOnSpawn,
+                visualForwardYawOffset,
+                useHumanoidLookAt,
+                lookAtWeight,
+                lookAtBodyWeight,
+                lookAtHeadWeight,
+                lookAtEyesWeight,
+                lookAtClampWeight);
         }
 
         private static string ResolvePresetGenderPresentation(AvatarPresetEntry preset)

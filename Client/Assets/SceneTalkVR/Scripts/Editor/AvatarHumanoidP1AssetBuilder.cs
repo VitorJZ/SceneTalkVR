@@ -554,8 +554,30 @@ namespace SceneTalkVR.EditorTools
 
         private static AnimatorController LoadOrCreateCommonHumanoidAnimatorController()
         {
-            return AssetDatabase.LoadAssetAtPath<AnimatorController>(CommonHumanoidControllerPath)
+            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(CommonHumanoidControllerPath)
                 ?? CreateCommonHumanoidAnimatorController();
+            EnableBaseLayerIk(controller);
+            return controller;
+        }
+
+        private static void EnableBaseLayerIk(AnimatorController controller)
+        {
+            if (controller == null || controller.layers == null || controller.layers.Length == 0)
+            {
+                return;
+            }
+
+            var layers = controller.layers;
+            var baseLayer = layers[0];
+            if (baseLayer.iKPass)
+            {
+                return;
+            }
+
+            baseLayer.iKPass = true;
+            layers[0] = baseLayer;
+            controller.layers = layers;
+            EditorUtility.SetDirty(controller);
         }
 
         private static AnimatorOverrideController CreateOrUpdateCharacterOverrideController(

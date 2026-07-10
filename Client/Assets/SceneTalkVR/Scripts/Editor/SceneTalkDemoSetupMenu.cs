@@ -205,6 +205,7 @@ namespace SceneTalkVR.EditorTools
             SetObject(avatarVoice, "resolver", avatarResolver);
             SetObject(avatarVoice, "loaderModule", avatarLoader);
             SetObject(avatarVoice, "avatarRoot", avatarRootTransform);
+            SetObject(avatarVoice, "userFacingTarget", interactionCamera.transform);
             SetObject(avatarVoice, "propPresenter", avatarProps);
             SetObject(avatarVoice, "propCatalog", avatarPropCatalog);
             SetObject(avatarVoice, "audioSource", audioSource);
@@ -291,6 +292,12 @@ namespace SceneTalkVR.EditorTools
                 SetObject(avatarVoice, "defaultAnimatorController", LoadAvatarCommonController());
                 SetObject(avatarVoice, "voiceGatewayClient", gatewayClient);
                 SetBool(avatarVoice, "useVoiceGatewayTts", true);
+
+                var interactionCamera = Camera.main != null ? Camera.main : FindActiveCamera();
+                if (interactionCamera != null)
+                {
+                    SetObject(avatarVoice, "userFacingTarget", interactionCamera.transform);
+                }
 
                 var correctionAgent = root.GetComponent<CorrectionAgentPresenter>();
                 if (correctionAgent == null)
