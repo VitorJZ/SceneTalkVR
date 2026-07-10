@@ -78,10 +78,11 @@ namespace SceneTalkVR.EditorTools
             {
                 avatarRootTransform = new GameObject(AvatarRootName).transform;
                 avatarRootTransform.SetParent(root.transform);
-                avatarRootTransform.localPosition = new Vector3(0f, 0f, 2.6f);
-                avatarRootTransform.localRotation = Quaternion.identity;
-                avatarRootTransform.localScale = Vector3.one * 1.25f;
             }
+
+            avatarRootTransform.localPosition = new Vector3(0f, 0f, 2.6f);
+            avatarRootTransform.localRotation = Quaternion.identity;
+            avatarRootTransform.localScale = Vector3.one * 1.25f;
 
             var interactionCamera = ConfigureMainCamera();
             EnsureInputEventSystem();
