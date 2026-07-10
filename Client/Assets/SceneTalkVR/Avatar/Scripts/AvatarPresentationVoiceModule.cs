@@ -3,6 +3,7 @@ using System.Collections;
 using SceneTalkVR.Core;
 using SceneTalkVR.Voice;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace SceneTalkVR.AvatarSystem
 {
@@ -14,7 +15,9 @@ namespace SceneTalkVR.AvatarSystem
         [SerializeField] private AvatarPresetResolver resolver;
         [SerializeField] private MonoBehaviour loaderModule;
         [SerializeField] private Transform avatarRoot;
-        [SerializeField] private bool continueWithoutAvatar = true;
+        [FormerlySerializedAs("continueWithoutAvatar")]
+        [SerializeField, Tooltip("Continue correction and reply audio when avatar resolution or loading fails.")]
+        private bool allowVoiceFallbackOnAvatarFailure = true;
         [SerializeField] private bool attachProps;
         [SerializeField] private AvatarPropPresenter propPresenter;
         [SerializeField] private AvatarPropCatalog propCatalog;
@@ -132,7 +135,7 @@ namespace SceneTalkVR.AvatarSystem
 
             if (!string.IsNullOrWhiteSpace(avatarError))
             {
-                if (!continueWithoutAvatar)
+                if (!allowVoiceFallbackOnAvatarFailure)
                 {
                     onError?.Invoke(avatarError);
                     yield break;
@@ -146,7 +149,7 @@ namespace SceneTalkVR.AvatarSystem
                 createCorrectionFeedbackPresenterIfMissing);
             if (correctionPresenter != null)
             {
-                correctionPresenter.SetPresentationActive(currentAvatar != null);
+                correctionPresenter.SetPresentationActive(true);
                 yield return correctionPresenter.Present(
                     payload,
                     BuildSpeechPlaybackContext(),

@@ -248,14 +248,14 @@ Vitor 侧应统一收集跨模块日志。建议一轮记录：
 
 目标：在 Unity Editor 中能切换四种实验条件，并完成一轮口语 -> 反馈 -> 继续流程。
 
-- [ ] 新增实验条件配置：provider/style/scenario。
-- [ ] 在 Orchestrator 中加入纠错反馈阶段，并与现有 `Recording` / `Transcribing` 状态衔接。
-- [ ] 支持无反馈时跳过反馈阶段。
-- [ ] 支持主 Avatar 与辅助 Agent 两种 provider 的调用入口。
-- [ ] 支持 Explicit/Recast 两种 style 传给 Spring/Edwin。
-- [ ] 增加 Continue / Try Again 基础按钮，并保留现有 `Listen/End/Retry`、`Speak/End` 录音按钮状态。
-- [ ] 输出基础日志：conditionId、turnId、provider、style、hasFeedback。
-- [ ] 准备四种条件的 demo payload。
+- [x] 新增实验条件配置：provider/style/scenario。
+- [x] 在 Orchestrator 中加入纠错反馈阶段，并与现有 `Recording` / `Transcribing` 状态衔接。
+- [x] 支持无反馈时跳过反馈阶段。
+- [x] 支持主 Avatar 与辅助 Agent 两种 provider 的调用入口。
+- [x] 支持 Explicit/Recast 两种 style 传给 Spring/Edwin。
+- [x] 增加 Continue / Try Again 基础按钮，并保留现有 `Listen/End/Retry`、`Speak/End` 录音按钮状态。
+- [x] 输出基础日志：conditionId、turnId、provider、style、hasFeedback。
+- [x] 准备四种条件的 demo payload。
 
 P0 验收标准：
 
@@ -269,11 +269,11 @@ P0 验收标准：
 
 - [ ] PICO 真机验证反馈 UI 可读、可点、不遮挡。
 - [ ] 验证辅助 Agent 位置在不同身高/视角下舒适。
-- [ ] 支持 condition 顺序配置和 session 记录。
-- [ ] 支持每个条件多轮任务。
+- [x] 支持 condition 顺序配置和 session 记录。
+- [x] 支持每个条件多轮任务。
 - [ ] 支持条件结束后的问卷入口。
-- [ ] 支持导出实验日志 CSV/JSON。
-- [ ] 与 Edwin 联调反馈播放开始/结束回调。
+- [x] 支持导出实验日志 CSV/JSON。
+- [x] 与 Edwin 联调反馈播放完成回调及失败状态。
 - [ ] 与 Spring 联调真实 feedback payload。
 
 P1 验收标准：
@@ -324,6 +324,7 @@ Spring 需要向 Vitor 返回：
 - Vitor 决定实验条件，Spring 不随机改 provider/style。
 - Spring 可以在无明显错误时返回 `hasFeedback=false`。
 - Spring 的反馈文本应短，避免 VR 中长时间等待。
+- Vitor 客户端拒绝缺少 `dialogueReply` 的结构化 payload，并进入现有错误/重试流程，避免跳过普通回复或把原始 JSON 当作语音播放。
 
 ## 8. 与 Edwin 的接口
 
