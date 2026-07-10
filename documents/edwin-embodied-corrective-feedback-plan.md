@@ -264,24 +264,25 @@ Edwin 侧需要向实验记录提供反馈播放相关数据。建议输出或�
 2026-07-09 第二轮实现记录：
 
 - 新增 `CorrectionAgentPresenter`，P0 暂时使用运行时生成的青蓝发光小球作为辅助 Agent，不依赖外部模型 prefab。
-- `feedbackProvider` 作为 Vitor 条件管理器尚未接入时的 Inspector fallback，默认 `assistant_agent`；会话启动时辅助 Agent 立即显示，并在该条件的整个 session 中常驻，非纠错回合保持 idle，session reset 时隐藏。
+- provider/style 统一由 Vitor 的 `ExperimentConditionManager` 注入；首次进入回复呈现后辅助 Agent 在 `assistant_agent` 条件的整个 session 中常驻，非纠错回合保持 idle，且不依赖主 Avatar 是否加载成功，session reset 时隐藏。
 - 辅助 Agent 默认出现在用户右前方，idle 状态轻微上下浮动；播放反馈时做膨胀/收缩脉冲，说完后回到 idle，不按单句纠错结果隐藏。
 - `AvatarPresentationVoiceModule` 已将 `provider=assistant_agent` 路由到 `CorrectionAgentPresenter` 的独立 `AudioSource`，主 Avatar 在辅助 Agent 反馈期间不触发说话动画。
 - Demo rig 构建和“启用 Voice Gateway”菜单会自动挂载并绑定 `CorrectionAgentPresenter`；若组件缺失，仍保留 audio-only fallback，保证流程不卡死。
 
 2026-07-09 调试开关更新：
 
-- `CorrectionFeedbackPresenter` 提供 `Correction Debug` Inspector 区域，可启用本地覆盖测试，不依赖 Spring 真实纠错结果。
-- `debugForceAssistantVisible` 可强制显示辅助 Agent，用于调位置、大小和 idle 浮动。
-- `debugForceFeedback` 可用 `debugProvider` 下拉选项、`debugStyle` 下拉选项和 `debugFeedbackText` 强制播放一段纠错反馈，测试主 Avatar 或辅助 Agent 的说话表现。
-- 这些字段只用于本地 demo/debug；正式实验仍应由 Vitor 提供条件分配，由 Spring 提供 `hasFeedback` 与 `feedbackText`。
+- `CorrectionFeedbackPresenter` 提供 `Correction Debug` Inspector 区域，可用 `debugForceFeedback` 和 `debugFeedbackText` 强制播放一段测试反馈，不依赖 Spring 真实纠错结果。
+- provider/style 与辅助 Agent 显隐仍服从 `ExperimentConditionManager` 的当前实验条件；本地调试不再覆盖 provider、style 或可见性。
+- 这些字段只用于本地 demo/debug；正式实验由 Vitor 提供条件分配，由 Spring 提供 `hasFeedback` 与 `feedbackText`。
 
 2026-07-10 顺序、常驻和结果接口更新：
 
 - 播放顺序统一为 `纠错反馈 -> 普通回复 -> onComplete`。
-- Edwin 通过 `AvatarPresentationVoiceModule.SetCorrectionFeedbackProvider(string)` 接收 Vitor 的 provider；Vitor 尚未接入时使用 Inspector `feedbackProvider=assistant_agent`。
+- Edwin 通过 `AvatarPresentationVoiceModule.SetCorrectionFeedbackProvider(string)` 接收 Vitor 的 provider，同时消费管理器写入 payload 的 provider/style；`CorrectionFeedbackPresenter` 不再保留独立模式选择。
 - `AvatarPresentationVoiceModule` 保留 `ISceneTalkAvatarVoice`，并通过 `CorrectionPlaybackCompleted` 与 `LastCorrectionPlaybackResult` 返回精简的 `provider/outcome/errorCode` 结果。
 - Edwin 内部日志继续记录 style、TTS provider、TTS latency、音频时长、文本长度与 fallback，Vitor 不需要消费这些内部细节。
+- Avatar 加载失败时可通过 `allowVoiceFallbackOnAvatarFailure` 继续语音流程；该字段由旧 `continueWithoutAvatar` 平滑迁移，避免现有场景序列化配置丢失。
+- 当 payload 要求纠错但 Inspector 关闭纠错播放时，Edwin 返回 `failed/playback_disabled`，确保 Vitor 能结束纠错状态而不是等待不存在的播放事件。
 
 P0 验收标准：
 

@@ -109,15 +109,13 @@ namespace SceneTalkVR.Runtime.Services
                     content = CleanJsonString(content);
                     var payload = JsonUtility.FromJson<SpringScenePayload>(content);
 
-                    if (payload != null)
-                    {
-                        ApplyExperimentConditionToPayload(payload);
-                        chatHistory.Clear();
-                        string rpSysPrompt = BuildRoleplaySystemPrompt(payload);
-                        chatHistory.Add(new OpenAiMessage { role = "system", content = rpSysPrompt });
-                        chatHistory.Add(new OpenAiMessage { role = "user", content = userInput });
-                        chatHistory.Add(new OpenAiMessage { role = "assistant", content = payload.dialogueReply });
-                    }
+                    EnsureDialogueReplyPresent(payload);
+                    ApplyExperimentConditionToPayload(payload);
+                    chatHistory.Clear();
+                    string rpSysPrompt = BuildRoleplaySystemPrompt(payload);
+                    chatHistory.Add(new OpenAiMessage { role = "system", content = rpSysPrompt });
+                    chatHistory.Add(new OpenAiMessage { role = "user", content = userInput });
+                    chatHistory.Add(new OpenAiMessage { role = "assistant", content = payload.dialogueReply });
 
                     return payload;
                 }
@@ -200,13 +198,16 @@ namespace SceneTalkVR.Runtime.Services
                 try
                 {
                     var payload = JsonUtility.FromJson<SpringScenePayload>(content);
-                    if (payload != null
-                        && (!string.IsNullOrWhiteSpace(payload.dialogueReply)
-                            || payload.correctionFeedback != null))
+                    if (payload != null)
                     {
+                        EnsureDialogueReplyPresent(payload);
                         EnsurePayloadDefaults(payload);
                         return payload;
                     }
+                }
+                catch (FormatException)
+                {
+                    throw;
                 }
                 catch (Exception ex)
                 {
@@ -232,6 +233,19 @@ namespace SceneTalkVR.Runtime.Services
                         style = currentCondition.style
                     }
             };
+        }
+
+        private static void EnsureDialogueReplyPresent(SpringScenePayload payload)
+        {
+            if (payload == null)
+            {
+                throw new FormatException("LLM response did not contain a valid SceneTalk payload.");
+            }
+
+            if (string.IsNullOrWhiteSpace(payload.dialogueReply))
+            {
+                throw new FormatException("LLM payload is missing the required dialogueReply.");
+            }
         }
 
         private string BuildRoleplaySystemPrompt(SpringScenePayload initialPayload)

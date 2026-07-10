@@ -13,54 +13,24 @@ namespace SceneTalkVR.AvatarSystem
         private const string ExplicitStyle = "explicit";
         private const string RecastStyle = "recast";
 
-        private enum CorrectionDebugProvider
-        {
-            AssistantAgent,
-            DialogueAvatar
-        }
-
-        private enum CorrectionDebugStyle
-        {
-            Explicit,
-            Recast
-        }
-
         [SerializeField] private bool playCorrectionFeedback = true;
         [SerializeField] private CorrectionAgentPresenter correctionAgentPresenter;
         [SerializeField] private bool createCorrectionAgentIfMissing = true;
-        [SerializeField] private string feedbackProvider = AssistantAgentProvider;
         [SerializeField] private string assistantAgentFallbackVoiceId = "default_female_en";
 
-        [SerializeField] private bool debugEnableCorrectionOverrides;
         [SerializeField] private bool debugForceFeedback;
-        [SerializeField] private CorrectionDebugProvider debugProvider = CorrectionDebugProvider.AssistantAgent;
-        [SerializeField] private CorrectionDebugStyle debugStyle = CorrectionDebugStyle.Explicit;
         [SerializeField] private string debugFeedbackText = "Try saying: I'd like a latte, please.";
 
         private AvatarSpeechPlayer speechPlayer;
         private bool isSessionActive;
-        private string currentFeedbackProvider = string.Empty;
+        private string currentFeedbackProvider = AssistantAgentProvider;
 
         private AvatarSpeechPlayer SpeechPlayer => speechPlayer ??= new AvatarSpeechPlayer();
 
-        public string CurrentFeedbackProvider
-        {
-            get
-            {
-                if (debugEnableCorrectionOverrides)
-                {
-                    return ResolveDebugProvider();
-                }
-
-                return string.IsNullOrWhiteSpace(currentFeedbackProvider)
-                    ? NormalizeProvider(feedbackProvider)
-                    : currentFeedbackProvider;
-            }
-        }
+        public string CurrentFeedbackProvider => NormalizeProvider(currentFeedbackProvider);
 
         private void Start()
         {
-            currentFeedbackProvider = NormalizeProvider(feedbackProvider);
             isSessionActive = false;
             ApplyAssistantVisibility();
         }
@@ -77,8 +47,7 @@ namespace SceneTalkVR.AvatarSystem
 
         public void SetFeedbackProvider(string provider)
         {
-            feedbackProvider = NormalizeProvider(provider);
-            currentFeedbackProvider = feedbackProvider;
+            currentFeedbackProvider = NormalizeProvider(provider);
             ApplyAssistantVisibility();
         }
 
@@ -95,12 +64,17 @@ namespace SceneTalkVR.AvatarSystem
             Action<CorrectionPlaybackResult> onComplete)
         {
             var feedback = payload != null ? payload.correctionFeedback : null;
-            var provider = ResolveEffectiveProvider(feedback);
-            currentFeedbackProvider = ResolveConfiguredProvider(feedback);
+            var provider = ResolveConfiguredProvider(feedback);
+            currentFeedbackProvider = provider;
             ApplyAssistantVisibility();
 
             if (!ShouldPlayCorrectionFeedback(feedback))
             {
+                if (feedback != null && feedback.hasFeedback && !playCorrectionFeedback)
+                {
+                    onComplete?.Invoke(Result(provider, "failed", "playback_disabled"));
+                }
+
                 yield break;
             }
 
@@ -119,8 +93,7 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             var sourceProvider = feedback != null ? feedback.provider : string.Empty;
-            if (!debugEnableCorrectionOverrides
-                && !string.IsNullOrWhiteSpace(sourceProvider)
+            if (!string.IsNullOrWhiteSpace(sourceProvider)
                 && !IsSupportedProvider(sourceProvider))
             {
                 Debug.LogWarning(
@@ -215,7 +188,7 @@ namespace SceneTalkVR.AvatarSystem
         public void ResetPresentation()
         {
             isSessionActive = false;
-            currentFeedbackProvider = string.Empty;
+            currentFeedbackProvider = AssistantAgentProvider;
             ResolveCorrectionAgentPresenter(false)?.HideImmediate();
         }
 
@@ -232,7 +205,7 @@ namespace SceneTalkVR.AvatarSystem
 
         private bool IsDebugForceFeedbackEnabled()
         {
-            return debugEnableCorrectionOverrides && debugForceFeedback;
+            return debugForceFeedback;
         }
 
         private bool ShouldKeepAssistantVisible()
@@ -264,36 +237,17 @@ namespace SceneTalkVR.AvatarSystem
             }
         }
 
-        private string ResolveEffectiveProvider(CorrectionFeedbackData feedback)
-        {
-            if (debugEnableCorrectionOverrides)
-            {
-                return ResolveDebugProvider();
-            }
-
-            return ResolveConfiguredProvider(feedback);
-        }
-
         private string ResolveConfiguredProvider(CorrectionFeedbackData feedback)
         {
             var payloadProvider = feedback != null ? feedback.provider : string.Empty;
             return IsSupportedProvider(payloadProvider)
                 ? NormalizeProvider(payloadProvider)
-                : NormalizeProvider(feedbackProvider);
-        }
-
-        private string ResolveDebugProvider()
-        {
-            return debugProvider == CorrectionDebugProvider.DialogueAvatar
-                ? DialogueAvatarProvider
-                : AssistantAgentProvider;
+                : CurrentFeedbackProvider;
         }
 
         private string ResolveEffectiveStyle(CorrectionFeedbackData feedback)
         {
-            return debugEnableCorrectionOverrides
-                ? debugStyle == CorrectionDebugStyle.Recast ? RecastStyle : ExplicitStyle
-                : NormalizeStyle(feedback != null ? feedback.style : string.Empty);
+            return NormalizeStyle(feedback != null ? feedback.style : string.Empty);
         }
 
         private string ResolveEffectiveFeedbackText(CorrectionFeedbackData feedback)
