@@ -40,7 +40,18 @@ namespace SceneTalkVR.Runtime.Services
                                                       "      \"outfitColor\": \"string\"\n" +
                                                       "    }\n" +
                                                       "  },\n" +
-                                                      "  \"scene\": { \"mode\": \"skybox\", \"skyboxUrl\": \"\" }\n" +
+                                                      "  \"scene\": { \"mode\": \"skybox\", \"skyboxUrl\": \"\" },\n" +
+                                                      "  \"correctionFeedback\": {\n" +
+                                                      "    \"hasFeedback\": false,\n" +
+                                                      "    \"provider\": \"dialogue_avatar|assistant_agent\",\n" +
+                                                      "    \"style\": \"explicit|recast\",\n" +
+                                                      "    \"errorType\": \"grammar|unnatural|vocabulary|incomplete|unknown\",\n" +
+                                                      "    \"originalText\": \"string\",\n" +
+                                                      "    \"correctedText\": \"string\",\n" +
+                                                      "    \"feedbackText\": \"string\",\n" +
+                                                      "    \"targetSpan\": \"string\",\n" +
+                                                      "    \"confidence\": 1.0\n" +
+                                                      "  }\n" +
                                                       "}\n" +
                                                       "Ensure the output is ONLY the JSON object, no markdown, no conversational filler. " +
                                                       "Normalize avatarRole.role to barista, teacher, or police when the request matches a waiter/service worker, teacher, or police/security officer. " +
@@ -250,11 +261,25 @@ namespace SceneTalkVR.Runtime.Services
 
         private string BuildExperimentPromptInstructions(bool includeScenePayload)
         {
+            var builder = new StringBuilder();
+            
             if (currentCondition == null)
             {
-                return includeScenePayload
-                    ? "When relevant, include a correctionFeedback object with hasFeedback=false if there is no language error."
-                    : "Return ONLY a JSON object with dialogueReply and correctionFeedback.";
+                builder.AppendLine("When analyzing the user's speech, you must also detect language errors and include a correctionFeedback object in your JSON response.");
+                builder.AppendLine("JSON structure for correctionFeedback:");
+                builder.AppendLine("  \"correctionFeedback\": {");
+                builder.AppendLine("    \"hasFeedback\": false,");
+                builder.AppendLine("    \"provider\": \"dialogue_avatar\",");
+                builder.AppendLine("    \"style\": \"explicit\",");
+                builder.AppendLine("    \"errorType\": \"no_feedback\",");
+                builder.AppendLine("    \"originalText\": \"\",");
+                builder.AppendLine("    \"correctedText\": \"\",");
+                builder.AppendLine("    \"feedbackText\": \"\",");
+                builder.AppendLine("    \"targetSpan\": \"\",");
+                builder.AppendLine("    \"confidence\": 1.0");
+                builder.AppendLine("  }");
+                builder.AppendLine("If no clear error, set hasFeedback=false.");
+                return builder.ToString();
             }
 
             var task = currentCondition.task;
@@ -262,42 +287,68 @@ namespace SceneTalkVR.Runtime.Services
                 ? string.Empty
                 : string.Join("; ", task.goals);
 
-            var builder = new StringBuilder();
-            builder.AppendLine("Experiment condition is fixed by the client. Do not change it.");
-            builder.AppendLine($"scenarioId: {currentCondition.scenarioId}");
-            builder.AppendLine($"feedback provider: {currentCondition.provider}");
-            builder.AppendLine($"feedback style: {currentCondition.style}");
+            builder.AppendLine("=== EXPERIMENT & TASK CONTEXT ===");
+            builder.AppendLine("The experiment condition is FIXED by the client. Do NOT change provider or style in the JSON output.");
+            builder.AppendLine($"- scenarioId: {currentCondition.scenarioId}");
+            builder.AppendLine($"- feedbackProvider: {currentCondition.provider} (dialogue_avatar means you, the roleplay character; assistant_agent means a separate AI assistant helper)");
+            builder.AppendLine($"- feedbackStyle: {currentCondition.style} (explicit means direct correction; recast means natural conversational reformulation)");
+            
             if (task != null)
             {
                 if (!string.IsNullOrWhiteSpace(task.context))
                 {
-                    builder.AppendLine($"task context: {task.context}");
+                    builder.AppendLine($"- taskContext: {task.context}");
                 }
-
                 if (!string.IsNullOrWhiteSpace(goals))
                 {
-                    builder.AppendLine($"task goals: {goals}");
+                    builder.AppendLine($"- taskGoals: {goals}");
                 }
-
                 if (!string.IsNullOrWhiteSpace(task.initialQuestion))
                 {
-                    builder.AppendLine($"opening question: {task.initialQuestion}");
+                    builder.AppendLine($"- openingQuestion: {task.initialQuestion}");
                 }
             }
 
+            builder.AppendLine("\n=== LANGUAGE CORRECTION INSTRUCTIONS ===");
+            builder.AppendLine("1. Detect at most ONE major error per turn (grammar, unnatural expression, vocabulary misuse, or incomplete sentence).");
+            builder.AppendLine("2. Only correct actual errors that hinder communication or are clearly grammatically incorrect. Do not correct natural pauses, filler words, minor repetitions, or self-corrections.");
+            builder.AppendLine("3. If there is no clear error, set hasFeedback = false in correctionFeedback and leave originalText/correctedText/feedbackText/targetSpan empty.");
+            builder.AppendLine("4. Customize feedbackText based on feedbackStyle and feedbackProvider:");
+            builder.AppendLine("   - If style is 'explicit':");
+            builder.AppendLine("     * If provider is 'dialogue_avatar': Keep it brief and character-appropriate. Example: 'You can say: I really like this topic.'");
+            builder.AppendLine("     * If provider is 'assistant_agent': Act as an instructor helper. Example: 'Grammar tip: Remember to say: I really like this topic, not I very like this topic.'");
+            builder.AppendLine("   - If style is 'recast':");
+            builder.AppendLine("     * Never use direct correction words like 'say', 'correct', 'instead', or 'not'. Formulate a natural conversational reformulation.");
+            builder.AppendLine("     * If provider is 'dialogue_avatar': The feedbackText should sound like the character natural confirmation or continuation of the talk. Example: 'Oh, you really like this topic?'");
+            builder.AppendLine("     * If provider is 'assistant_agent': The feedbackText should be a helpful recast hint. Example: 'You mean you really like this topic?'");
+            builder.AppendLine("5. Limit feedbackText to 1 or 2 short sentences suitable for spoken TTS in VR.");
+
+            builder.AppendLine("\n=== JSON OUTPUT FORMAT ===");
             if (includeScenePayload)
             {
-                builder.AppendLine("Return the normal scene JSON plus a correctionFeedback object.");
+                builder.AppendLine("Return a complete JSON containing taskType, environmentType, dialogueReply, avatarRole, scene, and correctionFeedback.");
             }
             else
             {
-                builder.AppendLine("Return ONLY JSON with dialogueReply and correctionFeedback. Do not return plain text.");
+                builder.AppendLine("Return ONLY a JSON object with: dialogueReply (string) and correctionFeedback (object). Do not include scene, avatarRole, etc. Do not include markdown code block syntax.");
             }
 
-            builder.AppendLine("correctionFeedback must contain hasFeedback, provider, style, errorType, originalText, correctedText, feedbackText, targetSpan, confidence.");
-            builder.AppendLine("If the learner made no clear grammar, vocabulary, naturalness, or incomplete-sentence error, set hasFeedback=false and keep provider/style fixed.");
-            builder.AppendLine("For explicit style, feedbackText should briefly point out the correction and correctedText should be the corrected expression.");
-            builder.AppendLine("For recast style, feedbackText should be a natural conversational reformulation, not a teacher-like explanation.");
+            builder.AppendLine("Ensure the JSON has the exact schema for correctionFeedback:");
+            builder.AppendLine("{");
+            builder.AppendLine("  \"dialogueReply\": \"character's reply text\",");
+            builder.AppendLine("  \"correctionFeedback\": {");
+            builder.AppendLine("    \"hasFeedback\": true/false,");
+            builder.AppendLine("    \"provider\": \"dialogue_avatar|assistant_agent\" (MATCH input provider exactly),");
+            builder.AppendLine("    \"style\": \"explicit|recast\" (MATCH input style exactly),");
+            builder.AppendLine("    \"errorType\": \"grammar|unnatural|vocabulary|incomplete|unknown\",");
+            builder.AppendLine("    \"originalText\": \"user's incorrect sentence\",");
+            builder.AppendLine("    \"correctedText\": \"the corrected sentence\",");
+            builder.AppendLine("    \"feedbackText\": \"the feedback text to be spoken via TTS\",");
+            builder.AppendLine("    \"targetSpan\": \"the specific wrong phrase or word that was corrected\",");
+            builder.AppendLine("    \"confidence\": 0.0-1.0");
+            builder.AppendLine("  }");
+            builder.AppendLine("}");
+
             return builder.ToString();
         }
 
