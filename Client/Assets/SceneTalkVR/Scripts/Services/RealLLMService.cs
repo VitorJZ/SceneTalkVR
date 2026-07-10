@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using SceneTalkVR.Core;
+using SceneTalkVR.Voice;
 using UnityEngine;
 using UnityEngine.Networking;
 
