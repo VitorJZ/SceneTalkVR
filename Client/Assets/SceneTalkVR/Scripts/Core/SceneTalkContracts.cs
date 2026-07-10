@@ -9,6 +9,13 @@ namespace SceneTalkVR.Core
         IEnumerator CaptureSpeech(Action<string> onComplete, Action<string> onError);
     }
 
+    public interface ISceneTalkManualSpeechInput
+    {
+        void RequestStopCapture();
+
+        void CancelCapture();
+    }
+
     public interface ISceneTalkBrain
     {
         IEnumerator GenerateSceneAndReply(string userText, Action<SpringScenePayload> onComplete, Action<string> onError);
@@ -34,6 +41,16 @@ namespace SceneTalkVR.Core
         void ClearAvatar();
     }
 
+    public interface ISceneTalkExperimentContextReceiver
+    {
+        void SetExperimentCondition(CorrectionExperimentCondition condition);
+    }
+
+    public interface ISceneTalkCorrectionFeedbackProviderReceiver
+    {
+        void SetCorrectionFeedbackProvider(string provider);
+    }
+
     [Serializable]
     public sealed class SpringScenePayload
     {
@@ -42,6 +59,50 @@ namespace SceneTalkVR.Core
         public string dialogueReply;
         public AvatarRoleData avatarRole = new AvatarRoleData();
         public ScenePayload scene = new ScenePayload();
+        public CorrectionFeedbackData correctionFeedback;
+    }
+
+    [Serializable]
+    public sealed class CorrectionFeedbackData
+    {
+        public bool hasFeedback;
+        public string provider;
+        public string style;
+        public string errorType;
+        public string originalText;
+        public string correctedText;
+        public string feedbackText;
+        public string targetSpan;
+        public float confidence;
+    }
+
+    [Serializable]
+    public sealed class CorrectionExperimentCondition
+    {
+        public string participantId;
+        public string sessionId;
+        public string conditionId;
+        public string scenarioId;
+        public string provider;
+        public string style;
+        public int turnIndex;
+        public string[] conditionOrder = Array.Empty<string>();
+        public SceneTalkExperimentTask task = new SceneTalkExperimentTask();
+    }
+
+    [Serializable]
+    public sealed class SceneTalkExperimentTask
+    {
+        public string scenarioId;
+        public string context;
+        public string[] goals = Array.Empty<string>();
+        public string initialQuestion;
+        public string fallbackEnvironmentType;
+        public string fallbackAvatarRole;
+        public string fallbackAvatarGenderPresentation;
+        public string fallbackAvatarAttitude;
+        public string fallbackSkyboxUrl;
+        public LayoutObjectData[] fallbackLayoutObjects = Array.Empty<LayoutObjectData>();
     }
 
     [Serializable]

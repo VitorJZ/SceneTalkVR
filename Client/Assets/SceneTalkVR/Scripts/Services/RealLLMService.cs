@@ -12,7 +12,7 @@ namespace SceneTalkVR.Runtime.Services
     /// <summary>
     /// Real implementation of LLM service using SJTU Local API (OpenAI compatible).
     /// </summary>
-    public sealed class RealLLMService : MonoBehaviour, ISceneTalkBrain, ILLMService, ISceneTalkSessionReset
+    public sealed class RealLLMService : MonoBehaviour, ISceneTalkBrain, ILLMService, ISceneTalkSessionReset, ISceneTalkExperimentContextReceiver
     {
         [Header("API Configuration")]
         [SerializeField] private string apiUrl = "https://models.sjtu.edu.cn/api/v1/chat/completions";
@@ -49,6 +49,12 @@ namespace SceneTalkVR.Runtime.Services
 
         private readonly List<OpenAiMessage> chatHistory = new List<OpenAiMessage>();
         private SceneTalkOrchestrator cachedOrchestrator;
+        private CorrectionExperimentCondition currentCondition;
+
+        public void SetExperimentCondition(CorrectionExperimentCondition condition)
+        {
+            currentCondition = ExperimentConditionManager.CloneCondition(condition);
+        }
 
         public IEnumerator GenerateSceneAndReply(string userText, Action<SpringScenePayload> onComplete, Action<string> onError)
         {
@@ -90,7 +96,7 @@ namespace SceneTalkVR.Runtime.Services
 
         public async Task<SpringScenePayload> ParseIntentAsync(string userInput)
         {
-            string responseJson = await SendChatRequest(systemPrompt, userInput, true);
+            string responseJson = await SendChatRequest(BuildSceneSystemPrompt(), userInput, true);
             
             try
             {
@@ -105,6 +111,7 @@ namespace SceneTalkVR.Runtime.Services
 
                     if (payload != null)
                     {
+                        ApplyExperimentConditionToPayload(payload);
                         chatHistory.Clear();
                         string rpSysPrompt = BuildRoleplaySystemPrompt(payload);
                         chatHistory.Add(new OpenAiMessage { role = "system", content = rpSysPrompt });
@@ -152,7 +159,7 @@ namespace SceneTalkVR.Runtime.Services
         {
             chatHistory.Add(new OpenAiMessage { role = "user", content = userInput });
 
-            string responseJson = await SendChatRequest(chatHistory.ToArray(), false);
+            string responseJson = await SendChatRequest(chatHistory.ToArray(), true);
 
             try
             {
@@ -165,17 +172,12 @@ namespace SceneTalkVR.Runtime.Services
                     content = CleanJsonString(content);
                     
                     Debug.Log($"[RealLLMService] Dialogue Turn Reply: {content}");
-                    
-                    chatHistory.Add(new OpenAiMessage { role = "assistant", content = content });
 
-                    return new SpringScenePayload
-                    {
-                        dialogueReply = content,
-                        taskType = "",
-                        environmentType = "",
-                        avatarRole = new AvatarRoleData(),
-                        scene = new ScenePayload()
-                    };
+                    var payload = TryParseDialoguePayload(content);
+                    ApplyExperimentConditionToPayload(payload);
+                    chatHistory.Add(new OpenAiMessage { role = "assistant", content = payload.dialogueReply });
+
+                    return payload;
                 }
                 throw new Exception("API response structure is invalid or empty.");
             }
@@ -184,6 +186,52 @@ namespace SceneTalkVR.Runtime.Services
                 Debug.LogError($"[RealLLMService] Dialogue turn error: {ex.Message}\nRaw Response: {responseJson}");
                 throw;
             }
+        }
+
+        private string BuildSceneSystemPrompt()
+        {
+            return systemPrompt + "\n\n" + BuildExperimentPromptInstructions(true);
+        }
+
+        private SpringScenePayload TryParseDialoguePayload(string content)
+        {
+            if (!string.IsNullOrWhiteSpace(content))
+            {
+                try
+                {
+                    var payload = JsonUtility.FromJson<SpringScenePayload>(content);
+                    if (payload != null
+                        && (!string.IsNullOrWhiteSpace(payload.dialogueReply)
+                            || payload.correctionFeedback != null))
+                    {
+                        EnsurePayloadDefaults(payload);
+                        return payload;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[RealLLMService] Dialogue JSON parse fallback: {ex.Message}");
+                }
+            }
+
+            return new SpringScenePayload
+            {
+                dialogueReply = content,
+                taskType = currentCondition == null ? string.Empty : currentCondition.scenarioId,
+                environmentType = currentCondition?.task == null
+                    ? string.Empty
+                    : currentCondition.task.fallbackEnvironmentType,
+                avatarRole = new AvatarRoleData(),
+                scene = new ScenePayload(),
+                correctionFeedback = currentCondition == null
+                    ? null
+                    : new CorrectionFeedbackData
+                    {
+                        hasFeedback = false,
+                        provider = currentCondition.provider,
+                        style = currentCondition.style
+                    }
+            };
         }
 
         private string BuildRoleplaySystemPrompt(SpringScenePayload initialPayload)
@@ -196,7 +244,103 @@ namespace SceneTalkVR.Runtime.Services
 
             return $"You are playing the role of a {role} in a {env} environment for English oral practice. " +
                    $"Your accent is {accent}, your attitude is {attitude}, and you should speak at a {speed} speed. " +
-                   $"Reply to the user's statements naturally and concisely (1-3 sentences). Keep the practice interactive and realistic.";
+                   $"Reply to the user's statements naturally and concisely (1-3 sentences). Keep the practice interactive and realistic.\n\n" +
+                   BuildExperimentPromptInstructions(false);
+        }
+
+        private string BuildExperimentPromptInstructions(bool includeScenePayload)
+        {
+            if (currentCondition == null)
+            {
+                return includeScenePayload
+                    ? "When relevant, include a correctionFeedback object with hasFeedback=false if there is no language error."
+                    : "Return ONLY a JSON object with dialogueReply and correctionFeedback.";
+            }
+
+            var task = currentCondition.task;
+            var goals = task == null || task.goals == null || task.goals.Length == 0
+                ? string.Empty
+                : string.Join("; ", task.goals);
+
+            var builder = new StringBuilder();
+            builder.AppendLine("Experiment condition is fixed by the client. Do not change it.");
+            builder.AppendLine($"scenarioId: {currentCondition.scenarioId}");
+            builder.AppendLine($"feedback provider: {currentCondition.provider}");
+            builder.AppendLine($"feedback style: {currentCondition.style}");
+            if (task != null)
+            {
+                if (!string.IsNullOrWhiteSpace(task.context))
+                {
+                    builder.AppendLine($"task context: {task.context}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(goals))
+                {
+                    builder.AppendLine($"task goals: {goals}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(task.initialQuestion))
+                {
+                    builder.AppendLine($"opening question: {task.initialQuestion}");
+                }
+            }
+
+            if (includeScenePayload)
+            {
+                builder.AppendLine("Return the normal scene JSON plus a correctionFeedback object.");
+            }
+            else
+            {
+                builder.AppendLine("Return ONLY JSON with dialogueReply and correctionFeedback. Do not return plain text.");
+            }
+
+            builder.AppendLine("correctionFeedback must contain hasFeedback, provider, style, errorType, originalText, correctedText, feedbackText, targetSpan, confidence.");
+            builder.AppendLine("If the learner made no clear grammar, vocabulary, naturalness, or incomplete-sentence error, set hasFeedback=false and keep provider/style fixed.");
+            builder.AppendLine("For explicit style, feedbackText should briefly point out the correction and correctedText should be the corrected expression.");
+            builder.AppendLine("For recast style, feedbackText should be a natural conversational reformulation, not a teacher-like explanation.");
+            return builder.ToString();
+        }
+
+        private void ApplyExperimentConditionToPayload(SpringScenePayload payload)
+        {
+            if (payload == null || currentCondition == null)
+            {
+                return;
+            }
+
+            EnsurePayloadDefaults(payload);
+
+            if (string.IsNullOrWhiteSpace(payload.taskType))
+            {
+                payload.taskType = currentCondition.scenarioId;
+            }
+
+            if (string.IsNullOrWhiteSpace(payload.environmentType) && currentCondition.task != null)
+            {
+                payload.environmentType = currentCondition.task.fallbackEnvironmentType;
+            }
+
+            if (payload.correctionFeedback == null)
+            {
+                payload.correctionFeedback = new CorrectionFeedbackData
+                {
+                    hasFeedback = false
+                };
+            }
+
+            payload.correctionFeedback.provider = currentCondition.provider;
+            payload.correctionFeedback.style = currentCondition.style;
+        }
+
+        private static void EnsurePayloadDefaults(SpringScenePayload payload)
+        {
+            if (payload == null)
+            {
+                return;
+            }
+
+            payload.avatarRole ??= new AvatarRoleData();
+            payload.scene ??= new ScenePayload();
         }
 
         private void CheckAndResetSession()

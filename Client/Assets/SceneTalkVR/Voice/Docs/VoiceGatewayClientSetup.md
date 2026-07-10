@@ -53,7 +53,7 @@ This menu item only changes the voice path on the existing rig. It does not rebu
 
 ## P0 Status
 
-`GatewaySpeechInputModule` records a short WAV clip from Unity's default microphone and sends it as base64 to the gateway. `AvatarPresentationVoiceModule` can request TTS audio from the same gateway and play the downloaded WAV.
+`GatewaySpeechInputModule` records WAV audio from Unity's default microphone and sends it as base64 to the gateway. The current Unity flow supports manual stop: the request `Listen` button switches to `End` while recording, the dialogue `Speak` button switches to `End`, and PICO/OpenXR triggers can hold-to-record when the ray is not over a UI button. `AvatarPresentationVoiceModule` can request TTS audio from the same gateway and play the downloaded WAV.
 
 P0 has been verified in Unity Editor with `VOICE_GATEWAY_PROVIDER=tencent`:
 
@@ -61,4 +61,4 @@ P0 has been verified in Unity Editor with `VOICE_GATEWAY_PROVIDER=tencent`:
 - The transcript enters the existing `SceneTalkOrchestrator` flow.
 - Avatar replies are synthesized through Tencent TTS and played as downloaded WAV audio.
 
-Mock mode remains available for offline demos. PICO 4 microphone/playback validation, manual stop/VAD, streaming, interruption, and richer production logging are follow-up work.
+Mock mode remains available for offline demos. PICO 4 microphone/playback validation, VAD, streaming, interruption, and richer production logging are follow-up work.

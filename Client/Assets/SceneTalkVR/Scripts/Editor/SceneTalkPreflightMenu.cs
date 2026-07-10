@@ -3,6 +3,8 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using SceneTalkVR.AvatarSystem;
+using SceneTalkVR.Core;
 using SceneTalkVR.Runtime;
 using UnityEditor;
 using UnityEditor.Build;
@@ -178,10 +180,16 @@ namespace SceneTalkVR.EditorTools
                 .Where(canvas => canvas.gameObject.name.StartsWith("SceneTalkVR World UI", StringComparison.Ordinal))
                 .ToArray();
             var eventSystems = FindAll<EventSystem>();
+            var experimentManagers = FindAll<ExperimentConditionManager>();
+            var correctionFeedbackPresenters = FindAll<CorrectionFeedbackPresenter>();
+            var correctionAgentPresenters = FindAll<CorrectionAgentPresenter>();
             AppendCheck(report, orchestrators.Length == 1, $"One SceneTalkOrchestrator in scene (found {orchestrators.Length})");
             AppendCheck(report, bootstraps.Length == 1, $"One SceneTalkInteractionBootstrap in scene (found {bootstraps.Length})");
             AppendCheck(report, canvases.Length == 1, $"One SceneTalkVR World UI canvas in scene (found {canvases.Length})");
             AppendCheck(report, eventSystems.Length == 1, $"One EventSystem in scene (found {eventSystems.Length})");
+            AppendCheck(report, experimentManagers.Length == 1, $"One ExperimentConditionManager in scene (found {experimentManagers.Length})");
+            AppendCheck(report, correctionFeedbackPresenters.Length == 1, $"One CorrectionFeedbackPresenter in scene (found {correctionFeedbackPresenters.Length})");
+            AppendCheck(report, correctionAgentPresenters.Length == 1, $"One CorrectionAgentPresenter in scene (found {correctionAgentPresenters.Length})");
             AppendCheck(report, HasTrackedPoseDriver(Camera.main), "Main Camera uses XR tracked pose on device");
 
             if (canvases.Length > 0)
@@ -207,6 +215,7 @@ namespace SceneTalkVR.EditorTools
             AppendSection(report, "PICO");
             AppendCheck(report, IsAndroidDefineEnabled(PicoOpenXrDefine), "`PICO_OPENXR_SDK` define is set for Android");
             AppendCheck(report, HasAndroidXRLoader(OpenXrLoaderTypeName), "Android XR loader uses OpenXR");
+            AppendCheck(report, HasAndroidXRAutoStartEnabled(), "Android XR initializes and runs on startup");
             AppendCheck(report, IsAndroidOpenXRFeatureIdEnabled(PicoXrSupportFeatureId), "PICO XR Support feature is enabled for Android OpenXR");
             AppendCheck(report, IsAndroidOpenXRFeatureIdEnabled(PicoOpenXrFeaturesFeatureId), "PICO OpenXR Features extension is enabled");
             AppendCheck(report, IsAndroidOpenXRFeatureIdEnabled(Pico4ControllerFeatureId) || IsAndroidOpenXRFeatureIdEnabled(Pico4UltraControllerFeatureId), "PICO 4 controller profile is enabled for Android OpenXR");
@@ -229,6 +238,7 @@ namespace SceneTalkVR.EditorTools
             report.AppendLine("- Run `SceneTalkVR/Setup/Apply Recommended Project Settings` after package import or Unity recompilation.");
             report.AppendLine("- If OpenXR validation still reports no interaction profile, run `SceneTalkVR/Advanced/Enable OpenXR Fallback Controller Profile` or add `Khronos Simple Controller Profile` on the Android OpenXR page.");
             report.AppendLine("- In Unity Project Settings, keep exactly one Android XR provider path active: OpenXR + PICO features, or PICO native loader.");
+            report.AppendLine("- Keep XR automatic loading and automatic running enabled for Android unless a custom startup script explicitly initializes XR.");
             report.AppendLine("- Keep Android Graphics APIs set to OpenGLES3 only for PICO 4 debug builds; Vulkan can crash on startup with this project stack.");
             report.AppendLine("- For local Build & Run, keep custom keystore disabled. Enable a private keystore only for release builds.");
             report.AppendLine("- Connect PICO 4 with developer mode enabled, then build and run the Android APK.");
@@ -354,6 +364,17 @@ namespace SceneTalkVR.EditorTools
             var managerSettings = generalSettings?.AssignedSettings;
             return managerSettings != null
                 && managerSettings.activeLoaders.Any(loader => loader != null && loader.GetType().FullName == loaderTypeName);
+        }
+
+        private static bool HasAndroidXRAutoStartEnabled()
+        {
+            var generalSettings = XRGeneralSettingsPerBuildTarget.XRGeneralSettingsForBuildTarget(BuildTargetGroup.Android);
+            var managerSettings = generalSettings?.AssignedSettings;
+            return generalSettings != null
+                && managerSettings != null
+                && generalSettings.InitManagerOnStart
+                && managerSettings.automaticLoading
+                && managerSettings.automaticRunning;
         }
 
         private static bool UsesAndroidOpenGLES3Only()

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using SceneTalkVR.Core;
 using UnityEngine;
 using UnityEngine.UI;
@@ -7,33 +8,57 @@ namespace SceneTalkVR.Runtime
     public sealed class SceneTalkFlowUiController : MonoBehaviour
     {
         private const string FlowRootName = "SceneTalkVR Flow UI";
+        private static readonly Vector2 ExitButtonPosition = new Vector2(360f, 218f);
+        private static readonly Vector2 ExitButtonSize = new Vector2(110f, 44f);
+        private static readonly Color ExitButtonColor = new Color(0.58f, 0.18f, 0.18f, 1f);
 
         [SerializeField] private SceneTalkOrchestrator orchestrator;
         [SerializeField] private SceneTalkInteractionBootstrap interactionBootstrap;
         [SerializeField] private Canvas worldCanvas;
 
+        private readonly Dictionary<Text, int> baseFontSizes = new Dictionary<Text, int>();
         private GameObject mainMenuPanel;
+        private GameObject settingsPanel;
+        private GameObject settingsGeneralGroup;
         private GameObject requestPanel;
         private GameObject loadingPanel;
         private GameObject subtitlePanel;
+        private GameObject subtitleTextContainer;
         private GameObject exitButtonObject;
 
         private Button startButton;
+        private Button settingsButton;
         private Button quitButton;
+        private Button fontMinusButton;
+        private Button fontPlusButton;
+        private Button uiMinusButton;
+        private Button uiPlusButton;
+        private Button subtitleChangeButton;
         private Button listenButton;
-        private Button retryButton;
         private Button confirmButton;
         private Button exitButton;
         private Button dialogueListenButton;
+        private Button continueButton;
+        private Button tryAgainButton;
 
+        private Text settingsTitleText;
+        private Text settingsPageText;
+        private Text fontValueText;
+        private Text uiValueText;
+        private Text subtitleValueText;
         private Text requestTitleText;
         private Text requestStatusText;
         private Text requestTranscriptText;
         private Text requestErrorText;
         private Text loadingText;
+        private Text experimentDebugText;
         private Text dialogueStatusText;
+        private Text correctionStatusText;
+        private Text correctionFeedbackText;
         private Text playerSubtitleText;
         private Text avatarSubtitleText;
+        private RectTransform subtitlePanelRect;
+        private RectTransform subtitleTextContainerRect;
 
         private bool isSubscribed;
 
@@ -48,12 +73,15 @@ namespace SceneTalkVR.Runtime
         private void OnEnable()
         {
             Subscribe();
+            SceneTalkUserSettingsStore.Changed += OnUserSettingsChanged;
+            ApplyUserSettings(SceneTalkUserSettingsStore.Current);
             Refresh();
         }
 
         private void OnDisable()
         {
             Unsubscribe();
+            SceneTalkUserSettingsStore.Changed -= OnUserSettingsChanged;
         }
 
         private void Update()
@@ -85,38 +113,59 @@ namespace SceneTalkVR.Runtime
             }
 
             ClearCanvasChildren();
+            baseFontSizes.Clear();
             ConfigureCanvasRect();
 
             var root = new GameObject(FlowRootName).transform;
             root.SetParent(worldCanvas.transform, false);
 
-            mainMenuPanel = CreatePanel(root, "InitialPanel", new Vector2(0f, 0f), new Vector2(380f, 300f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
-            CreateText(mainMenuPanel.transform, "Title", "SceneTalkVR", new Vector2(0f, 92f), new Vector2(320f, 54f), 34, TextAnchor.MiddleCenter, Color.white);
-            startButton = CreateButton(mainMenuPanel.transform, "StartButton", "Start", new Vector2(0f, 20f), new Vector2(190f, 58f), new Color(0.16f, 0.38f, 0.68f, 1f));
-            quitButton = CreateButton(mainMenuPanel.transform, "QuitButton", "Quit", new Vector2(0f, -70f), new Vector2(190f, 58f), new Color(0.58f, 0.18f, 0.18f, 1f));
+            mainMenuPanel = CreatePanel(root, "InitialPanel", new Vector2(0f, 0f), new Vector2(380f, 360f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
+            CreateText(mainMenuPanel.transform, "Title", "SceneTalkVR", new Vector2(0f, 122f), new Vector2(320f, 54f), 34, TextAnchor.MiddleCenter, Color.white);
+            startButton = CreateButton(mainMenuPanel.transform, "StartButton", "Start", new Vector2(0f, 48f), new Vector2(190f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f));
+            settingsButton = CreateButton(mainMenuPanel.transform, "SettingsButton", "Settings", new Vector2(0f, -24f), new Vector2(190f, 54f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            quitButton = CreateButton(mainMenuPanel.transform, "QuitButton", "Quit", new Vector2(0f, -96f), new Vector2(190f, 54f), new Color(0.58f, 0.18f, 0.18f, 1f));
+
+            settingsPanel = CreatePanel(root, "SettingsPanel", new Vector2(0f, 0f), new Vector2(820f, 380f), new Color(0.04f, 0.05f, 0.07f, 0.92f));
+            settingsTitleText = CreateText(settingsPanel.transform, "Title", "Settings", new Vector2(0f, 146f), new Vector2(480f, 48f), 30, TextAnchor.MiddleCenter, Color.white);
+            settingsPageText = CreateText(settingsPanel.transform, "Page", "Display", new Vector2(0f, 106f), new Vector2(700f, 32f), 18, TextAnchor.MiddleCenter, new Color(0.74f, 0.86f, 1f, 1f));
+
+            settingsGeneralGroup = new GameObject("GeneralSettings");
+            settingsGeneralGroup.transform.SetParent(settingsPanel.transform, false);
+            CreateText(settingsGeneralGroup.transform, "FontLabel", "Font Size", new Vector2(-240f, 42f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
+            fontMinusButton = CreateButton(settingsGeneralGroup.transform, "FontMinusButton", "-", new Vector2(78f, 42f), new Vector2(52f, 48f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            fontValueText = CreateText(settingsGeneralGroup.transform, "FontValue", string.Empty, new Vector2(174f, 42f), new Vector2(120f, 44f), 20, TextAnchor.MiddleCenter, Color.white);
+            fontPlusButton = CreateButton(settingsGeneralGroup.transform, "FontPlusButton", "+", new Vector2(270f, 42f), new Vector2(52f, 48f), new Color(0.24f, 0.36f, 0.42f, 1f));
+
+            CreateText(settingsGeneralGroup.transform, "UiLabel", "Interface Size", new Vector2(-240f, -30f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
+            uiMinusButton = CreateButton(settingsGeneralGroup.transform, "UiMinusButton", "-", new Vector2(78f, -30f), new Vector2(52f, 48f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            uiValueText = CreateText(settingsGeneralGroup.transform, "UiValue", string.Empty, new Vector2(174f, -30f), new Vector2(120f, 44f), 20, TextAnchor.MiddleCenter, Color.white);
+            uiPlusButton = CreateButton(settingsGeneralGroup.transform, "UiPlusButton", "+", new Vector2(270f, -30f), new Vector2(52f, 48f), new Color(0.24f, 0.36f, 0.42f, 1f));
+
+            CreateText(settingsGeneralGroup.transform, "SubtitleLabel", "Dialogue Subtitles", new Vector2(-240f, -102f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
+            subtitleValueText = CreateText(settingsGeneralGroup.transform, "SubtitleValue", string.Empty, new Vector2(110f, -102f), new Vector2(140f, 44f), 20, TextAnchor.MiddleCenter, Color.white);
+            subtitleChangeButton = CreateButton(settingsGeneralGroup.transform, "SubtitleChangeButton", "Change", new Vector2(293f, -102f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
 
             requestPanel = CreatePanel(root, "RequestPanel", new Vector2(0f, 0f), new Vector2(700f, 380f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
             requestTitleText = CreateText(requestPanel.transform, "Title", "Scene And Avatar Request", new Vector2(0f, 146f), new Vector2(640f, 42f), 26, TextAnchor.MiddleCenter, Color.white);
             requestStatusText = CreateText(requestPanel.transform, "Status", "Listening...", new Vector2(0f, 104f), new Vector2(640f, 34f), 20, TextAnchor.MiddleCenter, new Color(0.74f, 0.86f, 1f, 1f));
             requestTranscriptText = CreateText(requestPanel.transform, "Transcript", "Transcript: -", new Vector2(0f, 28f), new Vector2(620f, 112f), 22, TextAnchor.MiddleCenter, Color.white);
             requestErrorText = CreateText(requestPanel.transform, "Error", string.Empty, new Vector2(0f, -64f), new Vector2(620f, 34f), 18, TextAnchor.MiddleCenter, new Color(1f, 0.45f, 0.35f, 1f));
-            listenButton = CreateButton(requestPanel.transform, "ListenButton", "Listen", new Vector2(-210f, -142f), new Vector2(150f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f));
-            retryButton = CreateButton(requestPanel.transform, "RetryButton", "Retry", new Vector2(0f, -142f), new Vector2(150f, 54f), new Color(0.22f, 0.34f, 0.54f, 1f));
-            confirmButton = CreateButton(requestPanel.transform, "ConfirmButton", "Confirm", new Vector2(210f, -142f), new Vector2(150f, 54f), new Color(0.12f, 0.52f, 0.38f, 1f));
+            listenButton = CreateButton(requestPanel.transform, "ListenButton", "Listen", new Vector2(-110f, -142f), new Vector2(150f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f));
+            confirmButton = CreateButton(requestPanel.transform, "ConfirmButton", "Confirm", new Vector2(110f, -142f), new Vector2(150f, 54f), new Color(0.12f, 0.52f, 0.38f, 1f));
 
             loadingPanel = CreatePanel(root, "LoadingPanel", new Vector2(0f, 0f), new Vector2(540f, 220f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
             loadingText = CreateText(loadingPanel.transform, "LoadingText", "Loading scene and avatar...", new Vector2(0f, 0f), new Vector2(480f, 80f), 26, TextAnchor.MiddleCenter, Color.white);
 
-            subtitlePanel = CreatePanel(root, "SubtitlePanel", new Vector2(0f, -170f), new Vector2(800f, 180f), new Color(0f, 0f, 0f, 0.62f));
+            subtitlePanel = CreatePanel(root, "SubtitlePanel", new Vector2(0f, -145f), new Vector2(840f, 230f), new Color(0f, 0f, 0f, 0.62f));
+            subtitlePanelRect = subtitlePanel.GetComponent<RectTransform>();
             
-            // Create self-adjusting text container for subtitles
-            var textContainer = new GameObject("TextContainer");
-            textContainer.transform.SetParent(subtitlePanel.transform, false);
-            var containerRect = textContainer.AddComponent<RectTransform>();
-            containerRect.anchoredPosition = new Vector2(0f, 25f);
-            containerRect.sizeDelta = new Vector2(740f, 100f);
+            subtitleTextContainer = new GameObject("TextContainer");
+            subtitleTextContainer.transform.SetParent(subtitlePanel.transform, false);
+            subtitleTextContainerRect = subtitleTextContainer.AddComponent<RectTransform>();
+            subtitleTextContainerRect.anchoredPosition = new Vector2(0f, 44f);
+            subtitleTextContainerRect.sizeDelta = new Vector2(760f, 88f);
 
-            var layout = textContainer.AddComponent<VerticalLayoutGroup>();
+            var layout = subtitleTextContainer.AddComponent<VerticalLayoutGroup>();
             layout.childAlignment = TextAnchor.UpperLeft;
             layout.spacing = 6f;
             layout.childControlHeight = true;
@@ -124,19 +173,26 @@ namespace SceneTalkVR.Runtime
             layout.childForceExpandHeight = false;
             layout.childForceExpandWidth = true;
 
-            var fitter = textContainer.AddComponent<ContentSizeFitter>();
+            var fitter = subtitleTextContainer.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
 
-            playerSubtitleText = CreateText(textContainer.transform, "PlayerSubtitle", "You: -", Vector2.zero, new Vector2(740f, 30f), 20, TextAnchor.MiddleLeft, new Color(0.45f, 0.9f, 1f, 1f), true);
-            avatarSubtitleText = CreateText(textContainer.transform, "AvatarSubtitle", "Avatar: -", Vector2.zero, new Vector2(740f, 30f), 20, TextAnchor.MiddleLeft, new Color(1f, 0.88f, 0.36f, 1f), true);
-            dialogueStatusText = CreateText(subtitlePanel.transform, "DialogueStatus", "Ready", new Vector2(-95f, -56f), new Vector2(550f, 32f), 18, TextAnchor.MiddleLeft, new Color(0.86f, 0.9f, 1f, 1f));
-            dialogueListenButton = CreateButton(subtitlePanel.transform, "DialogueListenButton", "Speak", new Vector2(310f, -56f), new Vector2(130f, 42f), new Color(0.12f, 0.52f, 0.38f, 1f));
+            playerSubtitleText = CreateText(subtitleTextContainer.transform, "PlayerSubtitle", "You: -", Vector2.zero, new Vector2(760f, 30f), 20, TextAnchor.MiddleLeft, new Color(0.45f, 0.9f, 1f, 1f), true);
+            avatarSubtitleText = CreateText(subtitleTextContainer.transform, "AvatarSubtitle", "Avatar: -", Vector2.zero, new Vector2(760f, 30f), 20, TextAnchor.MiddleLeft, new Color(1f, 0.88f, 0.36f, 1f), true);
+            experimentDebugText = CreateText(subtitlePanel.transform, "ExperimentDebug", string.Empty, new Vector2(0f, 96f), new Vector2(780f, 24f), 14, TextAnchor.MiddleLeft, new Color(0.72f, 0.8f, 0.86f, 1f));
+            correctionFeedbackText = CreateText(subtitlePanel.transform, "CorrectionFeedback", string.Empty, new Vector2(0f, -29f), new Vector2(780f, 30f), 17, TextAnchor.MiddleLeft, new Color(0.78f, 0.95f, 0.74f, 1f));
+            correctionStatusText = CreateText(subtitlePanel.transform, "CorrectionStatus", string.Empty, new Vector2(-205f, -70f), new Vector2(400f, 30f), 17, TextAnchor.MiddleLeft, new Color(0.86f, 0.9f, 1f, 1f));
+            dialogueStatusText = CreateText(subtitlePanel.transform, "DialogueStatus", "Ready", new Vector2(-205f, -94f), new Vector2(400f, 28f), 17, TextAnchor.MiddleLeft, new Color(0.86f, 0.9f, 1f, 1f));
+            tryAgainButton = CreateButton(subtitlePanel.transform, "TryAgainButton", "Try Again", new Vector2(95f, -84f), new Vector2(110f, 40f), new Color(0.44f, 0.34f, 0.14f, 1f));
+            continueButton = CreateButton(subtitlePanel.transform, "ContinueButton", "Continue", new Vector2(225f, -84f), new Vector2(110f, 40f), new Color(0.16f, 0.38f, 0.68f, 1f));
+            dialogueListenButton = CreateButton(subtitlePanel.transform, "DialogueListenButton", "Speak", new Vector2(355f, -84f), new Vector2(110f, 40f), new Color(0.12f, 0.52f, 0.38f, 1f));
             
-            exitButton = CreateButton(root, "ExitButton", "Exit", new Vector2(360f, 218f), new Vector2(110f, 44f), new Color(0.58f, 0.18f, 0.18f, 1f));
+            exitButton = CreateButton(root, "ExitButton", "Exit", ExitButtonPosition, ExitButtonSize, ExitButtonColor);
             exitButtonObject = exitButton.gameObject;
 
             BindButtons();
+            CaptureBaseFontSizes(root);
+            ApplyUserSettings(SceneTalkUserSettingsStore.Current);
         }
 
         private void BindButtons()
@@ -147,22 +203,53 @@ namespace SceneTalkVR.Runtime
                 startButton.onClick.AddListener(() => orchestrator?.StartPractice());
             }
 
+            if (settingsButton != null)
+            {
+                settingsButton.onClick.RemoveAllListeners();
+                settingsButton.onClick.AddListener(OpenSettings);
+            }
+
             if (quitButton != null)
             {
                 quitButton.onClick.RemoveAllListeners();
                 quitButton.onClick.AddListener(QuitApplication);
             }
 
+            if (fontMinusButton != null)
+            {
+                fontMinusButton.onClick.RemoveAllListeners();
+                fontMinusButton.onClick.AddListener(() => SceneTalkUserSettingsStore.AdjustFontScale(-SceneTalkUserSettings.FontScaleStep));
+            }
+
+            if (fontPlusButton != null)
+            {
+                fontPlusButton.onClick.RemoveAllListeners();
+                fontPlusButton.onClick.AddListener(() => SceneTalkUserSettingsStore.AdjustFontScale(SceneTalkUserSettings.FontScaleStep));
+            }
+
+            if (uiMinusButton != null)
+            {
+                uiMinusButton.onClick.RemoveAllListeners();
+                uiMinusButton.onClick.AddListener(() => SceneTalkUserSettingsStore.AdjustUiScale(-SceneTalkUserSettings.UiScaleStep));
+            }
+
+            if (uiPlusButton != null)
+            {
+                uiPlusButton.onClick.RemoveAllListeners();
+                uiPlusButton.onClick.AddListener(() => SceneTalkUserSettingsStore.AdjustUiScale(SceneTalkUserSettings.UiScaleStep));
+            }
+
+            if (subtitleChangeButton != null)
+            {
+                subtitleChangeButton.onClick.RemoveAllListeners();
+                subtitleChangeButton.onClick.AddListener(() =>
+                    SceneTalkUserSettingsStore.SetHideDialogueSubtitles(!SceneTalkUserSettingsStore.Current.hideDialogueSubtitles));
+            }
+
             if (listenButton != null)
             {
                 listenButton.onClick.RemoveAllListeners();
-                listenButton.onClick.AddListener(() => orchestrator?.StartPractice());
-            }
-
-            if (retryButton != null)
-            {
-                retryButton.onClick.RemoveAllListeners();
-                retryButton.onClick.AddListener(() => orchestrator?.RetryListening());
+                listenButton.onClick.AddListener(() => orchestrator?.ToggleRequestSpeechCapture());
             }
 
             if (confirmButton != null)
@@ -174,7 +261,19 @@ namespace SceneTalkVR.Runtime
             if (dialogueListenButton != null)
             {
                 dialogueListenButton.onClick.RemoveAllListeners();
-                dialogueListenButton.onClick.AddListener(() => orchestrator?.StartDialogueTurn());
+                dialogueListenButton.onClick.AddListener(() => orchestrator?.ToggleDialogueSpeechCapture());
+            }
+
+            if (continueButton != null)
+            {
+                continueButton.onClick.RemoveAllListeners();
+                continueButton.onClick.AddListener(() => orchestrator?.ContinueAfterFeedback());
+            }
+
+            if (tryAgainButton != null)
+            {
+                tryAgainButton.onClick.RemoveAllListeners();
+                tryAgainButton.onClick.AddListener(() => orchestrator?.TryAgainAfterFeedback());
             }
 
             if (exitButton != null)
@@ -194,19 +293,67 @@ namespace SceneTalkVR.Runtime
             var state = orchestrator.CurrentState;
             var dialogueActive = orchestrator.IsDialogueActive;
             var showMain = state == SceneTalkState.Idle || state == SceneTalkState.Finished;
-            var showRequest = !dialogueActive && (state == SceneTalkState.Listening || state == SceneTalkState.Error);
+            var showSettings = state == SceneTalkState.Settings;
+            var showRequest = !dialogueActive
+                && (state == SceneTalkState.Listening
+                    || state == SceneTalkState.Recording
+                    || state == SceneTalkState.Transcribing
+                    || state == SceneTalkState.Error);
             var showLoading = !dialogueActive && (state == SceneTalkState.Processing || state == SceneTalkState.SceneReady);
-            var showDialogue = dialogueActive || state == SceneTalkState.AvatarSpeaking;
+            var showDialogue = dialogueActive
+                || state == SceneTalkState.AvatarSpeaking
+                || state == SceneTalkState.CorrectionFeedbackSpeaking
+                || state == SceneTalkState.DialogueSpeaking
+                || state == SceneTalkState.TurnReview;
 
             SetActive(mainMenuPanel, showMain);
+            SetActive(settingsPanel, showSettings);
             SetActive(requestPanel, showRequest);
             SetActive(loadingPanel, showLoading);
             SetActive(subtitlePanel, showDialogue);
             SetActive(exitButtonObject, !showMain);
 
+            RefreshSettingsPanel(showSettings);
             RefreshRequestPanel(showRequest);
             RefreshLoadingPanel(showLoading);
             RefreshSubtitlePanel(showDialogue);
+        }
+
+        private void RefreshSettingsPanel(bool isVisible)
+        {
+            if (!isVisible)
+            {
+                return;
+            }
+
+            var settings = SceneTalkUserSettingsStore.Current;
+
+            SetActive(settingsGeneralGroup, true);
+
+            if (settingsTitleText != null)
+            {
+                settingsTitleText.text = "Settings";
+            }
+
+            if (settingsPageText != null)
+            {
+                settingsPageText.text = "Display";
+            }
+
+            if (fontValueText != null)
+            {
+                fontValueText.text = $"{Mathf.RoundToInt(settings.fontScale * 100f)}%";
+            }
+
+            if (uiValueText != null)
+            {
+                uiValueText.text = $"{Mathf.RoundToInt(settings.uiScale * 100f)}%";
+            }
+
+            if (subtitleValueText != null)
+            {
+                subtitleValueText.text = settings.hideDialogueSubtitles ? "Hidden" : "Shown";
+            }
         }
 
         private void RefreshRequestPanel(bool isVisible)
@@ -217,6 +364,8 @@ namespace SceneTalkVR.Runtime
             }
 
             var isRunning = orchestrator.IsTurnRunning;
+            var isRecording = orchestrator.IsSpeechRecording;
+            var isTranscribing = orchestrator.CurrentState == SceneTalkState.Transcribing;
             var hasTranscript = !string.IsNullOrWhiteSpace(orchestrator.LastTranscript);
             var hasError = !string.IsNullOrWhiteSpace(orchestrator.LastError);
 
@@ -227,7 +376,22 @@ namespace SceneTalkVR.Runtime
 
             if (requestStatusText != null)
             {
-                requestStatusText.text = isRunning ? "Listening to your voice..." : "Review the transcript, then confirm.";
+                if (isRecording)
+                {
+                    requestStatusText.text = "Recording your request...";
+                }
+                else if (isTranscribing)
+                {
+                    requestStatusText.text = "Transcribing your voice...";
+                }
+                else if (hasTranscript)
+                {
+                    requestStatusText.text = "Review the transcript, then confirm.";
+                }
+                else
+                {
+                    requestStatusText.text = "Press Listen or hold a trigger to record.";
+                }
             }
 
             if (requestTranscriptText != null)
@@ -242,8 +406,8 @@ namespace SceneTalkVR.Runtime
                 requestErrorText.text = hasError ? orchestrator.LastError : string.Empty;
             }
 
-            SetInteractable(listenButton, !isRunning);
-            SetInteractable(retryButton, !isRunning);
+            SetButtonLabel(listenButton, ResolveRequestListenButtonLabel(isRecording, hasTranscript, hasError));
+            SetInteractable(listenButton, isRecording || !isRunning);
             SetInteractable(confirmButton, !isRunning && hasTranscript);
         }
 
@@ -272,15 +436,41 @@ namespace SceneTalkVR.Runtime
             var reply = orchestrator.LastScenePayload == null || string.IsNullOrWhiteSpace(orchestrator.LastScenePayload.dialogueReply)
                 ? "-"
                 : orchestrator.LastScenePayload.dialogueReply;
+            var hideSubtitles = SceneTalkUserSettingsStore.Current.hideDialogueSubtitles;
+            ApplySubtitleLayout(hideSubtitles);
+
+            SetActive(subtitleTextContainer, !hideSubtitles);
 
             if (playerSubtitleText != null)
             {
+                SetActive(playerSubtitleText.gameObject, !hideSubtitles);
                 playerSubtitleText.text = $"You: {transcript}";
             }
 
             if (avatarSubtitleText != null)
             {
+                SetActive(avatarSubtitleText.gameObject, !hideSubtitles);
                 avatarSubtitleText.text = $"Avatar: {reply}";
+            }
+
+            if (experimentDebugText != null)
+            {
+                var showDebug = orchestrator.ShouldShowExperimentDebug;
+                SetActive(experimentDebugText.gameObject, showDebug);
+                experimentDebugText.text = showDebug ? orchestrator.ExperimentDebugLabel : string.Empty;
+            }
+
+            if (correctionStatusText != null)
+            {
+                var status = orchestrator.LastCorrectionStatus;
+                correctionStatusText.text = string.IsNullOrWhiteSpace(status) ? string.Empty : status;
+            }
+
+            if (correctionFeedbackText != null)
+            {
+                var feedbackText = ResolveCorrectionFeedbackText(hideSubtitles);
+                SetActive(correctionFeedbackText.gameObject, !string.IsNullOrWhiteSpace(feedbackText));
+                correctionFeedbackText.text = feedbackText;
             }
 
             if (dialogueStatusText != null)
@@ -288,11 +478,128 @@ namespace SceneTalkVR.Runtime
                 dialogueStatusText.text = ResolveDialogueStatusText();
             }
 
+            var showReviewActions = orchestrator.IsAwaitingTurnReviewAction
+                && !orchestrator.IsSpeechRecording
+                && !orchestrator.IsTurnRunning;
+
+            SetActive(continueButton == null ? null : continueButton.gameObject, showReviewActions);
+            SetActive(tryAgainButton == null ? null : tryAgainButton.gameObject, showReviewActions);
+            SetInteractable(continueButton, showReviewActions);
+            SetInteractable(tryAgainButton, showReviewActions);
+
             if (dialogueListenButton != null)
             {
-                SetButtonLabel(dialogueListenButton, orchestrator.CurrentState == SceneTalkState.Error ? "Retry" : "Speak");
-                SetInteractable(dialogueListenButton, !orchestrator.IsTurnRunning);
+                var isRecording = orchestrator.IsSpeechRecording;
+                SetActive(dialogueListenButton.gameObject, !showReviewActions);
+                SetButtonLabel(dialogueListenButton, isRecording ? "End" : "Speak");
+                SetInteractable(dialogueListenButton, isRecording || !orchestrator.IsTurnRunning);
             }
+        }
+
+        private void ApplySubtitleLayout(bool hideSubtitles)
+        {
+            if (subtitlePanelRect != null)
+            {
+                subtitlePanelRect.anchoredPosition = hideSubtitles
+                    ? new Vector2(0f, -202f)
+                    : new Vector2(0f, -145f);
+                subtitlePanelRect.sizeDelta = hideSubtitles
+                    ? new Vector2(760f, 132f)
+                    : new Vector2(840f, 230f);
+            }
+
+            if (subtitleTextContainerRect != null)
+            {
+                subtitleTextContainerRect.anchoredPosition = new Vector2(0f, 44f);
+                subtitleTextContainerRect.sizeDelta = new Vector2(760f, 88f);
+            }
+
+            if (experimentDebugText != null)
+            {
+                var debugRect = experimentDebugText.GetComponent<RectTransform>();
+                debugRect.anchoredPosition = hideSubtitles
+                    ? new Vector2(0f, 46f)
+                    : new Vector2(0f, 96f);
+                debugRect.sizeDelta = hideSubtitles
+                    ? new Vector2(700f, 24f)
+                    : new Vector2(780f, 24f);
+            }
+
+            if (correctionFeedbackText != null)
+            {
+                var feedbackRect = correctionFeedbackText.GetComponent<RectTransform>();
+                feedbackRect.anchoredPosition = hideSubtitles
+                    ? new Vector2(0f, 12f)
+                    : new Vector2(0f, -29f);
+                feedbackRect.sizeDelta = hideSubtitles
+                    ? new Vector2(700f, 28f)
+                    : new Vector2(780f, 30f);
+            }
+
+            if (correctionStatusText != null)
+            {
+                var correctionRect = correctionStatusText.GetComponent<RectTransform>();
+                correctionRect.anchoredPosition = hideSubtitles
+                    ? new Vector2(-170f, -20f)
+                    : new Vector2(-205f, -70f);
+                correctionRect.sizeDelta = hideSubtitles
+                    ? new Vector2(360f, 28f)
+                    : new Vector2(400f, 30f);
+            }
+
+            if (dialogueStatusText != null)
+            {
+                var statusRect = dialogueStatusText.GetComponent<RectTransform>();
+                statusRect.anchoredPosition = hideSubtitles
+                    ? new Vector2(-170f, -44f)
+                    : new Vector2(-205f, -94f);
+                statusRect.sizeDelta = hideSubtitles
+                    ? new Vector2(360f, 28f)
+                    : new Vector2(400f, 28f);
+            }
+
+            if (dialogueListenButton != null)
+            {
+                var buttonRect = dialogueListenButton.GetComponent<RectTransform>();
+                buttonRect.anchoredPosition = hideSubtitles
+                    ? new Vector2(310f, -32f)
+                    : new Vector2(355f, -84f);
+                buttonRect.sizeDelta = hideSubtitles
+                    ? new Vector2(110f, 38f)
+                    : new Vector2(110f, 40f);
+            }
+
+            if (continueButton != null)
+            {
+                var buttonRect = continueButton.GetComponent<RectTransform>();
+                buttonRect.anchoredPosition = hideSubtitles
+                    ? new Vector2(190f, -32f)
+                    : new Vector2(225f, -84f);
+                buttonRect.sizeDelta = hideSubtitles
+                    ? new Vector2(110f, 38f)
+                    : new Vector2(110f, 40f);
+            }
+
+            if (tryAgainButton != null)
+            {
+                var buttonRect = tryAgainButton.GetComponent<RectTransform>();
+                buttonRect.anchoredPosition = hideSubtitles
+                    ? new Vector2(70f, -32f)
+                    : new Vector2(95f, -84f);
+                buttonRect.sizeDelta = hideSubtitles
+                    ? new Vector2(110f, 38f)
+                    : new Vector2(110f, 40f);
+            }
+        }
+
+        private static string ResolveRequestListenButtonLabel(bool isRecording, bool hasTranscript, bool hasError)
+        {
+            if (isRecording)
+            {
+                return "End";
+            }
+
+            return hasTranscript || hasError ? "Retry" : "Listen";
         }
 
         private string ResolveDialogueStatusText()
@@ -309,14 +616,29 @@ namespace SceneTalkVR.Runtime
 
             if (orchestrator.IsTurnRunning)
             {
-                if (orchestrator.CurrentState == SceneTalkState.Listening)
+                if (orchestrator.CurrentState == SceneTalkState.Recording)
                 {
-                    return "Listening...";
+                    return "Recording...";
+                }
+
+                if (orchestrator.CurrentState == SceneTalkState.Transcribing)
+                {
+                    return "Transcribing...";
                 }
 
                 if (orchestrator.CurrentState == SceneTalkState.Processing)
                 {
                     return "Thinking...";
+                }
+
+                if (orchestrator.CurrentState == SceneTalkState.CorrectionFeedbackSpeaking)
+                {
+                    return "Playing feedback...";
+                }
+
+                if (orchestrator.CurrentState == SceneTalkState.DialogueSpeaking)
+                {
+                    return "Avatar speaking...";
                 }
 
                 if (orchestrator.CurrentState == SceneTalkState.AvatarSpeaking)
@@ -325,7 +647,31 @@ namespace SceneTalkVR.Runtime
                 }
             }
 
+            if (orchestrator.CurrentState == SceneTalkState.TurnReview
+                && orchestrator.IsAwaitingTurnReviewAction)
+            {
+                return "Choose how to continue.";
+            }
+
             return "Ready for your next line.";
+        }
+
+        private string ResolveCorrectionFeedbackText(bool hideSubtitles)
+        {
+            if (orchestrator == null
+                || !orchestrator.LastCorrectionHasFeedback
+                || hideSubtitles)
+            {
+                return string.Empty;
+            }
+
+            var feedbackText = orchestrator.LastCorrectionDisplayText;
+            if (string.IsNullOrWhiteSpace(feedbackText))
+            {
+                return string.Empty;
+            }
+
+            return $"Correction: {feedbackText}";
         }
 
         private void Subscribe()
@@ -353,6 +699,51 @@ namespace SceneTalkVR.Runtime
         private void OnStateChanged(SceneTalkState state)
         {
             Refresh();
+        }
+
+        private void OnUserSettingsChanged(SceneTalkUserSettings settings)
+        {
+            ApplyUserSettings(settings);
+            Refresh();
+        }
+
+        private void OpenSettings()
+        {
+            orchestrator?.OpenSettings();
+        }
+
+        private void CaptureBaseFontSizes(Transform root)
+        {
+            if (root == null)
+            {
+                return;
+            }
+
+            foreach (var text in root.GetComponentsInChildren<Text>(true))
+            {
+                if (text != null && !baseFontSizes.ContainsKey(text))
+                {
+                    baseFontSizes.Add(text, text.fontSize);
+                }
+            }
+        }
+
+        private void ApplyUserSettings(SceneTalkUserSettings settings)
+        {
+            if (settings == null)
+            {
+                return;
+            }
+
+            foreach (var pair in baseFontSizes)
+            {
+                if (pair.Key != null)
+                {
+                    pair.Key.fontSize = Mathf.Max(1, Mathf.RoundToInt(pair.Value * settings.fontScale));
+                }
+            }
+
+            interactionBootstrap?.ApplyUserSettings(settings);
         }
 
         private void QuitApplication()

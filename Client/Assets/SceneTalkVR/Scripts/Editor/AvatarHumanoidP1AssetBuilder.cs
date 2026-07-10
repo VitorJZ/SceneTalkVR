@@ -28,6 +28,12 @@ namespace SceneTalkVR.EditorTools
         private const string AnimationFolder = AvatarRoot + "/Animations";
         private const string CommonAnimationFolder = AnimationFolder + "/Common";
         private const string CommonHumanoidControllerPath = CommonAnimationFolder + "/AvatarCommonHumanoid.controller";
+        private const string OverrideControllerFolder = CommonAnimationFolder + "/Overrides";
+        private const string BaristaOverrideControllerPath = OverrideControllerFolder + "/barista_humanoid_v1.overrideController";
+        private const string PoliceOverrideControllerPath = OverrideControllerFolder + "/police_humanoid_v1.overrideController";
+        private const string MaleBaristaOverrideControllerPath = OverrideControllerFolder + "/barista_male_humanoid_v1.overrideController";
+        private const string FemaleTeacherOverrideControllerPath = OverrideControllerFolder + "/teacher_female_humanoid_v1.overrideController";
+        private const string FemalePoliceOverrideControllerPath = OverrideControllerFolder + "/police_female_humanoid_v1.overrideController";
         private const string TalkGestureMaskPath = CommonAnimationFolder + "/AvatarTalkGesture.mask";
         private const string HumanoidPrefabFolder = AvatarRoot + "/Prefabs/Humanoid";
         private const string PropPrefabFolder = AvatarRoot + "/Prefabs/Props";
@@ -66,9 +72,9 @@ namespace SceneTalkVR.EditorTools
             ConfigureHumanoidImporter(TeacherModelPath);
             ConfigureHumanoidImporter(BaristaModelPath);
             ConfigureHumanoidImporter(PoliceModelPath);
-            ConfigureHumanoidImporter(MaleBaristaModelPath, importAnimation: false);
-            ConfigureHumanoidImporter(FemaleTeacherModelPath, importAnimation: false);
-            ConfigureHumanoidImporter(FemalePoliceModelPath, importAnimation: false);
+            ConfigureHumanoidImporter(MaleBaristaModelPath);
+            ConfigureHumanoidImporter(FemaleTeacherModelPath);
+            ConfigureHumanoidImporter(FemalePoliceModelPath);
             ConfigureTalkingAnimationImporter(TalkingAnimationModelPath);
 
             var teacherSourceModel = AssetDatabase.LoadAssetAtPath<GameObject>(TeacherModelPath);
@@ -114,6 +120,37 @@ namespace SceneTalkVR.EditorTools
             }
 
             var controller = LoadOrCreateCommonHumanoidAnimatorController();
+            var baristaController = CreateOrUpdateCharacterOverrideController(
+                BaristaOverrideControllerPath,
+                controller,
+                BaristaModelPath);
+            var policeController = CreateOrUpdateCharacterOverrideController(
+                PoliceOverrideControllerPath,
+                controller,
+                PoliceModelPath);
+            var maleBaristaController = CreateOrUpdateCharacterOverrideController(
+                MaleBaristaOverrideControllerPath,
+                controller,
+                MaleBaristaModelPath);
+            var femaleTeacherController = CreateOrUpdateCharacterOverrideController(
+                FemaleTeacherOverrideControllerPath,
+                controller,
+                FemaleTeacherModelPath);
+            var femalePoliceController = CreateOrUpdateCharacterOverrideController(
+                FemalePoliceOverrideControllerPath,
+                controller,
+                FemalePoliceModelPath);
+
+            if (baristaController == null
+                || policeController == null
+                || maleBaristaController == null
+                || femaleTeacherController == null
+                || femalePoliceController == null)
+            {
+                Debug.LogError("[SceneTalkVR] P1 humanoid build stopped because a character-native animation override could not be created.");
+                return;
+            }
+
             var teacherPrefab = CreateHumanoidPrefab(
                 teacherSourceModel,
                 "teacher_humanoid_v1",
@@ -129,7 +166,7 @@ namespace SceneTalkVR.EditorTools
                 BaristaPrefabPath,
                 BaristaTargetHeightMeters,
                 180f,
-                controller);
+                baristaController);
             var policePrefab = CreateHumanoidPrefab(
                 policeSourceModel,
                 "police_humanoid_v1",
@@ -137,7 +174,7 @@ namespace SceneTalkVR.EditorTools
                 PolicePrefabPath,
                 PoliceTargetHeightMeters,
                 180f,
-                controller);
+                policeController);
             var maleBaristaPrefab = CreateHumanoidPrefab(
                 maleBaristaSourceModel,
                 "barista_male_humanoid_v1",
@@ -145,7 +182,7 @@ namespace SceneTalkVR.EditorTools
                 MaleBaristaPrefabPath,
                 TargetHeightMeters,
                 180f,
-                controller);
+                maleBaristaController);
             var femaleTeacherPrefab = CreateHumanoidPrefab(
                 femaleTeacherSourceModel,
                 "teacher_female_humanoid_v1",
@@ -153,7 +190,7 @@ namespace SceneTalkVR.EditorTools
                 FemaleTeacherPrefabPath,
                 FemaleTeacherTargetHeightMeters,
                 180f,
-                controller);
+                femaleTeacherController);
             var femalePolicePrefab = CreateHumanoidPrefab(
                 femalePoliceSourceModel,
                 "police_female_humanoid_v1",
@@ -161,7 +198,7 @@ namespace SceneTalkVR.EditorTools
                 FemalePolicePrefabPath,
                 FemalePoliceTargetHeightMeters,
                 180f,
-                controller);
+                femalePoliceController);
             var bookProp = CreateBookPropPrefab();
             var frappeProp = CreateFrappePropPrefab();
             UpsertCatalogEntries(teacherPrefab, baristaPrefab, policePrefab, maleBaristaPrefab, femaleTeacherPrefab, femalePolicePrefab);
@@ -173,81 +210,13 @@ namespace SceneTalkVR.EditorTools
             Debug.Log($"[SceneTalkVR] Built P1 humanoid avatar prefabs and catalog entries: {TeacherHumanoidKey}, {BaristaHumanoidKey}, {PoliceHumanoidKey}, {MaleBaristaHumanoidKey}, {FemaleTeacherHumanoidKey}, {FemalePoliceHumanoidKey}.");
         }
 
-        [MenuItem("SceneTalkVR/Avatar/P1 Build Teacher Humanoid", false, 42)]
-        public static void BuildTeacherHumanoid()
-        {
-            BuildHumanoidAvatars();
-        }
-
-        [MenuItem("SceneTalkVR/Avatar/P1 Build Gender Humanoids", false, 43)]
-        public static void BuildGenderHumanoidAvatars()
-        {
-            EnsureFolders();
-            ConfigureHumanoidImporter(MaleBaristaModelPath, importAnimation: false);
-            ConfigureHumanoidImporter(FemaleTeacherModelPath, importAnimation: false);
-            ConfigureHumanoidImporter(FemalePoliceModelPath, importAnimation: false);
-
-            var maleBaristaSourceModel = AssetDatabase.LoadAssetAtPath<GameObject>(MaleBaristaModelPath);
-            if (maleBaristaSourceModel == null)
-            {
-                Debug.LogError($"[SceneTalkVR] P1 male barista humanoid source model not found at {MaleBaristaModelPath}.");
-                return;
-            }
-
-            var femaleTeacherSourceModel = AssetDatabase.LoadAssetAtPath<GameObject>(FemaleTeacherModelPath);
-            if (femaleTeacherSourceModel == null)
-            {
-                Debug.LogError($"[SceneTalkVR] P1 female teacher humanoid source model not found at {FemaleTeacherModelPath}.");
-                return;
-            }
-
-            var femalePoliceSourceModel = AssetDatabase.LoadAssetAtPath<GameObject>(FemalePoliceModelPath);
-            if (femalePoliceSourceModel == null)
-            {
-                Debug.LogError($"[SceneTalkVR] P1 female police humanoid source model not found at {FemalePoliceModelPath}.");
-                return;
-            }
-
-            var controller = LoadOrCreateCommonHumanoidAnimatorController();
-            var maleBaristaPrefab = CreateHumanoidPrefab(
-                maleBaristaSourceModel,
-                "barista_male_humanoid_v1",
-                "QuaterniusCasualCharacter",
-                MaleBaristaPrefabPath,
-                TargetHeightMeters,
-                180f,
-                controller);
-            var femaleTeacherPrefab = CreateHumanoidPrefab(
-                femaleTeacherSourceModel,
-                "teacher_female_humanoid_v1",
-                "QuaterniusSuit",
-                FemaleTeacherPrefabPath,
-                FemaleTeacherTargetHeightMeters,
-                180f,
-                controller);
-            var femalePolicePrefab = CreateHumanoidPrefab(
-                femalePoliceSourceModel,
-                "police_female_humanoid_v1",
-                "QuaterniusSoldier",
-                FemalePolicePrefabPath,
-                FemalePoliceTargetHeightMeters,
-                180f,
-                controller);
-
-            UpsertGenderCatalogEntries(maleBaristaPrefab, femaleTeacherPrefab, femalePolicePrefab);
-
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
-            Selection.activeObject = femalePolicePrefab;
-            Debug.Log($"[SceneTalkVR] Built gender humanoid avatar prefabs and catalog entries: {MaleBaristaHumanoidKey}, {FemaleTeacherHumanoidKey}, {FemalePoliceHumanoidKey}.");
-        }
-
         private static void EnsureFolders()
         {
             EnsureFolder("Assets/SceneTalkVR", "Avatar");
             EnsureFolder(AvatarRoot, "Models");
             EnsureFolder(AvatarRoot, "Animations");
             EnsureFolder(AnimationFolder, "Common");
+            EnsureFolder(CommonAnimationFolder, "Overrides");
             EnsureFolder(AvatarRoot + "/Models", "Humanoid");
             EnsureFolder(AvatarRoot + "/Models/Humanoid", "QuaterniusBusinessMan");
             EnsureFolder(AvatarRoot + "/Models/Humanoid", "QuaterniusAnimatedWoman");
@@ -585,8 +554,94 @@ namespace SceneTalkVR.EditorTools
 
         private static AnimatorController LoadOrCreateCommonHumanoidAnimatorController()
         {
-            return AssetDatabase.LoadAssetAtPath<AnimatorController>(CommonHumanoidControllerPath)
+            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(CommonHumanoidControllerPath)
                 ?? CreateCommonHumanoidAnimatorController();
+            EnableBaseLayerIk(controller);
+            return controller;
+        }
+
+        private static void EnableBaseLayerIk(AnimatorController controller)
+        {
+            if (controller == null || controller.layers == null || controller.layers.Length == 0)
+            {
+                return;
+            }
+
+            var layers = controller.layers;
+            var baseLayer = layers[0];
+            if (baseLayer.iKPass)
+            {
+                return;
+            }
+
+            baseLayer.iKPass = true;
+            layers[0] = baseLayer;
+            controller.layers = layers;
+            EditorUtility.SetDirty(controller);
+        }
+
+        private static AnimatorOverrideController CreateOrUpdateCharacterOverrideController(
+            string assetPath,
+            RuntimeAnimatorController baseController,
+            string characterModelPath)
+        {
+            var baseIdle = LoadClip(TeacherModelPath, "CharacterArmature|Idle_Neutral")
+                ?? LoadClip(TeacherModelPath, "CharacterArmature|Idle");
+            var baseThinking = LoadClip(TeacherModelPath, "CharacterArmature|Interact") ?? baseIdle;
+            var baseSpeaking = LoadClip(TeacherModelPath, "CharacterArmature|Wave") ?? baseThinking;
+            var characterIdle = LoadClip(characterModelPath, "CharacterArmature|Idle_Neutral")
+                ?? LoadClip(characterModelPath, "CharacterArmature|Idle");
+            var characterThinking = LoadClip(characterModelPath, "CharacterArmature|Interact") ?? characterIdle;
+            var characterSpeaking = LoadClip(characterModelPath, "CharacterArmature|Wave") ?? characterThinking;
+
+            if (baseController == null
+                || baseIdle == null
+                || baseThinking == null
+                || baseSpeaking == null
+                || characterIdle == null
+                || characterThinking == null
+                || characterSpeaking == null)
+            {
+                Debug.LogError($"[SceneTalkVR] Missing native animation clips for '{characterModelPath}'.");
+                return null;
+            }
+
+            var overrideController = AssetDatabase.LoadAssetAtPath<AnimatorOverrideController>(assetPath);
+            if (overrideController == null)
+            {
+                overrideController = new AnimatorOverrideController(baseController);
+                AssetDatabase.CreateAsset(overrideController, assetPath);
+            }
+            else
+            {
+                overrideController.runtimeAnimatorController = baseController;
+            }
+
+            var overrides = new List<KeyValuePair<AnimationClip, AnimationClip>>();
+            overrideController.GetOverrides(overrides);
+            SetClipOverride(overrides, baseIdle, characterIdle);
+            SetClipOverride(overrides, baseThinking, characterThinking);
+            SetClipOverride(overrides, baseSpeaking, characterSpeaking);
+            overrideController.ApplyOverrides(overrides);
+            EditorUtility.SetDirty(overrideController);
+            return overrideController;
+        }
+
+        private static void SetClipOverride(
+            List<KeyValuePair<AnimationClip, AnimationClip>> overrides,
+            AnimationClip source,
+            AnimationClip replacement)
+        {
+            for (var i = 0; i < overrides.Count; i++)
+            {
+                if (overrides[i].Key == source)
+                {
+                    overrides[i] = new KeyValuePair<AnimationClip, AnimationClip>(source, replacement);
+                    return;
+                }
+            }
+
+            Debug.LogWarning($"[SceneTalkVR] Animator override source clip '{source.name}' was not found in the base controller.");
         }
 
         private static void AddTalkGestureLayer(AnimatorController controller, AnimationClip talkClip)
@@ -899,41 +954,6 @@ namespace SceneTalkVR.EditorTools
             InsertBeforePlaceholder(presets, CreateBaristaEntry(baristaPrefab), BaristaPlaceholderKey);
             InsertBeforePlaceholder(presets, CreateMaleBaristaEntry(maleBaristaPrefab), BaristaPlaceholderKey);
             InsertBeforePlaceholder(presets, CreatePoliceEntry(policePrefab), PolicePlaceholderKey);
-            InsertBeforePlaceholder(presets, CreateFemalePoliceEntry(femalePolicePrefab), PolicePlaceholderKey);
-            catalog.presets = presets.ToArray();
-            EditorUtility.SetDirty(catalog);
-        }
-
-        private static void UpsertGenderCatalogEntries(
-            GameObject maleBaristaPrefab,
-            GameObject femaleTeacherPrefab,
-            GameObject femalePolicePrefab)
-        {
-            if (maleBaristaPrefab == null || femaleTeacherPrefab == null || femalePolicePrefab == null)
-            {
-                Debug.LogError("[SceneTalkVR] P1 gender humanoid prefab creation failed.");
-                return;
-            }
-
-            var catalog = AssetDatabase.LoadAssetAtPath<AvatarCatalog>(CatalogPath);
-            if (catalog == null)
-            {
-                catalog = ScriptableObject.CreateInstance<AvatarCatalog>();
-                AssetDatabase.CreateAsset(catalog, CatalogPath);
-                catalog.defaultAvatarKey = TeacherPlaceholderKey;
-            }
-
-            var presets = catalog.presets == null
-                ? new List<AvatarPresetEntry>()
-                : new List<AvatarPresetEntry>(catalog.presets);
-
-            presets.RemoveAll(entry => entry != null
-                && (entry.key == MaleBaristaHumanoidKey
-                    || entry.key == FemaleTeacherHumanoidKey
-                    || entry.key == FemalePoliceHumanoidKey));
-
-            InsertBeforePlaceholder(presets, CreateFemaleTeacherEntry(femaleTeacherPrefab), TeacherPlaceholderKey);
-            InsertBeforePlaceholder(presets, CreateMaleBaristaEntry(maleBaristaPrefab), BaristaPlaceholderKey);
             InsertBeforePlaceholder(presets, CreateFemalePoliceEntry(femalePolicePrefab), PolicePlaceholderKey);
             catalog.presets = presets.ToArray();
             EditorUtility.SetDirty(catalog);

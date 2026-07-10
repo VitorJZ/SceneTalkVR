@@ -7,13 +7,27 @@ using UnityEngine.UI;
 using UnityEngine.XR;
 
 #if ENABLE_INPUT_SYSTEM
+using InputAction = UnityEngine.InputSystem.InputAction;
+using InputActionProperty = UnityEngine.InputSystem.InputActionProperty;
+using InputActionSetupExtensions = UnityEngine.InputSystem.InputActionSetupExtensions;
 using UnityEngine.InputSystem.UI;
+using XRTrackedPoseDriver = UnityEngine.InputSystem.XR.TrackedPoseDriver;
 #endif
 
 namespace SceneTalkVR.Runtime
 {
     public sealed class SceneTalkInteractionBootstrap : MonoBehaviour
     {
+        private const float DefaultCanvasScale = 0.005f;
+
+        private enum ControllerTriggerOwner
+        {
+            None,
+            Left,
+            Right,
+            Unknown
+        }
+
         [SerializeField] private SceneTalkOrchestrator orchestrator;
         [SerializeField] private Camera interactionCamera;
         [SerializeField] private Canvas worldCanvas;
@@ -54,10 +68,12 @@ namespace SceneTalkVR.Runtime
         private bool primaryShortcutHeld;
         private bool finishShortcutHeld;
         private bool recenterShortcutHeld;
-        private bool leftTriggerRayClickHeld;
-        private bool rightTriggerRayClickHeld;
-        private bool unknownTriggerRayClickHeld;
+        private bool leftTriggerHeld;
+        private bool rightTriggerHeld;
+        private bool unknownTriggerHeld;
+        private ControllerTriggerOwner activeSpeechTriggerOwner = ControllerTriggerOwner.None;
         private GameObject hoveredRayTarget;
+        private PointerEventData hoveredRayPointerEventData;
 
         private void Awake()
         {
@@ -138,6 +154,23 @@ namespace SceneTalkVR.Runtime
 #endif
         }
 
+        public void ApplyUserSettings(SceneTalkUserSettings settings)
+        {
+            if (settings == null)
+            {
+                return;
+            }
+
+            worldCanvas = ResolveCanvas(worldCanvas);
+            if (worldCanvas == null)
+            {
+                return;
+            }
+
+            canvasScale = DefaultCanvasScale * settings.uiScale;
+            worldCanvas.transform.localScale = Vector3.one * canvasScale;
+        }
+
         private Camera ResolveCamera(Camera preferredCamera)
         {
             if (preferredCamera != null)
@@ -194,6 +227,7 @@ namespace SceneTalkVR.Runtime
             }
 
             cameraToConfigure.tag = "MainCamera";
+            EnsureTrackedPoseDriver(cameraToConfigure);
 
             if (IsTrackedCamera(cameraToConfigure))
             {
@@ -528,25 +562,25 @@ namespace SceneTalkVR.Runtime
                     nextHoverEventData = pointerEventData;
                 }
 
-                if (ConsumeControllerTriggerPress(device, ReadTriggerPressed(device)) && clickTarget != null)
-                {
-                    DispatchRayClick(clickTarget, pointerEventData);
-                }
+                HandleControllerTrigger(device, ReadTriggerPressed(device), clickTarget, pointerEventData);
             }
 
             if (!hasLeftController)
             {
-                leftTriggerRayClickHeld = false;
+                ReleaseMissingControllerTrigger(ControllerTriggerOwner.Left);
+                leftTriggerHeld = false;
             }
 
             if (!hasRightController)
             {
-                rightTriggerRayClickHeld = false;
+                ReleaseMissingControllerTrigger(ControllerTriggerOwner.Right);
+                rightTriggerHeld = false;
             }
 
             if (!hasUnknownController)
             {
-                unknownTriggerRayClickHeld = false;
+                ReleaseMissingControllerTrigger(ControllerTriggerOwner.Unknown);
+                unknownTriggerHeld = false;
             }
 
             UpdateHoveredRayTarget(nextHoverTarget, nextHoverEventData);
@@ -724,6 +758,11 @@ namespace SceneTalkVR.Runtime
         {
             if (hoveredRayTarget == nextTarget)
             {
+                if (pointerEventData != null)
+                {
+                    hoveredRayPointerEventData = pointerEventData;
+                }
+
                 return;
             }
 
@@ -734,6 +773,7 @@ namespace SceneTalkVR.Runtime
             }
 
             hoveredRayTarget = nextTarget;
+            hoveredRayPointerEventData = nextTarget == null ? null : eventData;
 
             if (hoveredRayTarget != null && eventData != null)
             {
@@ -1095,19 +1135,110 @@ namespace SceneTalkVR.Runtime
                 && triggerValue >= triggerPressThreshold;
         }
 
-        private bool ConsumeControllerTriggerPress(InputDevice device, bool isPressed)
+        private void HandleControllerTrigger(
+            InputDevice device,
+            bool isPressed,
+            GameObject clickTarget,
+            PointerEventData pointerEventData)
+        {
+            var owner = ResolveTriggerOwner(device);
+            var wasPressed = GetControllerTriggerHeld(owner);
+
+            if (isPressed && !wasPressed)
+            {
+                SetControllerTriggerHeld(owner, true);
+
+                if (clickTarget != null)
+                {
+                    DispatchRayClick(clickTarget, pointerEventData);
+                    return;
+                }
+
+                TryBeginSpeechTriggerCapture(owner);
+                return;
+            }
+
+            if (!isPressed && wasPressed)
+            {
+                SetControllerTriggerHeld(owner, false);
+                TryEndSpeechTriggerCapture(owner);
+            }
+        }
+
+        private ControllerTriggerOwner ResolveTriggerOwner(InputDevice device)
         {
             if (IsLeftController(device))
             {
-                return ConsumePress(isPressed, ref leftTriggerRayClickHeld);
+                return ControllerTriggerOwner.Left;
             }
 
             if (IsRightController(device))
             {
-                return ConsumePress(isPressed, ref rightTriggerRayClickHeld);
+                return ControllerTriggerOwner.Right;
             }
 
-            return ConsumePress(isPressed, ref unknownTriggerRayClickHeld);
+            return ControllerTriggerOwner.Unknown;
+        }
+
+        private bool GetControllerTriggerHeld(ControllerTriggerOwner owner)
+        {
+            return owner switch
+            {
+                ControllerTriggerOwner.Left => leftTriggerHeld,
+                ControllerTriggerOwner.Right => rightTriggerHeld,
+                ControllerTriggerOwner.Unknown => unknownTriggerHeld,
+                _ => false
+            };
+        }
+
+        private void SetControllerTriggerHeld(ControllerTriggerOwner owner, bool isHeld)
+        {
+            switch (owner)
+            {
+                case ControllerTriggerOwner.Left:
+                    leftTriggerHeld = isHeld;
+                    break;
+                case ControllerTriggerOwner.Right:
+                    rightTriggerHeld = isHeld;
+                    break;
+                case ControllerTriggerOwner.Unknown:
+                    unknownTriggerHeld = isHeld;
+                    break;
+            }
+        }
+
+        private void TryBeginSpeechTriggerCapture(ControllerTriggerOwner owner)
+        {
+            orchestrator = ResolveOrchestrator(orchestrator);
+            if (orchestrator == null || !orchestrator.CanUseControllerSpeechCapture())
+            {
+                return;
+            }
+
+            if (orchestrator.TryBeginControllerSpeechCapture())
+            {
+                activeSpeechTriggerOwner = owner;
+            }
+        }
+
+        private void TryEndSpeechTriggerCapture(ControllerTriggerOwner owner)
+        {
+            if (activeSpeechTriggerOwner != owner)
+            {
+                return;
+            }
+
+            orchestrator = ResolveOrchestrator(orchestrator);
+            orchestrator?.TryEndControllerSpeechCapture();
+            activeSpeechTriggerOwner = ControllerTriggerOwner.None;
+        }
+
+        private void ReleaseMissingControllerTrigger(ControllerTriggerOwner owner)
+        {
+            if (activeSpeechTriggerOwner == owner)
+            {
+                TryEndSpeechTriggerCapture(owner);
+            }
         }
 
         private static bool IsLeftController(InputDevice device)
@@ -1124,7 +1255,29 @@ namespace SceneTalkVR.Runtime
         {
             orchestrator = ResolveOrchestrator(orchestrator);
 
-            if (orchestrator == null || orchestrator.IsTurnRunning)
+            if (orchestrator == null)
+            {
+                return;
+            }
+
+            if (hoveredRayTarget != null)
+            {
+                DispatchRayClick(hoveredRayTarget, hoveredRayPointerEventData ?? CreateFallbackPointerEventData());
+                return;
+            }
+
+            if (orchestrator.CurrentState == SceneTalkState.Settings)
+            {
+                return;
+            }
+
+            if (orchestrator.IsSpeechRecording)
+            {
+                orchestrator.TryEndControllerSpeechCapture();
+                return;
+            }
+
+            if (orchestrator.IsTurnRunning)
             {
                 return;
             }
@@ -1206,6 +1359,89 @@ namespace SceneTalkVR.Runtime
 
             return false;
         }
+
+        private static void EnsureTrackedPoseDriver(Camera cameraToConfigure)
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (cameraToConfigure == null)
+            {
+                return;
+            }
+
+            var trackedPoseDriver = cameraToConfigure.GetComponent<XRTrackedPoseDriver>();
+            if (trackedPoseDriver != null)
+            {
+                ConfigureTrackedPoseDriver(trackedPoseDriver);
+                return;
+            }
+
+            if (IsTrackedCamera(cameraToConfigure))
+            {
+                return;
+            }
+
+            if (!ShouldAutoAddTrackedPoseDriver())
+            {
+                return;
+            }
+
+            trackedPoseDriver = cameraToConfigure.gameObject.AddComponent<XRTrackedPoseDriver>();
+            ConfigureTrackedPoseDriver(trackedPoseDriver);
+#endif
+        }
+
+#if ENABLE_INPUT_SYSTEM
+        private static bool ShouldAutoAddTrackedPoseDriver()
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            return true;
+#else
+            return false;
+#endif
+        }
+
+        private static void ConfigureTrackedPoseDriver(XRTrackedPoseDriver trackedPoseDriver)
+        {
+            if (trackedPoseDriver == null)
+            {
+                return;
+            }
+
+            trackedPoseDriver.trackingType = XRTrackedPoseDriver.TrackingType.RotationAndPosition;
+            trackedPoseDriver.updateType = XRTrackedPoseDriver.UpdateType.UpdateAndBeforeRender;
+            trackedPoseDriver.ignoreTrackingState = false;
+            trackedPoseDriver.positionInput = new InputActionProperty(CreatePoseAction(
+                "Position",
+                "<XRHMD>/centerEyePosition",
+                "Vector3",
+                "<HandheldARInputDevice>/devicePosition"));
+            trackedPoseDriver.rotationInput = new InputActionProperty(CreatePoseAction(
+                "Rotation",
+                "<XRHMD>/centerEyeRotation",
+                "Quaternion",
+                "<HandheldARInputDevice>/deviceRotation"));
+            trackedPoseDriver.trackingStateInput = new InputActionProperty(CreatePoseAction(
+                "Tracking State",
+                "<XRHMD>/trackingState",
+                "Integer",
+                null));
+        }
+
+        private static InputAction CreatePoseAction(
+            string actionName,
+            string binding,
+            string expectedControlType,
+            string fallbackBinding)
+        {
+            var action = new InputAction(actionName, binding: binding, expectedControlType: expectedControlType);
+            if (!string.IsNullOrEmpty(fallbackBinding))
+            {
+                InputActionSetupExtensions.AddBinding(action, fallbackBinding);
+            }
+
+            return action;
+        }
+#endif
 
         private static void NormalizeTrackedCameraOrigin(Transform cameraTransform, float cameraYOffset)
         {

@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace SceneTalkVR.AvatarSystem
 {
-    public sealed class AvatarPresentationVoiceModule : MonoBehaviour, ISceneTalkAvatarVoice, ISceneTalkAvatarReplyContext, ISceneTalkAvatarSessionReset
+    public sealed class AvatarPresentationVoiceModule : MonoBehaviour, ISceneTalkAvatarVoice, ISceneTalkAvatarReplyContext, ISceneTalkAvatarSessionReset, ISceneTalkCorrectionFeedbackProviderReceiver
     {
         private const string DefaultFollowUpSpeakingTrigger = "Talk";
 
@@ -18,6 +18,17 @@ namespace SceneTalkVR.AvatarSystem
         [SerializeField] private bool attachProps;
         [SerializeField] private AvatarPropPresenter propPresenter;
         [SerializeField] private AvatarPropCatalog propCatalog;
+
+        [Header("User Facing")]
+        [SerializeField] private Transform userFacingTarget;
+        [SerializeField] private bool faceUserOnSpawn = true;
+        [SerializeField] private float visualForwardYawOffset = 180f;
+        [SerializeField] private bool useHumanoidLookAt = true;
+        [SerializeField, Range(0f, 1f)] private float lookAtWeight = 0.9f;
+        [SerializeField, Range(0f, 1f)] private float lookAtBodyWeight = 0.05f;
+        [SerializeField, Range(0f, 1f)] private float lookAtHeadWeight = 0.65f;
+        [SerializeField, Range(0f, 1f)] private float lookAtEyesWeight = 0.15f;
+        [SerializeField, Range(0f, 1f)] private float lookAtClampWeight = 0.7f;
 
         [Header("Demo Voice")]
         [SerializeField] private AudioSource audioSource;
@@ -33,6 +44,10 @@ namespace SceneTalkVR.AvatarSystem
         [SerializeField] private int ttsSampleRate = 24000;
         [SerializeField] private bool fallbackToDemoVoiceOnGatewayError = true;
 
+        [Header("Correction Feedback")]
+        [SerializeField] private CorrectionFeedbackPresenter correctionFeedbackPresenter;
+        [SerializeField] private bool createCorrectionFeedbackPresenterIfMissing = true;
+
         [Header("Animation")]
         [SerializeField] private AvatarAnimationDriver animationDriver;
         [SerializeField] private RuntimeAnimatorController defaultAnimatorController;
@@ -46,8 +61,19 @@ namespace SceneTalkVR.AvatarSystem
         private string currentAvatarKey;
         private string currentAvatarGenderPresentation;
         private bool isOpeningReply = true;
+        private AvatarSpeechPlayer speechPlayer;
 
         private IAvatarInstanceLoader Loader => loaderModule as IAvatarInstanceLoader;
+        private AvatarSpeechPlayer SpeechPlayer => speechPlayer ??= new AvatarSpeechPlayer();
+
+        public event Action<CorrectionPlaybackResult> CorrectionPlaybackCompleted;
+        public CorrectionPlaybackResult LastCorrectionPlaybackResult { get; private set; }
+
+        public void SetCorrectionFeedbackProvider(string provider)
+        {
+            ResolveCorrectionFeedbackPresenter(createCorrectionFeedbackPresenterIfMissing)
+                ?.SetFeedbackProvider(provider);
+        }
 
         public void SetReplyContext(bool isOpeningReply)
         {
@@ -62,6 +88,8 @@ namespace SceneTalkVR.AvatarSystem
                 audioSource.clip = null;
             }
 
+            ResolveCorrectionFeedbackPresenter(false)?.ResetPresentation();
+
             var props = ResolvePropPresenter(false);
             if (props != null)
             {
@@ -74,6 +102,7 @@ namespace SceneTalkVR.AvatarSystem
             currentAvatarKey = string.Empty;
             currentAvatarGenderPresentation = string.Empty;
             isOpeningReply = true;
+            LastCorrectionPlaybackResult = null;
 
             var driver = ResolveAnimationDriver();
             if (driver != null)
@@ -112,42 +141,57 @@ namespace SceneTalkVR.AvatarSystem
                 Debug.LogWarning($"[SceneTalkVR] Avatar presentation fallback: {avatarError}", this);
             }
 
+            LastCorrectionPlaybackResult = null;
+            var correctionPresenter = ResolveCorrectionFeedbackPresenter(
+                createCorrectionFeedbackPresenterIfMissing);
+            if (correctionPresenter != null)
+            {
+                correctionPresenter.SetPresentationActive(currentAvatar != null);
+                yield return correctionPresenter.Present(
+                    payload,
+                    BuildSpeechPlaybackContext(),
+                    () => TriggerSpeaking(false),
+                    value => LastCorrectionPlaybackResult = value);
+            }
+            else if (payload.correctionFeedback != null && payload.correctionFeedback.hasFeedback)
+            {
+                LastCorrectionPlaybackResult = new CorrectionPlaybackResult
+                {
+                    provider = payload.correctionFeedback.provider,
+                    outcome = "failed",
+                    errorCode = "presenter_missing"
+                };
+            }
+
+            if (LastCorrectionPlaybackResult != null)
+            {
+                CorrectionPlaybackCompleted?.Invoke(LastCorrectionPlaybackResult);
+            }
+
             TriggerThinking();
             yield return null;
 
             Debug.Log($"[SceneTalkVR] Avatar reply: {payload.dialogueReply}", this);
-            TriggerSpeaking(isOpeningReply);
-
-            var playedAudio = false;
-            if (useVoiceGatewayTts)
+            if (!string.IsNullOrWhiteSpace(payload.dialogueReply))
             {
-                string voiceError = null;
-                yield return PlayGatewayTts(payload, message => voiceError = message);
-                playedAudio = string.IsNullOrWhiteSpace(voiceError);
+                TriggerSpeaking(isOpeningReply);
+            }
 
-                if (!playedAudio)
+            AvatarSpeechPlaybackResult replyResult = null;
+            yield return SpeechPlayer.Play(
+                BuildSpeechPlaybackContext(),
+                payload,
+                new AvatarSpeechPlaybackRequest
                 {
-                    if (!fallbackToDemoVoiceOnGatewayError)
-                    {
-                        onError?.Invoke(voiceError);
-                        yield break;
-                    }
+                    text = payload.dialogueReply,
+                    logLabel = "Avatar reply"
+                },
+                value => replyResult = value);
 
-                    Debug.LogWarning($"[SceneTalkVR] Voice gateway TTS fallback: {voiceError}", this);
-                }
-            }
-
-            if (!playedAudio && audioSource != null && demoReplyClip != null)
+            if (replyResult != null && !string.IsNullOrWhiteSpace(replyResult.error))
             {
-                audioSource.clip = demoReplyClip;
-                audioSource.Play();
-                yield return new WaitWhile(() => audioSource != null && audioSource.isPlaying);
-                playedAudio = true;
-            }
-
-            if (!playedAudio)
-            {
-                yield return new WaitForSeconds(Mathf.Max(0.1f, fallbackSpeakingSeconds));
+                onError?.Invoke(replyResult.error);
+                yield break;
             }
 
             onComplete?.Invoke();
@@ -212,81 +256,23 @@ namespace SceneTalkVR.AvatarSystem
                 this);
         }
 
-        private IEnumerator PlayGatewayTts(SpringScenePayload payload, Action<string> onError)
+        private AvatarSpeechPlaybackContext BuildSpeechPlaybackContext()
         {
-            if (audioSource == null)
+            return new AvatarSpeechPlaybackContext
             {
-                onError?.Invoke("AudioSource is not assigned.");
-                yield break;
-            }
-
-            var client = ResolveVoiceGatewayClient();
-            if (client == null)
-            {
-                onError?.Invoke("Voice gateway client is not assigned.");
-                yield break;
-            }
-
-            var text = payload.dialogueReply;
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                onError?.Invoke("TTS text is empty.");
-                yield break;
-            }
-
-            var role = payload.avatarRole;
-            var request = new TtsRequest
-            {
+                logContext = this,
+                gatewayClient = useVoiceGatewayTts ? ResolveVoiceGatewayClient() : voiceGatewayClient,
+                defaultAudioSource = audioSource,
+                demoReplyClip = demoReplyClip,
+                useVoiceGatewayTts = useVoiceGatewayTts,
+                fallbackToDemoVoiceOnGatewayError = fallbackToDemoVoiceOnGatewayError,
                 sessionId = sessionId,
-                turnId = $"turn-{Time.frameCount}",
-                text = text,
-                language = string.IsNullOrWhiteSpace(language) ? "en-US" : language,
-                voiceProfile = new VoiceProfile
-                {
-                    provider = "tencent",
-                    voiceId = ResolveVoiceId(payload),
-                    speakingSpeed = role != null ? role.speakingSpeed : string.Empty,
-                    accent = role != null ? role.accent : string.Empty,
-                    attitude = role != null ? role.attitude : string.Empty,
-                    role = role != null ? role.role : string.Empty
-                },
-                output = new TtsOutput
-                {
-                    format = "wav",
-                    sampleRate = Mathf.Max(8000, ttsSampleRate)
-                }
+                language = language,
+                defaultVoiceId = defaultVoiceId,
+                currentAvatarGenderPresentation = currentAvatarGenderPresentation,
+                ttsSampleRate = ttsSampleRate,
+                fallbackSpeakingSeconds = fallbackSpeakingSeconds
             };
-
-            AudioClip clip = null;
-            TtsResponse response = null;
-            string requestError = null;
-            yield return client.RequestTtsAudioClip(
-                request,
-                (value, audioClip) =>
-                {
-                    response = value;
-                    clip = audioClip;
-                },
-                message => requestError = message);
-
-            if (!string.IsNullOrWhiteSpace(requestError))
-            {
-                onError?.Invoke(requestError);
-                yield break;
-            }
-
-            if (clip == null)
-            {
-                onError?.Invoke("Voice gateway returned no playable TTS clip.");
-                yield break;
-            }
-
-            audioSource.clip = clip;
-            audioSource.Play();
-            Debug.Log(
-                $"[SceneTalkVR] Voice gateway TTS audio ({response?.provider}, {response?.latencyMs} ms, cache={response?.cacheHit})",
-                this);
-            yield return new WaitWhile(() => audioSource != null && audioSource.isPlaying);
         }
 
         private VoiceGatewayClient ResolveVoiceGatewayClient()
@@ -317,6 +303,7 @@ namespace SceneTalkVR.AvatarSystem
             currentAvatarKey = string.IsNullOrWhiteSpace(avatarKey) ? string.Empty : avatarKey;
             currentAnimator = currentAvatar.GetComponentInChildren<Animator>();
             EnsureAnimatorController(currentAnimator);
+            ConfigureUserFacing(currentAvatar, currentAnimator);
 
             var driver = ResolveAnimationDriver();
             if (driver != null)
@@ -328,23 +315,38 @@ namespace SceneTalkVR.AvatarSystem
             RefreshProps(payload, currentAvatar);
         }
 
-        private string ResolveVoiceId(SpringScenePayload payload)
+        private void ConfigureUserFacing(GameObject avatar, Animator animator)
         {
-            var role = payload != null ? payload.avatarRole : null;
-            var appearance = role != null ? role.appearance : null;
-            var gender = appearance != null ? appearance.genderPresentation : string.Empty;
-
-            if (IsGender(currentAvatarGenderPresentation, "male") || IsGender(gender, "male"))
+            if (avatar == null || (!faceUserOnSpawn && !useHumanoidLookAt))
             {
-                return "default_male_en";
+                return;
             }
 
-            if (IsGender(currentAvatarGenderPresentation, "female") || IsGender(gender, "female"))
+            var host = animator != null ? animator.gameObject : avatar;
+            var facingController = host.GetComponent<AvatarUserFacingController>();
+            if (facingController == null)
             {
-                return "default_female_en";
+                facingController = host.AddComponent<AvatarUserFacingController>();
             }
 
-            return string.IsNullOrWhiteSpace(defaultVoiceId) ? "default_female_en" : defaultVoiceId;
+            var target = userFacingTarget;
+            if (target == null && Camera.main != null)
+            {
+                target = Camera.main.transform;
+            }
+
+            facingController.Configure(
+                animator,
+                avatar.transform,
+                target,
+                faceUserOnSpawn,
+                visualForwardYawOffset,
+                useHumanoidLookAt,
+                lookAtWeight,
+                lookAtBodyWeight,
+                lookAtHeadWeight,
+                lookAtEyesWeight,
+                lookAtClampWeight);
         }
 
         private static string ResolvePresetGenderPresentation(AvatarPresetEntry preset)
@@ -454,6 +456,21 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             return propPresenter;
+        }
+
+        private CorrectionFeedbackPresenter ResolveCorrectionFeedbackPresenter(bool createIfMissing)
+        {
+            if (correctionFeedbackPresenter == null)
+            {
+                correctionFeedbackPresenter = GetComponent<CorrectionFeedbackPresenter>();
+            }
+
+            if (correctionFeedbackPresenter == null && createIfMissing)
+            {
+                correctionFeedbackPresenter = gameObject.AddComponent<CorrectionFeedbackPresenter>();
+            }
+
+            return correctionFeedbackPresenter;
         }
 
         private void TriggerThinking()

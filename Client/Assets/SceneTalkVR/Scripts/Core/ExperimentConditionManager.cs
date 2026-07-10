@@ -1,0 +1,935 @@
+using System;
+using System.Globalization;
+using System.IO;
+using System.Text;
+using UnityEngine;
+
+namespace SceneTalkVR.Core
+{
+    [DisallowMultipleComponent]
+    public sealed class ExperimentConditionManager : MonoBehaviour
+    {
+        public const string DialogueAvatarProvider = "dialogue_avatar";
+        public const string AssistantAgentProvider = "assistant_agent";
+        public const string ExplicitStyle = "explicit";
+        public const string RecastStyle = "recast";
+
+        public enum ExperimentConditionPreset
+        {
+            DialogueAvatarExplicit,
+            DialogueAvatarRecast,
+            AssistantAgentExplicit,
+            AssistantAgentRecast
+        }
+
+        [Header("Session")]
+        [SerializeField] private string participantId = "participant_demo";
+        [SerializeField] private string sessionId = "";
+        [SerializeField] private bool formalExperiment;
+        [SerializeField] private bool debugMode = true;
+        [SerializeField] private bool showDebugLabel = true;
+
+        [Header("Condition")]
+        [SerializeField] private bool useConditionOrder;
+        [SerializeField] private ExperimentConditionPreset manualCondition = ExperimentConditionPreset.AssistantAgentExplicit;
+        [SerializeField] private string[] conditionOrder =
+        {
+            "dialogue_avatar_explicit",
+            "dialogue_avatar_recast",
+            "assistant_agent_explicit",
+            "assistant_agent_recast"
+        };
+        [SerializeField] private int conditionOrderIndex;
+
+        [Header("Scenario")]
+        [SerializeField] private string scenarioId = "restaurant_reservation";
+        [SerializeField] private int scenarioIndex;
+        [SerializeField] private SceneTalkExperimentTask[] taskDefinitions = CreateDefaultTasks();
+
+        [Header("Logging")]
+        [SerializeField] private bool enableLogging = true;
+        [SerializeField] private bool writeJsonLines = true;
+        [SerializeField] private bool writeCsv = true;
+        [SerializeField] private string logFolderName = "SceneTalkVR/ExperimentLogs";
+
+        private CorrectionExperimentCondition currentCondition;
+        private ExperimentTurnLogRecord activeTurnLog;
+        private ExperimentTurnLogRecord pendingTurnLog;
+        private float recordingStartedAt;
+        private bool recordingActive;
+        private int turnIndex;
+        private int queuedRetryCount;
+
+        public CorrectionExperimentCondition CurrentCondition
+        {
+            get
+            {
+                if (currentCondition == null)
+                {
+                    RefreshCondition(false);
+                }
+
+                return currentCondition;
+            }
+        }
+
+        public SceneTalkExperimentTask CurrentTask => CurrentCondition?.task;
+
+        public bool HasActiveTurn => activeTurnLog != null;
+        public bool HasPendingTurnReview => pendingTurnLog != null;
+        public bool IsFormalExperiment => formalExperiment;
+        public bool DebugMode => debugMode;
+        public bool ShowDebugLabel => debugMode && showDebugLabel && !formalExperiment;
+
+        public string CurrentTurnId
+        {
+            get
+            {
+                if (activeTurnLog != null)
+                {
+                    return activeTurnLog.turnId;
+                }
+
+                if (pendingTurnLog != null)
+                {
+                    return pendingTurnLog.turnId;
+                }
+
+                return BuildTurnId(turnIndex);
+            }
+        }
+
+        public string CurrentDebugLabel
+        {
+            get
+            {
+                var condition = CurrentCondition;
+                return condition == null
+                    ? string.Empty
+                    : $"{condition.conditionId} | {condition.scenarioId} | turn {condition.turnIndex}";
+            }
+        }
+
+        private void Awake()
+        {
+            EnsureSessionId();
+            EnsureDefaultTaskDefinitions();
+            RefreshCondition(false);
+        }
+
+        private void OnValidate()
+        {
+            conditionOrderIndex = Mathf.Max(0, conditionOrderIndex);
+            scenarioIndex = Mathf.Max(0, scenarioIndex);
+            EnsureDefaultTaskDefinitions();
+            RefreshCondition(false);
+        }
+
+        private void OnDisable()
+        {
+            RecordUserAction("exit");
+        }
+
+        public CorrectionExperimentCondition BeginTurn()
+        {
+            FlushActiveTurn("skip");
+            FlushPendingTurn("continue");
+
+            EnsureSessionId();
+            turnIndex++;
+            RefreshCondition(true);
+            activeTurnLog = CreateTurnLog(CurrentCondition);
+            return CloneCondition(CurrentCondition);
+        }
+
+        public CorrectionExperimentCondition EnsureActiveTurn()
+        {
+            if (activeTurnLog == null)
+            {
+                return BeginTurn();
+            }
+
+            RefreshCondition(true);
+            return CloneCondition(CurrentCondition);
+        }
+
+        public CorrectionExperimentCondition RefreshCondition(bool includeCurrentTurn)
+        {
+            EnsureDefaultTaskDefinitions();
+            EnsureSessionId();
+
+            var conditionId = ResolveCurrentConditionId();
+            ResolveCondition(conditionId, out var provider, out var style);
+            var resolvedScenarioId = ResolveScenarioId();
+
+            currentCondition = new CorrectionExperimentCondition
+            {
+                participantId = string.IsNullOrWhiteSpace(participantId) ? "participant_demo" : participantId.Trim(),
+                sessionId = sessionId,
+                conditionId = conditionId,
+                scenarioId = resolvedScenarioId,
+                provider = provider,
+                style = style,
+                turnIndex = includeCurrentTurn ? turnIndex : Mathf.Max(0, turnIndex),
+                conditionOrder = CopyConditionOrder(),
+                task = CloneTask(FindTask(resolvedScenarioId))
+            };
+
+            return CloneCondition(currentCondition);
+        }
+
+        public void AdvanceCondition()
+        {
+            if (useConditionOrder)
+            {
+                var order = GetEffectiveConditionOrder();
+                conditionOrderIndex = order.Length == 0 ? 0 : (conditionOrderIndex + 1) % order.Length;
+            }
+            else
+            {
+                manualCondition = (ExperimentConditionPreset)(((int)manualCondition + 1)
+                    % Enum.GetValues(typeof(ExperimentConditionPreset)).Length);
+            }
+
+            RefreshCondition(false);
+        }
+
+        public void AdvanceScenario()
+        {
+            EnsureDefaultTaskDefinitions();
+            if (taskDefinitions.Length == 0)
+            {
+                return;
+            }
+
+            scenarioIndex = (scenarioIndex + 1) % taskDefinitions.Length;
+            scenarioId = taskDefinitions[scenarioIndex].scenarioId;
+            RefreshCondition(false);
+        }
+
+        public void ApplyProviderTo(MonoBehaviour avatarVoiceModule)
+        {
+            var condition = CurrentCondition;
+            if (condition == null || avatarVoiceModule == null)
+            {
+                return;
+            }
+
+            if (avatarVoiceModule is ISceneTalkCorrectionFeedbackProviderReceiver providerReceiver)
+            {
+                providerReceiver.SetCorrectionFeedbackProvider(condition.provider);
+            }
+        }
+
+        public void InjectInto(MonoBehaviour brainModule)
+        {
+            var condition = CurrentCondition;
+            if (condition == null || brainModule == null)
+            {
+                return;
+            }
+
+            if (brainModule is ISceneTalkExperimentContextReceiver receiver)
+            {
+                receiver.SetExperimentCondition(CloneCondition(condition));
+            }
+        }
+
+        public void BeginRecording()
+        {
+            if (activeTurnLog == null)
+            {
+                BeginTurn();
+            }
+
+            recordingStartedAt = Time.realtimeSinceStartup;
+            recordingActive = true;
+        }
+
+        public void CompleteRecording()
+        {
+            if (!recordingActive)
+            {
+                return;
+            }
+
+            recordingActive = false;
+            if (activeTurnLog != null)
+            {
+                activeTurnLog.recordingDurationMs = Mathf.Max(
+                    0,
+                    Mathf.RoundToInt((Time.realtimeSinceStartup - recordingStartedAt) * 1000f));
+            }
+        }
+
+        public void RecordCorrectionPayload(CorrectionFeedbackData feedback)
+        {
+            var log = ResolveWritableTurnLog();
+            if (log == null)
+            {
+                return;
+            }
+
+            var condition = CurrentCondition;
+            log.provider = ResolveNonEmpty(feedback?.provider, condition?.provider);
+            log.style = ResolveNonEmpty(feedback?.style, condition?.style);
+            log.hasFeedback = feedback != null && feedback.hasFeedback;
+            log.errorType = feedback == null ? string.Empty : NullToEmpty(feedback.errorType);
+            if (!log.hasFeedback)
+            {
+                log.correctionOutcome = "none";
+                log.correctionErrorCode = string.Empty;
+            }
+        }
+
+        public void RecordCorrectionPlayback(string provider, string outcome, string errorCode)
+        {
+            var log = ResolveWritableTurnLog();
+            if (log == null)
+            {
+                return;
+            }
+
+            log.provider = ResolveNonEmpty(provider, log.provider);
+            log.correctionOutcome = string.IsNullOrWhiteSpace(outcome) ? "unknown" : outcome;
+            log.correctionErrorCode = NullToEmpty(errorCode);
+
+            if (log.correctionOutcome.IndexOf("fallback", StringComparison.OrdinalIgnoreCase) >= 0
+                || !string.IsNullOrWhiteSpace(log.correctionErrorCode))
+            {
+                log.moduleFallback = ResolveNonEmpty(log.moduleFallback, log.correctionOutcome);
+            }
+        }
+
+        public void RecordModuleFallback(string moduleFallback)
+        {
+            if (string.IsNullOrWhiteSpace(moduleFallback))
+            {
+                return;
+            }
+
+            var log = ResolveWritableTurnLog();
+            if (log != null)
+            {
+                log.moduleFallback = AppendToken(log.moduleFallback, moduleFallback);
+            }
+        }
+
+        public void CompleteActiveTurn()
+        {
+            if (activeTurnLog == null)
+            {
+                return;
+            }
+
+            activeTurnLog.completedAtUtc = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
+            if (string.IsNullOrWhiteSpace(activeTurnLog.correctionOutcome))
+            {
+                activeTurnLog.correctionOutcome = activeTurnLog.hasFeedback ? "unknown" : "none";
+            }
+
+            pendingTurnLog = activeTurnLog;
+            activeTurnLog = null;
+        }
+
+        public void RecordUserAction(string action)
+        {
+            var normalizedAction = NormalizeUserAction(action);
+
+            if (pendingTurnLog != null)
+            {
+                var retryBase = pendingTurnLog.retryCount;
+                pendingTurnLog.userAction = normalizedAction;
+                WriteTurnLog(pendingTurnLog);
+
+                if (string.Equals(normalizedAction, "try_again", StringComparison.OrdinalIgnoreCase))
+                {
+                    queuedRetryCount = retryBase + 1;
+                }
+
+                pendingTurnLog = null;
+                return;
+            }
+
+            if (activeTurnLog != null)
+            {
+                var retryBase = activeTurnLog.retryCount;
+                activeTurnLog.completedAtUtc = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
+                activeTurnLog.userAction = normalizedAction;
+                WriteTurnLog(activeTurnLog);
+
+                if (string.Equals(normalizedAction, "try_again", StringComparison.OrdinalIgnoreCase))
+                {
+                    queuedRetryCount = retryBase + 1;
+                }
+
+                activeTurnLog = null;
+            }
+        }
+
+        [ContextMenu("Experiment/Next Condition")]
+        private void ContextAdvanceCondition()
+        {
+            AdvanceCondition();
+        }
+
+        [ContextMenu("Experiment/Next Scenario")]
+        private void ContextAdvanceScenario()
+        {
+            AdvanceScenario();
+        }
+
+        private void FlushPendingTurn(string defaultAction)
+        {
+            if (pendingTurnLog == null)
+            {
+                return;
+            }
+
+            pendingTurnLog.userAction = NormalizeUserAction(defaultAction);
+            WriteTurnLog(pendingTurnLog);
+            pendingTurnLog = null;
+        }
+
+        private void FlushActiveTurn(string defaultAction)
+        {
+            if (activeTurnLog == null)
+            {
+                return;
+            }
+
+            activeTurnLog.completedAtUtc = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
+            activeTurnLog.userAction = NormalizeUserAction(defaultAction);
+            WriteTurnLog(activeTurnLog);
+            activeTurnLog = null;
+        }
+
+        private ExperimentTurnLogRecord ResolveWritableTurnLog()
+        {
+            return activeTurnLog ?? pendingTurnLog;
+        }
+
+        private ExperimentTurnLogRecord CreateTurnLog(CorrectionExperimentCondition condition)
+        {
+            var now = DateTime.UtcNow;
+            var retryCount = queuedRetryCount;
+            queuedRetryCount = 0;
+
+            return new ExperimentTurnLogRecord
+            {
+                participantId = condition.participantId,
+                sessionId = condition.sessionId,
+                conditionId = condition.conditionId,
+                scenarioId = condition.scenarioId,
+                turnId = BuildTurnId(condition.turnIndex),
+                turnIndex = condition.turnIndex,
+                provider = condition.provider,
+                style = condition.style,
+                hasFeedback = false,
+                errorType = string.Empty,
+                correctionOutcome = "none",
+                correctionErrorCode = string.Empty,
+                userAction = string.Empty,
+                retryCount = retryCount,
+                recordingDurationMs = 0,
+                moduleFallback = string.Empty,
+                timestampUtc = now.ToString("o", CultureInfo.InvariantCulture),
+                timestampUnixMs = new DateTimeOffset(now).ToUnixTimeMilliseconds(),
+                completedAtUtc = string.Empty
+            };
+        }
+
+        private void WriteTurnLog(ExperimentTurnLogRecord record)
+        {
+            if (!enableLogging || record == null)
+            {
+                return;
+            }
+
+            try
+            {
+                if (string.IsNullOrWhiteSpace(record.completedAtUtc))
+                {
+                    record.completedAtUtc = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
+                }
+
+                var folder = ResolveLogFolder();
+                Directory.CreateDirectory(folder);
+                var filePrefix = $"{SanitizeFileToken(record.participantId)}_{SanitizeFileToken(record.sessionId)}";
+
+                if (writeJsonLines)
+                {
+                    var path = Path.Combine(folder, $"{filePrefix}.jsonl");
+                    File.AppendAllText(path, JsonUtility.ToJson(record) + Environment.NewLine, Encoding.UTF8);
+                }
+
+                if (writeCsv)
+                {
+                    var path = Path.Combine(folder, $"{filePrefix}.csv");
+                    var shouldWriteHeader = !File.Exists(path) || new FileInfo(path).Length == 0;
+                    using var writer = new StreamWriter(path, true, Encoding.UTF8);
+                    if (shouldWriteHeader)
+                    {
+                        writer.WriteLine(ExperimentTurnLogRecord.CsvHeader);
+                    }
+
+                    writer.WriteLine(record.ToCsvLine());
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[SceneTalkVR] Failed to write experiment log: {ex.Message}", this);
+            }
+        }
+
+        private string ResolveLogFolder()
+        {
+            var safeFolderName = string.IsNullOrWhiteSpace(logFolderName)
+                ? "SceneTalkVR/ExperimentLogs"
+                : logFolderName.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+            return Path.Combine(Application.persistentDataPath, safeFolderName);
+        }
+
+        private string BuildTurnId(int index)
+        {
+            EnsureSessionId();
+            return $"{sessionId}_turn_{Mathf.Max(0, index):000}";
+        }
+
+        private void EnsureSessionId()
+        {
+            if (!string.IsNullOrWhiteSpace(sessionId))
+            {
+                sessionId = sessionId.Trim();
+                return;
+            }
+
+            sessionId = $"session_{DateTime.UtcNow:yyyyMMdd_HHmmss}";
+        }
+
+        private string ResolveCurrentConditionId()
+        {
+            if (!useConditionOrder)
+            {
+                return GetConditionId(manualCondition);
+            }
+
+            var order = GetEffectiveConditionOrder();
+            if (order.Length == 0)
+            {
+                return GetConditionId(manualCondition);
+            }
+
+            var index = Mathf.Clamp(conditionOrderIndex, 0, order.Length - 1);
+            conditionOrderIndex = index;
+            return NormalizeConditionId(order[index]);
+        }
+
+        private string ResolveScenarioId()
+        {
+            EnsureDefaultTaskDefinitions();
+
+            if (!string.IsNullOrWhiteSpace(scenarioId))
+            {
+                return scenarioId.Trim();
+            }
+
+            if (taskDefinitions.Length == 0)
+            {
+                return "restaurant_reservation";
+            }
+
+            scenarioIndex = Mathf.Clamp(scenarioIndex, 0, taskDefinitions.Length - 1);
+            return taskDefinitions[scenarioIndex].scenarioId;
+        }
+
+        private SceneTalkExperimentTask FindTask(string id)
+        {
+            EnsureDefaultTaskDefinitions();
+
+            for (var i = 0; i < taskDefinitions.Length; i++)
+            {
+                var task = taskDefinitions[i];
+                if (task != null && string.Equals(task.scenarioId, id, StringComparison.OrdinalIgnoreCase))
+                {
+                    return task;
+                }
+            }
+
+            return taskDefinitions.Length > 0 ? taskDefinitions[0] : CreateDefaultTasks()[0];
+        }
+
+        private void EnsureDefaultTaskDefinitions()
+        {
+            if (taskDefinitions != null && taskDefinitions.Length > 0)
+            {
+                return;
+            }
+
+            taskDefinitions = CreateDefaultTasks();
+        }
+
+        private string[] GetEffectiveConditionOrder()
+        {
+            if (conditionOrder == null || conditionOrder.Length == 0)
+            {
+                return new[]
+                {
+                    "dialogue_avatar_explicit",
+                    "dialogue_avatar_recast",
+                    "assistant_agent_explicit",
+                    "assistant_agent_recast"
+                };
+            }
+
+            return conditionOrder;
+        }
+
+        private string[] CopyConditionOrder()
+        {
+            var order = GetEffectiveConditionOrder();
+            var copy = new string[order.Length];
+            for (var i = 0; i < order.Length; i++)
+            {
+                copy[i] = NormalizeConditionId(order[i]);
+            }
+
+            return copy;
+        }
+
+        private static string GetConditionId(ExperimentConditionPreset preset)
+        {
+            return preset switch
+            {
+                ExperimentConditionPreset.DialogueAvatarRecast => "dialogue_avatar_recast",
+                ExperimentConditionPreset.AssistantAgentExplicit => "assistant_agent_explicit",
+                ExperimentConditionPreset.AssistantAgentRecast => "assistant_agent_recast",
+                _ => "dialogue_avatar_explicit"
+            };
+        }
+
+        private static string NormalizeConditionId(string conditionId)
+        {
+            var value = string.IsNullOrWhiteSpace(conditionId)
+                ? "dialogue_avatar_explicit"
+                : conditionId.Trim().ToLowerInvariant()
+                    .Replace(" ", "_")
+                    .Replace("+", "_")
+                    .Replace("-", "_");
+
+            if (value.Contains("assistant") && value.Contains("recast"))
+            {
+                return "assistant_agent_recast";
+            }
+
+            if (value.Contains("assistant"))
+            {
+                return "assistant_agent_explicit";
+            }
+
+            if (value.Contains("recast"))
+            {
+                return "dialogue_avatar_recast";
+            }
+
+            return "dialogue_avatar_explicit";
+        }
+
+        private static void ResolveCondition(string conditionId, out string provider, out string style)
+        {
+            var normalized = NormalizeConditionId(conditionId);
+            provider = normalized.StartsWith("assistant_agent", StringComparison.OrdinalIgnoreCase)
+                ? AssistantAgentProvider
+                : DialogueAvatarProvider;
+            style = normalized.EndsWith("recast", StringComparison.OrdinalIgnoreCase)
+                ? RecastStyle
+                : ExplicitStyle;
+        }
+
+        public static CorrectionExperimentCondition CloneCondition(CorrectionExperimentCondition source)
+        {
+            if (source == null)
+            {
+                return null;
+            }
+
+            return new CorrectionExperimentCondition
+            {
+                participantId = source.participantId,
+                sessionId = source.sessionId,
+                conditionId = source.conditionId,
+                scenarioId = source.scenarioId,
+                provider = source.provider,
+                style = source.style,
+                turnIndex = source.turnIndex,
+                conditionOrder = CopyStringArray(source.conditionOrder),
+                task = CloneTask(source.task)
+            };
+        }
+
+        public static SceneTalkExperimentTask CloneTask(SceneTalkExperimentTask source)
+        {
+            if (source == null)
+            {
+                return null;
+            }
+
+            return new SceneTalkExperimentTask
+            {
+                scenarioId = source.scenarioId,
+                context = source.context,
+                goals = CopyStringArray(source.goals),
+                initialQuestion = source.initialQuestion,
+                fallbackEnvironmentType = source.fallbackEnvironmentType,
+                fallbackAvatarRole = source.fallbackAvatarRole,
+                fallbackAvatarGenderPresentation = source.fallbackAvatarGenderPresentation,
+                fallbackAvatarAttitude = source.fallbackAvatarAttitude,
+                fallbackSkyboxUrl = source.fallbackSkyboxUrl,
+                fallbackLayoutObjects = CopyLayoutObjects(source.fallbackLayoutObjects)
+            };
+        }
+
+        private static string[] CopyStringArray(string[] values)
+        {
+            if (values == null)
+            {
+                return Array.Empty<string>();
+            }
+
+            var copy = new string[values.Length];
+            Array.Copy(values, copy, values.Length);
+            return copy;
+        }
+
+        private static LayoutObjectData[] CopyLayoutObjects(LayoutObjectData[] values)
+        {
+            if (values == null)
+            {
+                return Array.Empty<LayoutObjectData>();
+            }
+
+            var copy = new LayoutObjectData[values.Length];
+            for (var i = 0; i < values.Length; i++)
+            {
+                var item = values[i];
+                copy[i] = item == null
+                    ? null
+                    : new LayoutObjectData
+                    {
+                        prefabKey = item.prefabKey,
+                        position = item.position,
+                        rotationY = item.rotationY
+                    };
+            }
+
+            return copy;
+        }
+
+        private static SceneTalkExperimentTask[] CreateDefaultTasks()
+        {
+            return new[]
+            {
+                CreateTask(
+                    "restaurant_reservation",
+                    "The learner is reserving a table at a restaurant by speaking with a service staff member.",
+                    new[] { "state date and time", "state party size", "ask about availability" },
+                    "Good evening. What date, time, and party size would you like to reserve?",
+                    "restaurant",
+                    "barista",
+                    "demo://restaurant-360",
+                    new[]
+                    {
+                        Layout("generic_table", new Vector3(0.55f, 0f, 1.35f), 18f),
+                        Layout("generic_chair", new Vector3(-0.45f, 0f, 1.2f), -12f)
+                    }),
+                CreateTask(
+                    "furniture_shopping",
+                    "The learner is shopping for furniture and needs to describe preferences, budget, and delivery needs.",
+                    new[] { "describe the item needed", "ask about price", "ask about delivery" },
+                    "Welcome in. What kind of furniture are you looking for today?",
+                    "furniture_store",
+                    "clerk",
+                    "demo://furniture-store-360",
+                    new[]
+                    {
+                        Layout("generic_table", new Vector3(0.65f, 0f, 1.25f), 8f),
+                        Layout("generic_chair", new Vector3(-0.55f, 0f, 1.25f), -16f)
+                    }),
+                CreateTask(
+                    "gym_membership",
+                    "The learner is asking about a gym membership, including plans, facilities, and trial options.",
+                    new[] { "ask about membership plans", "ask about facilities", "ask about a trial visit" },
+                    "Hi. Are you interested in a monthly plan, a yearly plan, or a trial visit?",
+                    "gym",
+                    "instructor",
+                    "demo://gym-360",
+                    new[]
+                    {
+                        Layout("generic_table", new Vector3(0.6f, 0f, 1.3f), 12f),
+                        Layout("plant", new Vector3(-0.65f, 0f, 1.45f), -8f)
+                    }),
+                CreateTask(
+                    "hotel_check_in",
+                    "The learner is checking in at a hotel front desk and needs to confirm booking details.",
+                    new[] { "give booking name", "ask about room details", "ask about check-out time" },
+                    "Welcome to the hotel. May I have the name on your reservation?",
+                    "hotel_lobby",
+                    "clerk",
+                    "demo://hotel-lobby-360",
+                    new[]
+                    {
+                        Layout("generic_table", new Vector3(0.7f, 0f, 1.28f), 4f),
+                        Layout("generic_chair", new Vector3(-0.55f, 0f, 1.35f), -10f)
+                    })
+            };
+        }
+
+        private static SceneTalkExperimentTask CreateTask(
+            string id,
+            string context,
+            string[] goals,
+            string initialQuestion,
+            string environmentType,
+            string fallbackRole,
+            string skyboxUrl,
+            LayoutObjectData[] layoutObjects)
+        {
+            return new SceneTalkExperimentTask
+            {
+                scenarioId = id,
+                context = context,
+                goals = goals,
+                initialQuestion = initialQuestion,
+                fallbackEnvironmentType = environmentType,
+                fallbackAvatarRole = fallbackRole,
+                fallbackAvatarGenderPresentation = "unknown",
+                fallbackAvatarAttitude = "helpful",
+                fallbackSkyboxUrl = skyboxUrl,
+                fallbackLayoutObjects = layoutObjects
+            };
+        }
+
+        private static LayoutObjectData Layout(string prefabKey, Vector3 position, float rotationY)
+        {
+            return new LayoutObjectData
+            {
+                prefabKey = prefabKey,
+                position = position,
+                rotationY = rotationY
+            };
+        }
+
+        private static string ResolveNonEmpty(string value, string fallback)
+        {
+            return string.IsNullOrWhiteSpace(value) ? NullToEmpty(fallback) : value;
+        }
+
+        private static string NullToEmpty(string value)
+        {
+            return value ?? string.Empty;
+        }
+
+        private static string AppendToken(string current, string next)
+        {
+            if (string.IsNullOrWhiteSpace(next))
+            {
+                return current ?? string.Empty;
+            }
+
+            return string.IsNullOrWhiteSpace(current) ? next : $"{current}+{next}";
+        }
+
+        private static string NormalizeUserAction(string action)
+        {
+            if (string.IsNullOrWhiteSpace(action))
+            {
+                return "continue";
+            }
+
+            var normalized = action.Trim().ToLowerInvariant();
+            return normalized switch
+            {
+                "tryagain" => "try_again",
+                "retry" => "try_again",
+                "continue" => "continue",
+                "skip" => "skip",
+                "exit" => "exit",
+                _ => normalized
+            };
+        }
+
+        private static string SanitizeFileToken(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return "unknown";
+            }
+
+            var builder = new StringBuilder(value.Length);
+            foreach (var c in value)
+            {
+                builder.Append(char.IsLetterOrDigit(c) || c == '_' || c == '-' ? c : '_');
+            }
+
+            return builder.ToString();
+        }
+
+        [Serializable]
+        private sealed class ExperimentTurnLogRecord
+        {
+            public string participantId;
+            public string sessionId;
+            public string conditionId;
+            public string scenarioId;
+            public string turnId;
+            public int turnIndex;
+            public string provider;
+            public string style;
+            public bool hasFeedback;
+            public string errorType;
+            public string correctionOutcome;
+            public string correctionErrorCode;
+            public string userAction;
+            public int retryCount;
+            public int recordingDurationMs;
+            public string moduleFallback;
+            public string timestampUtc;
+            public long timestampUnixMs;
+            public string completedAtUtc;
+
+            public const string CsvHeader =
+                "participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc";
+
+            public string ToCsvLine()
+            {
+                return string.Join(
+                    ",",
+                    Csv(participantId),
+                    Csv(sessionId),
+                    Csv(conditionId),
+                    Csv(scenarioId),
+                    Csv(turnId),
+                    turnIndex.ToString(CultureInfo.InvariantCulture),
+                    Csv(provider),
+                    Csv(style),
+                    hasFeedback ? "true" : "false",
+                    Csv(errorType),
+                    Csv(correctionOutcome),
+                    Csv(correctionErrorCode),
+                    Csv(userAction),
+                    retryCount.ToString(CultureInfo.InvariantCulture),
+                    recordingDurationMs.ToString(CultureInfo.InvariantCulture),
+                    Csv(moduleFallback),
+                    Csv(timestampUtc),
+                    timestampUnixMs.ToString(CultureInfo.InvariantCulture),
+                    Csv(completedAtUtc));
+            }
+
+            private static string Csv(string value)
+            {
+                value ??= string.Empty;
+                return "\"" + value.Replace("\"", "\"\"") + "\"";
+            }
+        }
+    }
+}

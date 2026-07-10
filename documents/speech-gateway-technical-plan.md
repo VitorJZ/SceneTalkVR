@@ -40,7 +40,7 @@ P0 最小实现已经完成。当前完成范围是 Unity Editor + 后端语音�
 - 已新增 Unity 侧 `MicrophoneRecorder`，可录制默认麦克风音频，编码为 16-bit WAV base64 并随 STT 请求上传到语音网关。
 - 已扩展 Unity 侧 `VoiceGatewayClient`，可调用 `/api/voice/tts` 并下载返回的 WAV 音频为 `AudioClip`；后端 provider 可切换为 mock 或 tencent。
 - 已扩展 `AvatarPresentationVoiceModule`，可优先播放语音网关 TTS 音频，失败时回退 demo 音频或 fallback 等待。
-- 已新增 `SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway`，可在现有 demo rig 上只切换语音网关 STT adapter 和 TTS 播放；原 `Rebuild Demo Rig` 仍保持离线 demo 输入。
+- 已新增 `SceneTalkVR/Setup/Enable Voice Gateway On Existing Rig`，可在现有 demo rig 上只切换语音网关 STT adapter 和 TTS 播放；完整重建入口为 `SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway)`。
 - 已新增 `VoiceGatewaySettings.asset`，用于集中配置语音网关地址；团队开发时可把地址改为运行网关那台电脑的局域网 IP。
 - 已新增后端 `TencentSpeechProvider`，通过腾讯云 API 3.0 签名调用 ASR `SentenceRecognition` 和 TTS `TextToVoice`。
 - 已支持 `VOICE_GATEWAY_PROVIDER=mock|tencent` 切换，腾讯云密钥只从后端环境变量读取。
@@ -55,10 +55,11 @@ P0 最小实现已经完成。当前完成范围是 Unity Editor + 后端语音�
 
 - 已合入 Vitor 的 `SceneTalkOrchestrator.IsDialogueActive` / `StartDialogueTurn()` 框架；初始确认生成场景后，用户可在同一场景中继续触发下一轮 `CaptureSpeech(...) -> GenerateSceneAndReply(...) -> PresentReply(...)`。
 - Edwin 语音侧 adapter 仍按“每一轮一次 STT、每一轮一次 TTS”工作：`GatewaySpeechInputModule` 负责当前轮录音和 transcript，`AvatarPresentationVoiceModule` 负责当前轮 reply 的 TTS 和播放完成回调。
+- 2026-07-09 已接入 Unity 侧手动结束录音：`MicrophoneRecorder` 支持外部停止信号，`GatewaySpeechInputModule` 与 `DemoSpeechInputModule` 实现 `ISceneTalkManualSpeechInput`，Vitor 的 UI/扳机状态机可统一触发开始与结束录音。当前仍保持 turn-based 整段上传 STT，不引入流式 ASR。
 - 当前 Unity Brain 接口仍是 `GenerateSceneAndReply(string userText, ...)`；语音网关不保存 LLM 对话历史，也不决定上下文记忆。后续如果需要代词理解、连续纠错或长期任务状态，应由 Spring 的 LLM/Brain 层维护 history，并在必要时扩展 Brain 接口或 session 协议。
 - 因此 Edwin 当前可表述为：语音与 Avatar 播放链路已可被连续回合框架重复调用，但 Edwin 不负责“LLM 记住前几轮说过什么”。
 
-当前推荐下一步进入 P1：PICO 真机麦克风/播放验证、录音结束策略、实时转写体验和更细的错误恢复。
+当前推荐下一步进入 P1：PICO 真机麦克风/播放验证、基础静音/VAD、实时转写体验和更细的错误恢复。
 
 ## 2.2 Edwin 分工边界
 
@@ -198,15 +199,15 @@ P0 阶段的音频可以先使用整段上传和整段播放。重点不是最�
 
 需要完成：
 
-- Unity 侧支持手动结束录音和基础静音检测，避免固定录音时长。
+- Unity 侧手动结束录音已完成；后续补基础静音检测/VAD，避免固定录音时长。
 - PICO 4 上验证麦克风权限、采样率、录音设备、上传、识别和播放稳定性；PICO SDK 与打包环境由 Vitor 负责。
 - 后端增加结构化语音日志：provider、STT/TTS 耗时、错误码、fallbackLevel、TTS 字符数、音频时长。
 - 补齐日志脱敏策略，默认不保存原始音频和完整 transcript。
 - 明确云服务失败、超时、空 transcript、音频下载失败时的 fallback 和用户提示。
 - 给 Orchestrator 提供“Avatar TTS 播放结束 / 可开始下一轮录音”的清晰完成回调，方便后续连续对话集成。
-- 评估腾讯云实时 ASR WebSocket 是否进入 P1，若时间紧则先保留整段上传，只完成手动结束/VAD 和 PICO 验证。
+- 评估腾讯云实时 ASR WebSocket 是否进入 P1，若时间紧则先保留整段上传，只完成 VAD 和 PICO 验证。
 
-P1 阶段仍可保持 TTS 整段合成播放，先把录音结束、真机可用性和错误恢复做好。
+P1 阶段仍可保持 TTS 整段合成播放，先把基础静音/VAD、真机可用性和错误恢复做好。
 
 ### 4.3 P2：TTS 分段合成、缓存与打断
 
@@ -446,21 +447,26 @@ Unity 侧只显示适合用户看的短错误，详细错误只写入本地 debu
 - `MicrophoneRecorder`
 - `AudioClipDecoder`
 
-`GatewaySpeechInputModule` 实现现有接口：
+`GatewaySpeechInputModule` 实现现有接口，并在支持手动录音时实现停止/取消接口：
 
 ```csharp
-public sealed class GatewaySpeechInputModule : MonoBehaviour, ISceneTalkSpeechInput
+public sealed class GatewaySpeechInputModule : MonoBehaviour, ISceneTalkSpeechInput, ISceneTalkManualSpeechInput
 {
     public IEnumerator CaptureSpeech(
         Action<string> onComplete,
         Action<string> onError);
+
+    public void RequestStopCapture();
+
+    public void CancelCapture();
 }
 ```
 
 职责：
 
 - 启动麦克风录音。
-- 控制最大录音时长和静音结束。
+- 允许 UI 按钮或 PICO/OpenXR 扳机请求结束录音。
+- 保留最大录音时长作为安全上限，后续再补静音/VAD 结束。
 - 将音频转换为网关要求的格式。
 - 调用 `/api/voice/stt`。
 - 成功后调用 `onComplete(transcript)`。
@@ -604,11 +610,12 @@ flowchart TD
 - [x] 新增 `VoiceGatewayClient`。
 - [x] 新增 `GatewaySpeechInputModule` 并实现 `ISceneTalkSpeechInput`。
 - [x] 扩展 `AvatarPresentationVoiceModule`，支持从语音网关下载并播放 TTS 音频。
-- [ ] 支持手动/静音结束。
+- [x] 支持手动结束。
+- [ ] 支持静音/VAD 结束。
 - [x] 支持从网关下载音频并转换为 `AudioClip`。
 - [x] 支持 TTS 播放时触发 speaking 动画。
 - [x] 支持失败时回退 demo transcript 或 demo audio。
-- [x] 更新 setup menu，新增 `SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway` 入口，只挂载/切换语音网关 STT/TTS 模块，不重建场景生成配置。
+- [x] 更新 setup menu，新增 `SceneTalkVR/Setup/Enable Voice Gateway On Existing Rig` 入口，只挂载/切换语音网关 STT/TTS 模块，不重建场景生成配置。
 - [x] 新增 `VoiceGatewaySettings.asset`，集中配置 `gatewayBaseUrl`。
 - [x] 与 Vitor 多轮交互框架合并后，确认 `GatewaySpeechInputModule` 和 `AvatarPresentationVoiceModule` 可以按回合被重复调用。
 
@@ -650,7 +657,7 @@ P0 最小实现完成时，应满足：
 
 Edwin 语音 P1 阶段完成时，应满足：
 
-- Unity 语音模块支持手动结束录音或基础静音结束。
+- Unity 语音模块支持手动结束录音；后续补基础静音/VAD 结束。
 - PICO 4 上录音、上传、识别和音频播放稳定；PICO 工程环境由 Vitor 提供。
 - 用户说完后 STT final transcript 延迟可被量化。
 - 语音网关具备结构化 provider、耗时、错误码、fallback 和成本相关日志。
@@ -757,7 +764,7 @@ VR 设备中 Avatar 播放的声音可能被麦克风再次采集，影响下一
 P0 最小真实链路已经完成。建议下一步进入 Edwin 语音 P1 验证和体验增强：
 
 1. 在 PICO 4 上验证麦克风权限、录音质量、上传、识别和播放稳定性。
-2. 增加手动结束录音、静音结束或基础 VAD，避免固定录音时长影响交互。
+2. 在手动结束录音已接入的基础上，增加静音结束或基础 VAD，并完成 PICO 真机回归。
 3. 增加结构化日志：字符数、音频时长、错误码、单次练习估算成本。
 4. 明确云服务失败时的 UI 提示和 demo fallback 行为。
 5. 做一轮男女角色 TTS smoke test，确认男角色请求落到 `default_male_en`，女角色请求落到 `default_female_en`。
@@ -785,7 +792,7 @@ P0 最小真实链路已经完成。建议下一步进入 Edwin 语音 P1 验证
 
 - SceneTalkVR 的 Edwin 语音 P0 已完成：Unity Editor 中通过 voice-gateway + 腾讯云 ASR/TTS 跑通“用户说一句 -> transcript -> Avatar TTS 回复一句”的真实 turn-based 闭环。
 - 当前已合入 Vitor 的连续回合框架：同一场景中可以一轮一轮触发 STT -> Brain -> TTS -> Avatar 回复；但还不是带 LLM 对话历史的完整多轮智能。
-- Edwin P1 只聚焦语音侧：PICO 录音/播放验证、手动结束或基础 VAD、结构化语音日志、错误恢复、fallback、语音轮次完成信号。
+- Edwin P1 只聚焦语音侧：PICO 录音/播放验证、基础静音/VAD、结构化语音日志、错误恢复、fallback、语音轮次完成信号。Unity 侧手动结束录音已接入。
 - 不要把 `coffee_table` / `menu` prefab binding、场景生成、LLM 上下文记忆、PICO SDK 环境和最终打包算作 Edwin 语音任务。
 
 建议给新会话的 P1 提示词见本文档外的交接消息；若新会话只读取文档，也可直接使用下面这段：
@@ -795,5 +802,5 @@ P0 最小真实链路已经完成。建议下一步进入 Edwin 语音 P1 验证
 
 当前 P0 已完成：Unity Editor 已通过 Server/voice-gateway + 腾讯云 ASR/TTS 跑通真实 turn-based 闭环，用户说一句话后返回 transcript，现有 Brain 生成一次回复，Avatar 通过腾讯云 TTS 播放一句回复。Vitor 的连续回合框架已合入，可在同一场景中重复调用这条语音链路；但 LLM 对话历史仍未实现。
 
-P1 目标：实现并验证 Edwin 语音侧体验增强，包括手动结束录音或基础静音/VAD、PICO 4 录音/上传/STT/TTS 播放验证、结构化 provider/latency/error/fallback 日志、失败 fallback、语音轮次完成信号。保持旧 demo path 可用，不泄露腾讯云密钥，不扩大改动范围。每一步完成后同步更新 documents/speech-gateway-technical-plan.md。
+P1 目标：验证已接入的 Unity 侧手动结束录音，并继续实现基础静音/VAD、PICO 4 录音/上传/STT/TTS 播放验证、结构化 provider/latency/error/fallback 日志、失败 fallback、语音轮次完成信号。保持旧 demo path 可用，不泄露腾讯云密钥，不扩大改动范围。每一步完成后同步更新 documents/speech-gateway-technical-plan.md。
 ```

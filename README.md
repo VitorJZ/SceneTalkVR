@@ -25,15 +25,15 @@ SceneTalkVR 是一个面向 PICO/VR 的英语情景练习课程项目。当前�
 2. 等待 Unity 完成 package resolve、脚本编译和资源导入。
 3. 打开 `Assets/Scenes/SampleScene.unity`。
 4. 在 Unity 顶部菜单运行 `SceneTalkVR/Setup/Apply Recommended Project Settings`。如果 Unity 触发重新编译，等待完成后再运行一次。
-5. 运行 `SceneTalkVR/Setup/Rebuild Demo Rig`。
-6. 点击 Play，在初始界面点击 `Start`；初始界面只显示纵向排列的 `Start` 和 `Quit`。
+5. 运行 `SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway)`。
+6. 点击 Play，在初始界面点击 `Start`；初始界面显示纵向排列的 `Start`、`Settings` 和 `Quit`。
 7. 运行 `SceneTalkVR/Diagnostics/Run Preflight Check` 查看当前环境报告：`Client/Assets/SceneTalkVR/Docs/VitorPreflightReport.md`。
 
 ### PICO 手柄操作
 
 真机运行时，Demo 支持 PICO/OpenXR 通用手柄输入：
 
-- 左右手柄会显示轻量 3D 手柄代理和射线；射线命中世界空间 UI 按钮时，扳机键用于确认点击。
+- 左右手柄会显示轻量 3D 手柄代理和射线；任一扳机在射线命中世界空间 UI 按钮时确认点击，未命中按钮且处于需求录音或对话录音可用阶段时，按住开始录音、松开同一扳机结束录音。
 - `A / X`：保留为开始/确认快捷键；错误状态下用于重试。
 - `B / Y` 或菜单键：返回初始界面。
 - 握持键或摇杆按下：把世界空间面板重新居中到当前头显正前方。
@@ -43,10 +43,11 @@ SceneTalkVR 是一个面向 PICO/VR 的英语情景练习课程项目。当前�
 
 当前 Demo UI 分为四个阶段：
 
-1. 初始界面：只显示 `Start` 和 `Quit`，没有 `Exit`。
-2. 场景/人物需求确认：点击 `Start` 后自动听取玩家语音，显示 STT 转写结果，并提供 `Listen`、`Retry`、`Confirm` 三个按钮；右上角 `Exit` 返回初始界面。
-3. 加载界面：点击 `Confirm` 后显示场景和人物加载状态；右上角 `Exit` 返回初始界面。
-4. 对话界面：加载完成后中间面板消失，底部显示玩家与 Avatar 的彩色字幕；右上角 `Exit` 返回初始界面。
+1. 初始界面：显示 `Start`、`Settings` 和 `Quit`，没有 `Exit`。
+2. 设置界面：点击 `Settings` 后进入；可设置字体大小、界面大小（50%-125%）和是否隐藏对话字幕；右上角 `Exit` 返回初始界面。
+3. 场景/人物需求确认：点击 `Start` 后进入待录音状态，`Listen` 按钮可切换为 `End` 并手动结束录音；录音转写完成后同一按钮显示 `Retry`，并提供 `Confirm`；右上角 `Exit` 返回初始界面。
+4. 加载界面：点击 `Confirm` 后显示场景和人物加载状态；右上角 `Exit` 返回初始界面。
+5. 对话界面：加载完成后中间面板消失，底部显示玩家与 Avatar 的彩色字幕；如果在设置中隐藏字幕，底部区域会收缩为紧凑操作条，仅保留对话操作与状态；右上角 `Exit` 返回初始界面。
 
 启动时客户端会等待头显位姿更新，然后把 Demo 面板放到当前视线前方。XR 相机带 `TrackedPoseDriver` 时不会再被脚本强制写入固定世界坐标，避免真机初始视角偏移。
 
@@ -54,7 +55,7 @@ SceneTalkVR 是一个面向 PICO/VR 的英语情景练习课程项目。当前�
 
 为了减少混淆，`SceneTalkVR` 菜单只保留三组入口：
 
-- `SceneTalkVR/Setup/Rebuild Demo Rig`：重建可运行 Demo，自动清理旧 Rig，并配置 Main Camera、World Space Canvas、EventSystem 和输入模块。
+- `SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway)`：重建可运行 Demo，自动清理旧 Rig，并配置 Main Camera、World Space Canvas、EventSystem 和输入模块。
 - `SceneTalkVR/Setup/Apply Recommended Project Settings`：应用 Android/OpenXR/PICO 推荐设置，包括包名、IL2CPP、ARM64、Min SDK、PICO OpenXR features 和 Build Settings。
 - `SceneTalkVR/Diagnostics/Run Preflight Check`：生成环境预检报告，不修改主要项目设置。
 - `SceneTalkVR/Advanced/Clear Generated Demo Rig`：只清理生成的 Demo Rig 和 World UI。
@@ -155,7 +156,7 @@ Spring 负责场景生成：
 ### 当前开发状态
 
 - Unity Editor 内 Demo 已能显示、点击并跑通假数据闭环。
-- PICO/OpenXR 手柄交互已接入：手柄射线 + 扳机确认点击，并保留开始/重试、结束、面板重居中的快捷操作。
+- PICO/OpenXR 手柄交互已接入：手柄射线 + 扳机确认点击，未指向按钮时按住扳机录音/松开结束，并保留开始/重试、结束、面板重居中的快捷操作。
 - Android/OpenXR/PICO 基础配置已完成，PICO 4 调试默认使用 OpenGLES3 规避 Vulkan 启动崩溃。
 - PICO 4 真机已能启动 Demo，仍需继续验证手柄操作、UI 面板位置和完整演示路径。
 - Spring 的真实 LLM/场景生成模块、Edwin 的真实 STT/TTS/Avatar 模块尚未替换当前 Demo 假模块。
@@ -186,15 +187,15 @@ SceneTalkVR is a PICO/VR English scenario practice project. The current architec
 2. Wait for Unity to finish package resolve, script compilation, and asset import.
 3. Open `Assets/Scenes/SampleScene.unity`.
 4. Run `SceneTalkVR/Setup/Apply Recommended Project Settings`. If Unity recompiles, wait until it finishes and run the same menu once more.
-5. Run `SceneTalkVR/Setup/Rebuild Demo Rig`.
-6. Press Play and click `Start` on the initial panel. The initial panel only shows vertically stacked `Start` and `Quit` buttons.
+5. Run `SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway)`.
+6. Press Play and click `Start` on the initial panel. The initial panel shows `Start`, `Settings`, and `Quit`.
 7. Run `SceneTalkVR/Diagnostics/Run Preflight Check` to generate the environment report at `Client/Assets/SceneTalkVR/Docs/VitorPreflightReport.md`.
 
 ### PICO Controller Input
 
 On device, the demo supports generic PICO/OpenXR controller input:
 
-- Both controllers show lightweight 3D controller proxies and UI rays. Pull the trigger while the ray is over a world-space UI button to confirm the click.
+- Both controllers show lightweight 3D controller proxies and UI rays. Either trigger clicks a world-space UI button when the ray is over it. When the ray is not over a button and request/dialogue recording is available, hold either trigger to capture speech and release the same trigger to stop.
 - `A / X`: kept as a start/confirm shortcut; retries when the demo is in an error state.
 - `B / Y` or menu: returns to the initial panel.
 - Grip or thumbstick click: recenter the world-space panel in front of the current headset pose.
@@ -204,10 +205,11 @@ On device, the demo supports generic PICO/OpenXR controller input:
 
 The current demo UI has four stages:
 
-1. Initial panel: shows only `Start` and `Quit`; no `Exit` button.
-2. Scene/avatar request confirmation: after `Start`, the client listens to the player, shows the STT transcript, and provides `Listen`, `Retry`, and `Confirm`; top-right `Exit` returns to the initial panel.
-3. Loading panel: after `Confirm`, the client shows scene and avatar loading state; top-right `Exit` returns to the initial panel.
-4. Dialogue panel: after loading, the central panel disappears and colored subtitles appear at the bottom for player and Avatar lines; top-right `Exit` returns to the initial panel.
+1. Initial panel: shows `Start`, `Settings`, and `Quit`; no `Exit` button.
+2. Settings panel: opened from the initial panel. It controls font size, interface size (50%-125%), and dialogue subtitle visibility. The top-right `Exit` returns to the initial panel.
+3. Scene/avatar request confirmation: after `Start`, the client waits for manual recording. `Listen` switches to `End` while recording, then to `Retry` after STT completes, with `Confirm` available for the transcript; top-right `Exit` returns to the initial panel.
+4. Loading panel: after `Confirm`, the client shows scene and avatar loading state; top-right `Exit` returns to the initial panel.
+5. Dialogue panel: after loading, the central panel disappears and colored subtitles appear at the bottom for player and Avatar lines. If subtitles are hidden in Settings, the bottom area collapses into a compact control bar with only dialogue status and controls; top-right `Exit` returns to the initial panel.
 
 At startup, the client waits for headset tracking and places the demo panel in front of the current view. If the camera has a `TrackedPoseDriver`, the bootstrap no longer writes a fixed world position into the camera transform, which avoids incorrect initial view offsets on device.
 
@@ -215,7 +217,7 @@ At startup, the client waits for headset tracking and places the demo panel in f
 
 The `SceneTalkVR` menu is grouped into three areas to avoid confusing one-off setup commands:
 
-- `SceneTalkVR/Setup/Rebuild Demo Rig`: Rebuilds the runnable demo, clears old rigs, and configures Main Camera, World Space Canvas, EventSystem, and input.
+- `SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway)`: Rebuilds the runnable demo, clears old rigs, and configures Main Camera, World Space Canvas, EventSystem, and input.
 - `SceneTalkVR/Setup/Apply Recommended Project Settings`: Applies Android/OpenXR/PICO defaults, including package id, IL2CPP, ARM64, Min SDK, PICO OpenXR features, and Build Settings.
 - `SceneTalkVR/Diagnostics/Run Preflight Check`: Generates the current environment report without changing the main project setup.
 - `SceneTalkVR/Advanced/Clear Generated Demo Rig`: Clears only the generated demo rig and world UI.
@@ -277,7 +279,7 @@ All long-running work must use coroutines and report success through `onComplete
 ### Current Status
 
 - The Unity Editor demo can display, receive clicks, and complete the fake-data loop.
-- PICO/OpenXR controller interaction is wired for controller rays, trigger-confirmed UI clicks, start/retry, finish, and panel recentering.
+- PICO/OpenXR controller interaction is wired for controller rays, trigger-confirmed UI clicks, hold-to-record trigger input when not pointing at buttons, start/retry, finish, and panel recentering.
 - Android/OpenXR/PICO baseline settings are in place, and PICO 4 debug builds default to OpenGLES3 to avoid Vulkan startup crashes.
 - PICO 4 can launch the demo; controller input, panel placement, and the full presentation path still need device verification.
 - Spring's real LLM/scene-generation module and Edwin's real STT/TTS/Avatar module still need to replace the demo adapters.

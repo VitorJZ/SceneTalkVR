@@ -7,8 +7,10 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
+using XRTrackedPoseDriver = UnityEngine.InputSystem.XR.TrackedPoseDriver;
 
 namespace SceneTalkVR.EditorTools
 {
@@ -24,13 +26,13 @@ namespace SceneTalkVR.EditorTools
         private const string AvatarCommonControllerPath = "Assets/SceneTalkVR/Avatar/Animations/Common/AvatarCommonHumanoid.controller";
         private const string VoiceGatewaySettingsPath = "Assets/SceneTalkVR/Voice/VoiceGatewaySettings.asset";
 
-        [MenuItem("SceneTalkVR/Setup/Rebuild Demo Rig", false, 10)]
+        [MenuItem("SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway)", false, 10)]
         public static void CreateVitorDemoRig()
         {
             CreateCleanDemoRig(true);
         }
 
-        [MenuItem("SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway", false, 11)]
+        [MenuItem("SceneTalkVR/Setup/Enable Voice Gateway On Existing Rig", false, 11)]
         public static void CreateVitorDemoRigWithVoiceGateway()
         {
             ConfigureExistingDemoRigVoiceGateway();
@@ -155,7 +157,13 @@ namespace SceneTalkVR.EditorTools
             var assetCatalog = AssetDatabase.LoadAssetAtPath<SceneTalkAssetCatalog>("Assets/SceneTalkVR/Prefabs/SceneTalkAssetCatalog.asset");
             SetObject(hybridPresenter, "assetCatalog", assetCatalog);
 
-            MonoBehaviour brainToUse = realLlm;
+            var demoBrain = root.GetComponent<DemoBrainModule>();
+            if (demoBrain == null) demoBrain = root.AddComponent<DemoBrainModule>();
+
+            var experimentConditionManager = root.GetComponent<ExperimentConditionManager>();
+            if (experimentConditionManager == null) experimentConditionManager = root.AddComponent<ExperimentConditionManager>();
+
+            MonoBehaviour brainToUse = demoBrain;
             MonoBehaviour presenterToUse = hybridPresenter;
 
             var avatarResolver = root.GetComponent<AvatarPresetResolver>();
@@ -172,6 +180,12 @@ namespace SceneTalkVR.EditorTools
             
             var avatarVoice = root.GetComponent<AvatarPresentationVoiceModule>();
             if (avatarVoice == null) avatarVoice = root.AddComponent<AvatarPresentationVoiceModule>();
+
+            var correctionAgent = root.GetComponent<CorrectionAgentPresenter>();
+            if (correctionAgent == null) correctionAgent = root.AddComponent<CorrectionAgentPresenter>();
+
+            var correctionFeedback = root.GetComponent<CorrectionFeedbackPresenter>();
+            if (correctionFeedback == null) correctionFeedback = root.AddComponent<CorrectionFeedbackPresenter>();
             
             var orchestrator = root.GetComponent<SceneTalkOrchestrator>();
             if (orchestrator == null) orchestrator = root.AddComponent<SceneTalkOrchestrator>();
@@ -191,9 +205,12 @@ namespace SceneTalkVR.EditorTools
             SetObject(avatarVoice, "resolver", avatarResolver);
             SetObject(avatarVoice, "loaderModule", avatarLoader);
             SetObject(avatarVoice, "avatarRoot", avatarRootTransform);
+            SetObject(avatarVoice, "userFacingTarget", interactionCamera.transform);
             SetObject(avatarVoice, "propPresenter", avatarProps);
             SetObject(avatarVoice, "propCatalog", avatarPropCatalog);
             SetObject(avatarVoice, "audioSource", audioSource);
+            SetObject(correctionFeedback, "correctionAgentPresenter", correctionAgent);
+            SetObject(avatarVoice, "correctionFeedbackPresenter", correctionFeedback);
             SetObject(avatarVoice, "animationDriver", avatarAnimation);
             SetObject(avatarVoice, "defaultAnimatorController", LoadAvatarCommonController());
             
@@ -208,6 +225,7 @@ namespace SceneTalkVR.EditorTools
             SetObject(orchestrator, "brainModule", brainToUse);
             SetObject(orchestrator, "scenePresenterModule", presenterToUse);
             SetObject(orchestrator, "avatarVoiceModule", avatarVoice);
+            SetObject(orchestrator, "experimentConditionManager", experimentConditionManager);
             SetObject(interactionBootstrap, "orchestrator", orchestrator);
             SetObject(interactionBootstrap, "interactionCamera", interactionCamera);
             SetObject(interactionBootstrap, "worldCanvas", ui.canvas);
@@ -225,11 +243,19 @@ namespace SceneTalkVR.EditorTools
             var orchestrator = FindFirst<SceneTalkOrchestrator>();
             if (orchestrator == null)
             {
-                Debug.LogWarning("[SceneTalkVR] No existing SceneTalkOrchestrator found. Run SceneTalkVR/Setup/Rebuild Demo Rig first, then configure Voice Gateway.");
+                Debug.LogWarning("[SceneTalkVR] No existing SceneTalkOrchestrator found. Run SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway) first, then configure Voice Gateway.");
                 return;
             }
 
             var root = orchestrator.gameObject;
+            var experimentConditionManager = root.GetComponent<ExperimentConditionManager>();
+            if (experimentConditionManager == null)
+            {
+                experimentConditionManager = root.AddComponent<ExperimentConditionManager>();
+            }
+
+            SetObject(orchestrator, "experimentConditionManager", experimentConditionManager);
+
             var gatewayClient = root.GetComponent<VoiceGatewayClient>();
             if (gatewayClient == null)
             {
@@ -266,6 +292,27 @@ namespace SceneTalkVR.EditorTools
                 SetObject(avatarVoice, "defaultAnimatorController", LoadAvatarCommonController());
                 SetObject(avatarVoice, "voiceGatewayClient", gatewayClient);
                 SetBool(avatarVoice, "useVoiceGatewayTts", true);
+
+                var interactionCamera = Camera.main != null ? Camera.main : FindActiveCamera();
+                if (interactionCamera != null)
+                {
+                    SetObject(avatarVoice, "userFacingTarget", interactionCamera.transform);
+                }
+
+                var correctionAgent = root.GetComponent<CorrectionAgentPresenter>();
+                if (correctionAgent == null)
+                {
+                    correctionAgent = root.AddComponent<CorrectionAgentPresenter>();
+                }
+
+                var correctionFeedback = root.GetComponent<CorrectionFeedbackPresenter>();
+                if (correctionFeedback == null)
+                {
+                    correctionFeedback = root.AddComponent<CorrectionFeedbackPresenter>();
+                }
+
+                SetObject(correctionFeedback, "correctionAgentPresenter", correctionAgent);
+                SetObject(avatarVoice, "correctionFeedbackPresenter", correctionFeedback);
             }
             else
             {
@@ -282,7 +329,7 @@ namespace SceneTalkVR.EditorTools
             var catalog = AssetDatabase.LoadAssetAtPath<AvatarCatalog>(AvatarCatalogPath);
             if (catalog == null)
             {
-                Debug.LogWarning($"[SceneTalkVR] Avatar catalog not found at {AvatarCatalogPath}. Run SceneTalkVR/Avatar/Generate Placeholder Avatars first.");
+                Debug.LogWarning($"[SceneTalkVR] Avatar catalog not found at {AvatarCatalogPath}. Run SceneTalkVR/Avatar/P1 Build Humanoid Avatars first.");
             }
 
             return catalog;
@@ -431,12 +478,15 @@ namespace SceneTalkVR.EditorTools
             }
 
             camera.tag = "MainCamera";
+            var hadTrackedCamera = IsTrackedCamera(camera);
 
-            if (!IsTrackedCamera(camera))
+            if (!hadTrackedCamera)
             {
                 camera.transform.position = new Vector3(0f, 1.6f, -1.5f);
                 camera.transform.rotation = Quaternion.identity;
             }
+
+            EnsureTrackedPoseDriver(camera);
 
             camera.fieldOfView = 60f;
             camera.nearClipPlane = 0.01f;
@@ -485,6 +535,71 @@ namespace SceneTalkVR.EditorTools
             }
 
             return false;
+        }
+
+        private static void EnsureTrackedPoseDriver(Camera camera)
+        {
+            if (camera == null)
+            {
+                return;
+            }
+
+            var trackedPoseDriver = camera.GetComponent<XRTrackedPoseDriver>();
+            if (trackedPoseDriver != null)
+            {
+                ConfigureTrackedPoseDriver(trackedPoseDriver);
+                return;
+            }
+
+            if (IsTrackedCamera(camera))
+            {
+                return;
+            }
+
+            trackedPoseDriver = camera.gameObject.AddComponent<XRTrackedPoseDriver>();
+            ConfigureTrackedPoseDriver(trackedPoseDriver);
+        }
+
+        private static void ConfigureTrackedPoseDriver(XRTrackedPoseDriver trackedPoseDriver)
+        {
+            if (trackedPoseDriver == null)
+            {
+                return;
+            }
+
+            trackedPoseDriver.trackingType = XRTrackedPoseDriver.TrackingType.RotationAndPosition;
+            trackedPoseDriver.updateType = XRTrackedPoseDriver.UpdateType.UpdateAndBeforeRender;
+            trackedPoseDriver.ignoreTrackingState = false;
+            trackedPoseDriver.positionInput = new InputActionProperty(CreatePoseAction(
+                "Position",
+                "<XRHMD>/centerEyePosition",
+                "Vector3",
+                "<HandheldARInputDevice>/devicePosition"));
+            trackedPoseDriver.rotationInput = new InputActionProperty(CreatePoseAction(
+                "Rotation",
+                "<XRHMD>/centerEyeRotation",
+                "Quaternion",
+                "<HandheldARInputDevice>/deviceRotation"));
+            trackedPoseDriver.trackingStateInput = new InputActionProperty(CreatePoseAction(
+                "Tracking State",
+                "<XRHMD>/trackingState",
+                "Integer",
+                null));
+        }
+
+        private static InputAction CreatePoseAction(
+            string actionName,
+            string binding,
+            string expectedControlType,
+            string fallbackBinding)
+        {
+            var action = new InputAction(actionName, binding: binding, expectedControlType: expectedControlType);
+            if (!string.IsNullOrEmpty(fallbackBinding))
+            {
+                action.AddBinding(fallbackBinding);
+            }
+
+            return action;
         }
 
         private static void ConfigureWorldCanvas(Canvas canvas, Camera interactionCamera)
