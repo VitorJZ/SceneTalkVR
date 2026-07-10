@@ -11,7 +11,7 @@ namespace SceneTalkVR.EditorTools
         private SerializedProperty playCorrectionFeedback;
         private SerializedProperty correctionAgentPresenter;
         private SerializedProperty createCorrectionAgentIfMissing;
-        private SerializedProperty assistantAgentFallbackVoiceId;
+        private SerializedProperty assistantAgentVoiceType;
         private SerializedProperty debugForceFeedback;
         private SerializedProperty debugFeedbackText;
 
@@ -21,7 +21,7 @@ namespace SceneTalkVR.EditorTools
             playCorrectionFeedback = serializedObject.FindProperty("playCorrectionFeedback");
             correctionAgentPresenter = serializedObject.FindProperty("correctionAgentPresenter");
             createCorrectionAgentIfMissing = serializedObject.FindProperty("createCorrectionAgentIfMissing");
-            assistantAgentFallbackVoiceId = serializedObject.FindProperty("assistantAgentFallbackVoiceId");
+            assistantAgentVoiceType = serializedObject.FindProperty("assistantAgentVoiceType");
             debugForceFeedback = serializedObject.FindProperty("debugForceFeedback");
             debugFeedbackText = serializedObject.FindProperty("debugFeedbackText");
         }
@@ -32,28 +32,40 @@ namespace SceneTalkVR.EditorTools
 
             using (new EditorGUI.DisabledScope(true))
             {
-                EditorGUILayout.PropertyField(script);
+                DrawProperty(script, "m_Script");
             }
 
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Correction Feedback", EditorStyles.boldLabel);
-            EditorGUILayout.PropertyField(playCorrectionFeedback);
-            EditorGUILayout.PropertyField(correctionAgentPresenter);
-            EditorGUILayout.PropertyField(createCorrectionAgentIfMissing);
-            EditorGUILayout.PropertyField(assistantAgentFallbackVoiceId);
+            DrawProperty(playCorrectionFeedback, "playCorrectionFeedback");
+            DrawProperty(correctionAgentPresenter, "correctionAgentPresenter");
+            DrawProperty(createCorrectionAgentIfMissing, "createCorrectionAgentIfMissing");
+            DrawProperty(assistantAgentVoiceType, "assistantAgentVoiceType");
 
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Correction Debug", EditorStyles.boldLabel);
-            EditorGUILayout.PropertyField(debugForceFeedback);
+            DrawProperty(debugForceFeedback, "debugForceFeedback");
 
-            if (debugForceFeedback.hasMultipleDifferentValues || debugForceFeedback.boolValue)
+            if (debugForceFeedback != null
+                && (debugForceFeedback.hasMultipleDifferentValues || debugForceFeedback.boolValue))
             {
                 EditorGUI.indentLevel++;
-                EditorGUILayout.PropertyField(debugFeedbackText);
+                DrawProperty(debugFeedbackText, "debugFeedbackText");
                 EditorGUI.indentLevel--;
             }
 
             serializedObject.ApplyModifiedProperties();
+        }
+
+        private static void DrawProperty(SerializedProperty property, string propertyName)
+        {
+            if (property != null)
+            {
+                EditorGUILayout.PropertyField(property);
+                return;
+            }
+
+            EditorGUILayout.HelpBox(
+                $"Missing serialized property '{propertyName}'.",
+                MessageType.Error);
         }
     }
 }

@@ -88,6 +88,15 @@ namespace SceneTalkVR.AvatarSystem
                 result.ttsProvider = gatewayResponse != null ? gatewayResponse.provider : string.Empty;
                 result.ttsLatencyMs = gatewayResponse != null ? gatewayResponse.latencyMs : 0;
                 result.audioDurationMs = gatewayAudioDurationMs;
+                if (gatewayResponse != null
+                    && !string.IsNullOrWhiteSpace(gatewayResponse.fallbackLevel)
+                    && !string.Equals(gatewayResponse.fallbackLevel, "none", StringComparison.OrdinalIgnoreCase))
+                {
+                    result.fallbackLevel = AppendFallback(
+                        result.fallbackLevel,
+                        gatewayResponse.fallbackLevel);
+                }
+
                 if (!playedAudio)
                 {
                     if (!context.fallbackToDemoVoiceOnGatewayError)

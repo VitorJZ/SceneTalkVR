@@ -8,16 +8,71 @@ namespace SceneTalkVR.AvatarSystem
     [DisallowMultipleComponent]
     public sealed class CorrectionFeedbackPresenter : MonoBehaviour
     {
+        private enum TencentVoiceType
+        {
+            [InspectorName("WeJack | English male | 101050 | available")]
+            WeJack = 101050,
+            [InspectorName("WeRose | English female | 1051 | legacy available")]
+            WeRoseLegacy = 1051,
+            [InspectorName("WeJack | English male | 1050 | legacy available")]
+            WeJackLegacy = 1050,
+            [InspectorName("WeWinny | English female | 501009")]
+            WeWinny = 501009,
+            [InspectorName("WeJames | English male | 501008")]
+            WeJames = 501008,
+            [InspectorName("Zhi Xiao Min | Chat female | 502003")]
+            ZhiXiaoMin = 502003,
+            [InspectorName("Zhi Xiao Rou | Chat female | 502001")]
+            ZhiXiaoRou = 502001,
+            [InspectorName("Zhi Xiao Wu | Chat male | 502006")]
+            ZhiXiaoWu = 502006,
+            [InspectorName("Zhi Xiao Hu | Child | 502007")]
+            ZhiXiaoHu = 502007,
+            [InspectorName("Zhi Xiao Jie | Narration male | 502005")]
+            ZhiXiaoJie = 502005,
+            [InspectorName("Zhi Xiao Man | Marketing female | 502004")]
+            ZhiXiaoMan = 502004,
+            [InspectorName("Nuan Xin A Can | Chat male | 602004")]
+            NuanXinACan = 602004,
+            [InspectorName("Zhuan Ye Zi Xin | Chat female | 602005")]
+            ZhuanYeZiXin = 602005,
+            [InspectorName("Dong Shi Shao Nian | Character male | 603000")]
+            DongShiShaoNian = 603000,
+            [InspectorName("Xiao Xiang Mei Mei | Character female | 603001")]
+            XiaoXiangMeiMei = 603001,
+            [InspectorName("Ruan Meng Xin Xin | Boy | 603002")]
+            RuanMengXinXin = 603002,
+            [InspectorName("Sui He Lao Li | Chat male | 603003")]
+            SuiHeLaoLi = 603003,
+            [InspectorName("Wen Rou Xiao Ning | Chat female | 603004")]
+            WenRouXiaoNing = 603004,
+            [InspectorName("Zhi Xin Da Lin | Chat male | 603005")]
+            ZhiXinDaLin = 603005,
+            [InspectorName("Chen Wen Qing Shu | Chat male | 603006")]
+            ChenWenQingShu = 603006,
+            [InspectorName("Lin Jia Nv Hai | Chat female | 603007")]
+            LinJiaNvHai = 603007,
+            [InspectorName("Ai Xiao You | Chat female | 602003")]
+            AiXiaoYou = 602003
+        }
+
         private const string DialogueAvatarProvider = "dialogue_avatar";
         private const string AssistantAgentProvider = "assistant_agent";
         private const string ExplicitStyle = "explicit";
         private const string RecastStyle = "recast";
+        private const TencentVoiceType DefaultAssistantAgentVoice = TencentVoiceType.WeJack;
 
+        [Header("Correction Playback")]
         [SerializeField] private bool playCorrectionFeedback = true;
         [SerializeField] private CorrectionAgentPresenter correctionAgentPresenter;
         [SerializeField] private bool createCorrectionAgentIfMissing = true;
-        [SerializeField] private string assistantAgentFallbackVoiceId = "default_female_en";
 
+        [Header("Assistant Agent Voice")]
+        [SerializeField]
+        [Tooltip("Tencent VoiceType used only by the correction assistant. Options support English or bilingual speech in the basic TTS API.")]
+        private TencentVoiceType assistantAgentVoiceType = DefaultAssistantAgentVoice;
+
+        [Header("Correction Debug")]
         [SerializeField] private bool debugForceFeedback;
         [SerializeField] private string debugFeedbackText = "Try saying: I'd like a latte, please.";
 
@@ -105,15 +160,16 @@ namespace SceneTalkVR.AvatarSystem
                 provider,
                 DialogueAvatarProvider,
                 StringComparison.OrdinalIgnoreCase);
+            var assistantAgentVoiceId = useDialogueAvatar
+                ? null
+                : ResolveAssistantAgentVoiceId();
             var playbackRequest = new AvatarSpeechPlaybackRequest
             {
                 text = text,
                 logLabel = useDialogueAvatar
                     ? "Correction feedback"
                     : "Assistant correction feedback",
-                voiceIdOverride = useDialogueAvatar
-                    ? null
-                    : ResolveAssistantAgentFallbackVoiceId()
+                voiceIdOverride = assistantAgentVoiceId
             };
 
             AvatarSpeechPlaybackResult playbackResult = null;
@@ -176,6 +232,7 @@ namespace SceneTalkVR.AvatarSystem
 
             Debug.Log(
                 $"[SceneTalkVR] Correction feedback log: provider={provider}, style={style}, "
+                + $"voiceId={assistantAgentVoiceId ?? "avatar_default"}, "
                 + $"playbackCompleted={playbackResult.playbackCompleted}, "
                 + $"ttsProvider={playbackResult.ttsProvider}, ttsLatencyMs={playbackResult.ttsLatencyMs}, "
                 + $"audioDurationMs={playbackResult.audioDurationMs}, textChars={text.Length}, "
@@ -257,11 +314,12 @@ namespace SceneTalkVR.AvatarSystem
                 : ResolveFeedbackText(feedback);
         }
 
-        private string ResolveAssistantAgentFallbackVoiceId()
+        private string ResolveAssistantAgentVoiceId()
         {
-            return string.IsNullOrWhiteSpace(assistantAgentFallbackVoiceId)
-                ? "default_female_en"
-                : assistantAgentFallbackVoiceId;
+            var selectedVoice = Enum.IsDefined(typeof(TencentVoiceType), assistantAgentVoiceType)
+                ? assistantAgentVoiceType
+                : DefaultAssistantAgentVoice;
+            return ((int)selectedVoice).ToString();
         }
 
         private CorrectionAgentPresenter ResolveCorrectionAgentPresenter(bool createIfMissing)
