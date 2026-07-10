@@ -59,8 +59,11 @@ namespace SceneTalkVR.Voice
 
             var deviceName = ResolveDeviceName();
             var requestedSampleRate = Mathf.Max(8000, sampleRate);
-            var requestedBufferSeconds = Mathf.Max(MinimumRecordingBufferSeconds, maxRecordingSeconds);
-            var requestedMinSeconds = Mathf.Clamp(minRecordingSeconds, 0f, requestedBufferSeconds);
+            var requestedMaxSeconds = Mathf.Max(0.25f, maxRecordingSeconds);
+            var requestedBufferSeconds = Mathf.Max(
+                MinimumRecordingBufferSeconds,
+                Mathf.CeilToInt(requestedMaxSeconds));
+            var requestedMinSeconds = Mathf.Clamp(minRecordingSeconds, 0f, requestedMaxSeconds);
 
             AudioClip clip = null;
             try
@@ -106,6 +109,7 @@ namespace SceneTalkVR.Voice
 
             while (!cancelRequested
                    && !stopRequested
+                   && Time.realtimeSinceStartup - startedAt < requestedMaxSeconds
                    && (shouldStop == null || !shouldStop()))
             {
                 yield return null;
@@ -117,8 +121,9 @@ namespace SceneTalkVR.Voice
                 yield break;
             }
 
+            var elapsedSeconds = Time.realtimeSinceStartup - startedAt;
             var recordedSamples = Microphone.GetPosition(deviceName);
-            var hasLooped = Time.realtimeSinceStartup - startedAt >= requestedBufferSeconds;
+            var hasLooped = elapsedSeconds >= requestedBufferSeconds;
             EndActiveRecording();
 
             if (!hasLooped && recordedSamples <= 0)
