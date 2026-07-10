@@ -62,6 +62,10 @@ namespace SceneTalkVR.Runtime.Services
         private SceneTalkOrchestrator cachedOrchestrator;
         private CorrectionExperimentCondition currentCondition;
 
+        private float lastSttConfidence = 1.0f;
+        private float lastRecordingDurationMs = 0f;
+        private string lastRecordingStopReason = "unknown";
+
         public void SetExperimentCondition(CorrectionExperimentCondition condition)
         {
             currentCondition = ExperimentConditionManager.CloneCondition(condition);
@@ -71,6 +75,23 @@ namespace SceneTalkVR.Runtime.Services
         {
             Debug.Log($"[RealLLMService] Generating scene and reply for: {userText}");
             
+            // Retrieve latest STT metadata from GatewaySpeechInputModule if available
+            lastSttConfidence = 1.0f;
+            lastRecordingDurationMs = 0f;
+            lastRecordingStopReason = "unknown";
+            
+            var speechModule = FindObjectOfType<GatewaySpeechInputModule>();
+            if (speechModule != null)
+            {
+                lastRecordingDurationMs = speechModule.LastRecordingDurationMs;
+                lastRecordingStopReason = speechModule.LastRecordingStopReason;
+                if (speechModule.LastSttResponse != null)
+                {
+                    lastSttConfidence = speechModule.LastSttResponse.confidence;
+                }
+                Debug.Log($"[RealLLMService] STT Metadata - Duration: {lastRecordingDurationMs}ms, StopReason: {lastRecordingStopReason}, Confidence: {lastSttConfidence}");
+            }
+
             CheckAndResetSession();
 
             Task<SpringScenePayload> task;
@@ -307,6 +328,19 @@ namespace SceneTalkVR.Runtime.Services
                 {
                     builder.AppendLine($"- openingQuestion: {task.initialQuestion}");
                 }
+            }
+
+            builder.AppendLine("\n=== SPEECH CAPTURE METADATA ===");
+            builder.AppendLine($"- recordingDurationMs: {lastRecordingDurationMs} ms");
+            builder.AppendLine($"- recordingStopReason: {lastRecordingStopReason}");
+            builder.AppendLine($"- sttConfidence: {lastSttConfidence}");
+            if (lastSttConfidence < 0.5f)
+            {
+                builder.AppendLine("CRITICAL: STT/ASR confidence is extremely low. Do NOT perform any grammar correction (set hasFeedback = false) because the errors are likely STT recognition failures. Respond politely asking the user to repeat.");
+            }
+            if (lastRecordingDurationMs > 0 && lastRecordingDurationMs < 500f)
+            {
+                builder.AppendLine("CRITICAL: The user recording was too short (under 500ms), probably a misclick or accidental cancel. Do NOT perform grammar correction (set hasFeedback = false). Respond politely asking the user to repeat.");
             }
 
             builder.AppendLine("\n=== LANGUAGE CORRECTION INSTRUCTIONS ===");
