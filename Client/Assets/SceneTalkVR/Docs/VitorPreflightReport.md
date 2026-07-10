@@ -1,6 +1,6 @@
 ﻿# Vitor Preflight Report
 
-Generated: 2026-06-06 18:35:36
+Generated: 2026-07-10 13:01:59
 Unity: 6000.3.16f1
 Active Build Target: Android
 Android Build Support Path: `E:/ProgramFile/UnityEditor/6000.3.16f1/Editor/Data\PlaybackEngines\AndroidPlayer`
@@ -23,6 +23,10 @@ Android Build Support Path: `E:/ProgramFile/UnityEditor/6000.3.16f1/Editor/Data\
 - [x] World UI canvas has an interaction camera
 - [x] World UI canvas is not mirrored on Y axis
 - [x] World UI canvas has GraphicRaycaster
+- [x] One ExperimentConditionManager in scene (found 1)
+- [x] One CorrectionFeedbackPresenter in scene (found 1)
+- [x] One CorrectionAgentPresenter in scene (found 1)
+- [x] Correction playback remains inside `ISceneTalkAvatarVoice.PresentReply(...)`
 
 ## Packages
 

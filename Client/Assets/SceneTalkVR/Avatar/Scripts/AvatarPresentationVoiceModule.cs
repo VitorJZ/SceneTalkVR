@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace SceneTalkVR.AvatarSystem
 {
-    public sealed class AvatarPresentationVoiceModule : MonoBehaviour, ISceneTalkAvatarVoice, ISceneTalkAvatarReplyContext, ISceneTalkAvatarSessionReset
+    public sealed class AvatarPresentationVoiceModule : MonoBehaviour, ISceneTalkAvatarVoice, ISceneTalkAvatarReplyContext, ISceneTalkAvatarSessionReset, ISceneTalkCorrectionFeedbackProviderReceiver
     {
         private const string DefaultFollowUpSpeakingTrigger = "Talk";
 

@@ -160,6 +160,9 @@ namespace SceneTalkVR.EditorTools
             var demoBrain = root.GetComponent<DemoBrainModule>();
             if (demoBrain == null) demoBrain = root.AddComponent<DemoBrainModule>();
 
+            var experimentConditionManager = root.GetComponent<ExperimentConditionManager>();
+            if (experimentConditionManager == null) experimentConditionManager = root.AddComponent<ExperimentConditionManager>();
+
             MonoBehaviour brainToUse = demoBrain;
             MonoBehaviour presenterToUse = hybridPresenter;
 
@@ -221,6 +224,7 @@ namespace SceneTalkVR.EditorTools
             SetObject(orchestrator, "brainModule", brainToUse);
             SetObject(orchestrator, "scenePresenterModule", presenterToUse);
             SetObject(orchestrator, "avatarVoiceModule", avatarVoice);
+            SetObject(orchestrator, "experimentConditionManager", experimentConditionManager);
             SetObject(interactionBootstrap, "orchestrator", orchestrator);
             SetObject(interactionBootstrap, "interactionCamera", interactionCamera);
             SetObject(interactionBootstrap, "worldCanvas", ui.canvas);
@@ -243,6 +247,14 @@ namespace SceneTalkVR.EditorTools
             }
 
             var root = orchestrator.gameObject;
+            var experimentConditionManager = root.GetComponent<ExperimentConditionManager>();
+            if (experimentConditionManager == null)
+            {
+                experimentConditionManager = root.AddComponent<ExperimentConditionManager>();
+            }
+
+            SetObject(orchestrator, "experimentConditionManager", experimentConditionManager);
+
             var gatewayClient = root.GetComponent<VoiceGatewayClient>();
             if (gatewayClient == null)
             {

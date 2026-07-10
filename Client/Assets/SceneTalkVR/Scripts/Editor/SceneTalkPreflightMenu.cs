@@ -3,6 +3,8 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using SceneTalkVR.AvatarSystem;
+using SceneTalkVR.Core;
 using SceneTalkVR.Runtime;
 using UnityEditor;
 using UnityEditor.Build;
@@ -178,10 +180,16 @@ namespace SceneTalkVR.EditorTools
                 .Where(canvas => canvas.gameObject.name.StartsWith("SceneTalkVR World UI", StringComparison.Ordinal))
                 .ToArray();
             var eventSystems = FindAll<EventSystem>();
+            var experimentManagers = FindAll<ExperimentConditionManager>();
+            var correctionFeedbackPresenters = FindAll<CorrectionFeedbackPresenter>();
+            var correctionAgentPresenters = FindAll<CorrectionAgentPresenter>();
             AppendCheck(report, orchestrators.Length == 1, $"One SceneTalkOrchestrator in scene (found {orchestrators.Length})");
             AppendCheck(report, bootstraps.Length == 1, $"One SceneTalkInteractionBootstrap in scene (found {bootstraps.Length})");
             AppendCheck(report, canvases.Length == 1, $"One SceneTalkVR World UI canvas in scene (found {canvases.Length})");
             AppendCheck(report, eventSystems.Length == 1, $"One EventSystem in scene (found {eventSystems.Length})");
+            AppendCheck(report, experimentManagers.Length == 1, $"One ExperimentConditionManager in scene (found {experimentManagers.Length})");
+            AppendCheck(report, correctionFeedbackPresenters.Length == 1, $"One CorrectionFeedbackPresenter in scene (found {correctionFeedbackPresenters.Length})");
+            AppendCheck(report, correctionAgentPresenters.Length == 1, $"One CorrectionAgentPresenter in scene (found {correctionAgentPresenters.Length})");
             AppendCheck(report, HasTrackedPoseDriver(Camera.main), "Main Camera uses XR tracked pose on device");
 
             if (canvases.Length > 0)

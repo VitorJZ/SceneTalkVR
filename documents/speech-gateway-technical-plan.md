@@ -40,7 +40,7 @@ P0 最小实现已经完成。当前完成范围是 Unity Editor + 后端语音�
 - 已新增 Unity 侧 `MicrophoneRecorder`，可录制默认麦克风音频，编码为 16-bit WAV base64 并随 STT 请求上传到语音网关。
 - 已扩展 Unity 侧 `VoiceGatewayClient`，可调用 `/api/voice/tts` 并下载返回的 WAV 音频为 `AudioClip`；后端 provider 可切换为 mock 或 tencent。
 - 已扩展 `AvatarPresentationVoiceModule`，可优先播放语音网关 TTS 音频，失败时回退 demo 音频或 fallback 等待。
-- 已新增 `SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway`，可在现有 demo rig 上只切换语音网关 STT adapter 和 TTS 播放；原 `Rebuild Demo Rig` 仍保持离线 demo 输入。
+- 已新增 `SceneTalkVR/Setup/Enable Voice Gateway On Existing Rig`，可在现有 demo rig 上只切换语音网关 STT adapter 和 TTS 播放；完整重建入口为 `SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway)`。
 - 已新增 `VoiceGatewaySettings.asset`，用于集中配置语音网关地址；团队开发时可把地址改为运行网关那台电脑的局域网 IP。
 - 已新增后端 `TencentSpeechProvider`，通过腾讯云 API 3.0 签名调用 ASR `SentenceRecognition` 和 TTS `TextToVoice`。
 - 已支持 `VOICE_GATEWAY_PROVIDER=mock|tencent` 切换，腾讯云密钥只从后端环境变量读取。
@@ -615,7 +615,7 @@ flowchart TD
 - [x] 支持从网关下载音频并转换为 `AudioClip`。
 - [x] 支持 TTS 播放时触发 speaking 动画。
 - [x] 支持失败时回退 demo transcript 或 demo audio。
-- [x] 更新 setup menu，新增 `SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway` 入口，只挂载/切换语音网关 STT/TTS 模块，不重建场景生成配置。
+- [x] 更新 setup menu，新增 `SceneTalkVR/Setup/Enable Voice Gateway On Existing Rig` 入口，只挂载/切换语音网关 STT/TTS 模块，不重建场景生成配置。
 - [x] 新增 `VoiceGatewaySettings.asset`，集中配置 `gatewayBaseUrl`。
 - [x] 与 Vitor 多轮交互框架合并后，确认 `GatewaySpeechInputModule` 和 `AvatarPresentationVoiceModule` 可以按回合被重复调用。
 

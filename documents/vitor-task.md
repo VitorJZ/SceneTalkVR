@@ -23,7 +23,7 @@ Vitor 作为组长，负责 SceneTalk VR 的系统架构、Unity/PICO 客户端�
 - 已定义 Spring/Edwin 对接接口：`ISceneTalkSpeechInput`、`ISceneTalkManualSpeechInput`、`ISceneTalkBrain`、`ISceneTalkScenePresenter`、`ISceneTalkAvatarVoice`。
 - 已实现假数据联调模块：模拟 STT 输入、LLM/场景生成输出、Avatar 语音回复。
 - 已实现 `SceneTalkScenePresenter`，可消费 Spring 风格的场景数据，并限制动态生成物体数量与距离。
-- 已实现 Unity 编辑器菜单 `SceneTalkVR/Setup/Rebuild Demo Rig`，可一键生成或重建 Demo Rig。
+- 已实现 Unity 编辑器菜单 `SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway)`，可一键生成或重建 Demo Rig。
 - 已修复 Demo Rig 重复生成问题：重建 Demo Rig 时会先清理旧 Rig，再重建唯一一套。
 - 已修复 UI 太小、无法点击、左右镜像问题：已配置 Main Camera、World Space Canvas、EventSystem、InputSystem UI 输入模块，并修正 Canvas 朝向。
 - 已新增 `SceneTalkVR/Advanced/Clear Generated Demo Rig`，用于清理生成物。
@@ -153,7 +153,7 @@ Idle
 
 当前已提供的编辑器保障工具：
 
-- `SceneTalkVR/Setup/Rebuild Demo Rig`：清理旧生成物后创建唯一 Demo Rig，并修复相机、Canvas、EventSystem 和输入。
+- `SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway)`：清理旧生成物后创建唯一 Demo Rig，并修复相机、Canvas、EventSystem 和输入。
 - `SceneTalkVR/Setup/Apply Recommended Project Settings`：配置 Android/OpenXR/PICO 推荐默认项并运行预检。
 - `SceneTalkVR/Diagnostics/Run Preflight Check`：生成 `Assets/SceneTalkVR/Docs/VitorPreflightReport.md`，用于记录当前缺失项和打包准备状态。
 - `SceneTalkVR/Advanced/Clear Generated Demo Rig`：只清理 Demo Rig 和 World UI。

@@ -25,7 +25,7 @@ SceneTalkVR 是一个面向 PICO/VR 的英语情景练习课程项目。当前�
 2. 等待 Unity 完成 package resolve、脚本编译和资源导入。
 3. 打开 `Assets/Scenes/SampleScene.unity`。
 4. 在 Unity 顶部菜单运行 `SceneTalkVR/Setup/Apply Recommended Project Settings`。如果 Unity 触发重新编译，等待完成后再运行一次。
-5. 运行 `SceneTalkVR/Setup/Rebuild Demo Rig`。
+5. 运行 `SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway)`。
 6. 点击 Play，在初始界面点击 `Start`；初始界面显示纵向排列的 `Start`、`Settings` 和 `Quit`。
 7. 运行 `SceneTalkVR/Diagnostics/Run Preflight Check` 查看当前环境报告：`Client/Assets/SceneTalkVR/Docs/VitorPreflightReport.md`。
 
@@ -55,7 +55,7 @@ SceneTalkVR 是一个面向 PICO/VR 的英语情景练习课程项目。当前�
 
 为了减少混淆，`SceneTalkVR` 菜单只保留三组入口：
 
-- `SceneTalkVR/Setup/Rebuild Demo Rig`：重建可运行 Demo，自动清理旧 Rig，并配置 Main Camera、World Space Canvas、EventSystem 和输入模块。
+- `SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway)`：重建可运行 Demo，自动清理旧 Rig，并配置 Main Camera、World Space Canvas、EventSystem 和输入模块。
 - `SceneTalkVR/Setup/Apply Recommended Project Settings`：应用 Android/OpenXR/PICO 推荐设置，包括包名、IL2CPP、ARM64、Min SDK、PICO OpenXR features 和 Build Settings。
 - `SceneTalkVR/Diagnostics/Run Preflight Check`：生成环境预检报告，不修改主要项目设置。
 - `SceneTalkVR/Advanced/Clear Generated Demo Rig`：只清理生成的 Demo Rig 和 World UI。
@@ -187,7 +187,7 @@ SceneTalkVR is a PICO/VR English scenario practice project. The current architec
 2. Wait for Unity to finish package resolve, script compilation, and asset import.
 3. Open `Assets/Scenes/SampleScene.unity`.
 4. Run `SceneTalkVR/Setup/Apply Recommended Project Settings`. If Unity recompiles, wait until it finishes and run the same menu once more.
-5. Run `SceneTalkVR/Setup/Rebuild Demo Rig`.
+5. Run `SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway)`.
 6. Press Play and click `Start` on the initial panel. The initial panel shows `Start`, `Settings`, and `Quit`.
 7. Run `SceneTalkVR/Diagnostics/Run Preflight Check` to generate the environment report at `Client/Assets/SceneTalkVR/Docs/VitorPreflightReport.md`.
 
@@ -217,7 +217,7 @@ At startup, the client waits for headset tracking and places the demo panel in f
 
 The `SceneTalkVR` menu is grouped into three areas to avoid confusing one-off setup commands:
 
-- `SceneTalkVR/Setup/Rebuild Demo Rig`: Rebuilds the runnable demo, clears old rigs, and configures Main Camera, World Space Canvas, EventSystem, and input.
+- `SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway)`: Rebuilds the runnable demo, clears old rigs, and configures Main Camera, World Space Canvas, EventSystem, and input.
 - `SceneTalkVR/Setup/Apply Recommended Project Settings`: Applies Android/OpenXR/PICO defaults, including package id, IL2CPP, ARM64, Min SDK, PICO OpenXR features, and Build Settings.
 - `SceneTalkVR/Diagnostics/Run Preflight Check`: Generates the current environment report without changing the main project setup.
 - `SceneTalkVR/Advanced/Clear Generated Demo Rig`: Clears only the generated demo rig and world UI.

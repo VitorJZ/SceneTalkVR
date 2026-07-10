@@ -5,10 +5,17 @@ using UnityEngine;
 
 namespace SceneTalkVR.Demo
 {
-    public sealed class DemoBrainModule : MonoBehaviour, ISceneTalkBrain
+    public sealed class DemoBrainModule : MonoBehaviour, ISceneTalkBrain, ISceneTalkExperimentContextReceiver
     {
         [SerializeField]
         private float simulatedProcessingSeconds = 1.5f;
+
+        private CorrectionExperimentCondition currentCondition;
+
+        public void SetExperimentCondition(CorrectionExperimentCondition condition)
+        {
+            currentCondition = ExperimentConditionManager.CloneCondition(condition);
+        }
 
         public IEnumerator GenerateSceneAndReply(string userText, Action<SpringScenePayload> onComplete, Action<string> onError)
         {
@@ -20,33 +27,94 @@ namespace SceneTalkVR.Demo
 
             yield return new WaitForSeconds(Mathf.Max(0f, simulatedProcessingSeconds));
 
-            var payload = BuildPayload(userText);
+            var payload = BuildPayload(userText, currentCondition);
 
             onComplete?.Invoke(payload);
         }
 
-        private static SpringScenePayload BuildPayload(string userText)
+        private static SpringScenePayload BuildPayload(string userText, CorrectionExperimentCondition condition)
         {
+            if (condition != null && condition.task != null && !string.IsNullOrWhiteSpace(condition.scenarioId))
+            {
+                var experimentPayload = BuildExperimentPayload(userText, condition);
+                experimentPayload.correctionFeedback = BuildCorrectionFeedback(userText, condition);
+                ApplyExperimentConditionToCorrection(experimentPayload.correctionFeedback, condition);
+                return experimentPayload;
+            }
+
             var requestedGender = DetectGenderPresentation(userText, "unknown");
             SpringScenePayload payload;
 
             if (ContainsAny(userText, "police", "officer", "airport", "security", "customs", "警察", "警官", "安检", "海关"))
             {
                 payload = BuildPolicePayload(requestedGender);
-                payload.correctionFeedback = BuildCorrectionFeedback(userText);
+                payload.correctionFeedback = BuildCorrectionFeedback(userText, condition);
                 return payload;
             }
 
             if (ContainsAny(userText, "teacher", "classroom", "school", "lesson", "exam", "教师", "老师", "课堂", "学校", "考试"))
             {
                 payload = BuildTeacherPayload(requestedGender);
-                payload.correctionFeedback = BuildCorrectionFeedback(userText);
+                payload.correctionFeedback = BuildCorrectionFeedback(userText, condition);
                 return payload;
             }
 
             payload = BuildBaristaPayload(DetectGenderPresentation(userText, "female"));
-            payload.correctionFeedback = BuildCorrectionFeedback(userText);
+            payload.correctionFeedback = BuildCorrectionFeedback(userText, condition);
             return payload;
+        }
+
+        private static SpringScenePayload BuildExperimentPayload(string userText, CorrectionExperimentCondition condition)
+        {
+            var task = condition.task;
+            var fallbackRole = string.IsNullOrWhiteSpace(task.fallbackAvatarRole)
+                ? "barista"
+                : task.fallbackAvatarRole;
+            var gender = DetectGenderPresentation(
+                userText,
+                string.IsNullOrWhiteSpace(task.fallbackAvatarGenderPresentation)
+                    ? "unknown"
+                    : task.fallbackAvatarGenderPresentation);
+            var roleFamily = ResolveRoleFamily(fallbackRole);
+            var initial = condition.turnIndex <= 1 || string.IsNullOrWhiteSpace(userText);
+
+            return new SpringScenePayload
+            {
+                taskType = condition.scenarioId,
+                environmentType = string.IsNullOrWhiteSpace(task.fallbackEnvironmentType)
+                    ? condition.scenarioId
+                    : task.fallbackEnvironmentType,
+                dialogueReply = initial
+                    ? ResolveInitialQuestion(task)
+                    : ResolveFollowUpQuestion(condition.scenarioId),
+                avatarRole = new AvatarRoleData
+                {
+                    role = fallbackRole,
+                    speakingSpeed = "medium",
+                    accent = "american",
+                    attitude = string.IsNullOrWhiteSpace(task.fallbackAvatarAttitude)
+                        ? "helpful"
+                        : task.fallbackAvatarAttitude,
+                    appearance = new AvatarAppearanceData
+                    {
+                        styleId = "semi_realistic_v1",
+                        genderPresentation = gender,
+                        ageBucket = "adult",
+                        bodyBuild = "average",
+                        outfitRole = roleFamily,
+                        outfitColor = ResolveOutfitColor(roleFamily, gender),
+                        seed = 42345 + Mathf.Abs((condition.scenarioId ?? string.Empty).GetHashCode() % 1000)
+                    }
+                },
+                scene = new ScenePayload
+                {
+                    mode = "skybox",
+                    skyboxUrl = string.IsNullOrWhiteSpace(task.fallbackSkyboxUrl)
+                        ? $"demo://{condition.scenarioId}"
+                        : task.fallbackSkyboxUrl,
+                    layoutObjects = task.fallbackLayoutObjects ?? Array.Empty<LayoutObjectData>()
+                }
+            };
         }
 
         private static SpringScenePayload BuildBaristaPayload(string genderPresentation)
@@ -202,6 +270,81 @@ namespace SceneTalkVR.Demo
             };
         }
 
+        private static string ResolveInitialQuestion(SceneTalkExperimentTask task)
+        {
+            return task == null || string.IsNullOrWhiteSpace(task.initialQuestion)
+                ? "How can I help you today?"
+                : task.initialQuestion;
+        }
+
+        private static string ResolveFollowUpQuestion(string scenarioId)
+        {
+            if (string.Equals(scenarioId, "restaurant_reservation", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Thanks. Would you like indoor seating or outdoor seating?";
+            }
+
+            if (string.Equals(scenarioId, "furniture_shopping", StringComparison.OrdinalIgnoreCase))
+            {
+                return "That helps. What size or material would work best for your room?";
+            }
+
+            if (string.Equals(scenarioId, "gym_membership", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Got it. Which facilities matter most to you?";
+            }
+
+            if (string.Equals(scenarioId, "hotel_check_in", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Thank you. Could you confirm your ID and how many nights you are staying?";
+            }
+
+            return "Thanks. Could you tell me a little more?";
+        }
+
+        private static string ResolveRoleFamily(string role)
+        {
+            if (ContainsAny(role, "teacher", "instructor", "tutor", "trainer"))
+            {
+                return "teacher";
+            }
+
+            if (ContainsAny(role, "police", "officer", "security", "customs"))
+            {
+                return "police";
+            }
+
+            return "barista";
+        }
+
+        private static string ResolveOutfitColor(string roleFamily, string gender)
+        {
+            if (string.Equals(roleFamily, "teacher", StringComparison.OrdinalIgnoreCase))
+            {
+                return IsGender(gender, "female") ? "black" : "blue";
+            }
+
+            if (string.Equals(roleFamily, "police", StringComparison.OrdinalIgnoreCase))
+            {
+                return IsGender(gender, "female") ? "grey" : "navy";
+            }
+
+            return IsGender(gender, "male") ? "red" : "green";
+        }
+
+        private static void ApplyExperimentConditionToCorrection(
+            CorrectionFeedbackData feedback,
+            CorrectionExperimentCondition condition)
+        {
+            if (feedback == null || condition == null)
+            {
+                return;
+            }
+
+            feedback.provider = condition.provider;
+            feedback.style = condition.style;
+        }
+
         private static string DetectGenderPresentation(string value, string fallback)
         {
             if (ContainsAny(value, "female", "woman", "girl", "lady", "女", "女性", "女士", "女人"))
@@ -217,11 +360,18 @@ namespace SceneTalkVR.Demo
             return fallback;
         }
 
-        private static CorrectionFeedbackData BuildCorrectionFeedback(string userText)
+        private static CorrectionFeedbackData BuildCorrectionFeedback(string userText, CorrectionExperimentCondition condition)
         {
             if (!ContainsAny(userText, "correction", "corrective", "feedback", "explicit", "recast", "纠错", "反馈", "更正"))
             {
-                return null;
+                return condition == null
+                    ? null
+                    : new CorrectionFeedbackData
+                    {
+                        hasFeedback = false,
+                        provider = condition.provider,
+                        style = condition.style
+                    };
             }
 
             var provider = ContainsAny(userText, "assistant", "agent", "assistant_agent", "helper", "小助手", "辅助")

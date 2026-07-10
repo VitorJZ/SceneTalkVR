@@ -13,7 +13,7 @@
   - `ISceneTalkAvatarVoice`
 - 假数据模块：模拟 STT、LLM/场景生成和 Avatar 语音回复。
 - 场景呈现器：消费 Spring 风格的场景数据，并安全实例化本地预制体。
-- Unity Demo 菜单入口：`SceneTalkVR/Setup/Rebuild Demo Rig`。
+- Unity Demo 菜单入口：`SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway)`。
 - 推荐项目配置入口：`SceneTalkVR/Setup/Apply Recommended Project Settings`。
 - 构建预检入口：`SceneTalkVR/Diagnostics/Run Preflight Check`。
 - 高级清理入口：`SceneTalkVR/Advanced/Clear Generated Demo Rig`。
@@ -25,14 +25,14 @@
 1. 使用 Unity `6000.3.16f1` 打开 `Client`。
 2. 打开 `Assets/Scenes/SampleScene.unity`。
 3. 在 Unity 顶部菜单运行 `SceneTalkVR/Setup/Apply Recommended Project Settings`；如果 Unity 重新编译，完成后再运行一次。
-4. 运行 `SceneTalkVR/Setup/Rebuild Demo Rig`。
+4. 运行 `SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway)`。
 5. 点击 Play，在初始世界空间面板里点击 `Start`；也可以先进入 `Settings` 调整显示和按键。
 6. 需求阶段点击 `Listen` 开始录音、点击 `End` 结束录音；完成转写后同一按钮显示 `Retry`，可再次录音。
 7. Avatar 对话阶段点击 `Speak` 开始录音、点击 `End` 结束录音。
 
 当前 Demo 先使用假数据，目的是保证 Unity 客户端底座稳定。Spring 和 Edwin 后续可以把假模块替换为真实的 LLM、STT、TTS、Avatar 和 Holodeck/全景图服务。
 
-如果已经创建过旧版 Demo Rig，但界面太小、不能点击，或者场景里出现多个 `SceneTalkVR Demo Rig`，运行 `SceneTalkVR/Setup/Rebuild Demo Rig`。它会先清理旧的 SceneTalkVR Demo Rig 和 World UI，再重建唯一一套可点击面板，并把 Main Camera、Canvas 交互相机、`EventSystem + InputSystemUIInputModule` 一起配置好。
+如果已经创建过旧版 Demo Rig，但界面太小、不能点击，或者场景里出现多个 `SceneTalkVR Demo Rig`，运行 `SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway)`。它会先清理旧的 SceneTalkVR Demo Rig 和 World UI，再重建唯一一套可点击面板，并把 Main Camera、Canvas 交互相机、`EventSystem + InputSystemUIInputModule` 一起配置好。
 
 如果只想清空旧生成物，不立刻重建，运行 `SceneTalkVR/Advanced/Clear Generated Demo Rig`。
 

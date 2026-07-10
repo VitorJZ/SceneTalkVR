@@ -57,7 +57,7 @@ Edwin 当前不负责：
 - 已新增 `SceneTalkVR/Avatar/Generate Placeholder Avatars` 编辑器菜单，可生成占位 Avatar 资源。
 - 已生成 `barista_default`、`teacher_default`、`police_default` 三个占位 Avatar prefab。
 - 已生成 `AvatarCatalog.asset`，并登记上述三个占位角色的 role、environment、outfit、accessory、must-have 等匹配标签。
-- 已更新 `SceneTalkVR/Setup/Rebuild Demo Rig`，自动挂载 `AvatarPresetResolver`、`PrefabAvatarInstanceLoader`、`AvatarPresentationVoiceModule`，并把 catalog 赋给 resolver。
+- 已更新 `SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway)`，自动挂载 `AvatarPresetResolver`、`PrefabAvatarInstanceLoader`、`AvatarPresentationVoiceModule`，并把 catalog 赋给 resolver。
 - 已在 Play Mode 中验证点击初始界面的 `Start` 后，`barista_default` 会根据 demo payload 自动加载出来。
 - 已更新 `DemoBrainModule`，可根据输入关键词生成 barista / teacher / police 三类 demo payload，并已验证会分别命中对应 Avatar key。
 - 已验证未知角色 fallback、旧 Avatar 清理、多轮替换、Avatar 资源缺失时继续流程等 P0 稳定性项。
@@ -91,7 +91,7 @@ P1 调整与验证（2026-06-11）：
 - `AvatarPresentationVoiceModule` 已保留 Vitor 的 `currentAvatarKey` 复用逻辑：连续回合中如果 resolver 命中同一个 Avatar key，不重复销毁和重新加载角色，只刷新道具状态并继续播放回复。
 - 初始回复会通过 `ISceneTalkAvatarReplyContext.SetReplyContext(true)` 保持 `Speak` 挥手动作；同场景后续回复会通过 `SetReplyContext(false)` 触发 `Talk` talking loop，避免 Avatar 每句话都挥手。
 - `Talk` 使用 Quaternius `Animated Base Character` 的 `Rig|Idle_Talking_Loop`，但只通过 `AvatarTalkGesture.mask` 作用在头部；body/root/legs/arms/fingers 保持基础 idle，避免 full-body retarget 和手臂姿态造成角色变形或怪异 pose。
-- 已更新 `SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway`，在不重建场景的情况下也会重新绑定 `AvatarPresentationVoiceModule.defaultAnimatorController` 和 `AvatarAnimationDriver`，避免已有 rig 中 Avatar 不播放动作。
+- 已更新 `SceneTalkVR/Setup/Enable Voice Gateway On Existing Rig`，在不重建场景的情况下也会重新绑定 `AvatarPresentationVoiceModule.defaultAnimatorController` 和 `AvatarAnimationDriver`，避免已有 rig 中 Avatar 不播放动作。
 - `AvatarPresentationVoiceModule.attachProps` 仍作为默认关闭的道具开关；无论新加载 Avatar 还是复用当前 Avatar，都会先清理 props，并且只有显式启用 `attachProps` 时才重新挂载 props。
 - Edwin 的 Avatar 侧支持“连续回合中的 Avatar 复用和回复呈现”，但不负责 LLM 对话记忆、角色连续性策略或 Prompt。若后续回合需要保持同一角色语义，应由 Spring 的 Brain 在 payload 中稳定输出对应 `avatarRole` / `appearance` 字段。
 

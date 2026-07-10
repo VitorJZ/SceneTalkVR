@@ -10,6 +10,10 @@ namespace SceneTalkVR.Core
         Processing,
         SceneReady,
         AvatarSpeaking,
+        CorrectionFeedbackSpeaking,
+        DialogueSpeaking,
+        TurnReview,
+        Questionnaire,
         Finished,
         Error
     }

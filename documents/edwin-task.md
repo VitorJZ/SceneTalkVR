@@ -49,7 +49,7 @@ Edwin 的模块应保持可替换、可降级、可联调：即使真实云服�
 - Unity 侧可请求 TTS、下载返回 WAV，并转换为 `AudioClip` 播放。
 - Unity 侧 TTS 请求已根据最终解析到的 Avatar preset 性别选择 `default_male_en` 或 `default_female_en`，缺失时回退默认 voiceId。
 - 已新增 `VoiceGatewaySettings.asset`，集中配置 `gatewayBaseUrl`，支持团队通过局域网共用一台语音网关主机。
-- 已新增 `SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway`，可在现有 demo rig 上切换到真实语音网关路径，不重建场景生成、UI 或 Avatar 配置。
+- 已新增 `SceneTalkVR/Setup/Enable Voice Gateway On Existing Rig`，可在现有 demo rig 上切换到真实语音网关路径，不重建场景生成、UI 或 Avatar 配置。
 - 已合入 Vitor 的连续回合框架；同一场景内可重复触发 `STT -> Brain -> TTS -> Avatar 回复`，但 LLM 对话历史仍由 Spring 的 Brain 层负责。
 - 当前文档记录显示：腾讯云 ASR/TTS 已在后端 live smoke test 与 Unity Editor 闭环中完成验证。
 
@@ -96,7 +96,7 @@ Edwin 的模块应保持可替换、可降级、可联调：即使真实云服�
 - [x] Unity 侧新增 `GatewaySpeechInputModule`，替换假 STT 输入。
 - [x] Unity 侧支持手动结束录音，保留最大录音时长作为安全上限。
 - [x] 扩展 `AvatarPresentationVoiceModule`，支持优先播放语音网关 TTS 音频。
-- [x] 提供 `Rebuild Demo Rig With Voice Gateway`，方便一键切换到真实语音路径，且只修改语音组件和引用。
+- [x] 提供 `Enable Voice Gateway On Existing Rig`，方便一键切换到真实语音路径，且只修改语音组件和引用。
 - [x] 在 Unity Editor 中完成真实语音闭环验证。
 
 ### 第 3 阶段：联调期 - PICO 真机、真实 Avatar 和语音体验增强
