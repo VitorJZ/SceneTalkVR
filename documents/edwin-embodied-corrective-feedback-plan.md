@@ -189,7 +189,7 @@ P2 增强：
 辅助 Agent 应与主 Avatar 明显区分：
 
 - 位置不同：不要站在主 Avatar 正前方遮挡对话对象。
-- 声音不同：使用更轻、更像提示助手的音色。
+- 声音不同：`CorrectionFeedbackPresenter > Assistant Agent Voice Type` 提供腾讯云基础语音合成接口支持英文或中英双语的音色下拉选项，默认使用当前账号已验证可用的英文男声 `WeJack (101050)`，与主 Avatar 的默认音色独立配置。
 - 行为不同：只负责纠错，不承担场景角色扮演。
 
 P0 可以使用简单 prefab 或 primitive 组合，不要求复杂模型。重点是让实验参与者能清楚感知“这是另一个反馈来源”。
@@ -202,7 +202,7 @@ Edwin 不负责生成两种文本，也不通过 voiceId、语速或音量人为
 
 ```json
 {
-  "voiceId": "assistant_female_en",
+  "voiceId": "101050",
   "speakingRate": "medium",
   "volume": "default"
 }
@@ -299,8 +299,8 @@ P0 验收标准：
 - [ ] PICO 4 真机回归空指向扳机按住录音、松开同一只手柄结束录音，并确认纠错反馈播放后能继续下一轮 `Speak/End`。
 - [ ] STT 响应加入 confidence 或 audioQualityFlag。
 - [ ] 语音网关日志加入 STT/TTS 耗时和 fallbackLevel。
-- [ ] 为辅助 Agent 配置独立 voiceId。
-- [ ] 为主 Avatar 与辅助 Agent 分别配置 AudioSource，避免音频互相覆盖。
+- [x] 为辅助 Agent 配置独立 voiceId；Inspector 可从腾讯英文/中英双语 `VoiceType` 下拉框选择，默认 `WeJack (101050)`。高级音色资源包耗尽时，网关会回退到配置的腾讯基础音色并记录 `voice_type_fallback`，不会播放 mock 提示音。音色来源：[腾讯云语音合成音色列表](https://cloud.tencent.com/document/product/1073/92668)，核对日期 2026-07-10。
+- [x] 为主 Avatar 与辅助 Agent 分别配置 AudioSource，避免音频互相覆盖。
 - [ ] 支持反馈播放时主 Avatar 保持 idle/listening，不与辅助 Agent 抢动作。
 - [ ] 与 Vitor 联调反馈出现位置、遮挡和视线舒适度。
 - [ ] 与 Spring 联调真实 LLM 产出的 feedback payload。

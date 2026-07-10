@@ -233,13 +233,20 @@ class TencentSpeechProvider:
             "EnableSubtitle": False,
         }
 
-        response = self._client.post_json(
-            endpoint=self._config.tencent_tts_endpoint,
-            service="tts",
-            action="TextToVoice",
-            version="2019-08-23",
-            payload=payload,
-        )
+        fallback_level = "none"
+        try:
+            response = self._request_tts(payload)
+        except ProviderError as exc:
+            fallback_voice_type = self._config.tencent_tts_voice_type
+            if not _should_retry_with_fallback_voice(exc, voice_type, fallback_voice_type):
+                raise
+
+            payload["VoiceType"] = fallback_voice_type
+            response = self._request_tts(payload)
+            fallback_level = (
+                f"voice_type_fallback:{voice_type}->{fallback_voice_type}:pkg_exhausted"
+            )
+
         audio_base64 = str(response.get("Audio") or "")
         if not audio_base64:
             raise ProviderError("Tencent TTS response did not include Audio.")
@@ -254,7 +261,16 @@ class TencentSpeechProvider:
             text_characters=len(text),
             latency_ms=_elapsed_ms(started),
             cache_hit=False,
-            fallback_level="none",
+            fallback_level=fallback_level,
+        )
+
+    def _request_tts(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._client.post_json(
+            endpoint=self._config.tencent_tts_endpoint,
+            service="tts",
+            action="TextToVoice",
+            version="2019-08-23",
+            payload=payload,
         )
 
 
@@ -298,6 +314,17 @@ def _choose_voice_type(value: Any, fallback: int) -> int:
             return fallback
 
     return _read_int(value, fallback)
+
+
+def _should_retry_with_fallback_voice(
+    error: ProviderError,
+    requested_voice_type: int,
+    fallback_voice_type: int,
+) -> bool:
+    return (
+        requested_voice_type != fallback_voice_type
+        and "UnsupportedOperation.PkgExhausted" in str(error)
+    )
 
 
 def _map_tts_speed(value: Any) -> float:
