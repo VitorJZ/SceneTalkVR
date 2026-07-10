@@ -28,18 +28,25 @@ namespace SceneTalkVR.Demo
         private static SpringScenePayload BuildPayload(string userText)
         {
             var requestedGender = DetectGenderPresentation(userText, "unknown");
+            SpringScenePayload payload;
 
             if (ContainsAny(userText, "police", "officer", "airport", "security", "customs", "警察", "警官", "安检", "海关"))
             {
-                return BuildPolicePayload(requestedGender);
+                payload = BuildPolicePayload(requestedGender);
+                payload.correctionFeedback = BuildCorrectionFeedback(userText);
+                return payload;
             }
 
             if (ContainsAny(userText, "teacher", "classroom", "school", "lesson", "exam", "教师", "老师", "课堂", "学校", "考试"))
             {
-                return BuildTeacherPayload(requestedGender);
+                payload = BuildTeacherPayload(requestedGender);
+                payload.correctionFeedback = BuildCorrectionFeedback(userText);
+                return payload;
             }
 
-            return BuildBaristaPayload(DetectGenderPresentation(userText, "female"));
+            payload = BuildBaristaPayload(DetectGenderPresentation(userText, "female"));
+            payload.correctionFeedback = BuildCorrectionFeedback(userText);
+            return payload;
         }
 
         private static SpringScenePayload BuildBaristaPayload(string genderPresentation)
@@ -208,6 +215,42 @@ namespace SceneTalkVR.Demo
             }
 
             return fallback;
+        }
+
+        private static CorrectionFeedbackData BuildCorrectionFeedback(string userText)
+        {
+            if (!ContainsAny(userText, "correction", "corrective", "feedback", "explicit", "recast", "纠错", "反馈", "更正"))
+            {
+                return null;
+            }
+
+            var provider = ContainsAny(userText, "assistant", "agent", "assistant_agent", "helper", "小助手", "辅助")
+                ? "assistant_agent"
+                : "dialogue_avatar";
+            if (ContainsAny(userText, "dialogue_avatar", "dialogue avatar", "main avatar", "avatar feedback", "主avatar", "对话角色"))
+            {
+                provider = "dialogue_avatar";
+            }
+
+            var style = ContainsAny(userText, "recast", "natural", "重述", "自然")
+                ? "recast"
+                : "explicit";
+            var recast = string.Equals(style, "recast", StringComparison.OrdinalIgnoreCase);
+
+            return new CorrectionFeedbackData
+            {
+                hasFeedback = true,
+                provider = provider,
+                style = style,
+                errorType = "grammar",
+                originalText = "I want latte.",
+                correctedText = "I'd like a latte, please.",
+                feedbackText = recast
+                    ? "I'd like a latte, please."
+                    : "Try saying: I'd like a latte, please.",
+                targetSpan = "want latte",
+                confidence = 0.92f
+            };
         }
 
         private static bool IsGender(string value, string expected)

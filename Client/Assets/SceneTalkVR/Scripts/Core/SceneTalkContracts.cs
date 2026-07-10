@@ -49,6 +49,21 @@ namespace SceneTalkVR.Core
         public string dialogueReply;
         public AvatarRoleData avatarRole = new AvatarRoleData();
         public ScenePayload scene = new ScenePayload();
+        public CorrectionFeedbackData correctionFeedback;
+    }
+
+    [Serializable]
+    public sealed class CorrectionFeedbackData
+    {
+        public bool hasFeedback;
+        public string provider;
+        public string style;
+        public string errorType;
+        public string originalText;
+        public string correctedText;
+        public string feedbackText;
+        public string targetSpan;
+        public float confidence;
     }
 
     [Serializable]

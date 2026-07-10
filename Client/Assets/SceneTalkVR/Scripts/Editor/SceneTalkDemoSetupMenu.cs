@@ -26,13 +26,13 @@ namespace SceneTalkVR.EditorTools
         private const string AvatarCommonControllerPath = "Assets/SceneTalkVR/Avatar/Animations/Common/AvatarCommonHumanoid.controller";
         private const string VoiceGatewaySettingsPath = "Assets/SceneTalkVR/Voice/VoiceGatewaySettings.asset";
 
-        [MenuItem("SceneTalkVR/Setup/Rebuild Demo Rig", false, 10)]
+        [MenuItem("SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway)", false, 10)]
         public static void CreateVitorDemoRig()
         {
             CreateCleanDemoRig(true);
         }
 
-        [MenuItem("SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway", false, 11)]
+        [MenuItem("SceneTalkVR/Setup/Enable Voice Gateway On Existing Rig", false, 11)]
         public static void CreateVitorDemoRigWithVoiceGateway()
         {
             ConfigureExistingDemoRigVoiceGateway();
@@ -177,6 +177,12 @@ namespace SceneTalkVR.EditorTools
             
             var avatarVoice = root.GetComponent<AvatarPresentationVoiceModule>();
             if (avatarVoice == null) avatarVoice = root.AddComponent<AvatarPresentationVoiceModule>();
+
+            var correctionAgent = root.GetComponent<CorrectionAgentPresenter>();
+            if (correctionAgent == null) correctionAgent = root.AddComponent<CorrectionAgentPresenter>();
+
+            var correctionFeedback = root.GetComponent<CorrectionFeedbackPresenter>();
+            if (correctionFeedback == null) correctionFeedback = root.AddComponent<CorrectionFeedbackPresenter>();
             
             var orchestrator = root.GetComponent<SceneTalkOrchestrator>();
             if (orchestrator == null) orchestrator = root.AddComponent<SceneTalkOrchestrator>();
@@ -199,6 +205,8 @@ namespace SceneTalkVR.EditorTools
             SetObject(avatarVoice, "propPresenter", avatarProps);
             SetObject(avatarVoice, "propCatalog", avatarPropCatalog);
             SetObject(avatarVoice, "audioSource", audioSource);
+            SetObject(correctionFeedback, "correctionAgentPresenter", correctionAgent);
+            SetObject(avatarVoice, "correctionFeedbackPresenter", correctionFeedback);
             SetObject(avatarVoice, "animationDriver", avatarAnimation);
             SetObject(avatarVoice, "defaultAnimatorController", LoadAvatarCommonController());
             
@@ -230,7 +238,7 @@ namespace SceneTalkVR.EditorTools
             var orchestrator = FindFirst<SceneTalkOrchestrator>();
             if (orchestrator == null)
             {
-                Debug.LogWarning("[SceneTalkVR] No existing SceneTalkOrchestrator found. Run SceneTalkVR/Setup/Rebuild Demo Rig first, then configure Voice Gateway.");
+                Debug.LogWarning("[SceneTalkVR] No existing SceneTalkOrchestrator found. Run SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway) first, then configure Voice Gateway.");
                 return;
             }
 
@@ -271,6 +279,21 @@ namespace SceneTalkVR.EditorTools
                 SetObject(avatarVoice, "defaultAnimatorController", LoadAvatarCommonController());
                 SetObject(avatarVoice, "voiceGatewayClient", gatewayClient);
                 SetBool(avatarVoice, "useVoiceGatewayTts", true);
+
+                var correctionAgent = root.GetComponent<CorrectionAgentPresenter>();
+                if (correctionAgent == null)
+                {
+                    correctionAgent = root.AddComponent<CorrectionAgentPresenter>();
+                }
+
+                var correctionFeedback = root.GetComponent<CorrectionFeedbackPresenter>();
+                if (correctionFeedback == null)
+                {
+                    correctionFeedback = root.AddComponent<CorrectionFeedbackPresenter>();
+                }
+
+                SetObject(correctionFeedback, "correctionAgentPresenter", correctionAgent);
+                SetObject(avatarVoice, "correctionFeedbackPresenter", correctionFeedback);
             }
             else
             {
