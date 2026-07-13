@@ -72,6 +72,15 @@ namespace SceneTalkVR.AvatarSystem
         public event Action<CorrectionPlaybackResult> CorrectionPlaybackCompleted;
         public CorrectionPlaybackResult LastCorrectionPlaybackResult { get; private set; }
 
+        public void ConfigureVoiceGateway(bool enabled, VoiceGatewayClient client)
+        {
+            useVoiceGatewayTts = enabled;
+            if (client != null)
+            {
+                voiceGatewayClient = client;
+            }
+        }
+
         public void SetCorrectionFeedbackProvider(string provider)
         {
             ResolveCorrectionFeedbackPresenter(createCorrectionFeedbackPresenterIfMissing)

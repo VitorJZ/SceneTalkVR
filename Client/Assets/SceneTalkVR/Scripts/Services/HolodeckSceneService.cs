@@ -19,6 +19,20 @@ namespace SceneTalkVR.Runtime.Services
         [SerializeField] private string backendUrl = "http://localhost:8080/generate_scene";
         [SerializeField] private int timeoutSeconds = 300; // Holodeck can be very slow on first run
 
+        public bool UseLocalBackend => useLocalBackend;
+        public string BackendUrl => backendUrl;
+
+        public void ConfigureBackend(bool useBackend, string url, int timeout)
+        {
+            useLocalBackend = useBackend && !string.IsNullOrWhiteSpace(url);
+            if (!string.IsNullOrWhiteSpace(url))
+            {
+                backendUrl = url.Trim();
+            }
+
+            timeoutSeconds = Mathf.Max(1, timeout);
+        }
+
         public async Task<HolodeckResponse> GenerateLayoutAsync(string environmentDescription)
         {
             if (!useLocalBackend)

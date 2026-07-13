@@ -6,6 +6,8 @@ using System.Text;
 using SceneTalkVR.AvatarSystem;
 using SceneTalkVR.Core;
 using SceneTalkVR.Runtime;
+using SceneTalkVR.Runtime.Services;
+using SceneTalkVR.Voice;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.SceneManagement;
@@ -26,6 +28,7 @@ namespace SceneTalkVR.EditorTools
     {
         private const string MainScenePath = "Assets/Scenes/SampleScene.unity";
         private const string ReportPath = "Assets/SceneTalkVR/Docs/VitorPreflightReport.md";
+        private const string RuntimeConfigPath = "Assets/SceneTalkVR/RuntimeConfig/SceneTalkRuntimeConfig.asset";
         private const string AndroidPackageName = "com.scenetalkvr.demo";
         private const string PicoOpenXrDefine = "PICO_OPENXR_SDK";
         private const string OpenXrLoaderTypeName = "UnityEngine.XR.OpenXR.OpenXRLoader";
@@ -201,6 +204,25 @@ namespace SceneTalkVR.EditorTools
                 AppendCheck(report, canvas.GetComponent<GraphicRaycaster>() != null, "World UI canvas has GraphicRaycaster");
             }
 
+            AppendSection(report, "PICO Real Service Routing");
+            var runtimeConfig = AssetDatabase.LoadAssetAtPath<SceneTalkRuntimeConfig>(RuntimeConfigPath);
+            var configAppliers = FindAll<SceneTalkRuntimeConfigApplier>();
+            var voiceClients = FindAll<VoiceGatewayClient>();
+            var holodeckServices = FindAll<HolodeckSceneService>();
+            var effectiveVoiceUrl = ResolveEffectiveVoiceGatewayUrl(runtimeConfig, voiceClients.FirstOrDefault());
+            var effectiveHolodeckUrl = ResolveEffectiveHolodeckUrl(runtimeConfig, holodeckServices.FirstOrDefault());
+            var usesHolodeckBackend = runtimeConfig != null
+                ? runtimeConfig.UseHolodeckBackend
+                : holodeckServices.FirstOrDefault() != null && holodeckServices.First().UseLocalBackend;
+
+            AppendCheck(report, runtimeConfig != null, "SceneTalkRuntimeConfig asset exists");
+            AppendCheck(report, configAppliers.Length >= 1, $"Scene has runtime config applier (found {configAppliers.Length})");
+            AppendCheck(report, !string.IsNullOrWhiteSpace(effectiveVoiceUrl), "Voice gateway URL is configured");
+            AppendCheck(report, !SceneTalkRuntimeConfig.IsLoopbackUrl(effectiveVoiceUrl), $"Voice gateway URL is not localhost for PICO: `{DisplayEndpoint(effectiveVoiceUrl)}`");
+            AppendCheck(report, !usesHolodeckBackend || !string.IsNullOrWhiteSpace(effectiveHolodeckUrl), "Holodeck backend URL is configured when backend mode is enabled");
+            AppendCheck(report, !usesHolodeckBackend || !SceneTalkRuntimeConfig.IsLoopbackUrl(effectiveHolodeckUrl), $"Holodeck backend URL is not localhost for PICO: `{DisplayEndpoint(effectiveHolodeckUrl)}`");
+            AppendCheck(report, UsesRealBrainProfile(orchestrators.FirstOrDefault(), runtimeConfig), "Brain module/profile is set to a real LLM path for real-device runs");
+
             AppendSection(report, "Packages");
             AppendPackageCheck(report, "com.unity.inputsystem", "Input System");
             AppendPackageCheck(report, "com.unity.ugui", "Unity UI");
@@ -242,6 +264,8 @@ namespace SceneTalkVR.EditorTools
             report.AppendLine("- Keep Android Graphics APIs set to OpenGLES3 only for PICO 4 debug builds; Vulkan can crash on startup with this project stack.");
             report.AppendLine("- For local Build & Run, keep custom keystore disabled. Enable a private keystore only for release builds.");
             report.AppendLine("- Connect PICO 4 with developer mode enabled, then build and run the Android APK.");
+            report.AppendLine("- For real PICO runs, set `Assets/SceneTalkVR/RuntimeConfig/SceneTalkRuntimeConfig.asset` `voiceGatewayBaseUrl` to the PC/server LAN URL, not `127.0.0.1`.");
+            report.AppendLine("- If Holodeck backend is enabled, set its URL to a LAN-reachable service; otherwise keep backend disabled and use mock layout / panorama fallback.");
             report.AppendLine("- Replace demo Spring/Edwin adapters with real LLM, STT, TTS, Avatar, and scene-generation modules.");
 
             return report.ToString();
@@ -381,6 +405,60 @@ namespace SceneTalkVR.EditorTools
         {
             var apis = PlayerSettings.GetGraphicsAPIs(BuildTarget.Android);
             return apis.Length == 1 && apis[0] == GraphicsDeviceType.OpenGLES3;
+        }
+
+        private static string ResolveEffectiveVoiceGatewayUrl(
+            SceneTalkRuntimeConfig config,
+            VoiceGatewayClient voiceGatewayClient)
+        {
+            if (config != null && config.HasVoiceGatewayBaseUrl)
+            {
+                return config.VoiceGatewayBaseUrl;
+            }
+
+            return voiceGatewayClient == null ? string.Empty : voiceGatewayClient.GatewayBaseUrl;
+        }
+
+        private static string ResolveEffectiveHolodeckUrl(
+            SceneTalkRuntimeConfig config,
+            HolodeckSceneService holodeckService)
+        {
+            if (config != null && config.HasHolodeckBackendUrl)
+            {
+                return config.HolodeckBackendUrl;
+            }
+
+            return holodeckService == null ? string.Empty : holodeckService.BackendUrl;
+        }
+
+        private static bool UsesRealBrainProfile(
+            SceneTalkOrchestrator orchestrator,
+            SceneTalkRuntimeConfig config)
+        {
+            if (config != null && config.BrainMode == SceneTalkBrainRuntimeMode.DirectRealLlm)
+            {
+                return true;
+            }
+
+            var brainModule = GetSerializedModule(orchestrator, "brainModule");
+            return brainModule is RealLLMService;
+        }
+
+        private static MonoBehaviour GetSerializedModule(MonoBehaviour target, string propertyName)
+        {
+            if (target == null)
+            {
+                return null;
+            }
+
+            var serializedObject = new SerializedObject(target);
+            var property = serializedObject.FindProperty(propertyName);
+            return property == null ? null : property.objectReferenceValue as MonoBehaviour;
+        }
+
+        private static string DisplayEndpoint(string endpoint)
+        {
+            return string.IsNullOrWhiteSpace(endpoint) ? "<empty>" : endpoint;
         }
 
         private static bool HasTrackedPoseDriver(Camera camera)

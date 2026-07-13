@@ -25,6 +25,7 @@ namespace SceneTalkVR.EditorTools
         private const string AvatarPropCatalogPath = "Assets/SceneTalkVR/Avatar/Catalogs/AvatarPropCatalog.asset";
         private const string AvatarCommonControllerPath = "Assets/SceneTalkVR/Avatar/Animations/Common/AvatarCommonHumanoid.controller";
         private const string VoiceGatewaySettingsPath = "Assets/SceneTalkVR/Voice/VoiceGatewaySettings.asset";
+        private const string RuntimeConfigPath = "Assets/SceneTalkVR/RuntimeConfig/SceneTalkRuntimeConfig.asset";
 
         [MenuItem("SceneTalkVR/Setup/Rebuild Full Demo Rig (Voice Gateway)", false, 10)]
         public static void CreateVitorDemoRig()
@@ -43,6 +44,22 @@ namespace SceneTalkVR.EditorTools
         {
             var settings = EnsureVoiceGatewaySettings();
             Selection.activeObject = settings;
+        }
+
+        [MenuItem("SceneTalkVR/Setup/Configure PICO Real Run Profile", false, 13)]
+        public static void ConfigurePicoRealRunProfile()
+        {
+            var config = EnsureRuntimeConfig();
+            config.ConfigurePicoRealRunDefaults();
+            EditorUtility.SetDirty(config);
+            AssetDatabase.SaveAssets();
+
+            ConfigureExistingDemoRigRuntimeConfig(config, true);
+            Selection.activeObject = config;
+            SceneTalkPreflightMenu.RunPreflightCheck();
+            Debug.Log(
+                "[SceneTalkVR] PICO real run profile configured. " +
+                "Edit SceneTalkRuntimeConfig.asset before building: set voiceGatewayBaseUrl and, if needed, holodeckBackendUrl to a LAN-reachable host.");
         }
 
         public static void RepairVitorDemoRigCameraAndInput()
@@ -164,7 +181,10 @@ namespace SceneTalkVR.EditorTools
             var experimentConditionManager = root.GetComponent<ExperimentConditionManager>();
             if (experimentConditionManager == null) experimentConditionManager = root.AddComponent<ExperimentConditionManager>();
 
-            MonoBehaviour brainToUse = demoBrain;
+            var runtimeConfig = EnsureRuntimeConfig();
+            MonoBehaviour brainToUse = runtimeConfig.BrainMode == SceneTalkBrainRuntimeMode.DirectRealLlm
+                ? realLlm
+                : demoBrain;
             MonoBehaviour presenterToUse = hybridPresenter;
 
             var avatarResolver = root.GetComponent<AvatarPresetResolver>();
@@ -193,6 +213,9 @@ namespace SceneTalkVR.EditorTools
             
             var interactionBootstrap = root.GetComponent<SceneTalkInteractionBootstrap>();
             if (interactionBootstrap == null) interactionBootstrap = root.AddComponent<SceneTalkInteractionBootstrap>();
+
+            var runtimeConfigApplier = root.GetComponent<SceneTalkRuntimeConfigApplier>();
+            if (runtimeConfigApplier == null) runtimeConfigApplier = root.AddComponent<SceneTalkRuntimeConfigApplier>();
 
             // Cleanup old UI to avoid duplicates
             var existingUi = root.transform.Find(WorldUiName);
@@ -230,6 +253,19 @@ namespace SceneTalkVR.EditorTools
             SetObject(interactionBootstrap, "orchestrator", orchestrator);
             SetObject(interactionBootstrap, "interactionCamera", interactionCamera);
             SetObject(interactionBootstrap, "worldCanvas", ui.canvas);
+            ConfigureRuntimeConfigApplier(
+                runtimeConfigApplier,
+                runtimeConfig,
+                orchestrator,
+                speech as GatewaySpeechInputModule,
+                root.GetComponent<DemoSpeechInputModule>(),
+                realLlm,
+                demoBrain,
+                hybridPresenter,
+                holodeck,
+                panorama,
+                avatarVoice,
+                root.GetComponent<VoiceGatewayClient>());
 
             var flowUi = root.GetComponent<SceneTalkFlowUiController>();
             if (flowUi == null) flowUi = root.AddComponent<SceneTalkFlowUiController>();
@@ -325,6 +361,78 @@ namespace SceneTalkVR.EditorTools
             Debug.Log("[SceneTalkVR] Configured Voice Gateway on existing demo rig without rebuilding scene, UI, scene presenter, or avatar setup.");
         }
 
+        private static void ConfigureExistingDemoRigRuntimeConfig(SceneTalkRuntimeConfig config, bool applyNow)
+        {
+            var orchestrator = FindFirst<SceneTalkOrchestrator>();
+            if (orchestrator == null)
+            {
+                CreateCleanDemoRig(true);
+                orchestrator = FindFirst<SceneTalkOrchestrator>();
+            }
+
+            if (orchestrator == null)
+            {
+                Debug.LogWarning("[SceneTalkVR] Could not find or create a SceneTalkOrchestrator for runtime config.");
+                return;
+            }
+
+            var root = orchestrator.gameObject;
+            var experimentConditionManager = root.GetComponent<ExperimentConditionManager>();
+            if (experimentConditionManager == null)
+            {
+                experimentConditionManager = root.AddComponent<ExperimentConditionManager>();
+            }
+
+            SetObject(orchestrator, "experimentConditionManager", experimentConditionManager);
+
+            var correctionAgent = root.GetComponent<CorrectionAgentPresenter>();
+            if (correctionAgent == null)
+            {
+                correctionAgent = root.AddComponent<CorrectionAgentPresenter>();
+            }
+
+            var correctionFeedback = root.GetComponent<CorrectionFeedbackPresenter>();
+            if (correctionFeedback == null)
+            {
+                correctionFeedback = root.AddComponent<CorrectionFeedbackPresenter>();
+            }
+
+            SetObject(correctionFeedback, "correctionAgentPresenter", correctionAgent);
+
+            var avatarVoice = root.GetComponent<AvatarPresentationVoiceModule>();
+            if (avatarVoice != null)
+            {
+                SetObject(avatarVoice, "correctionFeedbackPresenter", correctionFeedback);
+            }
+
+            var applier = root.GetComponent<SceneTalkRuntimeConfigApplier>();
+            if (applier == null)
+            {
+                applier = root.AddComponent<SceneTalkRuntimeConfigApplier>();
+            }
+
+            ConfigureRuntimeConfigApplier(
+                applier,
+                config,
+                orchestrator,
+                root.GetComponent<GatewaySpeechInputModule>(),
+                root.GetComponent<DemoSpeechInputModule>(),
+                root.GetComponent<SceneTalkVR.Runtime.Services.RealLLMService>(),
+                root.GetComponent<DemoBrainModule>(),
+                root.GetComponent<SceneTalkVR.Runtime.Services.HybridScenePresenter>(),
+                root.GetComponent<SceneTalkVR.Runtime.Services.HolodeckSceneService>(),
+                root.GetComponent<SceneTalkVR.Runtime.Services.PanoramaSceneService>(),
+                avatarVoice,
+                root.GetComponent<VoiceGatewayClient>());
+
+            if (applyNow)
+            {
+                applier.ApplyRuntimeConfig();
+            }
+
+            EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+        }
+
         private static AvatarCatalog LoadAvatarCatalog()
         {
             var catalog = AssetDatabase.LoadAssetAtPath<AvatarCatalog>(AvatarCatalogPath);
@@ -372,6 +480,74 @@ namespace SceneTalkVR.EditorTools
             AssetDatabase.Refresh();
             Debug.Log($"[SceneTalkVR] Created voice gateway settings at {VoiceGatewaySettingsPath}.");
             return settings;
+        }
+
+        private static SceneTalkRuntimeConfig EnsureRuntimeConfig()
+        {
+            var config = AssetDatabase.LoadAssetAtPath<SceneTalkRuntimeConfig>(RuntimeConfigPath);
+            if (config != null)
+            {
+                return config;
+            }
+
+            EnsureAssetFolder("Assets/SceneTalkVR/RuntimeConfig");
+            config = ScriptableObject.CreateInstance<SceneTalkRuntimeConfig>();
+            config.ConfigurePicoRealRunDefaults();
+            AssetDatabase.CreateAsset(config, RuntimeConfigPath);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log($"[SceneTalkVR] Created runtime config at {RuntimeConfigPath}.");
+            return config;
+        }
+
+        private static void ConfigureRuntimeConfigApplier(
+            SceneTalkRuntimeConfigApplier applier,
+            SceneTalkRuntimeConfig config,
+            SceneTalkOrchestrator orchestrator,
+            GatewaySpeechInputModule gatewaySpeech,
+            DemoSpeechInputModule demoSpeech,
+            SceneTalkVR.Runtime.Services.RealLLMService realLlm,
+            DemoBrainModule demoBrain,
+            SceneTalkVR.Runtime.Services.HybridScenePresenter hybridPresenter,
+            SceneTalkVR.Runtime.Services.HolodeckSceneService holodeck,
+            SceneTalkVR.Runtime.Services.PanoramaSceneService panorama,
+            AvatarPresentationVoiceModule avatarVoice,
+            VoiceGatewayClient voiceGatewayClient)
+        {
+            if (applier == null)
+            {
+                return;
+            }
+
+            SetObject(applier, "config", config);
+            SetObject(applier, "orchestrator", orchestrator);
+            SetObject(applier, "gatewaySpeechInput", gatewaySpeech);
+            SetObject(applier, "demoSpeechInput", demoSpeech);
+            SetObject(applier, "realLlmService", realLlm);
+            SetObject(applier, "demoBrainModule", demoBrain);
+            SetObject(applier, "hybridScenePresenter", hybridPresenter);
+            SetObject(applier, "holodeckSceneService", holodeck);
+            SetObject(applier, "panoramaSceneService", panorama);
+            SetObject(applier, "avatarVoiceModule", avatarVoice);
+            SetObject(applier, "voiceGatewayClient", voiceGatewayClient);
+        }
+
+        private static void EnsureAssetFolder(string folderPath)
+        {
+            if (AssetDatabase.IsValidFolder(folderPath))
+            {
+                return;
+            }
+
+            var parent = System.IO.Path.GetDirectoryName(folderPath)?.Replace('\\', '/');
+            var folderName = System.IO.Path.GetFileName(folderPath);
+            if (string.IsNullOrWhiteSpace(parent) || string.IsNullOrWhiteSpace(folderName))
+            {
+                return;
+            }
+
+            EnsureAssetFolder(parent);
+            AssetDatabase.CreateFolder(parent, folderName);
         }
 
         private static DemoUi CreateWorldSpaceUi(

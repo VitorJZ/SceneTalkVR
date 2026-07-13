@@ -2,6 +2,8 @@
 
 This client connects Unity to the local P0 voice gateway.
 
+For the current PICO real-device network notes, see `../../../../../documents/pico-real-device-gateway-runbook-2026-07-13.md`.
+
 ## Start the Gateway
 
 ```bash
@@ -21,21 +23,32 @@ For team development, run `voice-gateway` on one teammate's computer and let eve
 
 1. On the gateway host computer, start `Server/voice-gateway`.
 2. Find that computer's LAN IP, for example `192.168.1.20`.
-3. In Unity, open `Assets/SceneTalkVR/Voice/VoiceGatewaySettings.asset`.
-4. Set `gatewayBaseUrl` to:
+3. In Unity, open `Assets/SceneTalkVR/RuntimeConfig/SceneTalkRuntimeConfig.asset`.
+4. Set `voiceGatewayBaseUrl` to:
 
 ```text
 http://192.168.1.20:8787
 ```
 
+`VoiceGatewaySettings.asset` remains as a legacy/default fallback. PICO real-device builds should prefer the runtime config profile because it is also checked by the preflight report.
+
 Do not use `127.0.0.1` on PICO or another teammate's computer. `127.0.0.1` always points to the current device itself.
+
+For PICO, the gateway process must bind to `0.0.0.0`, not only `127.0.0.1`:
+
+```powershell
+$env:VOICE_GATEWAY_HOST="0.0.0.0"
+$env:VOICE_GATEWAY_PORT="8787"
+$env:VOICE_GATEWAY_PROVIDER="tencent"
+python -m src.voice_gateway.main
+```
 
 ## Unity Setup
 
 For the P0 STT step:
 
-1. Open or create `Assets/SceneTalkVR/Voice/VoiceGatewaySettings.asset`.
-2. Set `gatewayBaseUrl`.
+1. Run `SceneTalkVR/Setup/Configure PICO Real Run Profile`.
+2. Open `Assets/SceneTalkVR/RuntimeConfig/SceneTalkRuntimeConfig.asset` and set `voiceGatewayBaseUrl`.
 3. Add `VoiceGatewayClient` to the `SceneTalkVR Demo Rig`.
 4. Add `MicrophoneRecorder` to the same object.
 5. Add `GatewaySpeechInputModule` to the same object.

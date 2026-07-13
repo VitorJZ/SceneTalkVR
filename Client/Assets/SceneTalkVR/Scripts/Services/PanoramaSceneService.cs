@@ -39,6 +39,22 @@ namespace SceneTalkVR.Runtime.Services
 
         private GameObject skySphereInstance;
 
+        public bool ForceUseFallback => forceUseFallback;
+
+        public void ConfigureRuntime(bool forceFallback, string runtimeModelName, string runtimeImageSize)
+        {
+            forceUseFallback = forceFallback;
+            if (!string.IsNullOrWhiteSpace(runtimeModelName))
+            {
+                modelName = runtimeModelName.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(runtimeImageSize))
+            {
+                imageSize = runtimeImageSize.Trim();
+            }
+        }
+
         private void Update()
         {
             if (useSkySphere && skySphereInstance != null)

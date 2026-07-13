@@ -779,12 +779,33 @@ P0 最小真实链路已经完成。建议下一步进入 Edwin 语音 P1 验证
 
 流式、打断、缓存、发音评估和口型同步可以排到 P1/P2/P3。
 
+## 13.1 2026-07-13 真机网络与 Gateway 更新
+
+当前已补充 PC 端 `llm-gateway`，用于把 PICO/Unity 的 LLM 请求转发到 OpenAI-compatible Chat Completions API，并把 `OPENAI_API_KEY` 留在 PC 端。PICO 真机路径现在建议使用双 gateway：
+
+```text
+PICO APK -> PC voice-gateway:8787 -> Tencent ASR/TTS
+PICO APK -> PC llm-gateway:8788 -> OpenAI-compatible LLM upstream
+```
+
+2026-07-13 当前网络验证结果记录在 `documents/pico-real-device-gateway-runbook-2026-07-13.md`：
+
+- PC WLAN IP 为 `172.20.10.4`，PICO IP 为 `172.20.10.8`，两者在同一网段且可达。
+- `voice-gateway` 以 `0.0.0.0:8787` 启动，`/health` 返回正常。
+- `llm-gateway` 以 `0.0.0.0:8788` 启动，`/health` 返回正常且检测到 API Key。
+- PC 直连上游 LLM 与通过 `llm-gateway` 转发均返回 HTTP 200。
+- Unity 侧应指向 `http://172.20.10.4:8787` 和 `http://172.20.10.4:8788/api/llm/chat/completions`，并保持 Unity scene/asset 中的云 API Key 为空。
+- Clash 系统代理已关闭，`7890` 系列端口未监听；若 DNS 仍解析到 `198.18.2.x` fake-ip 但请求可用，可继续验证。
+
+这次更新不改变 Edwin 的职责边界：语音侧仍维护 `voice-gateway`、Unity 录音/STT/TTS adapter、PICO 麦克风/播放验证和 fallback；LLM gateway 属于真机运行路由与密钥安全补充，具体 prompt、场景生成和多轮对话记忆仍归 Spring/Brain 层。
+
 ## 14. Codex 记忆与新会话交接
 
 新 Codex 会话应先读取：
 
 - `documents/conversation.md`：确认三人分工，尤其是 Edwin 只负责语音交互与 Avatar 语音表现接口，不负责 Spring 的 LLM/场景生成或 Vitor 的 VR 底层。
 - `documents/speech-gateway-technical-plan.md`：确认当前 P0/P1 状态和 Edwin 语音边界。
+- `documents/pico-real-device-gateway-runbook-2026-07-13.md`：确认当前 PICO 真机网络、voice-gateway、llm-gateway、Clash/VPN 状态和 Unity URL 配置。
 - `Server/voice-gateway/README.md`：确认后端启动方式、腾讯云环境变量和 LAN 网关使用方式。
 - `Client/Assets/SceneTalkVR/Voice/Docs/VoiceGatewayClientSetup.md`：确认 Unity 端 `gatewayBaseUrl`、网关客户端和 demo rig 接入方式。
 
