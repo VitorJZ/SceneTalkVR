@@ -77,6 +77,16 @@ namespace SceneTalkVR.Core
 
         public bool HasActiveTurn => activeTurnLog != null;
         public bool HasPendingTurnReview => pendingTurnLog != null;
+        public bool IsExperimentLocked => formalExperiment;
+        public string LockedFeedbackSensitivity => IsExperimentLocked ? "moderate" : "moderate";
+
+        public event Action ExperimentConditionChanged;
+
+        public void NotifyConditionChanged()
+        {
+            ExperimentConditionChanged?.Invoke();
+        }
+
         public bool IsFormalExperiment => formalExperiment;
         public bool DebugMode => debugMode;
         public bool ShowDebugLabel => debugMode && showDebugLabel && !formalExperiment;
@@ -166,6 +176,7 @@ namespace SceneTalkVR.Core
             {
                 participantId = string.IsNullOrWhiteSpace(participantId) ? "participant_demo" : participantId.Trim(),
                 sessionId = sessionId,
+                formalExperiment = formalExperiment,
                 conditionId = conditionId,
                 scenarioId = resolvedScenarioId,
                 provider = provider,
@@ -192,6 +203,7 @@ namespace SceneTalkVR.Core
             }
 
             RefreshCondition(false);
+            NotifyConditionChanged();
         }
 
         public void AdvanceScenario()
@@ -205,6 +217,7 @@ namespace SceneTalkVR.Core
             scenarioIndex = (scenarioIndex + 1) % taskDefinitions.Length;
             scenarioId = taskDefinitions[scenarioIndex].scenarioId;
             RefreshCondition(false);
+            NotifyConditionChanged();
         }
 
         public void ApplyProviderTo(MonoBehaviour avatarVoiceModule)
@@ -262,7 +275,7 @@ namespace SceneTalkVR.Core
             }
         }
 
-        public void RecordCorrectionPayload(CorrectionFeedbackData feedback)
+        public void RecordCorrectionPayload(SpringScenePayload payload)
         {
             var log = ResolveWritableTurnLog();
             if (log == null)
@@ -271,6 +284,7 @@ namespace SceneTalkVR.Core
             }
 
             var condition = CurrentCondition;
+            var feedback = payload?.correctionFeedback;
             log.provider = ResolveNonEmpty(feedback?.provider, condition?.provider);
             log.style = ResolveNonEmpty(feedback?.style, condition?.style);
             log.hasFeedback = feedback != null && feedback.hasFeedback;
@@ -279,6 +293,64 @@ namespace SceneTalkVR.Core
             {
                 log.correctionOutcome = "none";
                 log.correctionErrorCode = string.Empty;
+            }
+
+            if (payload != null)
+            {
+                log.dialogueReply = NullToEmpty(payload.dialogueReply);
+                if (feedback != null)
+                {
+                    log.feedbackText = NullToEmpty(feedback.feedbackText);
+                    log.originalText = NullToEmpty(feedback.originalText);
+                    log.correctedText = NullToEmpty(feedback.correctedText);
+                    log.rationaleTag = NullToEmpty(feedback.rationaleTag);
+
+                    if (!string.IsNullOrEmpty(feedback.rationaleTag))
+                    {
+                        if (feedback.rationaleTag.Contains("low_confidence_suppressed") || feedback.rationaleTag.Contains("short_recording_suppressed"))
+                        {
+                            log.sttSuppressionReason = feedback.rationaleTag;
+                        }
+                    }
+
+                    // Compute validation warnings
+                    var warnings = new System.Collections.Generic.List<string>();
+                    if (string.Equals(feedback.provider, "assistant_agent", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (CorrectionTextGuards.LooksLikeCorrection(payload.dialogueReply))
+                        {
+                            warnings.Add("dialogue_reply_leakage_detected");
+                        }
+                    }
+                    if (string.Equals(feedback.style, "recast", StringComparison.OrdinalIgnoreCase) && feedback.hasFeedback)
+                    {
+                        if (CorrectionTextGuards.ViolatesRecastPurity(feedback.feedbackText))
+                        {
+                            warnings.Add("recast_purity_violated");
+                        }
+                    }
+                    log.validationWarnings = warnings.Count > 0 ? string.Join(";", warnings) : "none";
+                }
+            }
+        }
+
+        public void RecordSpeechMetadata(string transcript, float confidence, string provider, string fallbackLevel, string suppressionReason)
+        {
+            var log = ResolveWritableTurnLog();
+            if (log != null)
+            {
+                log.transcript = NullToEmpty(transcript);
+                log.sttConfidence = confidence;
+                log.sttProvider = NullToEmpty(provider);
+                log.sttFallbackLevel = NullToEmpty(fallbackLevel);
+                if (!string.IsNullOrEmpty(suppressionReason))
+                {
+                    log.sttSuppressionReason = suppressionReason;
+                }
+                else if (string.IsNullOrEmpty(log.sttSuppressionReason))
+                {
+                    log.sttSuppressionReason = "none";
+                }
             }
         }
 
@@ -435,7 +507,21 @@ namespace SceneTalkVR.Core
                 moduleFallback = string.Empty,
                 timestampUtc = now.ToString("o", CultureInfo.InvariantCulture),
                 timestampUnixMs = new DateTimeOffset(now).ToUnixTimeMilliseconds(),
-                completedAtUtc = string.Empty
+                completedAtUtc = string.Empty,
+                
+                // Initialize new fields
+                transcript = string.Empty,
+                dialogueReply = string.Empty,
+                feedbackText = string.Empty,
+                originalText = string.Empty,
+                correctedText = string.Empty,
+                rationaleTag = string.Empty,
+                sttConfidence = 1.0f,
+                sttProvider = string.Empty,
+                sttFallbackLevel = string.Empty,
+                sttSuppressionReason = string.Empty,
+                conditionOrderPosition = conditionOrderIndex,
+                validationWarnings = string.Empty
             };
         }
 
@@ -657,6 +743,7 @@ namespace SceneTalkVR.Core
             {
                 participantId = source.participantId,
                 sessionId = source.sessionId,
+                formalExperiment = source.formalExperiment,
                 conditionId = source.conditionId,
                 scenarioId = source.scenarioId,
                 provider = source.provider,
@@ -897,8 +984,22 @@ namespace SceneTalkVR.Core
             public long timestampUnixMs;
             public string completedAtUtc;
 
+            // New fields
+            public string transcript;
+            public string dialogueReply;
+            public string feedbackText;
+            public string originalText;
+            public string correctedText;
+            public string rationaleTag;
+            public float sttConfidence;
+            public string sttProvider;
+            public string sttFallbackLevel;
+            public string sttSuppressionReason;
+            public int conditionOrderPosition;
+            public string validationWarnings;
+
             public const string CsvHeader =
-                "participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc";
+                "participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc,transcript,dialogueReply,feedbackText,originalText,correctedText,rationaleTag,sttConfidence,sttProvider,sttFallbackLevel,sttSuppressionReason,conditionOrderPosition,validationWarnings";
 
             public string ToCsvLine()
             {
@@ -922,7 +1023,19 @@ namespace SceneTalkVR.Core
                     Csv(moduleFallback),
                     Csv(timestampUtc),
                     timestampUnixMs.ToString(CultureInfo.InvariantCulture),
-                    Csv(completedAtUtc));
+                    Csv(completedAtUtc),
+                    Csv(transcript),
+                    Csv(dialogueReply),
+                    Csv(feedbackText),
+                    Csv(originalText),
+                    Csv(correctedText),
+                    Csv(rationaleTag),
+                    sttConfidence.ToString("F4", CultureInfo.InvariantCulture),
+                    Csv(sttProvider),
+                    Csv(sttFallbackLevel),
+                    Csv(sttSuppressionReason),
+                    conditionOrderPosition.ToString(CultureInfo.InvariantCulture),
+                    Csv(validationWarnings));
             }
 
             private static string Csv(string value)

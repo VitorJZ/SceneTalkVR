@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace SceneTalkVR.Voice
 {
-    public sealed class GatewaySpeechInputModule : MonoBehaviour, ISceneTalkSpeechInput, ISceneTalkManualSpeechInput
+    public sealed class GatewaySpeechInputModule : MonoBehaviour, ISceneTalkSpeechInput, ISceneTalkManualSpeechInput, ISceneTalkExperimentLockReceiver
     {
         [SerializeField] private VoiceGatewayClient gatewayClient;
         [SerializeField] private MicrophoneRecorder microphoneRecorder;
@@ -21,10 +21,16 @@ namespace SceneTalkVR.Voice
 
         private bool stopCaptureRequested;
         private bool cancelCaptureRequested;
+        private bool experimentLocked;
 
         public SttResponse LastSttResponse { get; private set; }
         public float LastRecordingDurationMs { get; private set; }
         public string LastRecordingStopReason { get; private set; }
+
+        public void SetExperimentLocked(bool isLocked)
+        {
+            experimentLocked = isLocked;
+        }
 
         public IEnumerator CaptureSpeech(Action<string> onComplete, Action<string> onError)
         {
@@ -76,7 +82,7 @@ namespace SceneTalkVR.Voice
 
                 if (!string.IsNullOrWhiteSpace(recordingError))
                 {
-                    if (useFallbackTranscriptOnError && !string.IsNullOrWhiteSpace(fallbackTranscript))
+                    if (useFallbackTranscriptOnError && !experimentLocked && !string.IsNullOrWhiteSpace(fallbackTranscript))
                     {
                         Debug.LogWarning($"[SceneTalkVR] Microphone STT fallback: {recordingError}", this);
                         onComplete?.Invoke(fallbackTranscript);
@@ -111,7 +117,7 @@ namespace SceneTalkVR.Voice
 
             if (!string.IsNullOrWhiteSpace(error))
             {
-                if (useFallbackTranscriptOnError && !string.IsNullOrWhiteSpace(fallbackTranscript))
+                if (useFallbackTranscriptOnError && !experimentLocked && !string.IsNullOrWhiteSpace(fallbackTranscript))
                 {
                     Debug.LogWarning($"[SceneTalkVR] Gateway STT fallback: {error}", this);
                     onComplete?.Invoke(fallbackTranscript);

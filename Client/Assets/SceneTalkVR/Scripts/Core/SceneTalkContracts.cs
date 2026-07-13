@@ -82,6 +82,7 @@ namespace SceneTalkVR.Core
     {
         public string participantId;
         public string sessionId;
+        public bool formalExperiment;
         public string conditionId;
         public string scenarioId;
         public string provider;
@@ -161,5 +162,10 @@ namespace SceneTalkVR.Core
     public interface ISceneTalkSessionReset
     {
         void ResetSession();
+    }
+
+    public interface ISceneTalkExperimentLockReceiver
+    {
+        void SetExperimentLocked(bool isLocked);
     }
 }

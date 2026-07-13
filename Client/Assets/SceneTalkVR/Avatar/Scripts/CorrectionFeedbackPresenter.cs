@@ -6,7 +6,7 @@ using UnityEngine;
 namespace SceneTalkVR.AvatarSystem
 {
     [DisallowMultipleComponent]
-    public sealed class CorrectionFeedbackPresenter : MonoBehaviour
+    public sealed class CorrectionFeedbackPresenter : MonoBehaviour, ISceneTalkExperimentLockReceiver
     {
         private enum TencentVoiceType
         {
@@ -79,10 +79,20 @@ namespace SceneTalkVR.AvatarSystem
         private AvatarSpeechPlayer speechPlayer;
         private bool isSessionActive;
         private string currentFeedbackProvider = AssistantAgentProvider;
+        private bool experimentLocked;
 
         private AvatarSpeechPlayer SpeechPlayer => speechPlayer ??= new AvatarSpeechPlayer();
 
         public string CurrentFeedbackProvider => NormalizeProvider(currentFeedbackProvider);
+
+        public void SetExperimentLocked(bool locked)
+        {
+            experimentLocked = locked;
+            if (experimentLocked)
+            {
+                debugForceFeedback = false;
+            }
+        }
 
         private void Start()
         {
@@ -118,6 +128,12 @@ namespace SceneTalkVR.AvatarSystem
             Action triggerDialogueAvatarSpeaking,
             Action<CorrectionPlaybackResult> onComplete)
         {
+            if (experimentLocked && debugForceFeedback)
+            {
+                Debug.LogWarning("[CorrectionFeedbackPresenter] debugForceFeedback disabled in formal experiment.");
+                debugForceFeedback = false;
+            }
+
             var feedback = payload != null ? payload.correctionFeedback : null;
             var provider = ResolveConfiguredProvider(feedback);
             currentFeedbackProvider = provider;
@@ -262,7 +278,7 @@ namespace SceneTalkVR.AvatarSystem
 
         private bool IsDebugForceFeedbackEnabled()
         {
-            return debugForceFeedback;
+            return debugForceFeedback && !experimentLocked;
         }
 
         private bool ShouldKeepAssistantVisible()
