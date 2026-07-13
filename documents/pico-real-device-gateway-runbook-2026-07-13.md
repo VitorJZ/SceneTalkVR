@@ -4,16 +4,16 @@
 
 ## 当前验证结论
 
-- PC WLAN IP：`172.20.10.4`
-- PICO IP：`172.20.10.8`
-- PICO 与 PC 在同一网段，PC 可以 ping 通 PICO。
+- PC hotspot gateway IP：`192.168.137.1`
+- PICO IP：本次网络切换后未在 ARP 表中确认；请以 PICO 当前网络详情页为准。
+- PICO 需要与 PC 在同一可互通网段，并能访问 PC 的 `8787` / `8788` 端口。
 - `voice-gateway` 已监听 `0.0.0.0:8787`，健康检查通过。
 - `llm-gateway` 已监听 `0.0.0.0:8788`，健康检查通过。
 - PC 直连上游 LLM 返回 HTTP 200。
 - PC 通过 `llm-gateway` 转发 LLM 请求返回 HTTP 200。
 - Unity 当前配置指向 PC 局域网地址：
-  - `voiceGatewayBaseUrl`: `http://172.20.10.4:8787`
-  - `directLlmApiUrl`: `http://172.20.10.4:8788/api/llm/chat/completions`
+  - `voiceGatewayBaseUrl`: `http://192.168.137.1:8787`
+  - `directLlmApiUrl`: `http://192.168.137.1:8788/api/llm/chat/completions`
 
 ## Clash / VPN 状态
 
@@ -55,7 +55,7 @@ python -m src.voice_gateway.main
 健康检查：
 
 ```powershell
-Invoke-RestMethod http://172.20.10.4:8787/health | ConvertTo-Json -Compress
+Invoke-RestMethod http://192.168.137.1:8787/health | ConvertTo-Json -Compress
 ```
 
 期望结果：
@@ -80,7 +80,7 @@ python -m src.llm_gateway.main
 健康检查：
 
 ```powershell
-Invoke-RestMethod http://172.20.10.4:8788/health | ConvertTo-Json -Compress
+Invoke-RestMethod http://192.168.137.1:8788/health | ConvertTo-Json -Compress
 ```
 
 期望结果中应包含：
@@ -93,7 +93,7 @@ LLM 转发 smoke test：
 
 ```powershell
 $body='{"model":"minimax-m2.7","messages":[{"role":"user","content":"Return only ok."}],"max_tokens":8}'
-$body | curl.exe -sS -m 90 -o NUL -w "llm_gateway_http=%{http_code} elapsed=%{time_total} remote=%{remote_ip}`n" -H "Content-Type: application/json" --data-binary "@-" http://172.20.10.4:8788/api/llm/chat/completions
+$body | curl.exe -sS -m 90 -o NUL -w "llm_gateway_http=%{http_code} elapsed=%{time_total} remote=%{remote_ip}`n" -H "Content-Type: application/json" --data-binary "@-" http://192.168.137.1:8788/api/llm/chat/completions
 ```
 
 期望结果：
@@ -107,11 +107,11 @@ llm_gateway_http=200
 当前真机配置应至少满足：
 
 - `Client/Assets/SceneTalkVR/RuntimeConfig/SceneTalkRuntimeConfig.asset`
-  - `voiceGatewayBaseUrl`: `http://172.20.10.4:8787`
-  - `directLlmApiUrl`: `http://172.20.10.4:8788/api/llm/chat/completions`
+  - `voiceGatewayBaseUrl`: `http://192.168.137.1:8787`
+  - `directLlmApiUrl`: `http://192.168.137.1:8788/api/llm/chat/completions`
 - `Client/Assets/Scenes/SampleScene.unity`
-  - `VoiceGatewayClient.gatewayBaseUrl`: `http://172.20.10.4:8787`
-  - `RealLLMService.apiUrl`: `http://172.20.10.4:8788/api/llm/chat/completions`
+  - `VoiceGatewayClient.gatewayBaseUrl`: `http://192.168.137.1:8787`
+  - `RealLLMService.apiUrl`: `http://192.168.137.1:8788/api/llm/chat/completions`
   - `RealLLMService.apiKey`: 为空
   - `PanoramaSceneService.apiKey`: 为空
 
@@ -130,7 +130,7 @@ http://localhost:8080/generate_scene
 如果真机流程不启用 Holodeck，可以先保持不动。如果要让 PICO 直接访问 Holodeck 后端，必须改为 PC 局域网地址，例如：
 
 ```text
-http://172.20.10.4:8080/generate_scene
+http://192.168.137.1:8080/generate_scene
 ```
 
 并确保 Holodeck 监听 `0.0.0.0:8080`，Windows 防火墙放行 `8080`。
@@ -139,7 +139,7 @@ http://172.20.10.4:8080/generate_scene
 
 1. PC 启动 `voice-gateway`，确认 `8787/health` 通过。
 2. PC 启动 `llm-gateway`，确认 `8788/health` 通过。
-3. 确认 Unity 配置使用 PC WLAN IP，而不是 `localhost`。
+3. 确认 Unity 配置使用 PC hotspot gateway IP，而不是 `localhost`。
 4. 重新构建并安装 PICO APK。
 5. 在 PICO 中进入流程，点击 `Listen`，说一句英文，点击 `End`。
 6. 确认 transcript 正确显示。
@@ -157,8 +157,8 @@ Get-NetTCPConnection -LocalPort 8787,8788 -State Listen | Select-Object LocalAdd
 检查 PICO 是否仍在同一网段：
 
 ```powershell
-arp -a | Select-String '172\.20\.10\.'
-Test-NetConnection 172.20.10.8
+arp -a | Select-String '192\.168\.137\.'
+Test-NetConnection <pico-current-ip>
 ```
 
 检查 Unity 配置是否仍指向当前 PC IP：
@@ -179,3 +179,7 @@ Get-Content E:\Project\Unity\SceneTalkVR\tmp\llm-gateway.log -Tail 80
 Get-Content E:\Project\Unity\SceneTalkVR\tmp\voice-gateway.log -Tail 80
 Get-Content E:\Project\Unity\SceneTalkVR\tmp\voice-gateway.err.log -Tail 80
 ```
+
+## 关联记录
+
+- `documents/pico-panorama-real-device-fix-2026-07-13.md`：记录 PC Editor 可显示 360 全景但 PICO 真机不显示的原因、修复点和重新打包后的验证步骤。

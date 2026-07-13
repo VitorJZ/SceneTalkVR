@@ -15,7 +15,7 @@ MonoBehaviour:
   brainMode: 2
   useVoiceGatewaySpeech: 1
   useVoiceGatewayTts: 1
-  voiceGatewayBaseUrl: http://172.20.10.4:8787
+  voiceGatewayBaseUrl: http://192.168.137.1:8787
   useHolodeckBackend: 0
   holodeckBackendUrl: 
   holodeckTimeoutSeconds: 300
@@ -23,7 +23,7 @@ MonoBehaviour:
   forceFallbackPanorama: 0
   enableSpatialClipping: 1
   maxSpawnCount: 2
-  directLlmApiUrl: http://172.20.10.4:8788/api/llm/chat/completions
+  directLlmApiUrl: http://192.168.137.1:8788/api/llm/chat/completions
   directLlmModelName: minimax-m2.7
   panoramaModelName: Tongyi-MAI/Z-Image
   panoramaImageSize: 1024x1024

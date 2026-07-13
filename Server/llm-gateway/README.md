@@ -40,7 +40,7 @@ http://<pc-lan-ip>:8788/api/llm/chat/completions
 Current project smoke-test example:
 
 ```text
-http://172.20.10.4:8788/api/llm/chat/completions
+http://192.168.137.1:8788/api/llm/chat/completions
 ```
 
 The concrete LAN IP changes when the PC changes Wi-Fi/hotspot/VPN environment. After a network change, update Unity runtime config and rebuild/reinstall the PICO APK.

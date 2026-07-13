@@ -5359,7 +5359,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Voice.VoiceGatewayClient
   settings: {fileID: 11400000, guid: 71bb50dcf01b48308cb575dee47b6986, type: 2}
-  gatewayBaseUrl: http://172.20.10.4:8787
+  gatewayBaseUrl: http://192.168.137.1:8787
   requestTimeoutSeconds: 10
 --- !u!114 &1964602119
 MonoBehaviour:
@@ -5424,7 +5424,7 @@ MonoBehaviour:
   fallbackTexture: {fileID: 2800000, guid: 2b1cecb1152339547a3b0f46551d6331, type: 3}
   localFallbackPath: SceneTalkVR/Textures/FallbackPanorama
   forceUseFallback: 0
-  useSkySphere: 0
+  useSkySphere: 1
   skySphereScale: 20
   skySpherePositionOffset: {x: 0, y: -1.6, z: 0}
   skySphereMaterial: {fileID: 0}
@@ -5440,7 +5440,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e31b3f8bd2f2f3c40a93708c122d2846, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Runtime.Services.RealLLMService
-  apiUrl: http://172.20.10.4:8788/api/llm/chat/completions
+  apiUrl: http://192.168.137.1:8788/api/llm/chat/completions
   apiKey: 
   feedbackSensitivity: moderate
   systemPrompt: "You are a VR scene dispatcher and an English tutor. Based on the

@@ -1,6 +1,6 @@
 ﻿# Vitor Preflight Report
 
-Generated: 2026-07-10 13:01:59
+Generated: 2026-07-13 10:35:10
 Unity: 6000.3.16f1
 Active Build Target: Android
 Android Build Support Path: `E:/ProgramFile/UnityEditor/6000.3.16f1/Editor/Data\PlaybackEngines\AndroidPlayer`
@@ -18,15 +18,24 @@ Android Build Support Path: `E:/ProgramFile/UnityEditor/6000.3.16f1/Editor/Data\
 - [x] One SceneTalkInteractionBootstrap in scene (found 1)
 - [x] One SceneTalkVR World UI canvas in scene (found 1)
 - [x] One EventSystem in scene (found 1)
+- [x] One ExperimentConditionManager in scene (found 1)
+- [x] One CorrectionFeedbackPresenter in scene (found 1)
+- [x] One CorrectionAgentPresenter in scene (found 1)
 - [x] Main Camera uses XR tracked pose on device
 - [x] World UI canvas uses World Space render mode
 - [x] World UI canvas has an interaction camera
 - [x] World UI canvas is not mirrored on Y axis
 - [x] World UI canvas has GraphicRaycaster
-- [x] One ExperimentConditionManager in scene (found 1)
-- [x] One CorrectionFeedbackPresenter in scene (found 1)
-- [x] One CorrectionAgentPresenter in scene (found 1)
-- [x] Correction playback remains inside `ISceneTalkAvatarVoice.PresentReply(...)`
+
+## PICO Real Service Routing
+
+- [x] SceneTalkRuntimeConfig asset exists
+- [x] Scene has runtime config applier (found 1)
+- [x] Voice gateway URL is configured
+- [x] Voice gateway URL is not localhost for PICO: `http://192.168.137.1:8787`
+- [x] Holodeck backend URL is configured when backend mode is enabled
+- [x] Holodeck backend URL is not localhost for PICO: `http://localhost:8080/generate_scene`
+- [x] Brain module/profile is set to a real LLM path for real-device runs
 
 ## Packages
 
@@ -45,6 +54,7 @@ Android Build Support Path: `E:/ProgramFile/UnityEditor/6000.3.16f1/Editor/Data\
 
 - [x] `PICO_OPENXR_SDK` define is set for Android
 - [x] Android XR loader uses OpenXR
+- [x] Android XR initializes and runs on startup
 - [x] PICO XR Support feature is enabled for Android OpenXR
 - [x] PICO OpenXR Features extension is enabled
 - [x] PICO 4 controller profile is enabled for Android OpenXR
@@ -65,7 +75,10 @@ Android Build Support Path: `E:/ProgramFile/UnityEditor/6000.3.16f1/Editor/Data\
 - Run `SceneTalkVR/Setup/Apply Recommended Project Settings` after package import or Unity recompilation.
 - If OpenXR validation still reports no interaction profile, run `SceneTalkVR/Advanced/Enable OpenXR Fallback Controller Profile` or add `Khronos Simple Controller Profile` on the Android OpenXR page.
 - In Unity Project Settings, keep exactly one Android XR provider path active: OpenXR + PICO features, or PICO native loader.
+- Keep XR automatic loading and automatic running enabled for Android unless a custom startup script explicitly initializes XR.
 - Keep Android Graphics APIs set to OpenGLES3 only for PICO 4 debug builds; Vulkan can crash on startup with this project stack.
 - For local Build & Run, keep custom keystore disabled. Enable a private keystore only for release builds.
 - Connect PICO 4 with developer mode enabled, then build and run the Android APK.
+- For real PICO runs, set `Assets/SceneTalkVR/RuntimeConfig/SceneTalkRuntimeConfig.asset` `voiceGatewayBaseUrl` to the PC/server LAN URL, not `127.0.0.1`.
+- If Holodeck backend is enabled, set its URL to a LAN-reachable service; otherwise keep backend disabled and use mock layout / panorama fallback.
 - Replace demo Spring/Edwin adapters with real LLM, STT, TTS, Avatar, and scene-generation modules.

@@ -151,7 +151,7 @@ namespace SceneTalkVR.EditorTools
             var fallbackTex = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/SceneTalkVR/Textures/FallbackPanorama.png");
             SetObject(panorama, "fallbackTexture", fallbackTex);
             SetBool(panorama, "forceUseFallback", false);
-            SetBool(panorama, "useSkySphere", false);
+            SetBool(panorama, "useSkySphere", true);
             SetFloat(panorama, "skySphereScale", 20.0f);
             SetVector3(panorama, "skySpherePositionOffset", new Vector3(0f, -1.6f, 0f));
 

@@ -4,6 +4,8 @@ This guide is for running the real SceneTalkVR path on a PICO device after the d
 
 For the current validated Windows + PICO network runbook, see `../../../../documents/pico-real-device-gateway-runbook-2026-07-13.md`.
 
+For the PICO panorama display fix, see `../../../../documents/pico-panorama-real-device-fix-2026-07-13.md`.
+
 ## Target Runtime Shape
 
 ```text

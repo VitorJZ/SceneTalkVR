@@ -46,7 +46,7 @@ http://192.168.1.20:8787
 Current project smoke-test example:
 
 ```text
-http://172.20.10.4:8787
+http://192.168.137.1:8787
 ```
 
 PICO and other teammates cannot use `127.0.0.1` to reach your computer. On those devices, `127.0.0.1` points to themselves.

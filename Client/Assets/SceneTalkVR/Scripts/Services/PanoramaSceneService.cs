@@ -31,7 +31,7 @@ namespace SceneTalkVR.Runtime.Services
 
         [Header("Sky Sphere Settings")]
         [Tooltip("If enabled, renders background inside a 3D Sphere in the scene to allow scaling.")]
-        [SerializeField] private bool useSkySphere = false;
+        [SerializeField] private bool useSkySphere = true;
         [SerializeField] private float skySphereScale = 20.0f;
         [Tooltip("Physical position offset of the Sky Sphere. Lowering Y (e.g. -1.6) aligns the panorama floor with physical ground.")]
         [SerializeField] private Vector3 skySpherePositionOffset = new Vector3(0f, -1.6f, 0f);
@@ -175,63 +175,124 @@ namespace SceneTalkVR.Runtime.Services
 
         public void ApplySkybox(Texture2D texture)
         {
-            if (texture == null) return;
-
-            if (!useSkySphere)
+            if (texture == null)
             {
-                if (skySphereInstance != null)
+                Debug.LogWarning("[PanoramaSceneService] Cannot apply background because texture is null.");
+                return;
+            }
+
+            if (!useSkySphere && TryApplyRenderSettingsSkybox(texture))
+            {
+                DynamicGI.UpdateEnvironment();
+                Debug.Log("[PanoramaSceneService] Background applied successfully.");
+                return;
+            }
+
+            ApplySkySphere(texture);
+            DynamicGI.UpdateEnvironment();
+            Debug.Log("[PanoramaSceneService] Background applied successfully.");
+        }
+
+        private bool TryApplyRenderSettingsSkybox(Texture2D texture)
+        {
+            if (skySphereInstance != null)
+            {
+                skySphereInstance.SetActive(false);
+            }
+
+            var shader = Shader.Find("Skybox/Panoramic");
+            if (shader == null)
+            {
+                Debug.LogWarning("[PanoramaSceneService] Shader 'Skybox/Panoramic' not found. Falling back to sky sphere.");
+                return false;
+            }
+
+            var material = new Material(shader);
+            material.SetTexture("_MainTex", texture);
+            RenderSettings.skybox = material;
+            return true;
+        }
+
+        private void ApplySkySphere(Texture2D texture)
+        {
+            RenderSettings.skybox = null;
+
+            if (skySphereInstance == null)
+            {
+                skySphereInstance = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                skySphereInstance.name = "SceneTalkVR_SkySphere";
+
+                var col = skySphereInstance.GetComponent<Collider>();
+                if (col != null)
                 {
-                    skySphereInstance.SetActive(false);
+                    Destroy(col);
                 }
 
-                var shader = Shader.Find("Skybox/Panoramic");
-                if (shader == null)
-                {
-                    Debug.LogError("[PanoramaSceneService] Shader 'Skybox/Panoramic' not found.");
-                    return;
-                }
+                InvertMeshNormals(skySphereInstance);
+            }
 
-                var material = new Material(shader);
-                material.SetTexture("_MainTex", texture);
-                
-                RenderSettings.skybox = material;
+            skySphereInstance.SetActive(true);
+            skySphereInstance.transform.position = skySpherePositionOffset;
+            skySphereInstance.transform.localScale = Vector3.one * skySphereScale;
+
+            var renderer = skySphereInstance.GetComponent<Renderer>();
+            if (renderer == null)
+            {
+                Debug.LogError("[PanoramaSceneService] Sky sphere renderer is missing.");
+                return;
+            }
+
+            Material matInstance;
+            if (skySphereMaterial != null)
+            {
+                matInstance = new Material(skySphereMaterial);
             }
             else
             {
-                RenderSettings.skybox = null; // Disable global skybox
+                var shader = FindFirstAvailableShader(
+                    "Unlit/Texture",
+                    "Universal Render Pipeline/Unlit",
+                    "Sprites/Default");
 
-                if (skySphereInstance == null)
+                if (shader == null)
                 {
-                    skySphereInstance = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                    skySphereInstance.name = "SceneTalkVR_SkySphere";
-                    
-                    var col = skySphereInstance.GetComponent<Collider>();
-                    if (col != null)
-                    {
-                        DestroyImmediate(col); // Prevent blocking VR raycasts
-                    }
-
-                    InvertMeshNormals(skySphereInstance);
+                    Debug.LogError("[PanoramaSceneService] No supported unlit shader found for sky sphere.");
+                    return;
                 }
 
-                skySphereInstance.SetActive(true);
-                skySphereInstance.transform.position = skySpherePositionOffset;
-                skySphereInstance.transform.localScale = Vector3.one * skySphereScale;
+                matInstance = new Material(shader);
+            }
 
-                var renderer = skySphereInstance.GetComponent<Renderer>();
-                if (renderer != null)
+            ApplyTextureToMaterial(matInstance, texture);
+            renderer.sharedMaterial = matInstance;
+        }
+
+        private static Shader FindFirstAvailableShader(params string[] shaderNames)
+        {
+            foreach (var shaderName in shaderNames)
+            {
+                var shader = Shader.Find(shaderName);
+                if (shader != null)
                 {
-                    Material matInstance = skySphereMaterial != null 
-                        ? new Material(skySphereMaterial) 
-                        : new Material(Shader.Find("Unlit/Texture"));
-                    
-                    matInstance.mainTexture = texture;
-                    renderer.sharedMaterial = matInstance;
+                    return shader;
                 }
             }
 
-            DynamicGI.UpdateEnvironment();
-            Debug.Log("[PanoramaSceneService] Background applied successfully.");
+            return null;
+        }
+
+        private static void ApplyTextureToMaterial(Material material, Texture2D texture)
+        {
+            if (material.HasProperty("_MainTex"))
+            {
+                material.SetTexture("_MainTex", texture);
+                material.mainTexture = texture;
+            }
+
+            if (material.HasProperty("_BaseMap"))
+            {
+                material.SetTexture("_BaseMap", texture);
+            }
         }
 
         private void InvertMeshNormals(GameObject go)
