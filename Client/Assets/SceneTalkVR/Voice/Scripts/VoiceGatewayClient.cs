@@ -11,14 +11,22 @@ namespace SceneTalkVR.Voice
         [SerializeField] private VoiceGatewaySettings settings;
         [SerializeField] private string gatewayBaseUrl = "http://127.0.0.1:8787";
         [SerializeField] private int requestTimeoutSeconds = 10;
+        private string runtimeGatewayBaseUrl;
 
-        public string GatewayBaseUrl => settings != null
+        public string GatewayBaseUrl => !string.IsNullOrWhiteSpace(runtimeGatewayBaseUrl)
+            ? NormalizeBaseUrl(runtimeGatewayBaseUrl)
+            : settings != null
             ? settings.GatewayBaseUrl
             : NormalizeBaseUrl(gatewayBaseUrl);
 
         private int RequestTimeoutSeconds => settings != null
             ? settings.RequestTimeoutSeconds
             : Mathf.Max(1, requestTimeoutSeconds);
+
+        public void ConfigureGatewayBaseUrl(string baseUrl)
+        {
+            runtimeGatewayBaseUrl = NormalizeBaseUrl(baseUrl);
+        }
 
         public IEnumerator RequestStt(
             SttRequest request,

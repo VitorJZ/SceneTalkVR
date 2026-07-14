@@ -72,6 +72,19 @@ namespace SceneTalkVR.Runtime.Services
         private float lastRecordingDurationMs = 0f;
         private string lastRecordingStopReason = "unknown";
 
+        public void ConfigureApi(string runtimeApiUrl, string runtimeModelName)
+        {
+            if (!string.IsNullOrWhiteSpace(runtimeApiUrl))
+            {
+                apiUrl = runtimeApiUrl.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(runtimeModelName))
+            {
+                modelName = runtimeModelName.Trim();
+            }
+        }
+
         public string GetSessionErrorSummary()
         {
             if (sessionErrorHistory.Count == 0) return "No errors detected in this session.";
@@ -738,11 +751,12 @@ namespace SceneTalkVR.Runtime.Services
 
         private async Task<string> SendChatRequest(OpenAiMessage[] messages, bool useJsonObject)
         {
-            string effectiveKey = string.IsNullOrEmpty(apiKey) 
-                ? Environment.GetEnvironmentVariable("OPENAI_API_KEY") 
+            var requiresClientApiKey = RequiresClientApiKey(apiUrl);
+            string effectiveKey = string.IsNullOrEmpty(apiKey)
+                ? Environment.GetEnvironmentVariable("OPENAI_API_KEY")
                 : apiKey;
 
-            if (string.IsNullOrEmpty(effectiveKey))
+            if (requiresClientApiKey && string.IsNullOrEmpty(effectiveKey))
             {
                 throw new Exception("API Key is not set.");
             }
@@ -773,7 +787,10 @@ namespace SceneTalkVR.Runtime.Services
             webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
             webRequest.downloadHandler = new DownloadHandlerBuffer();
             webRequest.SetRequestHeader("Content-Type", "application/json");
-            webRequest.SetRequestHeader("Authorization", $"Bearer {effectiveKey}");
+            if (requiresClientApiKey)
+            {
+                webRequest.SetRequestHeader("Authorization", $"Bearer {effectiveKey}");
+            }
 
             var operation = webRequest.SendWebRequest();
             
@@ -803,6 +820,51 @@ namespace SceneTalkVR.Runtime.Services
                 new OpenAiMessage { role = "user", content = userPrompt }
             };
             return await SendChatRequest(messages, useJsonObject);
+        }
+
+        private static bool RequiresClientApiKey(string requestUrl)
+        {
+            if (!Uri.TryCreate(requestUrl, UriKind.Absolute, out var uri))
+            {
+                return true;
+            }
+
+            if (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return !IsLoopbackOrPrivateHost(uri.Host);
+        }
+
+        private static bool IsLoopbackOrPrivateHost(string host)
+        {
+            if (string.IsNullOrWhiteSpace(host))
+            {
+                return false;
+            }
+
+            if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!System.Net.IPAddress.TryParse(host, out var address))
+            {
+                return false;
+            }
+
+            if (System.Net.IPAddress.IsLoopback(address))
+            {
+                return true;
+            }
+
+            var bytes = address.GetAddressBytes();
+            return bytes.Length == 4
+                && (bytes[0] == 10
+                    || (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
+                    || (bytes[0] == 192 && bytes[1] == 168)
+                    || (bytes[0] == 169 && bytes[1] == 254));
         }
 
         #endregion

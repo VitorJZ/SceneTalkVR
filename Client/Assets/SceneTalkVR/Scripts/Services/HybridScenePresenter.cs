@@ -38,6 +38,17 @@ namespace SceneTalkVR.Runtime.Services
         [SerializeField] private int maxSpawnCount = 2;
         [SerializeField] private List<string> prefabWhitelist = new List<string> { "cafe_table", "chair", "generic_table", "generic_chair" };
 
+        public bool OnlyUsePanorama => onlyUsePanorama;
+        public bool EnableSpatialClipping => enableSpatialClipping;
+        public int MaxSpawnCount => maxSpawnCount;
+
+        public void ConfigureRuntime(bool usePanoramaOnly, bool useSpatialClipping, int spawnLimit)
+        {
+            onlyUsePanorama = usePanoramaOnly;
+            enableSpatialClipping = useSpatialClipping;
+            maxSpawnCount = Mathf.Max(0, spawnLimit);
+        }
+
         public IEnumerator PresentScene(SpringScenePayload payload, Action onComplete, Action<string> onError)
         {
             if (payload == null)

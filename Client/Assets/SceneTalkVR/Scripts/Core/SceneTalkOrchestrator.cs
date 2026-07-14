@@ -79,6 +79,37 @@ namespace SceneTalkVR.Runtime
         private ISceneTalkAvatarReplyContext AvatarReplyContext => avatarVoiceModule as ISceneTalkAvatarReplyContext;
         private ISceneTalkAvatarSessionReset AvatarSessionReset => avatarVoiceModule as ISceneTalkAvatarSessionReset;
 
+        public void ConfigureModules(
+            MonoBehaviour speechInput = null,
+            MonoBehaviour brain = null,
+            MonoBehaviour scenePresenter = null,
+            MonoBehaviour avatarVoice = null)
+        {
+            if (speechInput != null)
+            {
+                speechInputModule = speechInput;
+            }
+
+            if (brain != null)
+            {
+                brainModule = brain;
+            }
+
+            if (scenePresenter != null)
+            {
+                scenePresenterModule = scenePresenter;
+            }
+
+            if (avatarVoice != null)
+            {
+                avatarVoiceModule = avatarVoice;
+                SubscribeAvatarCorrectionPlayback();
+            }
+
+            ApplyExperimentConditionToModules();
+            RefreshUi();
+        }
+
         private void Awake()
         {
             ResolveExperimentConditionManager(true);

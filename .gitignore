@@ -42,6 +42,9 @@ PICO Unity Integration SDK-*/
 # Local voice gateway secrets
 Server/voice-gateway/voice-gateway.local.json
 
+# Local LLM gateway secrets
+Server/llm-gateway/llm-gateway.local.json
+
 # IDE / editor
 .vs/
 .vscode/

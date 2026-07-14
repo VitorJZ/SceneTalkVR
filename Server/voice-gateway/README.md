@@ -2,6 +2,8 @@
 
 Minimal P0 voice gateway for SceneTalkVR.
 
+Current PICO real-device network notes live in `../../documents/pico-real-device-gateway-runbook-2026-07-13.md`.
+
 The gateway hides cloud-provider credentials from Unity/PICO clients and exposes a stable local protocol:
 
 ```text
@@ -41,7 +43,22 @@ Example:
 http://192.168.1.20:8787
 ```
 
+Current project smoke-test example:
+
+```text
+http://192.168.137.1:8787
+```
+
 PICO and other teammates cannot use `127.0.0.1` to reach your computer. On those devices, `127.0.0.1` points to themselves.
+
+For PICO, start the gateway on all interfaces:
+
+```powershell
+$env:VOICE_GATEWAY_HOST="0.0.0.0"
+$env:VOICE_GATEWAY_PORT="8787"
+$env:VOICE_GATEWAY_PROVIDER="tencent"
+python -m src.voice_gateway.main
+```
 
 Optional environment variables:
 

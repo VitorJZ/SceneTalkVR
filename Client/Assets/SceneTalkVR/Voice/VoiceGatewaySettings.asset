@@ -12,5 +12,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9adf58f8b32e458996dedfd563e0dd0d, type: 3}
   m_Name: VoiceGatewaySettings
   m_EditorClassIdentifier: 
-  gatewayBaseUrl: http://127.0.0.1:8787
+  gatewayBaseUrl: http://192.168.137.1:8787
   requestTimeoutSeconds: 10
