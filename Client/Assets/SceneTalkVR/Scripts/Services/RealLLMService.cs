@@ -485,7 +485,7 @@ namespace SceneTalkVR.Runtime.Services
             builder.AppendLine("1. Detect at most ONE major error per turn (grammar, unnatural expression, vocabulary misuse, or incomplete sentence).");
             builder.AppendLine("2. Respect the 'feedbackSensitivity' level:");
             builder.AppendLine("   - If 'conservative': Only correct severe grammar/vocab errors that clearly hinder understanding. Ignore minor unnaturalness.");
-            builder.AppendLine("   - If 'moderate': Correct clear grammar, unnatural expressions, and vocabulary misuse. Ignore minor self-corrections or normal pauses.");
+            builder.AppendLine("   - If 'moderate': Correct clear grammar (including missing articles like 'a'/'the'), unnatural expressions, and vocabulary misuse. Ignore minor self-corrections or normal pauses. Do NOT skip missing articles even when provider is dialogue_avatar and style is explicit.");
             builder.AppendLine("   - If 'active': Be highly strict. Correct even minor slips, awkward phrasing, and slang/informal style.");
             if (!locked)
             {

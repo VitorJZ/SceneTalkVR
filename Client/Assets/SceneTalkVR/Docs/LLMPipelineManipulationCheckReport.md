@@ -1,10 +1,10 @@
 # LLM Pipeline Manipulation Check Report
-Date: 2026/7/14 16:30
+Date: 2026/7/14 17:53
 Total Test Cases: 5
 Total Executed Variations: 20
 
 ## Summary Metrics
-- **Pass Rate**: 70.0% (14/20 passed)
+- **Pass Rate**: 95.0% (19/20 passed)
 - **JSON Parse Success Rate**: 100.0% (20/20 parsed)
 - **Assistant Dialogue Leakage Count**: 0
 - **Recast Purity Violation Count**: 0
@@ -27,9 +27,9 @@ Total Executed Variations: 20
 | T003 | assistant_agent_recast | For tomorrow at seven. | ✅ PASS |  |
 | T004 | dialogue_avatar_explicit | Do you have table by window? | ❌ FAIL | Expected hasFeedback=True but got False.  |
 | T004 | dialogue_avatar_recast | Do you have table by window? | ✅ PASS |  |
-| T004 | assistant_agent_explicit | Do you have table by window? | ❌ FAIL | Expected hasFeedback=True but got False.  |
+| T004 | assistant_agent_explicit | Do you have table by window? | ✅ PASS |  |
 | T004 | assistant_agent_recast | Do you have table by window? | ✅ PASS |  |
-| T005 | dialogue_avatar_explicit | I very love reservation window. | ❌ FAIL | STT should be suppressed but correction occurred.  |
-| T005 | dialogue_avatar_recast | I very love reservation window. | ❌ FAIL | STT should be suppressed but correction occurred.  |
-| T005 | assistant_agent_explicit | I very love reservation window. | ❌ FAIL | STT should be suppressed but correction occurred.  |
-| T005 | assistant_agent_recast | I very love reservation window. | ❌ FAIL | STT should be suppressed but correction occurred.  |
+| T005 | dialogue_avatar_explicit | I very love reservation window. | ✅ PASS |  |
+| T005 | dialogue_avatar_recast | I very love reservation window. | ✅ PASS |  |
+| T005 | assistant_agent_explicit | I very love reservation window. | ✅ PASS |  |
+| T005 | assistant_agent_recast | I very love reservation window. | ✅ PASS |  |
