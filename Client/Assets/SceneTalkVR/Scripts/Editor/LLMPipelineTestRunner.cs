@@ -38,6 +38,31 @@ namespace SceneTalkVR.Editor
         private bool isRunning;
         private int maxTestCases = 5;
         private int requestDelayMs = 6000;
+        private static System.Threading.CancellationTokenSource currentCts;
+
+        private void OnDisable()
+        {
+            StopTest();
+        }
+
+        private void OnDestroy()
+        {
+            StopTest();
+        }
+
+        private static void StopTest()
+        {
+            if (currentCts != null)
+            {
+                try
+                {
+                    currentCts.Cancel();
+                    currentCts.Dispose();
+                }
+                catch (Exception) {}
+                currentCts = null;
+            }
+        }
 
         private void OnGUI()
         {
@@ -64,6 +89,14 @@ namespace SceneTalkVR.Editor
             }
 
             GUI.enabled = true;
+
+            if (isRunning)
+            {
+                if (GUILayout.Button("Stop Test Suite"))
+                {
+                    StopTest();
+                }
+            }
 
             GUILayout.Space(10);
             GUILayout.Label($"Status: {statusMessage}");
@@ -122,6 +155,10 @@ namespace SceneTalkVR.Editor
 
         private async void RunSuiteAsync()
         {
+            StopTest();
+            currentCts = new System.Threading.CancellationTokenSource();
+            var token = currentCts.Token;
+
             isRunning = true;
             statusMessage = "Initializing test environment...";
             LoadTestCases();
@@ -158,7 +195,7 @@ namespace SceneTalkVR.Editor
 
             var reportBuilder = new System.Text.StringBuilder();
             reportBuilder.AppendLine("# LLM Pipeline Manipulation Check Report");
-            reportBuilder.AppendLine($"Date: {DateTime.Now.ToString(\"g\")}");
+            reportBuilder.AppendLine($"Date: {DateTime.Now.ToString("g")}");
             reportBuilder.AppendLine($"Total Test Cases: {limitCount}");
             reportBuilder.AppendLine($"Total Executed Variations: {totalTests}");
             reportBuilder.AppendLine();
@@ -181,12 +218,22 @@ namespace SceneTalkVR.Editor
             {
                 for (int i = 0; i < limitCount; i++)
                 {
+                    if (token.IsCancellationRequested)
+                    {
+                        throw new OperationCanceledException(token);
+                    }
+
                     var tc = testCases[i];
                     statusMessage = $"Running test {i + 1}/{limitCount}: {tc.id}...";
                     Repaint();
 
                     foreach (var cond in conditions)
                     {
+                        if (token.IsCancellationRequested)
+                        {
+                            throw new OperationCanceledException(token);
+                        }
+
                         var parts = cond.Split('_');
                         string provider = parts[0] + "_" + parts[1];
                         string style = parts[2];
@@ -297,7 +344,7 @@ namespace SceneTalkVR.Editor
                         {
                             statusMessage = $"Pacing... Waiting {requestDelayMs}ms to avoid Rate Limit (Completed {completedTests}/{totalTests})...";
                             Repaint();
-                            await Task.Delay(requestDelayMs);
+                            await Task.Delay(requestDelayMs, token);
                         }
                     }
                 }
@@ -325,6 +372,10 @@ namespace SceneTalkVR.Editor
                 AssetDatabase.Refresh();
 
                 statusMessage = $"Manipulation check complete! Pass Rate: {passRate:F1}%. Report saved to: Assets/SceneTalkVR/Docs/LLMPipelineManipulationCheckReport.md";
+            }
+            catch (OperationCanceledException)
+            {
+                statusMessage = "Test suite execution stopped.";
             }
             catch (Exception ex)
             {
