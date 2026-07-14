@@ -138,7 +138,7 @@ namespace SceneTalkVR.EditorTools
             var realLlm = root.AddComponent<SceneTalkVR.Runtime.Services.RealLLMService>();
             SetString(realLlm, "apiUrl", "https://models.sjtu.edu.cn/api/v1/chat/completions");
             SetString(realLlm, "apiKey", "");
-            SetString(realLlm, "modelName", "minimax-m2.7");
+            SetString(realLlm, "modelName", "deepseek-chat");
 
             var oldPanorama = root.GetComponent<SceneTalkVR.Runtime.Services.PanoramaSceneService>();
             if (oldPanorama != null) Object.DestroyImmediate(oldPanorama);

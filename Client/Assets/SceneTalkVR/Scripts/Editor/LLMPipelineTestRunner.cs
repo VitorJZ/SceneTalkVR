@@ -36,6 +36,8 @@ namespace SceneTalkVR.Editor
         private List<TestCase> testCases = new List<TestCase>();
         private string statusMessage = "Idle";
         private bool isRunning;
+        private int maxTestCases = 5;
+        private int requestDelayMs = 6000;
 
         private void OnGUI()
         {
@@ -47,6 +49,9 @@ namespace SceneTalkVR.Editor
             }
 
             GUILayout.Label($"Loaded Cases: {testCases.Count}");
+
+            maxTestCases = EditorGUILayout.IntField("Max Test Cases", maxTestCases);
+            requestDelayMs = EditorGUILayout.IntField("Request Delay (ms)", requestDelayMs);
 
             if (isRunning)
             {
@@ -136,7 +141,8 @@ namespace SceneTalkVR.Editor
                 return;
             }
 
-            int totalTests = testCases.Count * 4; // 4 conditions per test case
+            int limitCount = Mathf.Min(testCases.Count, maxTestCases);
+            int totalTests = limitCount * 4; // 4 conditions per test case
             int completedTests = 0;
             int passCount = 0;
             int failCount = 0;
@@ -146,8 +152,8 @@ namespace SceneTalkVR.Editor
 
             var reportBuilder = new System.Text.StringBuilder();
             reportBuilder.AppendLine("# LLM Pipeline Manipulation Check Report");
-            reportBuilder.AppendLine($"Date: {DateTime.Now.ToString("g")}");
-            reportBuilder.AppendLine($"Total Test Cases: {testCases.Count}");
+            reportBuilder.AppendLine($"Date: {DateTime.Now.ToString(\"g\")}");
+            reportBuilder.AppendLine($"Total Test Cases: {limitCount}");
             reportBuilder.AppendLine($"Total Executed Variations: {totalTests}");
             reportBuilder.AppendLine();
             reportBuilder.AppendLine("## Summary Metrics");
@@ -167,10 +173,10 @@ namespace SceneTalkVR.Editor
 
             try
             {
-                for (int i = 0; i < testCases.Count; i++)
+                for (int i = 0; i < limitCount; i++)
                 {
                     var tc = testCases[i];
-                    statusMessage = $"Running test {i + 1}/{testCases.Count}: {tc.id}...";
+                    statusMessage = $"Running test {i + 1}/{limitCount}: {tc.id}...";
                     Repaint();
 
                     foreach (var cond in conditions)
@@ -280,6 +286,13 @@ namespace SceneTalkVR.Editor
                         string outcomeSymbol = isPass ? "✅ PASS" : "❌ FAIL";
                         string resultLine = $"| {tc.id} | {cond} | {tc.input} | {outcomeSymbol} | {failReason} |";
                         resultsList.Add(resultLine);
+
+                        if (requestDelayMs > 0 && completedTests < totalTests)
+                        {
+                            statusMessage = $"Pacing... Waiting {requestDelayMs}ms to avoid Rate Limit (Completed {completedTests}/{totalTests})...";
+                            Repaint();
+                            await Task.Delay(requestDelayMs);
+                        }
                     }
                 }
 

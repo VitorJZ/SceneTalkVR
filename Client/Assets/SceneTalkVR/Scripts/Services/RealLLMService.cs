@@ -18,7 +18,7 @@ namespace SceneTalkVR.Runtime.Services
         [Header("API Configuration")]
         [SerializeField] private string apiUrl = "https://models.sjtu.edu.cn/api/v1/chat/completions";
         [SerializeField] private string apiKey = ""; 
-        [SerializeField] private string modelName = "minimax-m2.7";
+        [SerializeField] private string modelName = "deepseek-chat";
         
         [Header("Feedback Strategy")]
         [Tooltip("Feedback strictness: conservative (only severe errors), moderate (general errors), active (almost all errors)")]
