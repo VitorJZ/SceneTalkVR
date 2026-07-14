@@ -1,6 +1,7 @@
 using System.Collections;
 using SceneTalkVR.AvatarSystem;
 using SceneTalkVR.Core;
+using SceneTalkVR.Voice;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
