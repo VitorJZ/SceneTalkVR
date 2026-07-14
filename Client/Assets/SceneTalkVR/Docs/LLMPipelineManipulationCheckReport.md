@@ -1,29 +1,35 @@
 # LLM Pipeline Manipulation Check Report
+Date: 2026/7/14 16:30
+Total Test Cases: 5
+Total Executed Variations: 20
 
-This report serves as the official validation record for the 2x2 experimental conditions (Dialogue Avatar vs. Assistant Agent, Explicit vs. Recast) under the Manipulation Validity Sprint.
+## Summary Metrics
+- **Pass Rate**: 70.0% (14/20 passed)
+- **JSON Parse Success Rate**: 100.0% (20/20 parsed)
+- **Assistant Dialogue Leakage Count**: 0
+- **Recast Purity Violation Count**: 0
 
-## Run Status
-- **Status**: Ready to Run
-- **Test Runner Location**: Unity Editor Menu -> `SceneTalkVR/Diagnostics/Run LLM Manipulation Check`
-- **Total Test Cases**: 40 Cases (covering Restaurant Reservation, Furniture Shopping, Gym Membership, Hotel Check-in)
-- **Total Executed Variations**: 160 Variations (4 conditions per case)
+## Detailed Test Results
 
-## Instructions for Execution
-1. Open the SceneTalkVR main practice scene in the Unity Editor.
-2. Select `SceneTalkVR` -> `Diagnostics` -> `Run LLM Manipulation Check` from the top menu bar.
-3. Click the **Run Test Suite & Generate Report** button in the test runner window.
-4. The test runner will automatically:
-   - Cycle through all 40 test cases.
-   - Run each case under the 4 experimental conditions.
-   - Perform STT suppression checks (<500ms duration or <0.5 confidence).
-   - Guard against dialogue reply corrective leakage under `assistant_agent` provider.
-   - Guard against recast purity violations under `recast` style.
-   - Cleanly overwrite this report file with the exact run results, metrics, and details.
-
-## Anticipated Metrics
-- **Pass Rate Target**: ≥ 90%
-- **JSON Parse Success Rate Target**: ≥ 99%
-- **Assistant Dialogue Leakage Count Target**: 0
-- **Recast Purity Violation Count Target**: 0
-- **STT Suppression Pass Rate**: 100%
-- **Enriched Logging Fields Compliance**: 100%
+| Case ID | Condition | Input | Result | Details |
+|---|---|---|---|---|
+| T001 | dialogue_avatar_explicit | I want reserve a table. | ✅ PASS |  |
+| T001 | dialogue_avatar_recast | I want reserve a table. | ✅ PASS |  |
+| T001 | assistant_agent_explicit | I want reserve a table. | ✅ PASS |  |
+| T001 | assistant_agent_recast | I want reserve a table. | ✅ PASS |  |
+| T002 | dialogue_avatar_explicit | Table for two, please. | ✅ PASS |  |
+| T002 | dialogue_avatar_recast | Table for two, please. | ✅ PASS |  |
+| T002 | assistant_agent_explicit | Table for two, please. | ✅ PASS |  |
+| T002 | assistant_agent_recast | Table for two, please. | ✅ PASS |  |
+| T003 | dialogue_avatar_explicit | For tomorrow at seven. | ✅ PASS |  |
+| T003 | dialogue_avatar_recast | For tomorrow at seven. | ✅ PASS |  |
+| T003 | assistant_agent_explicit | For tomorrow at seven. | ✅ PASS |  |
+| T003 | assistant_agent_recast | For tomorrow at seven. | ✅ PASS |  |
+| T004 | dialogue_avatar_explicit | Do you have table by window? | ❌ FAIL | Expected hasFeedback=True but got False.  |
+| T004 | dialogue_avatar_recast | Do you have table by window? | ✅ PASS |  |
+| T004 | assistant_agent_explicit | Do you have table by window? | ❌ FAIL | Expected hasFeedback=True but got False.  |
+| T004 | assistant_agent_recast | Do you have table by window? | ✅ PASS |  |
+| T005 | dialogue_avatar_explicit | I very love reservation window. | ❌ FAIL | STT should be suppressed but correction occurred.  |
+| T005 | dialogue_avatar_recast | I very love reservation window. | ❌ FAIL | STT should be suppressed but correction occurred.  |
+| T005 | assistant_agent_explicit | I very love reservation window. | ❌ FAIL | STT should be suppressed but correction occurred.  |
+| T005 | assistant_agent_recast | I very love reservation window. | ❌ FAIL | STT should be suppressed but correction occurred.  |
