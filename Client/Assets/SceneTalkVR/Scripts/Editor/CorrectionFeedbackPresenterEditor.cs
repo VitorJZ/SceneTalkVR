@@ -5,7 +5,7 @@ namespace SceneTalkVR.EditorTools
 {
     [CustomEditor(typeof(CorrectionFeedbackPresenter))]
     [CanEditMultipleObjects]
-    public sealed class CorrectionFeedbackPresenterEditor : Editor
+    public sealed class CorrectionFeedbackPresenterEditor : UnityEditor.Editor
     {
         private SerializedProperty script;
         private SerializedProperty playCorrectionFeedback;

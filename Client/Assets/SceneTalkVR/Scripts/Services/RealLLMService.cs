@@ -67,6 +67,7 @@ namespace SceneTalkVR.Runtime.Services
         private readonly List<string> sessionErrorHistory = new List<string>();
         private SceneTalkOrchestrator cachedOrchestrator;
         private CorrectionExperimentCondition currentCondition;
+        public CorrectionExperimentCondition CurrentCondition => currentCondition;
 
         private float lastSttConfidence = 1.0f;
         private float lastRecordingDurationMs = 0f;
