@@ -141,6 +141,12 @@ namespace SceneTalkVR.Editor
                 return;
             }
 
+            var config = AssetDatabase.LoadAssetAtPath<SceneTalkRuntimeConfig>("Assets/SceneTalkVR/RuntimeConfig/SceneTalkRuntimeConfig.asset");
+            if (config != null)
+            {
+                llmService.ConfigureApi(config.DirectLlmApiUrl, config.DirectLlmModelName);
+            }
+
             int limitCount = Mathf.Min(testCases.Count, maxTestCases);
             int totalTests = limitCount * 4; // 4 conditions per test case
             int completedTests = 0;
