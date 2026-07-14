@@ -153,6 +153,40 @@ namespace SceneTalkVR.Editor
             }
         }
 
+        private string LoadApiKeyFromEnv()
+        {
+            try
+            {
+                string envPath = Path.Combine(Application.dataPath, "../.env");
+                if (File.Exists(envPath))
+                {
+                    var lines = File.ReadAllLines(envPath);
+                    foreach (var line in lines)
+                    {
+                        var trimmed = line.Trim();
+                        if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#") || !trimmed.Contains("="))
+                            continue;
+                        
+                        var parts = trimmed.Split(new char[] { '=' }, 2);
+                        if (parts[0].Trim() == "OPENAI_API_KEY")
+                        {
+                            var val = parts[1].Trim();
+                            if ((val.StartsWith("\"") && val.EndsWith("\"")) || (val.StartsWith("'") && val.EndsWith("'")))
+                            {
+                                val = val.Substring(1, val.Length - 2);
+                            }
+                            return val;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[LLMPipelineTestRunner] Failed to load .env API key: {ex.Message}");
+            }
+            return null;
+        }
+
         private async void RunSuiteAsync()
         {
             StopTest();
@@ -178,10 +212,23 @@ namespace SceneTalkVR.Editor
                 return;
             }
 
+            // Bypass local gateway for Editor tests: connect directly to models.sjtu.edu.cn
+            string directUrl = "https://models.sjtu.edu.cn/api/v1/chat/completions";
+            string modelName = "deepseek-chat";
             var config = AssetDatabase.LoadAssetAtPath<SceneTalkRuntimeConfig>("Assets/SceneTalkVR/RuntimeConfig/SceneTalkRuntimeConfig.asset");
             if (config != null)
             {
-                llmService.ConfigureApi(config.DirectLlmApiUrl, config.DirectLlmModelName);
+                modelName = config.DirectLlmModelName;
+            }
+
+            llmService.ConfigureApi(directUrl, modelName);
+
+            // Inject API Key from .env using reflection
+            string apiKey = LoadApiKeyFromEnv();
+            if (!string.IsNullOrEmpty(apiKey))
+            {
+                var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public;
+                llmService.GetType().GetField("apiKey", flags)?.SetValue(llmService, apiKey);
             }
 
             int limitCount = Mathf.Min(testCases.Count, maxTestCases);
@@ -339,6 +386,7 @@ namespace SceneTalkVR.Editor
                         string outcomeSymbol = isPass ? "✅ PASS" : "❌ FAIL";
                         string resultLine = $"| {tc.id} | {cond} | {tc.input} | {outcomeSymbol} | {failReason} |";
                         resultsList.Add(resultLine);
+                        Debug.Log($"[LLMPipelineTestRunner] Case {tc.id} ({cond}) -> {outcomeSymbol}. {failReason}");
 
                         if (requestDelayMs > 0 && completedTests < totalTests)
                         {
