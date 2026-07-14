@@ -32,7 +32,7 @@ namespace SceneTalkVR.Core
 
         [Header("Direct LLM Defaults")]
         [SerializeField] private string directLlmApiUrl = "https://models.sjtu.edu.cn/api/v1/chat/completions";
-        [SerializeField] private string directLlmModelName = "minimax-m2.7";
+        [SerializeField] private string directLlmModelName = "deepseek-chat";
 
         [Header("Panorama Defaults")]
         [SerializeField] private string panoramaModelName = "Tongyi-MAI/Z-Image";
@@ -53,7 +53,7 @@ namespace SceneTalkVR.Core
         public int MaxSpawnCount => Mathf.Max(0, maxSpawnCount);
         public string DirectLlmApiUrl => NormalizeUrl(directLlmApiUrl);
         public string DirectLlmModelName => string.IsNullOrWhiteSpace(directLlmModelName)
-            ? "minimax-m2.7"
+            ? "deepseek-chat"
             : directLlmModelName.Trim();
         public string PanoramaModelName => string.IsNullOrWhiteSpace(panoramaModelName)
             ? "Tongyi-MAI/Z-Image"
@@ -104,7 +104,7 @@ namespace SceneTalkVR.Core
 
             if (string.IsNullOrWhiteSpace(directLlmModelName))
             {
-                directLlmModelName = "minimax-m2.7";
+                directLlmModelName = "deepseek-chat";
             }
 
             if (string.IsNullOrWhiteSpace(panoramaModelName))

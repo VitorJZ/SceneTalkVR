@@ -24,6 +24,6 @@ MonoBehaviour:
   enableSpatialClipping: 1
   maxSpawnCount: 2
   directLlmApiUrl: http://192.168.137.1:8788/api/llm/chat/completions
-  directLlmModelName: minimax-m2.7
+  directLlmModelName: deepseek-chat
   panoramaModelName: Tongyi-MAI/Z-Image
   panoramaImageSize: 1024x1024

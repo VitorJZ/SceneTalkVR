@@ -793,6 +793,7 @@ namespace SceneTalkVR.Runtime.Services
                 webRequest.SetRequestHeader("Authorization", $"Bearer {effectiveKey}");
             }
 
+            webRequest.timeout = 15;
             var operation = webRequest.SendWebRequest();
             
             while (!operation.isDone)
