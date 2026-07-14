@@ -69,6 +69,7 @@ namespace SceneTalkVR.Runtime.Services
         private CorrectionExperimentCondition currentCondition;
 
         private float lastSttConfidence = 1.0f;
+        private bool lastSttConfidenceAvailable;
         private float lastRecordingDurationMs = 0f;
         private string lastRecordingStopReason = "unknown";
 
@@ -101,6 +102,7 @@ namespace SceneTalkVR.Runtime.Services
             
             // Retrieve latest STT metadata from GatewaySpeechInputModule if available
             lastSttConfidence = 1.0f;
+            lastSttConfidenceAvailable = false;
             lastRecordingDurationMs = 0f;
             lastRecordingStopReason = "unknown";
             
@@ -112,8 +114,12 @@ namespace SceneTalkVR.Runtime.Services
                 if (speechModule.LastSttResponse != null)
                 {
                     lastSttConfidence = speechModule.LastSttResponse.confidence;
+                    lastSttConfidenceAvailable = speechModule.LastSttResponse.confidenceAvailable;
                 }
-                Debug.Log($"[RealLLMService] STT Metadata - Duration: {lastRecordingDurationMs}ms, StopReason: {lastRecordingStopReason}, Confidence: {lastSttConfidence}");
+                var confidenceLog = lastSttConfidenceAvailable
+                    ? lastSttConfidence.ToString()
+                    : "unavailable";
+                Debug.Log($"[RealLLMService] STT Metadata - Duration: {lastRecordingDurationMs}ms, StopReason: {lastRecordingStopReason}, Confidence: {confidenceLog}");
             }
 
             CheckAndResetSession();
@@ -375,8 +381,10 @@ namespace SceneTalkVR.Runtime.Services
             builder.AppendLine("\n=== SPEECH CAPTURE METADATA ===");
             builder.AppendLine($"- recordingDurationMs: {lastRecordingDurationMs} ms");
             builder.AppendLine($"- recordingStopReason: {lastRecordingStopReason}");
-            builder.AppendLine($"- sttConfidence: {lastSttConfidence}");
-            if (lastSttConfidence < 0.5f)
+            builder.AppendLine(lastSttConfidenceAvailable
+                ? $"- sttConfidence: {lastSttConfidence}"
+                : "- sttConfidence: unavailable");
+            if (lastSttConfidenceAvailable && lastSttConfidence < 0.5f)
             {
                 builder.AppendLine("CRITICAL: STT/ASR confidence is extremely low. Do NOT perform any grammar correction (set hasFeedback = false) because the errors are likely STT recognition failures. Respond politely asking the user to repeat.");
             }

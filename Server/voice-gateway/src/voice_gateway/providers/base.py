@@ -8,6 +8,7 @@ class SttResult:
     provider: str
     transcript: str
     confidence: float
+    confidence_available: bool
     duration_ms: int
     latency_ms: int
     fallback_level: str = "none"

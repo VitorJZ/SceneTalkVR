@@ -7,10 +7,8 @@ using UnityEngine.Serialization;
 
 namespace SceneTalkVR.AvatarSystem
 {
-    public sealed class AvatarPresentationVoiceModule : MonoBehaviour, ISceneTalkAvatarVoice, ISceneTalkAvatarReplyContext, ISceneTalkAvatarSessionReset, ISceneTalkCorrectionFeedbackProviderReceiver
+    public sealed class AvatarPresentationVoiceModule : MonoBehaviour, ISceneTalkAvatarVoice, ISceneTalkAvatarReplyContext, ISceneTalkAvatarThinkingState, ISceneTalkAvatarSessionReset, ISceneTalkCorrectionFeedbackProviderReceiver
     {
-        private const string DefaultFollowUpSpeakingTrigger = "Talk";
-
         [Header("Avatar Resolution")]
         [SerializeField] private AvatarPresetResolver resolver;
         [SerializeField] private MonoBehaviour loaderModule;
@@ -55,9 +53,6 @@ namespace SceneTalkVR.AvatarSystem
         [SerializeField] private AvatarAnimationDriver animationDriver;
         [SerializeField] private RuntimeAnimatorController defaultAnimatorController;
         [SerializeField] private Animator fallbackAnimator;
-        [SerializeField] private string thinkingTrigger = "Think";
-        [SerializeField] private string speakingTrigger = "Speak";
-        [SerializeField] private string followUpSpeakingTrigger = "Talk";
 
         private GameObject currentAvatar;
         private Animator currentAnimator;
@@ -81,6 +76,12 @@ namespace SceneTalkVR.AvatarSystem
         public void SetReplyContext(bool isOpeningReply)
         {
             this.isOpeningReply = isOpeningReply;
+        }
+
+        public void SetThinking(bool isThinking)
+        {
+            EnsureAnimatorController(currentAnimator);
+            ResolveAnimationDriver()?.SetThinking(isThinking);
         }
 
         public void ClearAvatar()
@@ -110,6 +111,7 @@ namespace SceneTalkVR.AvatarSystem
             var driver = ResolveAnimationDriver();
             if (driver != null)
             {
+                driver.ResetState();
                 driver.BindAnimator(null);
             }
 
@@ -145,6 +147,7 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             LastCorrectionPlaybackResult = null;
+            SetThinking(false);
             var correctionPresenter = ResolveCorrectionFeedbackPresenter(
                 createCorrectionFeedbackPresenterIfMissing);
             if (correctionPresenter != null)
@@ -153,7 +156,8 @@ namespace SceneTalkVR.AvatarSystem
                 yield return correctionPresenter.Present(
                     payload,
                     BuildSpeechPlaybackContext(),
-                    () => TriggerSpeaking(false),
+                    () => BeginSpeechAnimation(false),
+                    EndSpeechAnimation,
                     value => LastCorrectionPlaybackResult = value);
             }
             else if (payload.correctionFeedback != null && payload.correctionFeedback.hasFeedback)
@@ -171,13 +175,10 @@ namespace SceneTalkVR.AvatarSystem
                 CorrectionPlaybackCompleted?.Invoke(LastCorrectionPlaybackResult);
             }
 
-            TriggerThinking();
-            yield return null;
-
             Debug.Log($"[SceneTalkVR] Avatar reply: {payload.dialogueReply}", this);
-            if (!string.IsNullOrWhiteSpace(payload.dialogueReply))
+            if (!isOpeningReply && !string.IsNullOrWhiteSpace(payload.dialogueReply))
             {
-                TriggerSpeaking(isOpeningReply);
+                SetThinking(true);
             }
 
             AvatarSpeechPlaybackResult replyResult = null;
@@ -187,9 +188,14 @@ namespace SceneTalkVR.AvatarSystem
                 new AvatarSpeechPlaybackRequest
                 {
                     text = payload.dialogueReply,
-                    logLabel = "Avatar reply"
+                    logLabel = "Avatar reply",
+                    playbackStarted = () => BeginSpeechAnimation(isOpeningReply),
+                    playbackEnded = EndSpeechAnimation
                 },
                 value => replyResult = value);
+
+            SetThinking(false);
+            EndSpeechAnimation();
 
             if (replyResult != null && !string.IsNullOrWhiteSpace(replyResult.error))
             {
@@ -476,53 +482,29 @@ namespace SceneTalkVR.AvatarSystem
             return correctionFeedbackPresenter;
         }
 
-        private void TriggerThinking()
+        private void BeginSpeechAnimation(bool openingReply)
         {
             EnsureAnimatorController(currentAnimator);
 
             var driver = ResolveAnimationDriver();
-            if (driver != null)
+            if (driver == null)
             {
-                driver.PlayThinking();
                 return;
             }
 
-            TriggerAnimationLegacy(thinkingTrigger);
-        }
-
-        private void TriggerSpeaking(bool openingReply)
-        {
-            EnsureAnimatorController(currentAnimator);
-
-            var driver = ResolveAnimationDriver();
-            if (driver != null)
+            driver.SetThinking(false);
+            if (openingReply)
             {
-                var played = openingReply
-                    ? driver.PlaySpeaking()
-                    : driver.PlayFollowUpSpeaking();
-
-                if (played || openingReply)
-                {
-                    return;
-                }
-
-                if (driver.PlaySpeaking())
-                {
-                    return;
-                }
+                driver.BeginOpeningSpeech();
+                return;
             }
 
-            var triggerName = openingReply
-                ? speakingTrigger
-                : ResolveFollowUpSpeakingTrigger();
-            TriggerAnimationLegacy(triggerName);
+            driver.BeginTalking();
         }
 
-        private string ResolveFollowUpSpeakingTrigger()
+        private void EndSpeechAnimation()
         {
-            return string.IsNullOrWhiteSpace(followUpSpeakingTrigger)
-                ? DefaultFollowUpSpeakingTrigger
-                : followUpSpeakingTrigger;
+            ResolveAnimationDriver()?.EndTalking();
         }
 
         private AvatarAnimationDriver ResolveAnimationDriver()
@@ -541,20 +523,5 @@ namespace SceneTalkVR.AvatarSystem
             return animationDriver;
         }
 
-        private void TriggerAnimationLegacy(string triggerName)
-        {
-            if (string.IsNullOrWhiteSpace(triggerName))
-            {
-                return;
-            }
-
-            var animator = currentAnimator != null ? currentAnimator : fallbackAnimator;
-            if (animator == null)
-            {
-                return;
-            }
-
-            animator.SetTrigger(triggerName);
-        }
     }
 }

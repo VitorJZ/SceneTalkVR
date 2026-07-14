@@ -26,6 +26,7 @@ class MockSpeechProvider:
             provider=self.name,
             transcript=self._transcript,
             confidence=1.0,
+            confidence_available=True,
             duration_ms=duration_ms,
             latency_ms=self._elapsed_ms(started),
             fallback_level="mock_transcript",
@@ -74,4 +75,3 @@ class MockSpeechProvider:
     @staticmethod
     def _elapsed_ms(started: float) -> int:
         return max(1, int((time.perf_counter() - started) * 1000))
-
