@@ -137,6 +137,11 @@ curl http://127.0.0.1:8787/health
 
 ### STT
 
+STT responses include both `confidence` and `confidenceAvailable`. Providers that
+do not expose a real confidence score, including Tencent SentenceRecognition,
+return `confidenceAvailable: false`; clients must not interpret the placeholder
+numeric value as low recognition confidence.
+
 ```bash
 curl -s http://127.0.0.1:8787/api/voice/stt \
   -H 'Content-Type: application/json' \

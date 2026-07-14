@@ -36,6 +36,11 @@ namespace SceneTalkVR.Core
         void SetReplyContext(bool isOpeningReply);
     }
 
+    public interface ISceneTalkAvatarThinkingState
+    {
+        void SetThinking(bool isThinking);
+    }
+
     public interface ISceneTalkAvatarSessionReset
     {
         void ClearAvatar();

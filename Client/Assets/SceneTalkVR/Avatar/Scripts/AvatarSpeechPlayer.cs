@@ -30,6 +30,8 @@ namespace SceneTalkVR.AvatarSystem
         public string speakingSpeedOverride;
         public string attitudeOverride;
         public AudioSource audioSourceOverride;
+        public Action playbackStarted;
+        public Action playbackEnded;
     }
 
     internal sealed class AvatarSpeechPlaybackResult
@@ -123,7 +125,9 @@ namespace SceneTalkVR.AvatarSystem
             {
                 targetAudioSource.clip = context.demoReplyClip;
                 targetAudioSource.Play();
+                playbackRequest.playbackStarted?.Invoke();
                 yield return new WaitWhile(() => targetAudioSource != null && targetAudioSource.isPlaying);
+                playbackRequest.playbackEnded?.Invoke();
 
                 playedAudio = targetAudioSource != null && !targetAudioSource.isPlaying;
                 result.fallbackLevel = AppendFallback(result.fallbackLevel, "demo_clip");
@@ -133,7 +137,9 @@ namespace SceneTalkVR.AvatarSystem
 
             if (!playedAudio)
             {
+                playbackRequest.playbackStarted?.Invoke();
                 yield return new WaitForSeconds(Mathf.Max(0.1f, context.fallbackSpeakingSeconds));
+                playbackRequest.playbackEnded?.Invoke();
                 result.fallbackLevel = AppendFallback(result.fallbackLevel, "silent_wait");
             }
 
@@ -221,10 +227,12 @@ namespace SceneTalkVR.AvatarSystem
 
             targetAudioSource.clip = clip;
             targetAudioSource.Play();
+            playbackRequest.playbackStarted?.Invoke();
             Debug.Log(
                 $"[SceneTalkVR] Voice gateway TTS audio ({response?.provider}, {response?.latencyMs} ms, cache={response?.cacheHit})",
                 context.logContext);
             yield return new WaitWhile(() => targetAudioSource != null && targetAudioSource.isPlaying);
+            playbackRequest.playbackEnded?.Invoke();
 
             if (targetAudioSource == null)
             {

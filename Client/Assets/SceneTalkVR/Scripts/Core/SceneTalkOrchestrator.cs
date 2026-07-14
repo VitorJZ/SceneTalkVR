@@ -76,6 +76,7 @@ namespace SceneTalkVR.Runtime
         private ISceneTalkScenePresenter ScenePresenter => scenePresenterModule as ISceneTalkScenePresenter;
         private ISceneTalkAvatarVoice AvatarVoice => avatarVoiceModule as ISceneTalkAvatarVoice;
         private ISceneTalkAvatarReplyContext AvatarReplyContext => avatarVoiceModule as ISceneTalkAvatarReplyContext;
+        private ISceneTalkAvatarThinkingState AvatarThinkingState => avatarVoiceModule as ISceneTalkAvatarThinkingState;
         private ISceneTalkAvatarSessionReset AvatarSessionReset => avatarVoiceModule as ISceneTalkAvatarSessionReset;
 
         public void ConfigureModules(
@@ -578,6 +579,7 @@ namespace SceneTalkVR.Runtime
             LastTranscript = transcript;
             RefreshUi();
             SetState(SceneTalkState.Processing);
+            AvatarThinkingState?.SetThinking(true);
 
             SpringScenePayload payload = null;
             error = null;
@@ -586,6 +588,7 @@ namespace SceneTalkVR.Runtime
                 transcript,
                 value => payload = value,
                 message => error = message);
+            AvatarThinkingState?.SetThinking(false);
 
             if (HandleErrorOrFinish(error, "Dialogue reply generation failed."))
             {
@@ -701,6 +704,7 @@ namespace SceneTalkVR.Runtime
 
         private void EnterError(string message)
         {
+            AvatarThinkingState?.SetThinking(false);
             LastError = message;
             IsAwaitingTurnReviewAction = false;
             SetState(SceneTalkState.Error);

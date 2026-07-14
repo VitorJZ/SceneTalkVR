@@ -110,6 +110,7 @@ class VoiceGatewayHandler(BaseHTTPRequestHandler):
                     "isFinal": True,
                     "transcript": result.transcript,
                     "confidence": result.confidence,
+                    "confidenceAvailable": result.confidence_available,
                     "durationMs": result.duration_ms,
                     "latencyMs": result.latency_ms,
                     "fallbackLevel": result.fallback_level,
