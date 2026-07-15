@@ -107,6 +107,28 @@ namespace SceneTalkVR.Runtime
             {
                 StartCoroutine(RecenterCanvasAfterTracking());
             }
+
+            // Cleanup duplicate AudioListeners to prevent Unity warnings
+            var allListeners = FindObjectsByType<AudioListener>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            if (allListeners.Length > 1)
+            {
+                AudioListener activeListener = null;
+                foreach (var listener in allListeners)
+                {
+                    if (listener.gameObject.activeInHierarchy && listener.enabled)
+                    {
+                        if (activeListener == null)
+                        {
+                            activeListener = listener;
+                        }
+                        else
+                        {
+                            Debug.LogWarning($"[SceneTalkVR] Found duplicate active AudioListener on GameObject '{listener.gameObject.name}'. Disabling component to ensure a single active listener.", listener);
+                            listener.enabled = false;
+                        }
+                    }
+                }
+            }
         }
 
         private void Update()
