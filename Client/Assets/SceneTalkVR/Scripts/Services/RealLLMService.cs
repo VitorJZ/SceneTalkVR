@@ -1050,6 +1050,8 @@ namespace SceneTalkVR.Runtime.Services
             });
 
             webRequest.SetRequestHeader("Content-Type", "application/json");
+            webRequest.SetRequestHeader("Accept", "text/event-stream");
+            webRequest.SetRequestHeader("Cache-Control", "no-cache");
             if (RequiresClientApiKey(apiUrl))
             {
                 webRequest.SetRequestHeader("Authorization", $"Bearer {effectiveKey}");
