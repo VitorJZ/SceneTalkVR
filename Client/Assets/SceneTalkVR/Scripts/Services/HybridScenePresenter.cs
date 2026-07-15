@@ -25,7 +25,7 @@ namespace SceneTalkVR.Runtime.Services
         [SerializeField] private SceneTalkAssetCatalog assetCatalog;
 
         [Header("Render Mode")]
-        [SerializeField] private bool onlyUsePanorama = false;
+        [SerializeField] private bool onlyUsePanorama = true;
 
         [Header("Safe Spatial Bounds (Clipper)")]
         [SerializeField] private bool enableSpatialClipping = true;

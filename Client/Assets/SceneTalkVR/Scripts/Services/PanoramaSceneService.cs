@@ -27,7 +27,7 @@ namespace SceneTalkVR.Runtime.Services
 
         [Header("Debug Controls")]
         [Tooltip("If enabled, bypasses SiliconFlow API and forces using local fallback panorama.")]
-        [SerializeField] private bool forceUseFallback = false;
+        [SerializeField] private bool forceUseFallback = true;
 
         [Header("Sky Sphere Settings")]
         [Tooltip("If enabled, renders background inside a 3D Sphere in the scene to allow scaling.")]

@@ -26,8 +26,8 @@ namespace SceneTalkVR.Core
         [SerializeField] private int holodeckTimeoutSeconds = 300;
 
         [Header("Mobile Safety")]
-        [SerializeField] private bool onlyUsePanorama;
-        [SerializeField] private bool forceFallbackPanorama;
+        [SerializeField] private bool onlyUsePanorama = true;
+        [SerializeField] private bool forceFallbackPanorama = true;
         [SerializeField] private bool enableSpatialClipping = true;
         [SerializeField] private int maxSpawnCount = 2;
 
@@ -94,8 +94,8 @@ namespace SceneTalkVR.Core
             useVoiceGatewaySpeech = true;
             useVoiceGatewayTts = true;
             useHolodeckBackend = false;
-            onlyUsePanorama = false;
-            forceFallbackPanorama = false;
+            onlyUsePanorama = true;
+            forceFallbackPanorama = true;
             enableSpatialClipping = true;
             maxSpawnCount = 2;
             holodeckTimeoutSeconds = 300;

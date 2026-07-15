@@ -20,8 +20,8 @@ MonoBehaviour:
   useHolodeckBackend: 0
   holodeckBackendUrl: 
   holodeckTimeoutSeconds: 300
-  onlyUsePanorama: 0
-  forceFallbackPanorama: 0
+  onlyUsePanorama: 1
+  forceFallbackPanorama: 1
   enableSpatialClipping: 1
   maxSpawnCount: 2
   directLlmApiUrl: https://models.sjtu.edu.cn/api/v1/chat/completions

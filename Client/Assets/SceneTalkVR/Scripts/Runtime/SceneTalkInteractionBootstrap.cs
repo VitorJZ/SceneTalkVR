@@ -32,7 +32,7 @@ namespace SceneTalkVR.Runtime
         [SerializeField] private Camera interactionCamera;
         [SerializeField] private Canvas worldCanvas;
         [SerializeField] private Vector3 cameraPosition = new Vector3(0f, 1.6f, -1.5f);
-        [SerializeField, Range(20f, 120f)] private float cameraFieldOfView = 60f;
+        [SerializeField, Range(20f, 120f)] private float cameraFieldOfView = 90f;
         [SerializeField] private Vector3 canvasPosition = new Vector3(0f, 1.5f, 1.4f);
         [SerializeField] private Vector3 canvasEulerAngles = Vector3.zero;
         [SerializeField] private float canvasScale = 0.005f;
