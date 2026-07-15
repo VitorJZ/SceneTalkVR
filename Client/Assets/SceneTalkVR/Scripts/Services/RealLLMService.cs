@@ -983,7 +983,12 @@ namespace SceneTalkVR.Runtime.Services
 
             fullResponse = CleanJsonString(fullResponse);
             var payload = JsonUtility.FromJson<SpringScenePayload>(fullResponse);
+            EnsureDialogueReplyPresent(payload);
             ApplyExperimentConditionToPayload(payload);
+
+            chatHistory.Clear();
+            string rpSysPrompt = BuildRoleplaySystemPrompt(payload);
+            chatHistory.Add(new OpenAiMessage { role = "system", content = rpSysPrompt });
             chatHistory.Add(new OpenAiMessage { role = "user", content = userInput });
             chatHistory.Add(new OpenAiMessage { role = "assistant", content = payload.dialogueReply });
             return payload;
