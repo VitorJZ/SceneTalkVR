@@ -60,6 +60,9 @@ namespace SceneTalkVR.AvatarSystem
         private string currentAvatarGenderPresentation;
         private bool isOpeningReply = true;
         private AvatarSpeechPlayer speechPlayer;
+        private Coroutine pendingReplyPreparationCoroutine;
+        private PreparedAvatarSpeech pendingReplySpeech;
+        private bool pendingReplyPreparationCompleted;
 
         private IAvatarInstanceLoader Loader => loaderModule as IAvatarInstanceLoader;
         private AvatarSpeechPlayer SpeechPlayer => speechPlayer ??= new AvatarSpeechPlayer();
@@ -95,6 +98,8 @@ namespace SceneTalkVR.AvatarSystem
 
         public void ClearAvatar()
         {
+            ClearPendingReplyPreparation();
+
             if (audioSource != null)
             {
                 audioSource.Stop();
@@ -130,6 +135,11 @@ namespace SceneTalkVR.AvatarSystem
             }
         }
 
+        private void OnDisable()
+        {
+            ClearPendingReplyPreparation();
+        }
+
         public IEnumerator PresentReply(SpringScenePayload payload, Action onComplete, Action<string> onError)
         {
             if (payload == null)
@@ -157,62 +167,129 @@ namespace SceneTalkVR.AvatarSystem
 
             LastCorrectionPlaybackResult = null;
             SetThinking(false);
-            var correctionPresenter = ResolveCorrectionFeedbackPresenter(
-                createCorrectionFeedbackPresenterIfMissing);
-            if (correctionPresenter != null)
+            var playbackContext = BuildSpeechPlaybackContext();
+            var replyRequest = new AvatarSpeechPlaybackRequest
             {
-                correctionPresenter.SetPresentationActive(true);
-                yield return correctionPresenter.Present(
-                    payload,
-                    BuildSpeechPlaybackContext(),
-                    () => BeginSpeechAnimation(false),
-                    EndSpeechAnimation,
-                    value => LastCorrectionPlaybackResult = value);
-            }
-            else if (payload.correctionFeedback != null && payload.correctionFeedback.hasFeedback)
+                text = payload.dialogueReply,
+                logLabel = "Avatar reply",
+                playbackStarted = () => BeginSpeechAnimation(isOpeningReply),
+                playbackEnded = EndSpeechAnimation
+            };
+            BeginReplyPreparation(playbackContext, payload, replyRequest);
+
+            try
             {
-                LastCorrectionPlaybackResult = new CorrectionPlaybackResult
+                var correctionPresenter = ResolveCorrectionFeedbackPresenter(
+                    createCorrectionFeedbackPresenterIfMissing);
+                if (correctionPresenter != null)
                 {
-                    provider = payload.correctionFeedback.provider,
-                    outcome = "failed",
-                    errorCode = "presenter_missing"
-                };
-            }
+                    correctionPresenter.SetPresentationActive(true);
+                    yield return correctionPresenter.Present(
+                        payload,
+                        playbackContext,
+                        () => BeginSpeechAnimation(false),
+                        EndSpeechAnimation,
+                        value => LastCorrectionPlaybackResult = value);
+                }
+                else if (payload.correctionFeedback != null && payload.correctionFeedback.hasFeedback)
+                {
+                    LastCorrectionPlaybackResult = new CorrectionPlaybackResult
+                    {
+                        provider = payload.correctionFeedback.provider,
+                        outcome = "failed",
+                        errorCode = "presenter_missing"
+                    };
+                }
 
-            if (LastCorrectionPlaybackResult != null)
+                if (LastCorrectionPlaybackResult != null)
+                {
+                    CorrectionPlaybackCompleted?.Invoke(LastCorrectionPlaybackResult);
+                }
+
+                Debug.Log($"[SceneTalkVR] Avatar reply: {payload.dialogueReply}", this);
+                var waitStartedAt = Time.realtimeSinceStartup;
+                if (!pendingReplyPreparationCompleted
+                    && LastCorrectionPlaybackResult == null
+                    && !isOpeningReply
+                    && !string.IsNullOrWhiteSpace(payload.dialogueReply))
+                {
+                    SetThinking(true);
+                }
+
+                while (!pendingReplyPreparationCompleted)
+                {
+                    yield return null;
+                }
+
+                pendingReplyPreparationCoroutine = null;
+                SetThinking(false);
+                var waitAfterCorrectionMs = Mathf.RoundToInt(
+                    (Time.realtimeSinceStartup - waitStartedAt) * 1000f);
+                Debug.Log(
+                    $"[SceneTalkVR] Avatar reply TTS prepared in "
+                    + $"{pendingReplySpeech?.preparationDurationMs ?? 0} ms; "
+                    + $"wait after correction={waitAfterCorrectionMs} ms.",
+                    this);
+
+                AvatarSpeechPlaybackResult replyResult = null;
+                yield return SpeechPlayer.PlayPrepared(
+                    playbackContext,
+                    replyRequest,
+                    pendingReplySpeech,
+                    value => replyResult = value);
+
+                pendingReplySpeech = null;
+                pendingReplyPreparationCompleted = false;
+                SetThinking(false);
+                EndSpeechAnimation();
+
+                if (replyResult != null && !string.IsNullOrWhiteSpace(replyResult.error))
+                {
+                    onError?.Invoke(replyResult.error);
+                    yield break;
+                }
+
+                onComplete?.Invoke();
+            }
+            finally
             {
-                CorrectionPlaybackCompleted?.Invoke(LastCorrectionPlaybackResult);
+                ClearPendingReplyPreparation();
             }
+        }
 
-            Debug.Log($"[SceneTalkVR] Avatar reply: {payload.dialogueReply}", this);
-            if (!isOpeningReply && !string.IsNullOrWhiteSpace(payload.dialogueReply))
-            {
-                SetThinking(true);
-            }
-
-            AvatarSpeechPlaybackResult replyResult = null;
-            yield return SpeechPlayer.Play(
-                BuildSpeechPlaybackContext(),
+        private void BeginReplyPreparation(
+            AvatarSpeechPlaybackContext playbackContext,
+            SpringScenePayload payload,
+            AvatarSpeechPlaybackRequest replyRequest)
+        {
+            ClearPendingReplyPreparation();
+            pendingReplyPreparationCompleted = false;
+            var preparationCoroutine = StartCoroutine(SpeechPlayer.Prepare(
+                playbackContext,
                 payload,
-                new AvatarSpeechPlaybackRequest
+                replyRequest,
+                value =>
                 {
-                    text = payload.dialogueReply,
-                    logLabel = "Avatar reply",
-                    playbackStarted = () => BeginSpeechAnimation(isOpeningReply),
-                    playbackEnded = EndSpeechAnimation
-                },
-                value => replyResult = value);
+                    pendingReplySpeech = value;
+                    pendingReplyPreparationCompleted = true;
+                    pendingReplyPreparationCoroutine = null;
+                }));
+            pendingReplyPreparationCoroutine = pendingReplyPreparationCompleted
+                ? null
+                : preparationCoroutine;
+        }
 
-            SetThinking(false);
-            EndSpeechAnimation();
-
-            if (replyResult != null && !string.IsNullOrWhiteSpace(replyResult.error))
+        private void ClearPendingReplyPreparation()
+        {
+            if (pendingReplyPreparationCoroutine != null)
             {
-                onError?.Invoke(replyResult.error);
-                yield break;
+                StopCoroutine(pendingReplyPreparationCoroutine);
+                pendingReplyPreparationCoroutine = null;
             }
 
-            onComplete?.Invoke();
+            pendingReplySpeech?.Release();
+            pendingReplySpeech = null;
+            pendingReplyPreparationCompleted = false;
         }
 
         private IEnumerator EnsureAvatar(SpringScenePayload payload, Action<string> onError)
