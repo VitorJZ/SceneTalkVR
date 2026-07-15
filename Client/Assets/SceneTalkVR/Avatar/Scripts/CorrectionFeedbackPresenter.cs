@@ -189,7 +189,7 @@ namespace SceneTalkVR.AvatarSystem
                 var correctionAgent = ResolveCorrectionAgentPresenter(createCorrectionAgentIfMissing);
                 if (correctionAgent != null)
                 {
-                    correctionAgent.ShowImmediate();
+                    correctionAgent.SetVisible(true);
                     playbackRequest.audioSourceOverride = correctionAgent.AudioSource;
                     playbackRequest.playbackStarted = correctionAgent.BeginSpeaking;
                     playbackRequest.playbackEnded = correctionAgent.EndSpeaking;
@@ -282,19 +282,12 @@ namespace SceneTalkVR.AvatarSystem
             var shouldShow = ShouldKeepAssistantVisible();
             var correctionAgent = ResolveCorrectionAgentPresenter(
                 shouldShow && createCorrectionAgentIfMissing);
-            if (correctionAgent == null || correctionAgent.IsVisible == shouldShow)
+            if (correctionAgent == null || correctionAgent.TargetVisible == shouldShow)
             {
                 return;
             }
 
-            if (shouldShow)
-            {
-                correctionAgent.ShowImmediate();
-            }
-            else
-            {
-                correctionAgent.HideImmediate();
-            }
+            correctionAgent.SetVisible(shouldShow);
         }
 
         private string ResolveConfiguredProvider(CorrectionFeedbackData feedback)
