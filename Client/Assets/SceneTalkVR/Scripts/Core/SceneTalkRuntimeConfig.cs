@@ -17,6 +17,7 @@ namespace SceneTalkVR.Core
         [SerializeField] private SceneTalkBrainRuntimeMode brainMode = SceneTalkBrainRuntimeMode.KeepCurrent;
         [SerializeField] private bool useVoiceGatewaySpeech = true;
         [SerializeField] private bool useVoiceGatewayTts = true;
+        [SerializeField] private bool useDeveloperTextConsole = false;
 
         [Header("LAN Services")]
         [SerializeField] private string voiceGatewayBaseUrl = string.Empty;
@@ -41,6 +42,7 @@ namespace SceneTalkVR.Core
         public SceneTalkBrainRuntimeMode BrainMode => brainMode;
         public bool UseVoiceGatewaySpeech => useVoiceGatewaySpeech;
         public bool UseVoiceGatewayTts => useVoiceGatewayTts;
+        public bool UseDeveloperTextConsole => useDeveloperTextConsole;
         public string VoiceGatewayBaseUrl => NormalizeUrl(voiceGatewayBaseUrl);
         public bool HasVoiceGatewayBaseUrl => !string.IsNullOrWhiteSpace(VoiceGatewayBaseUrl);
         public bool UseHolodeckBackend => useHolodeckBackend;

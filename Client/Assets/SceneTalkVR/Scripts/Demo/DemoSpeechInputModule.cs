@@ -19,6 +19,13 @@ namespace SceneTalkVR.Demo
         private bool stopRequested;
         private bool cancelRequested;
         private bool isCapturing;
+        private bool enableDeveloperConsole = true;
+
+        public bool EnableDeveloperConsole
+        {
+            get => enableDeveloperConsole;
+            set => enableDeveloperConsole = value;
+        }
 
         public IEnumerator CaptureSpeech(Action<string> onComplete, Action<string> onError)
         {
@@ -62,7 +69,7 @@ namespace SceneTalkVR.Demo
 #if UNITY_EDITOR
         private void OnGUI()
         {
-            if (!isCapturing) return;
+            if (!isCapturing || !enableDeveloperConsole) return;
 
             // Centered developer text prompt window at the bottom of the screen
             Rect windowRect = new Rect((Screen.width - 550) / 2f, Screen.height - 180, 550, 140);
