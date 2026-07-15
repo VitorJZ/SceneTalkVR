@@ -65,6 +65,7 @@ namespace SceneTalkVR.AvatarSystem
         private string currentAvatarGenderPresentation;
         private bool isOpeningReply = true;
         private AvatarSpeechPlayer speechPlayer;
+        private bool isAvatarLoadingFinished;
 
         private IAvatarInstanceLoader Loader => loaderModule as IAvatarInstanceLoader;
         private AvatarSpeechPlayer SpeechPlayer => speechPlayer ??= new AvatarSpeechPlayer();
@@ -144,11 +145,16 @@ namespace SceneTalkVR.AvatarSystem
                 {
                     string avatarLoadError = string.Empty;
                     yield return EnsureAvatar(payload, msg => avatarLoadError = msg);
+                    isAvatarLoadingFinished = true;
                     if (!string.IsNullOrEmpty(avatarLoadError) && !allowVoiceFallbackOnAvatarFailure)
                     {
                         onError?.Invoke(avatarLoadError);
                         yield break;
                     }
+                }
+                else
+                {
+                    isAvatarLoadingFinished = true;
                 }
 
                 // Wait for the streaming dialogue audio to finish speaking completely
@@ -620,6 +626,7 @@ namespace SceneTalkVR.AvatarSystem
             isStreamingFinished = false;
             isStreamingPlaying = false;
             streamingError = null;
+            isAvatarLoadingFinished = false;
 
             if (basePayload != null)
             {
@@ -651,6 +658,7 @@ namespace SceneTalkVR.AvatarSystem
         {
             string avatarError = null;
             yield return EnsureAvatar(payload, msg => avatarError = msg);
+            isAvatarLoadingFinished = true;
             if (!string.IsNullOrEmpty(avatarError))
             {
                 Debug.LogWarning($"[AvatarPresentationVoiceModule] EnsureAvatar failed during streaming: {avatarError}", this);
@@ -672,7 +680,7 @@ namespace SceneTalkVR.AvatarSystem
 
                 string sentence = streamingSentenceQueue.Dequeue();
 
-                while (isOpeningReply && currentAvatar == null && !allowVoiceFallbackOnAvatarFailure)
+                while (isOpeningReply && currentAvatar == null && !isAvatarLoadingFinished)
                 {
                     yield return new WaitForSeconds(0.1f);
                 }
