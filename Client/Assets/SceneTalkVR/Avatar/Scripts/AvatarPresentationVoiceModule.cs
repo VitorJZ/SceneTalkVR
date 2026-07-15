@@ -139,6 +139,18 @@ namespace SceneTalkVR.AvatarSystem
             // If streaming was already used to play dialogue in real-time, just present correction and wait
             if (isStreamingPlaying || (isStreamingFinished && streamingBasePayload != null))
             {
+                // Ensure avatar is loaded first if it is the first turn and wasn't loaded in PrepareStreaming
+                if (currentAvatar == null)
+                {
+                    string avatarLoadError = string.Empty;
+                    yield return EnsureAvatar(payload, msg => avatarLoadError = msg);
+                    if (!string.IsNullOrEmpty(avatarLoadError) && !allowVoiceFallbackOnAvatarFailure)
+                    {
+                        onError?.Invoke(avatarLoadError);
+                        yield break;
+                    }
+                }
+
                 // Wait for the streaming dialogue audio to finish speaking completely
                 while (isStreamingPlaying)
                 {
@@ -660,7 +672,7 @@ namespace SceneTalkVR.AvatarSystem
 
                 string sentence = streamingSentenceQueue.Dequeue();
 
-                while (isOpeningReply && currentAvatar == null && !allowVoiceFallbackOnAvatarFailure && streamingBasePayload != null)
+                while (isOpeningReply && currentAvatar == null && !allowVoiceFallbackOnAvatarFailure)
                 {
                     yield return new WaitForSeconds(0.1f);
                 }
