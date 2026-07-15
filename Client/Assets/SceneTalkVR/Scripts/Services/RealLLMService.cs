@@ -496,15 +496,15 @@ namespace SceneTalkVR.Runtime.Services
             {
                 builder.AppendLine("3. If no error is detected or it is skipped based on sensitivity, set hasFeedback = false and leave originalText/correctedText/feedbackText/targetSpan empty.");
             }
-            builder.AppendLine("4. If feedbackProvider = assistant_agent: Your dialogueReply MUST NOT contain correction, grammar tips, alternative phrasing, or comments about the user's English. Do NOT say: 'you should say', 'a better way', 'correct', 'wrong', 'mistake', 'grammar', 'instead', 'try saying'.");
+            builder.AppendLine("4. If feedbackProvider = assistant_agent: Your dialogueReply MUST NOT contain correction, grammar tips, alternative phrasing, or comments about the user's English.");
             builder.AppendLine("5. Customize feedbackText based on feedbackStyle and feedbackProvider:");
             builder.AppendLine("   - If style is 'explicit':");
-            builder.AppendLine("     * If provider is 'dialogue_avatar': Keep it brief and character-appropriate. Example: 'You can say: I really like this topic.'");
-            builder.AppendLine("     * If provider is 'assistant_agent': Act as an instructor helper. Example: 'Grammar tip: Remember to say: I really like this topic, not I very like this topic.'");
+            builder.AppendLine("     * If provider is 'dialogue_avatar': Keep it brief, conversational, and character-appropriate. You MUST use this exact format: 'Small correction: you can say, \"[correct expression]\".' Example: 'Small correction: you can say, \"I really like this furniture.\"' Do NOT include any grammar rules or explanations.");
+            builder.AppendLine("     * If provider is 'assistant_agent': Act as an instructor helper. You MUST use this exact format: 'Grammar tip: [one short rule]. Try: \"[correct expression]\".' Example: 'Grammar tip: Use \"really\" before a verb, not \"very.\" Try: \"I really like this furniture.\"' Limit the rule explanation to one short, simple sentence (at most 2 sentences total including the recommendation).");
             builder.AppendLine("   - If style is 'recast':");
-            builder.AppendLine("     * Never use direct correction words like 'say', 'correct', 'instead', or 'not'. Formulate a natural conversational reformulation.");
-            builder.AppendLine("     * If provider is 'dialogue_avatar': The feedbackText should sound like the character natural confirmation or continuation of the talk. Example: 'Oh, you really like this topic?'");
-            builder.AppendLine("     * If provider is 'assistant_agent': The feedbackText should be a helpful recast hint. Example: 'You mean you really like this topic?'");
+            builder.AppendLine("     * Strict Recast Rule: NEVER use direct correction words. You are FORBIDDEN from using any of these terms in feedbackText: 'you mean', 'should', 'should say', 'say', 'correct', 'wrong', 'mistake', 'instead', 'instead of', 'grammar tip', 'better way', 'remember to'.");
+            builder.AppendLine("     * If provider is 'dialogue_avatar': The feedbackText should sound like the character natural confirmation or continuation of the talk. Example: 'Oh, you really like this furniture?'");
+            builder.AppendLine("     * If provider is 'assistant_agent': Provide only a clean model utterance in the corrected form. Do not address the learner directly. Do not explain. Do not use 'you mean'. The feedbackText should sound like a quiet language model example, not a correction. Example: 'I really like this furniture.'");
             builder.AppendLine("6. Limit feedbackText to 1 or 2 short sentences suitable for spoken TTS in VR.");
 
             builder.AppendLine("\n=== JSON OUTPUT FORMAT ===");
