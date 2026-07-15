@@ -139,6 +139,15 @@ namespace SceneTalkVR.AvatarSystem
             // If streaming was already used to play dialogue in real-time, just present correction and wait
             if (isStreamingPlaying || (isStreamingFinished && streamingBasePayload != null))
             {
+                // Wait for the streaming dialogue audio to finish speaking completely
+                while (isStreamingPlaying)
+                {
+                    yield return new WaitForSeconds(0.1f);
+                }
+
+                // Add a small natural pause between Avatar speech and Assistant Agent feedback
+                yield return new WaitForSeconds(0.5f);
+
                 var strPresenter = ResolveCorrectionFeedbackPresenter(createCorrectionFeedbackPresenterIfMissing);
                 if (strPresenter != null && payload.correctionFeedback != null && payload.correctionFeedback.hasFeedback)
                 {
@@ -148,11 +157,6 @@ namespace SceneTalkVR.AvatarSystem
                         BuildSpeechPlaybackContext(),
                         () => { }, // Do not trigger speaking animation
                         value => LastCorrectionPlaybackResult = value);
-                }
-
-                while (isStreamingPlaying)
-                {
-                    yield return new WaitForSeconds(0.1f);
                 }
 
                 onComplete?.Invoke();

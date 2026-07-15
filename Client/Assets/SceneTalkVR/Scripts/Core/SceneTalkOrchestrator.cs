@@ -1013,10 +1013,16 @@ namespace SceneTalkVR.Runtime
                 SpringScenePayload finalPayload = null;
                 string brainError = null;
 
+                string accumulatedSubtitle = string.Empty;
                 yield return streamingBrain.GenerateSceneAndReplyStreaming(
                     transcript,
                     sentence => {
                         streamingVoice.EnqueueSentence(sentence);
+                        accumulatedSubtitle += (string.IsNullOrEmpty(accumulatedSubtitle) ? "" : " ") + sentence;
+                        if (replyLabel != null)
+                        {
+                            replyLabel.text = $"Avatar: {accumulatedSubtitle}";
+                        }
                     },
                     payload => {
                         finalPayload = payload;
