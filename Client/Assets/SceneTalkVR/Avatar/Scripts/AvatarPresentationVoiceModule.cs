@@ -7,7 +7,7 @@ using UnityEngine.Serialization;
 
 namespace SceneTalkVR.AvatarSystem
 {
-    public sealed class AvatarPresentationVoiceModule : MonoBehaviour, ISceneTalkAvatarVoice, ISceneTalkAvatarReplyContext, ISceneTalkAvatarSessionReset, ISceneTalkCorrectionFeedbackProviderReceiver
+    public sealed class AvatarPresentationVoiceModule : MonoBehaviour, ISceneTalkStreamingAvatarVoice, ISceneTalkAvatarReplyContext, ISceneTalkAvatarSessionReset, ISceneTalkCorrectionFeedbackProviderReceiver
     {
         private const string DefaultFollowUpSpeakingTrigger = "Talk";
 
@@ -133,6 +133,29 @@ namespace SceneTalkVR.AvatarSystem
             if (payload == null)
             {
                 onError?.Invoke("Avatar voice payload is null.");
+                yield break;
+            }
+
+            // If streaming was already used to play dialogue in real-time, just present correction and wait
+            if (isStreamingPlaying || (isStreamingFinished && streamingBasePayload != null))
+            {
+                var strPresenter = ResolveCorrectionFeedbackPresenter(createCorrectionFeedbackPresenterIfMissing);
+                if (strPresenter != null && payload.correctionFeedback != null && payload.correctionFeedback.hasFeedback)
+                {
+                    strPresenter.SetPresentationActive(true);
+                    yield return strPresenter.Present(
+                        payload,
+                        BuildSpeechPlaybackContext(),
+                        () => { }, // Do not trigger speaking animation
+                        value => LastCorrectionPlaybackResult = value);
+                }
+
+                while (isStreamingPlaying)
+                {
+                    yield return new WaitForSeconds(0.1f);
+                }
+
+                onComplete?.Invoke();
                 yield break;
             }
 
@@ -565,5 +588,103 @@ namespace SceneTalkVR.AvatarSystem
 
             animator.SetTrigger(triggerName);
         }
+
+        #region Streaming Playback Implementation
+
+        private System.Collections.Generic.Queue<string> streamingSentenceQueue = new System.Collections.Generic.Queue<string>();
+        private bool isStreamingFinished = false;
+        private bool isStreamingPlaying = false;
+        private string streamingError = null;
+        private SpringScenePayload streamingBasePayload;
+
+        public void PrepareStreaming(SpringScenePayload basePayload)
+        {
+            streamingBasePayload = basePayload;
+            streamingSentenceQueue.Clear();
+            isStreamingFinished = false;
+            isStreamingPlaying = false;
+            streamingError = null;
+
+            if (basePayload != null)
+            {
+                if (isOpeningReply || currentAvatar == null)
+                {
+                    StartCoroutine(EnsureAvatarCoroutine(basePayload));
+                }
+            }
+        }
+
+        public void EnqueueSentence(string sentence)
+        {
+            if (string.IsNullOrEmpty(sentence)) return;
+
+            streamingSentenceQueue.Enqueue(sentence);
+
+            if (!isStreamingPlaying)
+            {
+                StartCoroutine(PlayStreamingQueueCoroutine());
+            }
+        }
+
+        public void SignalStreamingComplete()
+        {
+            isStreamingFinished = true;
+        }
+
+        private IEnumerator EnsureAvatarCoroutine(SpringScenePayload payload)
+        {
+            string avatarError = null;
+            yield return EnsureAvatar(payload, msg => avatarError = msg);
+            if (!string.IsNullOrEmpty(avatarError))
+            {
+                Debug.LogWarning($"[AvatarPresentationVoiceModule] EnsureAvatar failed during streaming: {avatarError}", this);
+            }
+        }
+
+        private IEnumerator PlayStreamingQueueCoroutine()
+        {
+            isStreamingPlaying = true;
+            TriggerThinking();
+
+            while (!isStreamingFinished || streamingSentenceQueue.Count > 0)
+            {
+                if (streamingSentenceQueue.Count == 0)
+                {
+                    yield return new WaitForSeconds(0.1f);
+                    continue;
+                }
+
+                string sentence = streamingSentenceQueue.Dequeue();
+
+                while (isOpeningReply && currentAvatar == null && !allowVoiceFallbackOnAvatarFailure && streamingBasePayload != null)
+                {
+                    yield return new WaitForSeconds(0.1f);
+                }
+
+                TriggerSpeaking(isOpeningReply);
+
+                AvatarSpeechPlaybackResult replyResult = null;
+                yield return SpeechPlayer.Play(
+                    BuildSpeechPlaybackContext(),
+                    streamingBasePayload,
+                    new AvatarSpeechPlaybackRequest
+                    {
+                        text = sentence,
+                        logLabel = $"Streaming sentence: {sentence}"
+                    },
+                    value => replyResult = value);
+
+                if (replyResult != null && !string.IsNullOrEmpty(replyResult.error))
+                {
+                    streamingError = replyResult.error;
+                    break;
+                }
+            }
+
+            isStreamingPlaying = false;
+            TriggerSpeaking(false);
+        }
+
+        #endregion
     }
 }

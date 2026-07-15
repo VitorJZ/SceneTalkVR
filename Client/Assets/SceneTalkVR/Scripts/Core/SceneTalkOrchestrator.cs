@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using SceneTalkVR.AvatarSystem;
 using SceneTalkVR.Core;
@@ -504,7 +505,7 @@ namespace SceneTalkVR.Runtime
             string error = null;
             SpringScenePayload payload = null;
             ApplyExperimentConditionToModules();
-            yield return Brain.GenerateSceneAndReply(
+            yield return GenerateSceneAndReplyWithStreamingSupport(
                 transcript,
                 value => payload = value,
                 message => error = message);
@@ -585,7 +586,7 @@ namespace SceneTalkVR.Runtime
             SpringScenePayload payload = null;
             error = null;
             ApplyExperimentConditionToModules();
-            yield return Brain.GenerateSceneAndReply(
+            yield return GenerateSceneAndReplyWithStreamingSupport(
                 transcript,
                 value => payload = value,
                 message => error = message);
@@ -992,6 +993,58 @@ namespace SceneTalkVR.Runtime
             if (errorLabel != null)
             {
                 errorLabel.text = string.IsNullOrWhiteSpace(LastError) ? string.Empty : $"Error: {LastError}";
+            }
+        }
+
+        private IEnumerator GenerateSceneAndReplyWithStreamingSupport(
+            string transcript,
+            Action<SpringScenePayload> onCompleteCallback,
+            Action<string> onErrorCallback)
+        {
+            var streamingBrain = Brain as ISceneTalkStreamingBrain;
+            var streamingVoice = AvatarVoice as ISceneTalkStreamingAvatarVoice;
+
+            if (streamingBrain != null && streamingVoice != null)
+            {
+                var basePayload = LastScenePayload;
+                streamingVoice.PrepareStreaming(basePayload);
+
+                bool isDone = false;
+                SpringScenePayload finalPayload = null;
+                string brainError = null;
+
+                yield return streamingBrain.GenerateSceneAndReplyStreaming(
+                    transcript,
+                    sentence => {
+                        streamingVoice.EnqueueSentence(sentence);
+                    },
+                    payload => {
+                        finalPayload = payload;
+                        isDone = true;
+                    },
+                    err => {
+                        brainError = err;
+                        isDone = true;
+                    }
+                );
+
+                streamingVoice.SignalStreamingComplete();
+
+                if (!string.IsNullOrEmpty(brainError))
+                {
+                    onErrorCallback?.Invoke(brainError);
+                    yield break;
+                }
+
+                onCompleteCallback?.Invoke(finalPayload);
+            }
+            else
+            {
+                yield return Brain.GenerateSceneAndReply(
+                    transcript,
+                    onCompleteCallback,
+                    onErrorCallback
+                );
             }
         }
     }

@@ -21,6 +21,11 @@ namespace SceneTalkVR.Core
         IEnumerator GenerateSceneAndReply(string userText, Action<SpringScenePayload> onComplete, Action<string> onError);
     }
 
+    public interface ISceneTalkStreamingBrain : ISceneTalkBrain
+    {
+        IEnumerator GenerateSceneAndReplyStreaming(string userText, Action<string> onSentenceComplete, Action<SpringScenePayload> onComplete, Action<string> onError);
+    }
+
     public interface ISceneTalkScenePresenter
     {
         IEnumerator PresentScene(SpringScenePayload payload, Action onComplete, Action<string> onError);
@@ -29,6 +34,13 @@ namespace SceneTalkVR.Core
     public interface ISceneTalkAvatarVoice
     {
         IEnumerator PresentReply(SpringScenePayload payload, Action onComplete, Action<string> onError);
+    }
+
+    public interface ISceneTalkStreamingAvatarVoice : ISceneTalkAvatarVoice
+    {
+        void PrepareStreaming(SpringScenePayload basePayload);
+        void EnqueueSentence(string sentence);
+        void SignalStreamingComplete();
     }
 
     public interface ISceneTalkAvatarReplyContext
