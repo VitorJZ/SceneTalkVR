@@ -287,10 +287,19 @@ namespace SceneTalkVR.Runtime.Services
             responseText = CleanJsonString(responseText);
             Debug.Log($"[RealLLMService] Correction Planner response: {responseText}");
             
-            var feedback = JsonUtility.FromJson<CorrectionFeedbackData>(responseText);
+            var response = JsonUtility.FromJson<OpenAiResponse>(responseText);
+            if (response == null || response.choices == null || response.choices.Length == 0)
+            {
+                throw new Exception("Correction Planner returned invalid or empty response structure.");
+            }
+
+            string content = response.choices[0].message.content;
+            content = CleanJsonString(content);
+            
+            var feedback = JsonUtility.FromJson<CorrectionFeedbackData>(content);
             if (feedback == null)
             {
-                throw new Exception("Correction Planner returned malformed JSON.");
+                throw new Exception("Correction Planner returned malformed JSON content.");
             }
 
             if (feedback.hasFeedback && currentCondition != null && string.Equals(currentCondition.style, "recast", StringComparison.OrdinalIgnoreCase))
