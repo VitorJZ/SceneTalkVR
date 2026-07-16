@@ -21,6 +21,14 @@ namespace SceneTalkVR.AvatarSystem
         [SerializeField] private AvatarPropPresenter propPresenter;
         [SerializeField] private AvatarPropCatalog propCatalog;
 
+        [Header("Avatar Placement")]
+        [SerializeField, Tooltip("World-space UI used to place a newly generated avatar on the same viewing axis.")]
+        private Transform placementAnchor;
+        [SerializeField, Min(0f), Tooltip("Distance behind the placement anchor, away from the user.")]
+        private float placementDepthFromAnchor = 1f;
+        [SerializeField] private bool constrainPlacementToGround = true;
+        [SerializeField] private float placementGroundY;
+
         [Header("User Facing")]
         [SerializeField] private Transform userFacingTarget;
         [SerializeField] private bool faceUserOnSpawn = true;
@@ -140,6 +148,69 @@ namespace SceneTalkVR.AvatarSystem
                 yield break;
             }
 
+            // The assistant is a mode-level companion. Activate its visual before
+            // loading the dialogue avatar so both appear when the scene opens.
+            var correctionPresenter = ResolveCorrectionFeedbackPresenter(
+                createCorrectionFeedbackPresenterIfMissing);
+            if (correctionPresenter != null)
+            {
+                var payloadProvider = payload.correctionFeedback != null
+                    ? payload.correctionFeedback.provider
+                    : string.Empty;
+                if (!string.IsNullOrWhiteSpace(payloadProvider))
+                {
+                    correctionPresenter.SetFeedbackProvider(payloadProvider);
+                }
+
+                correctionPresenter.SetPresentationActive(true);
+            }
+
+            // If streaming was already used to play dialogue in real-time, just present correction and wait
+            if (isStreamingPlaying || (isStreamingFinished && streamingBasePayload != null))
+            {
+                // Ensure avatar is loaded first if it is the first turn and wasn't loaded in PrepareStreaming
+                if (currentAvatar == null)
+                {
+                    string avatarLoadError = string.Empty;
+                    yield return EnsureAvatar(payload, msg => avatarLoadError = msg);
+                    isAvatarLoadingFinished = true;
+                    if (!string.IsNullOrEmpty(avatarLoadError) && !allowVoiceFallbackOnAvatarFailure)
+                    {
+                        onError?.Invoke(avatarLoadError);
+                        yield break;
+                    }
+                }
+                else
+                {
+                    isAvatarLoadingFinished = true;
+                }
+
+                // Wait for the streaming dialogue audio to finish speaking completely
+                while (isStreamingPlaying)
+                {
+                    yield return new WaitForSeconds(0.1f);
+                }
+
+                // Add a small natural pause between Avatar speech and Assistant Agent feedback
+                yield return new WaitForSeconds(0.5f);
+
+                var strPresenter = correctionPresenter
+                    ?? ResolveCorrectionFeedbackPresenter(createCorrectionFeedbackPresenterIfMissing);
+                if (strPresenter != null && payload.correctionFeedback != null && payload.correctionFeedback.hasFeedback)
+                {
+                    strPresenter.SetPresentationActive(true);
+                    yield return strPresenter.Present(
+                        payload,
+                        BuildSpeechPlaybackContext(),
+                        () => { }, // Do not trigger speaking animation
+                        () => { },
+                        value => LastCorrectionPlaybackResult = value);
+                }
+
+                onComplete?.Invoke();
+                yield break;
+            }
+
             var avatarError = string.Empty;
             if (isOpeningReply || currentAvatar == null)
             {
@@ -159,7 +230,6 @@ namespace SceneTalkVR.AvatarSystem
 
             // 1. Play Correction Feedback first (if any)
             LastCorrectionPlaybackResult = null;
-            var correctionPresenter = ResolveCorrectionFeedbackPresenter(createCorrectionFeedbackPresenterIfMissing);
             bool hasCorrection = payload.correctionFeedback != null && payload.correctionFeedback.hasFeedback;
 
             if (hasCorrection && correctionPresenter != null)
@@ -274,6 +344,8 @@ namespace SceneTalkVR.AvatarSystem
             string loadError = null;
             var parent = avatarRoot != null ? avatarRoot : transform;
 
+            AlignAvatarRootToPlacementAnchor();
+
             yield return loader.LoadAvatar(
                 resolution,
                 parent,
@@ -371,11 +443,7 @@ namespace SceneTalkVR.AvatarSystem
                 facingController = host.AddComponent<AvatarUserFacingController>();
             }
 
-            var target = userFacingTarget;
-            if (target == null && Camera.main != null)
-            {
-                target = Camera.main.transform;
-            }
+            var target = ResolveUserFacingTarget();
 
             facingController.Configure(
                 animator,
@@ -389,6 +457,61 @@ namespace SceneTalkVR.AvatarSystem
                 lookAtHeadWeight,
                 lookAtEyesWeight,
                 lookAtClampWeight);
+        }
+
+        internal void AlignAvatarRootToPlacementAnchor()
+        {
+            placementAnchor = ResolvePlacementAnchor();
+            if (avatarRoot == null || placementAnchor == null)
+            {
+                return;
+            }
+
+            var target = ResolveUserFacingTarget();
+            var awayFromUser = target != null
+                ? placementAnchor.position - target.position
+                : placementAnchor.forward;
+            awayFromUser = Vector3.ProjectOnPlane(awayFromUser, Vector3.up);
+
+            if (awayFromUser.sqrMagnitude <= 0.0001f)
+            {
+                awayFromUser = Vector3.ProjectOnPlane(placementAnchor.forward, Vector3.up);
+            }
+
+            if (awayFromUser.sqrMagnitude <= 0.0001f)
+            {
+                return;
+            }
+
+            var position = placementAnchor.position
+                + awayFromUser.normalized * Mathf.Max(0f, placementDepthFromAnchor);
+            if (constrainPlacementToGround)
+            {
+                position.y = placementGroundY;
+            }
+
+            avatarRoot.position = position;
+        }
+
+        private Transform ResolvePlacementAnchor()
+        {
+            if (placementAnchor != null)
+            {
+                return placementAnchor;
+            }
+
+            var worldUi = GameObject.Find("SceneTalkVR World UI");
+            return worldUi != null ? worldUi.transform : null;
+        }
+
+        private Transform ResolveUserFacingTarget()
+        {
+            if (userFacingTarget != null)
+            {
+                return userFacingTarget;
+            }
+
+            return Camera.main != null ? Camera.main.transform : null;
         }
 
         private static string ResolvePresetGenderPresentation(AvatarPresetEntry preset)
@@ -595,6 +718,21 @@ namespace SceneTalkVR.AvatarSystem
 
             if (basePayload != null)
             {
+                var correctionPresenter = ResolveCorrectionFeedbackPresenter(
+                    createCorrectionFeedbackPresenterIfMissing);
+                if (correctionPresenter != null)
+                {
+                    var payloadProvider = basePayload.correctionFeedback != null
+                        ? basePayload.correctionFeedback.provider
+                        : string.Empty;
+                    if (!string.IsNullOrWhiteSpace(payloadProvider))
+                    {
+                        correctionPresenter.SetFeedbackProvider(payloadProvider);
+                    }
+
+                    correctionPresenter.SetPresentationActive(true);
+                }
+
                 if (isOpeningReply || currentAvatar == null)
                 {
                     StartCoroutine(EnsureAvatarCoroutine(basePayload));

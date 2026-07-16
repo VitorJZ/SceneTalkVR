@@ -6678,6 +6678,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c78defc60703c4f32a26dd04064050fc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.AvatarSystem.CorrectionAgentPresenter
+  visualMode: 1
+  avatarPrefab: {fileID: 6788538757290762323, guid: ad4137f595ec8e2449cacca9df7d3735, type: 3}
+  avatarLocalEulerAngles: {x: 0, y: 0, z: 0}
+  avatarFacingYawOffset: 12
+  avatarScale: 0.4
+  avatarIdleState: Idle_A
+  avatarTalkState: Bounce
   agentRoot: {fileID: 1043193852}
   agentRenderer: {fileID: 607761088}
   agentLight: {fileID: 1043193851}

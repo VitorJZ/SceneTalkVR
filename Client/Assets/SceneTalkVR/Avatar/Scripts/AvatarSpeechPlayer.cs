@@ -339,7 +339,7 @@ namespace SceneTalkVR.AvatarSystem
             onComplete?.Invoke(preparedSpeech);
         }
 
-        private static string ResolveVoiceId(
+        internal static string ResolveVoiceId(
             AvatarSpeechPlaybackContext context,
             SpringScenePayload payload)
         {
@@ -347,12 +347,22 @@ namespace SceneTalkVR.AvatarSystem
             var appearance = role != null ? role.appearance : null;
             var requestedGender = appearance != null ? appearance.genderPresentation : string.Empty;
 
-            if (IsGender(context.currentAvatarGenderPresentation, "male") || IsGender(requestedGender, "male"))
+            if (IsGender(context.currentAvatarGenderPresentation, "male"))
             {
                 return "default_male_en";
             }
 
-            if (IsGender(context.currentAvatarGenderPresentation, "female") || IsGender(requestedGender, "female"))
+            if (IsGender(context.currentAvatarGenderPresentation, "female"))
+            {
+                return "default_female_en";
+            }
+
+            if (IsGender(requestedGender, "male"))
+            {
+                return "default_male_en";
+            }
+
+            if (IsGender(requestedGender, "female"))
             {
                 return "default_female_en";
             }

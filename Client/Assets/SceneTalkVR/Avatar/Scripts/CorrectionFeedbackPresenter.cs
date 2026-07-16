@@ -96,7 +96,8 @@ namespace SceneTalkVR.AvatarSystem
 
         private void Start()
         {
-            isSessionActive = false;
+            // SetPresentationActive can be called immediately after this component
+            // is dynamically created. Do not overwrite that mode-level state here.
             ApplyAssistantVisibility();
         }
 
