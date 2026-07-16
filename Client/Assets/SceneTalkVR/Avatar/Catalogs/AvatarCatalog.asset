@@ -12,13 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 571524ac57c814c8b9ced0ac6c028a70, type: 3}
   m_Name: AvatarCatalog
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.AvatarSystem.AvatarCatalog
-  defaultAvatarKey: teacher_default
+  defaultAvatarKey: barista_humanoid_v1
   presets:
   - key: barista_humanoid_v1
     displayName: Barista Humanoid v1 - Quaternius Animated Woman
     priority: 80
     prefab: {fileID: 1872998247441980805, guid: ba253876361a342949527e1350c3a960, type: 3}
     addressableKey: 
+    scenarioIds:
+    - restaurant_reservation
     roles:
     - barista
     - cafe_worker
@@ -55,11 +57,56 @@ MonoBehaviour:
     mustHaveTags: []
     qualityTier: humanoid_v1
     mobileReady: 1
+  - key: teacher_humanoid_v1
+    displayName: Teacher Humanoid v1 - Quaternius Business Man
+    priority: 80
+    prefab: {fileID: 5799682958458321345, guid: 37325c6c640e440b99fd3686afd1e05d, type: 3}
+    addressableKey: 
+    scenarioIds:
+    - furniture_shopping
+    roles:
+    - teacher
+    - instructor
+    - tutor
+    environmentTags:
+    - classroom
+    - school
+    styleIds:
+    - semi_realistic_v1
+    - humanoid_v1
+    - low_poly_v1
+    genderPresentations:
+    - unknown
+    - male
+    ageBuckets:
+    - adult
+    - middle_aged
+    bodyBuilds:
+    - average
+    hairStyles: []
+    hairColors: []
+    outfitRoles:
+    - teacher
+    - formal
+    - business
+    outfitColors:
+    - blue
+    - black
+    - white
+    accessoryTags:
+    - book
+    - suit
+    - formal
+    mustHaveTags: []
+    qualityTier: humanoid_v1
+    mobileReady: 1
   - key: barista_male_humanoid_v1
     displayName: Barista Male Humanoid v1 - Quaternius Casual Character
     priority: 80
     prefab: {fileID: 7316973250779560681, guid: ea51f8798fb594caeb2576986eac044f, type: 3}
     addressableKey: 
+    scenarioIds:
+    - gym_membership
     roles:
     - barista
     - cafe_worker
@@ -95,86 +142,13 @@ MonoBehaviour:
     mustHaveTags: []
     qualityTier: humanoid_v1
     mobileReady: 1
-  - key: barista_default
-    displayName: Placeholder Barista
-    priority: 30
-    prefab: {fileID: 2935414769035953400, guid: 93ba7dfb50bb3484bb3a064173f7d94e, type: 3}
-    addressableKey: 
-    roles:
-    - barista
-    - clerk
-    environmentTags:
-    - coffee_shop
-    - restaurant
-    styleIds:
-    - semi_realistic_v1
-    - placeholder_v1
-    genderPresentations: []
-    ageBuckets:
-    - young_adult
-    - adult
-    - middle_aged
-    bodyBuilds:
-    - average
-    hairStyles: []
-    hairColors: []
-    outfitRoles:
-    - barista
-    outfitColors:
-    - green
-    accessoryTags:
-    - round_black_glasses
-    - glasses
-    mustHaveTags:
-    - green_apron
-    qualityTier: placeholder
-    mobileReady: 1
-  - key: teacher_humanoid_v1
-    displayName: Teacher Humanoid v1 - Quaternius Business Man
-    priority: 80
-    prefab: {fileID: 5799682958458321345, guid: 37325c6c640e440b99fd3686afd1e05d, type: 3}
-    addressableKey: 
-    roles:
-    - teacher
-    - instructor
-    - tutor
-    environmentTags:
-    - classroom
-    - school
-    styleIds:
-    - semi_realistic_v1
-    - humanoid_v1
-    - low_poly_v1
-    genderPresentations:
-    - unknown
-    - male
-    ageBuckets:
-    - adult
-    - middle_aged
-    bodyBuilds:
-    - average
-    hairStyles: []
-    hairColors: []
-    outfitRoles:
-    - teacher
-    - formal
-    - business
-    outfitColors:
-    - blue
-    - black
-    - white
-    accessoryTags:
-    - book
-    - suit
-    - formal
-    mustHaveTags: []
-    qualityTier: humanoid_v1
-    mobileReady: 1
   - key: teacher_female_humanoid_v1
     displayName: Teacher Female Humanoid v1 - Quaternius Suit
     priority: 80
     prefab: {fileID: 996461390545780520, guid: f996e4fd27273468099629141107f6ed, type: 3}
     addressableKey: 
+    scenarioIds:
+    - hotel_check_in
     roles:
     - teacher
     - instructor
@@ -208,163 +182,4 @@ MonoBehaviour:
     - formal
     mustHaveTags: []
     qualityTier: humanoid_v1
-    mobileReady: 1
-  - key: teacher_default
-    displayName: Placeholder Teacher
-    priority: 20
-    prefab: {fileID: 1046230029941474567, guid: 75dfb57a118af47b0b9ab712381c4e98, type: 3}
-    addressableKey: 
-    roles:
-    - teacher
-    environmentTags:
-    - classroom
-    - school
-    styleIds:
-    - semi_realistic_v1
-    - placeholder_v1
-    genderPresentations: []
-    ageBuckets:
-    - young_adult
-    - adult
-    - middle_aged
-    bodyBuilds:
-    - average
-    hairStyles: []
-    hairColors: []
-    outfitRoles:
-    - teacher
-    outfitColors:
-    - blue
-    - white
-    accessoryTags: []
-    mustHaveTags: []
-    qualityTier: placeholder
-    mobileReady: 1
-  - key: police_humanoid_v1
-    displayName: Police Humanoid v1 - Quaternius SWAT
-    priority: 80
-    prefab: {fileID: 3556086996252984580, guid: ae4ef32f03bf84216a851155dbebf06f, type: 3}
-    addressableKey: 
-    roles:
-    - police
-    - officer
-    - security
-    - customs
-    environmentTags:
-    - airport
-    - street
-    - station
-    styleIds:
-    - semi_realistic_v1
-    - humanoid_v1
-    - low_poly_v1
-    genderPresentations:
-    - unknown
-    - male
-    ageBuckets:
-    - adult
-    - middle_aged
-    bodyBuilds:
-    - average
-    - strong
-    hairStyles: []
-    hairColors: []
-    outfitRoles:
-    - police
-    - security
-    - uniform
-    - swat
-    outfitColors:
-    - black
-    - navy
-    - dark
-    accessoryTags:
-    - badge
-    - uniform
-    - helmet
-    - vest
-    - security
-    mustHaveTags: []
-    qualityTier: humanoid_v1
-    mobileReady: 1
-  - key: police_female_humanoid_v1
-    displayName: Police Female Humanoid v1 - Quaternius Soldier
-    priority: 80
-    prefab: {fileID: 7138947530723494882, guid: 2595414229f004cf89d96e7af3ae4ce5, type: 3}
-    addressableKey: 
-    roles:
-    - police
-    - officer
-    - security
-    - customs
-    environmentTags:
-    - airport
-    - street
-    - station
-    styleIds:
-    - semi_realistic_v1
-    - humanoid_v1
-    - low_poly_v1
-    genderPresentations:
-    - female
-    ageBuckets:
-    - adult
-    - middle_aged
-    bodyBuilds:
-    - average
-    - strong
-    hairStyles: []
-    hairColors: []
-    outfitRoles:
-    - police
-    - security
-    - uniform
-    - soldier
-    outfitColors:
-    - black
-    - navy
-    - dark
-    - grey
-    accessoryTags:
-    - badge
-    - uniform
-    - security
-    mustHaveTags: []
-    qualityTier: humanoid_v1
-    mobileReady: 1
-  - key: police_default
-    displayName: Placeholder Police Officer
-    priority: 20
-    prefab: {fileID: 6292588086742147096, guid: f7731ac3ae84448b191eb5d44d0abb92, type: 3}
-    addressableKey: 
-    roles:
-    - police
-    - officer
-    environmentTags:
-    - airport
-    - street
-    - station
-    styleIds:
-    - semi_realistic_v1
-    - placeholder_v1
-    genderPresentations: []
-    ageBuckets:
-    - young_adult
-    - adult
-    - middle_aged
-    bodyBuilds:
-    - average
-    hairStyles: []
-    hairColors: []
-    outfitRoles:
-    - police
-    outfitColors:
-    - navy
-    - blue
-    accessoryTags:
-    - badge
-    - cap
-    mustHaveTags:
-    - badge
-    qualityTier: placeholder
     mobileReady: 1

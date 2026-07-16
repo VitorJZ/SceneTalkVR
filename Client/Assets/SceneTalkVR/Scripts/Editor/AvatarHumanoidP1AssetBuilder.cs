@@ -267,7 +267,7 @@ namespace SceneTalkVR.EditorTools
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Selection.activeObject = policePrefab;
-            Debug.Log($"[SceneTalkVR] Built P1 humanoid avatar prefabs and catalog entries: {TeacherHumanoidKey}, {BaristaHumanoidKey}, {PoliceHumanoidKey}, {MaleBaristaHumanoidKey}, {FemaleTeacherHumanoidKey}, {FemalePoliceHumanoidKey}.");
+            Debug.Log($"[SceneTalkVR] Built P1 humanoid source prefabs and fixed-scenario catalog entries: {BaristaHumanoidKey}, {TeacherHumanoidKey}, {MaleBaristaHumanoidKey}, {FemaleTeacherHumanoidKey}.");
         }
 
         private static void EnsureFolders()
@@ -1264,10 +1264,8 @@ namespace SceneTalkVR.EditorTools
         {
             if (teacherPrefab == null
                 || baristaPrefab == null
-                || policePrefab == null
                 || maleBaristaPrefab == null
-                || femaleTeacherPrefab == null
-                || femalePolicePrefab == null)
+                || femaleTeacherPrefab == null)
             {
                 Debug.LogError("[SceneTalkVR] P1 humanoid prefab creation failed.");
                 return;
@@ -1278,43 +1276,18 @@ namespace SceneTalkVR.EditorTools
             {
                 catalog = ScriptableObject.CreateInstance<AvatarCatalog>();
                 AssetDatabase.CreateAsset(catalog, CatalogPath);
-                catalog.defaultAvatarKey = TeacherPlaceholderKey;
+                catalog.defaultAvatarKey = BaristaHumanoidKey;
             }
 
-            var presets = catalog.presets == null
-                ? new List<AvatarPresetEntry>()
-                : new List<AvatarPresetEntry>(catalog.presets);
-
-            presets.RemoveAll(entry => entry != null
-                && (entry.key == TeacherHumanoidKey
-                    || entry.key == BaristaHumanoidKey
-                    || entry.key == PoliceHumanoidKey
-                    || entry.key == MaleBaristaHumanoidKey
-                    || entry.key == FemaleTeacherHumanoidKey
-                    || entry.key == FemalePoliceHumanoidKey));
-
-            InsertBeforePlaceholder(presets, CreateTeacherEntry(teacherPrefab), TeacherPlaceholderKey);
-            InsertBeforePlaceholder(presets, CreateFemaleTeacherEntry(femaleTeacherPrefab), TeacherPlaceholderKey);
-            InsertBeforePlaceholder(presets, CreateBaristaEntry(baristaPrefab), BaristaPlaceholderKey);
-            InsertBeforePlaceholder(presets, CreateMaleBaristaEntry(maleBaristaPrefab), BaristaPlaceholderKey);
-            InsertBeforePlaceholder(presets, CreatePoliceEntry(policePrefab), PolicePlaceholderKey);
-            InsertBeforePlaceholder(presets, CreateFemalePoliceEntry(femalePolicePrefab), PolicePlaceholderKey);
-            catalog.presets = presets.ToArray();
-            EditorUtility.SetDirty(catalog);
-        }
-
-        private static void InsertBeforePlaceholder(
-            List<AvatarPresetEntry> presets,
-            AvatarPresetEntry entry,
-            string placeholderKey)
-        {
-            var insertIndex = presets.FindIndex(candidate => candidate != null && candidate.key == placeholderKey);
-            if (insertIndex < 0)
+            catalog.defaultAvatarKey = BaristaHumanoidKey;
+            catalog.presets = new[]
             {
-                insertIndex = presets.Count;
-            }
-
-            presets.Insert(insertIndex, entry);
+                CreateBaristaEntry(baristaPrefab),
+                CreateTeacherEntry(teacherPrefab),
+                CreateMaleBaristaEntry(maleBaristaPrefab),
+                CreateFemaleTeacherEntry(femaleTeacherPrefab)
+            };
+            EditorUtility.SetDirty(catalog);
         }
 
         private static AvatarPresetEntry CreateTeacherEntry(GameObject prefab)
@@ -1325,6 +1298,7 @@ namespace SceneTalkVR.EditorTools
                 displayName = "Teacher Humanoid v1 - Quaternius Business Man",
                 priority = 80,
                 prefab = prefab,
+                scenarioIds = new[] { "furniture_shopping" },
                 roles = new[] { "teacher", "instructor", "tutor" },
                 environmentTags = new[] { "classroom", "school" },
                 styleIds = new[] { "semi_realistic_v1", "humanoid_v1", "low_poly_v1" },
@@ -1348,6 +1322,7 @@ namespace SceneTalkVR.EditorTools
                 displayName = "Barista Humanoid v1 - Quaternius Animated Woman",
                 priority = 80,
                 prefab = prefab,
+                scenarioIds = new[] { "restaurant_reservation" },
                 roles = new[] { "barista", "cafe_worker", "clerk" },
                 environmentTags = new[] { "coffee_shop", "cafe" },
                 styleIds = new[] { "semi_realistic_v1", "humanoid_v1", "low_poly_v1" },
@@ -1371,6 +1346,7 @@ namespace SceneTalkVR.EditorTools
                 displayName = "Barista Male Humanoid v1 - Quaternius Casual Character",
                 priority = 80,
                 prefab = prefab,
+                scenarioIds = new[] { "gym_membership" },
                 roles = new[] { "barista", "cafe_worker", "clerk" },
                 environmentTags = new[] { "coffee_shop", "cafe" },
                 styleIds = new[] { "semi_realistic_v1", "humanoid_v1", "low_poly_v1" },
@@ -1417,6 +1393,7 @@ namespace SceneTalkVR.EditorTools
                 displayName = "Teacher Female Humanoid v1 - Quaternius Suit",
                 priority = 80,
                 prefab = prefab,
+                scenarioIds = new[] { "hotel_check_in" },
                 roles = new[] { "teacher", "instructor", "tutor" },
                 environmentTags = new[] { "classroom", "school" },
                 styleIds = new[] { "semi_realistic_v1", "humanoid_v1", "low_poly_v1" },
