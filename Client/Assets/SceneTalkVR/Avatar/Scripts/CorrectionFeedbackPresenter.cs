@@ -156,13 +156,10 @@ namespace SceneTalkVR.AvatarSystem
                 DialogueAvatarProvider,
                 StringComparison.OrdinalIgnoreCase);
 
-            if (useDialogueAvatar && string.Equals(style, RecastStyle, StringComparison.OrdinalIgnoreCase))
-            {
-                // Dialogue avatar recast is already naturally spoken in the main dialogueReply.
-                // Do not play it again to prevent redundant repetition.
-                onComplete?.Invoke(Result(provider, "played", "skipped_audio_avatar_recast"));
-                yield break;
-            }
+            // Replaced/removed the dialogue_avatar recast skip block because
+            // under the new "correction first, dialogue second" architecture,
+            // dialogue replies do not contain recast sentences, so they must
+            // be played as independent feedback units.
 
             var text = ResolveEffectiveFeedbackText(feedback);
             if (string.IsNullOrWhiteSpace(text))
@@ -205,6 +202,7 @@ namespace SceneTalkVR.AvatarSystem
             AvatarSpeechPlaybackResult playbackResult = null;
             if (useDialogueAvatar)
             {
+                Debug.Log($"[CorrectionFeedbackPresenter] Playing correction feedback via Dialogue Avatar: \"{text}\"");
                 playbackRequest.playbackStarted = beginDialogueAvatarSpeaking;
                 playbackRequest.playbackEnded = endDialogueAvatarSpeaking;
                 yield return SpeechPlayer.Play(
@@ -218,6 +216,7 @@ namespace SceneTalkVR.AvatarSystem
                 var correctionAgent = ResolveCorrectionAgentPresenter(createCorrectionAgentIfMissing);
                 if (correctionAgent != null)
                 {
+                    Debug.Log($"[CorrectionFeedbackPresenter] Playing correction feedback via Assistant Agent: \"{text}\"");
                     correctionAgent.SetVisible(true);
                     playbackRequest.audioSourceOverride = correctionAgent.AudioSource;
                     playbackRequest.playbackStarted = correctionAgent.BeginSpeaking;
@@ -235,6 +234,7 @@ namespace SceneTalkVR.AvatarSystem
                     Debug.LogWarning(
                         "[SceneTalkVR] CorrectionAgentPresenter is missing; using assistant audio-only fallback.",
                         this);
+                    Debug.Log($"[CorrectionFeedbackPresenter] Playing correction feedback via Assistant Agent (audio-only fallback): \"{text}\"");
                     yield return SpeechPlayer.Play(
                         playbackContext,
                         payload,
@@ -414,6 +414,13 @@ namespace SceneTalkVR.AvatarSystem
             if (feedback == null)
             {
                 return string.Empty;
+            }
+
+            if (string.Equals(feedback.style, "recast", StringComparison.OrdinalIgnoreCase))
+            {
+                return !string.IsNullOrWhiteSpace(feedback.recastText)
+                    ? feedback.recastText
+                    : !string.IsNullOrWhiteSpace(feedback.feedbackText) ? feedback.feedbackText : feedback.correctedText;
             }
 
             return !string.IsNullOrWhiteSpace(feedback.feedbackText)

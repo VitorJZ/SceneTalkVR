@@ -41,6 +41,7 @@ namespace SceneTalkVR.Core
         void PrepareStreaming(SpringScenePayload basePayload);
         void EnqueueSentence(string sentence);
         void SignalStreamingComplete();
+        void OpenDialogueGate();
     }
 
     public interface ISceneTalkAvatarReplyContext
@@ -74,6 +75,7 @@ namespace SceneTalkVR.Core
         public string taskType;
         public string environmentType;
         public string dialogueReply;
+        public string dialogueContinuation;
         public AvatarRoleData avatarRole = new AvatarRoleData();
         public ScenePayload scene = new ScenePayload();
         public CorrectionFeedbackData correctionFeedback;
@@ -89,6 +91,7 @@ namespace SceneTalkVR.Core
         public string originalText;
         public string correctedText;
         public string feedbackText;
+        public string recastText;
         public string targetSpan;
         public float confidence;
         public string rationaleTag;

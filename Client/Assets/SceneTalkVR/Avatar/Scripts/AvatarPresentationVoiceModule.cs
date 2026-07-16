@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using SceneTalkVR.Core;
 using SceneTalkVR.Voice;
+using SceneTalkVR.Runtime;
 using UnityEngine;
 using UnityEngine.Serialization;
 
@@ -139,73 +140,31 @@ namespace SceneTalkVR.AvatarSystem
                 yield break;
             }
 
-            // If streaming was already used to play dialogue in real-time, just present correction and wait
-            if (isStreamingPlaying || (isStreamingFinished && streamingBasePayload != null))
-            {
-                // Ensure avatar is loaded first if it is the first turn and wasn't loaded in PrepareStreaming
-                if (currentAvatar == null)
-                {
-                    string avatarLoadError = string.Empty;
-                    yield return EnsureAvatar(payload, msg => avatarLoadError = msg);
-                    isAvatarLoadingFinished = true;
-                    if (!string.IsNullOrEmpty(avatarLoadError) && !allowVoiceFallbackOnAvatarFailure)
-                    {
-                        onError?.Invoke(avatarLoadError);
-                        yield break;
-                    }
-                }
-                else
-                {
-                    isAvatarLoadingFinished = true;
-                }
-
-                // Wait for the streaming dialogue audio to finish speaking completely
-                while (isStreamingPlaying)
-                {
-                    yield return new WaitForSeconds(0.1f);
-                }
-
-                // Add a small natural pause between Avatar speech and Assistant Agent feedback
-                yield return new WaitForSeconds(0.5f);
-
-                var strPresenter = ResolveCorrectionFeedbackPresenter(createCorrectionFeedbackPresenterIfMissing);
-                if (strPresenter != null && payload.correctionFeedback != null && payload.correctionFeedback.hasFeedback)
-                {
-                    strPresenter.SetPresentationActive(true);
-                    yield return strPresenter.Present(
-                        payload,
-                        BuildSpeechPlaybackContext(),
-                        () => { }, // Do not trigger speaking animation
-                        () => { },
-                        value => LastCorrectionPlaybackResult = value);
-                }
-
-                onComplete?.Invoke();
-                yield break;
-            }
-
             var avatarError = string.Empty;
             if (isOpeningReply || currentAvatar == null)
             {
                 yield return EnsureAvatar(payload, message => avatarError = message);
+                isAvatarLoadingFinished = true;
             }
-
-            if (!string.IsNullOrWhiteSpace(avatarError))
+            else
             {
-                if (!allowVoiceFallbackOnAvatarFailure)
-                {
-                    onError?.Invoke(avatarError);
-                    yield break;
-                }
-
-                Debug.LogWarning($"[SceneTalkVR] Avatar presentation fallback: {avatarError}", this);
+                isAvatarLoadingFinished = true;
             }
 
+            if (!string.IsNullOrWhiteSpace(avatarError) && !allowVoiceFallbackOnAvatarFailure)
+            {
+                onError?.Invoke(avatarError);
+                yield break;
+            }
+
+            // 1. Play Correction Feedback first (if any)
             LastCorrectionPlaybackResult = null;
-            var correctionPresenter = ResolveCorrectionFeedbackPresenter(
-                createCorrectionFeedbackPresenterIfMissing);
-            if (correctionPresenter != null)
+            var correctionPresenter = ResolveCorrectionFeedbackPresenter(createCorrectionFeedbackPresenterIfMissing);
+            bool hasCorrection = payload.correctionFeedback != null && payload.correctionFeedback.hasFeedback;
+
+            if (hasCorrection && correctionPresenter != null)
             {
+                LastCorrectionPlayStart = Time.realtimeSinceStartup;
                 correctionPresenter.SetPresentationActive(true);
                 yield return correctionPresenter.Present(
                     payload,
@@ -213,8 +172,12 @@ namespace SceneTalkVR.AvatarSystem
                     () => BeginSpeechAnimation(false),
                     EndSpeechAnimation,
                     value => LastCorrectionPlaybackResult = value);
+                LastCorrectionPlayEnd = Time.realtimeSinceStartup;
+
+                // Add a small natural pause (0.5 seconds) between Correction and Dialogue
+                yield return new WaitForSeconds(0.5f);
             }
-            else if (payload.correctionFeedback != null && payload.correctionFeedback.hasFeedback)
+            else if (hasCorrection)
             {
                 LastCorrectionPlaybackResult = new CorrectionPlaybackResult
                 {
@@ -229,31 +192,48 @@ namespace SceneTalkVR.AvatarSystem
                 CorrectionPlaybackCompleted?.Invoke(LastCorrectionPlaybackResult);
             }
 
-            SetThinking(true);
-            yield return null;
-
-            Debug.Log($"[SceneTalkVR] Avatar reply: {payload.dialogueReply}", this);
-
-            AvatarSpeechPlaybackResult replyResult = null;
-            yield return SpeechPlayer.Play(
-                BuildSpeechPlaybackContext(),
-                payload,
-                new AvatarSpeechPlaybackRequest
-                {
-                    text = payload.dialogueReply,
-                    logLabel = "Avatar reply",
-                    playbackStarted = () => BeginSpeechAnimation(isOpeningReply),
-                    playbackEnded = EndSpeechAnimation
-                },
-                value => replyResult = value);
-
-            SetThinking(false);
-            EndSpeechAnimation();
-
-            if (replyResult != null && !string.IsNullOrWhiteSpace(replyResult.error))
+            // 2. Play Dialogue continuation (Streaming or Non-streaming)
+            bool wasStreamingUsed = wasAnySentenceEnqueued;
+            if (wasStreamingUsed)
             {
-                onError?.Invoke(replyResult.error);
-                yield break;
+                // Open Dialogue Gate so that streaming sentences can start playing
+                OpenDialogueGate();
+
+                // Wait for the streaming/caching dialogue to finish playing completely
+                while (isStreamingPlaying || streamingPreparedQueue.Count > 0 || streamingSentenceQueue.Count > 0)
+                {
+                    yield return new WaitForSeconds(0.1f);
+                }
+            }
+            else
+            {
+                // Non-streaming fallback: Play the dialogueReply directly
+                SetThinking(true);
+                yield return null;
+
+                Debug.Log($"[SceneTalkVR] Non-streaming avatar reply: {payload.dialogueReply}", this);
+
+                AvatarSpeechPlaybackResult replyResult = null;
+                yield return SpeechPlayer.Play(
+                    BuildSpeechPlaybackContext(),
+                    payload,
+                    new AvatarSpeechPlaybackRequest
+                    {
+                        text = payload.dialogueReply,
+                        logLabel = "Avatar reply",
+                        playbackStarted = () => BeginSpeechAnimation(isOpeningReply),
+                        playbackEnded = EndSpeechAnimation
+                    },
+                    value => replyResult = value);
+
+                SetThinking(false);
+                EndSpeechAnimation();
+
+                if (replyResult != null && !string.IsNullOrWhiteSpace(replyResult.error))
+                {
+                    onError?.Invoke(replyResult.error);
+                    yield break;
+                }
             }
 
             onComplete?.Invoke();
@@ -579,19 +559,39 @@ namespace SceneTalkVR.AvatarSystem
         #region Streaming Playback Implementation
 
         private System.Collections.Generic.Queue<string> streamingSentenceQueue = new System.Collections.Generic.Queue<string>();
+        private System.Collections.Generic.Queue<PreparedAvatarSpeech> streamingPreparedQueue = new System.Collections.Generic.Queue<PreparedAvatarSpeech>();
         private bool isStreamingFinished = false;
         private bool isStreamingPlaying = false;
         private string streamingError = null;
         private SpringScenePayload streamingBasePayload;
+        private bool isDialogueGateOpen = false;
+        private bool isPreparingStream = false;
+        private bool wasAnySentenceEnqueued = false;
+
+        public float LastTtsReadyLatencyMs { get; private set; } = -1f;
+        public float LastCorrectionPlayStart { get; private set; } = -1f;
+        public float LastCorrectionPlayEnd { get; private set; } = -1f;
+        public float LastDialoguePlayStart { get; private set; } = -1f;
+        public float LastDialoguePlayEnd { get; private set; } = -1f;
 
         public void PrepareStreaming(SpringScenePayload basePayload)
         {
             streamingBasePayload = basePayload;
             streamingSentenceQueue.Clear();
+            streamingPreparedQueue.Clear();
             isStreamingFinished = false;
             isStreamingPlaying = false;
+            isDialogueGateOpen = false;
+            isPreparingStream = false;
+            wasAnySentenceEnqueued = false;
             streamingError = null;
             isAvatarLoadingFinished = false;
+
+            LastTtsReadyLatencyMs = -1f;
+            LastCorrectionPlayStart = -1f;
+            LastCorrectionPlayEnd = -1f;
+            LastDialoguePlayStart = -1f;
+            LastDialoguePlayEnd = -1f;
 
             if (basePayload != null)
             {
@@ -606,7 +606,13 @@ namespace SceneTalkVR.AvatarSystem
         {
             if (string.IsNullOrEmpty(sentence)) return;
 
+            wasAnySentenceEnqueued = true;
             streamingSentenceQueue.Enqueue(sentence);
+
+            if (!isPreparingStream)
+            {
+                StartCoroutine(PrepareStreamingQueueCoroutine());
+            }
 
             if (!isStreamingPlaying)
             {
@@ -617,6 +623,11 @@ namespace SceneTalkVR.AvatarSystem
         public void SignalStreamingComplete()
         {
             isStreamingFinished = true;
+        }
+
+        public void OpenDialogueGate()
+        {
+            isDialogueGateOpen = true;
         }
 
         private IEnumerator EnsureAvatarCoroutine(SpringScenePayload payload)
@@ -630,30 +641,20 @@ namespace SceneTalkVR.AvatarSystem
             }
         }
 
-        private IEnumerator PlayStreamingQueueCoroutine()
+        private IEnumerator PrepareStreamingQueueCoroutine()
         {
-            isStreamingPlaying = true;
-            SetThinking(true);
-
+            isPreparingStream = true;
             while (!isStreamingFinished || streamingSentenceQueue.Count > 0)
             {
                 if (streamingSentenceQueue.Count == 0)
                 {
-                    yield return new WaitForSeconds(0.1f);
+                    yield return new WaitForSeconds(0.05f);
                     continue;
                 }
 
                 string sentence = streamingSentenceQueue.Dequeue();
-
-                while (isOpeningReply && currentAvatar == null && !isAvatarLoadingFinished)
-                {
-                    yield return new WaitForSeconds(0.1f);
-                }
-
-                BeginSpeechAnimation(isOpeningReply);
-
-                AvatarSpeechPlaybackResult replyResult = null;
-                yield return SpeechPlayer.Play(
+                PreparedAvatarSpeech prepared = null;
+                yield return SpeechPlayer.Prepare(
                     BuildSpeechPlaybackContext(),
                     streamingBasePayload,
                     new AvatarSpeechPlaybackRequest
@@ -661,6 +662,57 @@ namespace SceneTalkVR.AvatarSystem
                         text = sentence,
                         logLabel = $"Streaming sentence: {sentence}"
                     },
+                    value => prepared = value);
+
+                if (prepared != null)
+                {
+                    if (LastTtsReadyLatencyMs < 0f)
+                    {
+                        var orchestrator = FindObjectOfType<SceneTalkOrchestrator>();
+                        float captureEnd = orchestrator != null ? orchestrator.LastSpeechCaptureEndTime : Time.realtimeSinceStartup;
+                        LastTtsReadyLatencyMs = (Time.realtimeSinceStartup - captureEnd) * 1000f;
+                    }
+                    streamingPreparedQueue.Enqueue(prepared);
+                }
+            }
+            isPreparingStream = false;
+        }
+
+        private IEnumerator PlayStreamingQueueCoroutine()
+        {
+            isStreamingPlaying = true;
+            SetThinking(true);
+
+            while (!isStreamingFinished || streamingPreparedQueue.Count > 0 || streamingSentenceQueue.Count > 0 || !isDialogueGateOpen)
+            {
+                if (!isDialogueGateOpen || streamingPreparedQueue.Count == 0)
+                {
+                    yield return new WaitForSeconds(0.05f);
+                    continue;
+                }
+
+                while (isOpeningReply && currentAvatar == null && !isAvatarLoadingFinished)
+                {
+                    yield return new WaitForSeconds(0.05f);
+                }
+
+                if (LastDialoguePlayStart < 0f)
+                {
+                    LastDialoguePlayStart = Time.realtimeSinceStartup;
+                }
+
+                BeginSpeechAnimation(isOpeningReply);
+
+                var prepared = streamingPreparedQueue.Dequeue();
+                AvatarSpeechPlaybackResult replyResult = null;
+                yield return SpeechPlayer.PlayPrepared(
+                    BuildSpeechPlaybackContext(),
+                    new AvatarSpeechPlaybackRequest
+                    {
+                        text = string.Empty,
+                        logLabel = "Streaming dialogue reply"
+                    },
+                    prepared,
                     value => replyResult = value);
 
                 if (replyResult != null && !string.IsNullOrEmpty(replyResult.error))
@@ -670,6 +722,7 @@ namespace SceneTalkVR.AvatarSystem
                 }
             }
 
+            LastDialoguePlayEnd = Time.realtimeSinceStartup;
             isStreamingPlaying = false;
             SetThinking(false);
             EndSpeechAnimation();
