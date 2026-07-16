@@ -8,8 +8,24 @@ namespace SceneTalkVR.AvatarSystem
     public sealed class CorrectionAgentPresenter : MonoBehaviour
     {
         private const string VisualRootName = "Assistant Visuals";
+        private const string AvatarVisualName = "Assistant Avatar";
         private const int VoiceBarCount = 5;
         private const int SatelliteCount = 3;
+
+        public enum VisualMode
+        {
+            GeneratedAgent,
+            PrefabAvatar
+        }
+
+        [Header("Assistant Visual")]
+        [SerializeField] private VisualMode visualMode = VisualMode.PrefabAvatar;
+        [SerializeField] private GameObject avatarPrefab;
+        [SerializeField] private Vector3 avatarLocalEulerAngles = Vector3.zero;
+        [SerializeField, Range(-30f, 30f)] private float avatarFacingYawOffset = 12f;
+        [SerializeField, Min(0.01f)] private float avatarScale = 0.4f;
+        [SerializeField] private string avatarIdleState = "Idle_A";
+        [SerializeField] private string avatarTalkState = "Bounce";
 
         [Header("Generated Agent")]
         [SerializeField] private Transform agentRoot;
@@ -75,6 +91,8 @@ namespace SceneTalkVR.AvatarSystem
         private Renderer shellRenderer;
         private Renderer pulseRingRenderer;
         private Renderer[] visualRenderers;
+        private Transform avatarVisual;
+        private Animator avatarAnimator;
         private Transform lookTarget;
         private Coroutine visibilityRoutine;
         private Vector3 baseLocalPosition;
@@ -121,6 +139,8 @@ namespace SceneTalkVR.AvatarSystem
 
             var time = Time.time;
             var deltaTime = Time.deltaTime;
+            EnsureAvatarVisual();
+            ApplyVisualMode();
             UpdateSpeakingEnergy(deltaTime);
             UpdateRootMotion(time);
             UpdateOrbitMotion(time, deltaTime);
@@ -209,6 +229,7 @@ namespace SceneTalkVR.AvatarSystem
         {
             EnsureAgent();
             isSpeaking = true;
+            PlayAvatarState(avatarTalkState);
         }
 
         public void EndSpeaking()
@@ -219,6 +240,7 @@ namespace SceneTalkVR.AvatarSystem
         private void StopSpeaking()
         {
             isSpeaking = false;
+            PlayAvatarState(avatarIdleState);
             if (audioSource != null)
             {
                 audioSource.Stop();
@@ -239,7 +261,6 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             baseLocalPosition = localOffset;
-            baseLocalScale = Vector3.one * sphereDiameter * visualScaleMultiplier;
 
             if (visualRoot == null)
             {
@@ -254,6 +275,9 @@ namespace SceneTalkVR.AvatarSystem
                     BindVisualHierarchy();
                 }
             }
+
+            EnsureAvatarVisual();
+            ApplyVisualMode();
 
             if (agentLight == null)
             {
@@ -289,6 +313,66 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             ApplyVisibility(visibleAmount);
+        }
+
+        private bool IsAvatarActive => visualMode == VisualMode.PrefabAvatar
+            && avatarPrefab != null
+            && avatarVisual != null;
+
+        private void EnsureAvatarVisual()
+        {
+            if (avatarPrefab == null || agentRoot == null || avatarVisual != null)
+            {
+                return;
+            }
+
+            var instance = Instantiate(avatarPrefab, agentRoot, false);
+            instance.name = AvatarVisualName;
+            avatarVisual = instance.transform;
+            avatarVisual.localPosition = Vector3.zero;
+            avatarVisual.localRotation = Quaternion.Euler(avatarLocalEulerAngles);
+            avatarVisual.localScale = Vector3.one * avatarScale;
+            avatarAnimator = instance.GetComponentInChildren<Animator>();
+            foreach (var avatarCollider in instance.GetComponentsInChildren<Collider>(true))
+            {
+                avatarCollider.enabled = false;
+            }
+
+            PlayAvatarState(isSpeaking ? avatarTalkState : avatarIdleState, true);
+        }
+
+        private void ApplyVisualMode()
+        {
+            var useAvatar = IsAvatarActive;
+            baseLocalScale = Vector3.one * (useAvatar
+                ? 1f
+                : sphereDiameter * visualScaleMultiplier);
+
+            if (visualRoot != null && visualRoot.gameObject.activeSelf == useAvatar)
+            {
+                visualRoot.gameObject.SetActive(!useAvatar);
+            }
+
+            if (avatarVisual != null && avatarVisual.gameObject.activeSelf != useAvatar)
+            {
+                avatarVisual.gameObject.SetActive(useAvatar);
+            }
+        }
+
+        private void PlayAvatarState(string stateName, bool immediate = false)
+        {
+            if (avatarAnimator == null || string.IsNullOrWhiteSpace(stateName))
+            {
+                return;
+            }
+
+            if (immediate)
+            {
+                avatarAnimator.Play(stateName, 0, 0f);
+                return;
+            }
+
+            avatarAnimator.CrossFadeInFixedTime(stateName, 0.08f, 0);
         }
 
         private void RemoveLegacyVisual()
@@ -532,14 +616,21 @@ namespace SceneTalkVR.AvatarSystem
 
         private void UpdateRootMotion(float time)
         {
-            var vertical = Mathf.Sin(time * idleFloatSpeed) * idleFloatAmplitude;
-            var lateral = Mathf.Sin(time * idleFloatSpeed * 0.53f + 0.8f)
-                * idleFloatAmplitude
-                * 0.18f;
-            var depth = Mathf.Cos(time * idleFloatSpeed * 0.39f)
-                * idleFloatAmplitude
-                * 0.1f;
-            agentRoot.localPosition = baseLocalPosition + new Vector3(lateral, vertical, depth);
+            if (IsAvatarActive)
+            {
+                agentRoot.localPosition = baseLocalPosition;
+            }
+            else
+            {
+                var vertical = Mathf.Sin(time * idleFloatSpeed) * idleFloatAmplitude;
+                var lateral = Mathf.Sin(time * idleFloatSpeed * 0.53f + 0.8f)
+                    * idleFloatAmplitude
+                    * 0.18f;
+                var depth = Mathf.Cos(time * idleFloatSpeed * 0.39f)
+                    * idleFloatAmplitude
+                    * 0.1f;
+                agentRoot.localPosition = baseLocalPosition + new Vector3(lateral, vertical, depth);
+            }
 
             var visibilityScale = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(visibleAmount));
             var breathing = 1f + Mathf.Sin(time * idleFloatSpeed * 0.72f) * 0.018f;
@@ -620,7 +711,7 @@ namespace SceneTalkVR.AvatarSystem
 
         private void UpdateFaceDirection(float deltaTime)
         {
-            if (!faceMainCamera || faceRoot == null)
+            if (!faceMainCamera)
             {
                 return;
             }
@@ -630,21 +721,36 @@ namespace SceneTalkVR.AvatarSystem
                 lookTarget = Camera.main.transform;
             }
 
-            if (lookTarget == null)
+            var useAvatar = IsAvatarActive;
+            var facingTransform = useAvatar ? avatarVisual : faceRoot;
+            if (lookTarget == null || facingTransform == null)
             {
                 return;
             }
 
-            var direction = lookTarget.position - faceRoot.position;
+            var direction = lookTarget.position - facingTransform.position;
+            if (useAvatar)
+            {
+                direction = Vector3.ProjectOnPlane(direction, agentRoot.up);
+            }
+
             if (direction.sqrMagnitude < 0.0001f)
             {
                 return;
             }
 
-            var targetRotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+            var targetRotation = Quaternion.LookRotation(
+                direction.normalized,
+                useAvatar ? agentRoot.up : Vector3.up);
+            if (useAvatar)
+            {
+                targetRotation *= Quaternion.AngleAxis(avatarFacingYawOffset, Vector3.up)
+                    * Quaternion.Euler(avatarLocalEulerAngles);
+            }
+
             var responsiveness = Mathf.Max(0.1f, lookResponsiveness) * (1f + speakingEnergy * 0.35f);
             var damping = 1f - Mathf.Exp(-responsiveness * deltaTime);
-            faceRoot.rotation = Quaternion.Slerp(faceRoot.rotation, targetRotation, damping);
+            facingTransform.rotation = Quaternion.Slerp(facingTransform.rotation, targetRotation, damping);
         }
 
         private void UpdatePulseRing(float time)
@@ -685,9 +791,14 @@ namespace SceneTalkVR.AvatarSystem
             var isVisible = amount > 0.001f || targetVisibility > 0.001f;
             if (agentRoot != null)
             {
+                var wasActive = agentRoot.gameObject.activeSelf;
                 agentRoot.gameObject.SetActive(isVisible);
                 var visibilityScale = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(amount));
                 agentRoot.localScale = baseLocalScale * Mathf.Max(0.001f, visibilityScale);
+                if (isVisible && !wasActive)
+                {
+                    PlayAvatarState(isSpeaking ? avatarTalkState : avatarIdleState, true);
+                }
             }
 
             if (visualRenderers != null)
@@ -708,7 +819,7 @@ namespace SceneTalkVR.AvatarSystem
 
             if (agentLight != null)
             {
-                agentLight.enabled = isVisible;
+                agentLight.enabled = isVisible && !IsAvatarActive;
                 agentLight.intensity = lightIntensity * Mathf.Clamp01(amount);
             }
 
