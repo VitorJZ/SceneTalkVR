@@ -15,5 +15,5 @@ MonoBehaviour:
   isOpen: 0
   debuggerLauncherButton: 0
   startPosition: 0
-  maxInfoCount: 0
+  maxInfoCount: 500
   rulerClearButton: 0

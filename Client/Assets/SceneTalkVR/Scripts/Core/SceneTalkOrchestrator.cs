@@ -803,7 +803,7 @@ namespace SceneTalkVR.Runtime
         private void EnterTurnReviewState()
         {
             ResolveExperimentConditionManager(false)?.CompleteActiveTurn();
-            IsAwaitingTurnReviewAction = LastCorrectionHasFeedback;
+            IsAwaitingTurnReviewAction = false;
             if (string.IsNullOrWhiteSpace(LastCorrectionStatus))
             {
                 LastCorrectionStatus = "Ready for your next line.";
