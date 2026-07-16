@@ -21,12 +21,27 @@ namespace SceneTalkVR.EditorTools
         private const string FemaleTeacherModelPath = FemaleTeacherModelFolder + "/teacher_suit_woman.fbx";
         private const string FemalePoliceModelFolder = AvatarRoot + "/Models/Humanoid/QuaterniusSoldier";
         private const string FemalePoliceModelPath = FemalePoliceModelFolder + "/police_soldier_woman.fbx";
-        private const string TalkingAnimationModelFolder = AvatarRoot + "/Models/Humanoid/QuaterniusAnimatedBaseCharacter";
-        private const string TalkingAnimationModelPath = TalkingAnimationModelFolder + "/animation_library_unity_standard.fbx";
         private const string FrappeModelFolder = AvatarRoot + "/Models/Props/KenneyFrappe";
         private const string FrappeModelPath = FrappeModelFolder + "/frappe.obj";
         private const string AnimationFolder = AvatarRoot + "/Animations";
+        private const string MixamoAnimationFolder = AnimationFolder + "/Mixamo";
+        private const string ThinkingAnimationPath = MixamoAnimationFolder + "/Thinking.fbx";
+        private const string TalkAnimationPath = MixamoAnimationFolder + "/Thoughtful Head Nod 70AS.fbx";
+        private const string ThinkingEnterClipName = "ThinkingEnter";
+        private const string ThinkingHoldClipName = "ThinkingHold";
+        private const string TalkClipName = "TalkLoop";
+        private const float ThinkingEnterFirstFrame = 0f;
+        private const float ThinkingEnterLastFrame = 46f;
+        private const float ThinkingHoldFirstFrame = 46f;
+        private const float ThinkingHoldLastFrame = 70f;
         private const string CommonAnimationFolder = AnimationFolder + "/Common";
+        private const string NativeIdleFolder = CommonAnimationFolder + "/NativeIdle";
+        private const string TeacherIdlePath = NativeIdleFolder + "/teacher_idle_neutral_loop.anim";
+        private const string BaristaIdlePath = NativeIdleFolder + "/barista_idle_neutral_loop.anim";
+        private const string PoliceIdlePath = NativeIdleFolder + "/police_idle_neutral_loop.anim";
+        private const string MaleBaristaIdlePath = NativeIdleFolder + "/barista_male_idle_neutral_loop.anim";
+        private const string FemaleTeacherIdlePath = NativeIdleFolder + "/teacher_female_idle_neutral_loop.anim";
+        private const string FemalePoliceIdlePath = NativeIdleFolder + "/police_female_idle_neutral_loop.anim";
         private const string CommonHumanoidControllerPath = CommonAnimationFolder + "/AvatarCommonHumanoid.controller";
         private const string OverrideControllerFolder = CommonAnimationFolder + "/Overrides";
         private const string BaristaOverrideControllerPath = OverrideControllerFolder + "/barista_humanoid_v1.overrideController";
@@ -34,7 +49,8 @@ namespace SceneTalkVR.EditorTools
         private const string MaleBaristaOverrideControllerPath = OverrideControllerFolder + "/barista_male_humanoid_v1.overrideController";
         private const string FemaleTeacherOverrideControllerPath = OverrideControllerFolder + "/teacher_female_humanoid_v1.overrideController";
         private const string FemalePoliceOverrideControllerPath = OverrideControllerFolder + "/police_female_humanoid_v1.overrideController";
-        private const string TalkGestureMaskPath = CommonAnimationFolder + "/AvatarTalkGesture.mask";
+        private const string ConversationMaskPath = CommonAnimationFolder + "/AvatarConversationUpperBody.mask";
+        private const string ThinkingHeadMaskPath = CommonAnimationFolder + "/AvatarThinkingHead.mask";
         private const string HumanoidPrefabFolder = AvatarRoot + "/Prefabs/Humanoid";
         private const string PropPrefabFolder = AvatarRoot + "/Prefabs/Props";
         private const string TeacherPrefabPath = HumanoidPrefabFolder + "/teacher_humanoid_v1.prefab";
@@ -75,7 +91,41 @@ namespace SceneTalkVR.EditorTools
             ConfigureHumanoidImporter(MaleBaristaModelPath);
             ConfigureHumanoidImporter(FemaleTeacherModelPath);
             ConfigureHumanoidImporter(FemalePoliceModelPath);
-            ConfigureTalkingAnimationImporter(TalkingAnimationModelPath);
+            var thinkingReady = ConfigureMixamoAnimationImporter(
+                ThinkingAnimationPath,
+                new MixamoClipDefinition(
+                    ThinkingEnterClipName,
+                    ThinkingEnterFirstFrame,
+                    ThinkingEnterLastFrame,
+                    false),
+                new MixamoClipDefinition(
+                    ThinkingHoldClipName,
+                    ThinkingHoldFirstFrame,
+                    ThinkingHoldLastFrame,
+                    true));
+            var talkReady = ConfigureMixamoAnimationImporter(TalkAnimationPath, TalkClipName);
+            if (!thinkingReady || !talkReady)
+            {
+                Debug.LogError("[SceneTalkVR] Humanoid build stopped because the Mixamo conversation animations are not valid Humanoid clips.");
+                return;
+            }
+
+            var teacherIdle = CreateOrUpdateNativeIdleClip(TeacherModelPath, TeacherIdlePath);
+            var baristaIdle = CreateOrUpdateNativeIdleClip(BaristaModelPath, BaristaIdlePath);
+            var policeIdle = CreateOrUpdateNativeIdleClip(PoliceModelPath, PoliceIdlePath);
+            var maleBaristaIdle = CreateOrUpdateNativeIdleClip(MaleBaristaModelPath, MaleBaristaIdlePath);
+            var femaleTeacherIdle = CreateOrUpdateNativeIdleClip(FemaleTeacherModelPath, FemaleTeacherIdlePath);
+            var femalePoliceIdle = CreateOrUpdateNativeIdleClip(FemalePoliceModelPath, FemalePoliceIdlePath);
+            if (teacherIdle == null
+                || baristaIdle == null
+                || policeIdle == null
+                || maleBaristaIdle == null
+                || femaleTeacherIdle == null
+                || femalePoliceIdle == null)
+            {
+                Debug.LogError("[SceneTalkVR] Humanoid build stopped because a native looping Idle clip could not be created.");
+                return;
+            }
 
             var teacherSourceModel = AssetDatabase.LoadAssetAtPath<GameObject>(TeacherModelPath);
             if (teacherSourceModel == null)
@@ -119,27 +169,37 @@ namespace SceneTalkVR.EditorTools
                 return;
             }
 
-            var controller = LoadOrCreateCommonHumanoidAnimatorController();
+            var controller = BuildCommonHumanoidAnimatorController(teacherIdle);
+            if (controller == null)
+            {
+                Debug.LogError("[SceneTalkVR] Humanoid build stopped because the shared Animator controller could not be built.");
+                return;
+            }
             var baristaController = CreateOrUpdateCharacterOverrideController(
                 BaristaOverrideControllerPath,
                 controller,
-                BaristaModelPath);
+                BaristaModelPath,
+                baristaIdle);
             var policeController = CreateOrUpdateCharacterOverrideController(
                 PoliceOverrideControllerPath,
                 controller,
-                PoliceModelPath);
+                PoliceModelPath,
+                policeIdle);
             var maleBaristaController = CreateOrUpdateCharacterOverrideController(
                 MaleBaristaOverrideControllerPath,
                 controller,
-                MaleBaristaModelPath);
+                MaleBaristaModelPath,
+                maleBaristaIdle);
             var femaleTeacherController = CreateOrUpdateCharacterOverrideController(
                 FemaleTeacherOverrideControllerPath,
                 controller,
-                FemaleTeacherModelPath);
+                FemaleTeacherModelPath,
+                femaleTeacherIdle);
             var femalePoliceController = CreateOrUpdateCharacterOverrideController(
                 FemalePoliceOverrideControllerPath,
                 controller,
-                FemalePoliceModelPath);
+                FemalePoliceModelPath,
+                femalePoliceIdle);
 
             if (baristaController == null
                 || policeController == null
@@ -215,7 +275,9 @@ namespace SceneTalkVR.EditorTools
             EnsureFolder("Assets/SceneTalkVR", "Avatar");
             EnsureFolder(AvatarRoot, "Models");
             EnsureFolder(AvatarRoot, "Animations");
+            EnsureFolder(AnimationFolder, "Mixamo");
             EnsureFolder(AnimationFolder, "Common");
+            EnsureFolder(CommonAnimationFolder, "NativeIdle");
             EnsureFolder(CommonAnimationFolder, "Overrides");
             EnsureFolder(AvatarRoot + "/Models", "Humanoid");
             EnsureFolder(AvatarRoot + "/Models/Humanoid", "QuaterniusBusinessMan");
@@ -224,7 +286,6 @@ namespace SceneTalkVR.EditorTools
             EnsureFolder(AvatarRoot + "/Models/Humanoid", "QuaterniusCasualCharacter");
             EnsureFolder(AvatarRoot + "/Models/Humanoid", "QuaterniusSuit");
             EnsureFolder(AvatarRoot + "/Models/Humanoid", "QuaterniusSoldier");
-            EnsureFolder(AvatarRoot + "/Models/Humanoid", "QuaterniusAnimatedBaseCharacter");
             EnsureFolder(AvatarRoot + "/Models", "Props");
             EnsureFolder(AvatarRoot + "/Models/Props", "KenneyFrappe");
             EnsureFolder(AvatarRoot, "Prefabs");
@@ -252,9 +313,107 @@ namespace SceneTalkVR.EditorTools
             ConfigureHumanoidImporter(modelPath, CreateQuaterniusHumanDescription, importAnimation);
         }
 
-        private static void ConfigureTalkingAnimationImporter(string modelPath)
+        private static bool ConfigureMixamoAnimationImporter(string modelPath, string clipName)
         {
-            ConfigureHumanoidImporter(modelPath, CreateDefRigHumanDescription, importAnimation: true);
+            return ConfigureMixamoAnimationImporter(
+                modelPath,
+                new MixamoClipDefinition(clipName, null, null, true));
+        }
+
+        private static bool ConfigureMixamoAnimationImporter(
+            string modelPath,
+            params MixamoClipDefinition[] definitions)
+        {
+            var importer = AssetImporter.GetAtPath(modelPath) as ModelImporter;
+            if (importer == null)
+            {
+                Debug.LogError($"[SceneTalkVR] Mixamo animation was not found at {modelPath}.");
+                return false;
+            }
+
+            importer.animationType = ModelImporterAnimationType.Human;
+            importer.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
+            importer.autoGenerateAvatarMappingIfUnspecified = true;
+            importer.importAnimation = true;
+            importer.materialImportMode = ModelImporterMaterialImportMode.None;
+
+            var clips = importer.clipAnimations;
+            if (clips == null || clips.Length == 0)
+            {
+                clips = importer.defaultClipAnimations;
+            }
+
+            if (clips == null || clips.Length == 0)
+            {
+                Debug.LogError($"[SceneTalkVR] Mixamo animation has no clips: {modelPath}.");
+                return false;
+            }
+
+            var sourceClip = clips[0];
+            var configuredClips = new ModelImporterClipAnimation[definitions.Length];
+            for (var i = 0; i < definitions.Length; i++)
+            {
+                configuredClips[i] = CreateMixamoClip(sourceClip, definitions[i]);
+            }
+
+            importer.clipAnimations = configuredClips;
+
+            AssetDatabase.ImportAsset(modelPath, ImportAssetOptions.ForceUpdate);
+
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+            var animator = model != null ? model.GetComponentInChildren<Animator>() : null;
+            var isValidHumanoid = animator != null
+                && animator.avatar != null
+                && animator.avatar.isValid
+                && animator.avatar.isHuman;
+            var allClipsFound = true;
+            for (var i = 0; i < definitions.Length; i++)
+            {
+                allClipsFound &= LoadExactClip(modelPath, definitions[i].Name) != null;
+            }
+
+            if (!isValidHumanoid || !allClipsFound)
+            {
+                Debug.LogError(
+                    $"[SceneTalkVR] Mixamo Humanoid import validation failed: path={modelPath}, "
+                    + $"avatarValid={isValidHumanoid}, allClipsFound={allClipsFound}.");
+                return false;
+            }
+
+            return true;
+        }
+
+        private static ModelImporterClipAnimation CreateMixamoClip(
+            ModelImporterClipAnimation source,
+            MixamoClipDefinition definition)
+        {
+            return new ModelImporterClipAnimation
+            {
+                name = definition.Name,
+                takeName = source.takeName,
+                firstFrame = definition.FirstFrame ?? source.firstFrame,
+                lastFrame = definition.LastFrame ?? source.lastFrame,
+                wrapMode = definition.LoopTime ? WrapMode.Loop : WrapMode.Once,
+                loopTime = definition.LoopTime,
+                loopPose = definition.LoopTime,
+                cycleOffset = source.cycleOffset,
+                mirror = source.mirror,
+                keepOriginalOrientation = true,
+                keepOriginalPositionY = true,
+                keepOriginalPositionXZ = true,
+                lockRootRotation = true,
+                lockRootHeightY = true,
+                lockRootPositionXZ = true,
+                heightFromFeet = true,
+                rotationOffset = source.rotationOffset,
+                heightOffset = source.heightOffset,
+                hasAdditiveReferencePose = source.hasAdditiveReferencePose,
+                additiveReferencePoseFrame = source.additiveReferencePoseFrame,
+                maskType = source.maskType,
+                maskSource = source.maskSource,
+                curves = source.curves,
+                events = source.events
+            };
         }
 
         private static void ConfigureHumanoidImporter(
@@ -299,7 +458,7 @@ namespace SceneTalkVR.EditorTools
             importer.materialLocation = ModelImporterMaterialLocation.InPrefab;
             if (importAnimation)
             {
-                ConfigureClipLooping(importer);
+                changed |= ConfigureClipLooping(importer);
             }
 
             if (changed)
@@ -308,7 +467,7 @@ namespace SceneTalkVR.EditorTools
             }
         }
 
-        private static void ConfigureClipLooping(ModelImporter importer)
+        private static bool ConfigureClipLooping(ModelImporter importer)
         {
             var clips = importer.clipAnimations;
             if (clips == null || clips.Length == 0)
@@ -318,81 +477,184 @@ namespace SceneTalkVR.EditorTools
 
             if (clips == null || clips.Length == 0)
             {
-                return;
+                return false;
             }
 
+            var changed = false;
             for (var i = 0; i < clips.Length; i++)
             {
                 var clip = clips[i];
                 var name = clip.name ?? string.Empty;
-                if (name.Contains("Idle") || name.Contains("Walk") || name.Contains("Run"))
+                if (name.IndexOf("Idle", System.StringComparison.OrdinalIgnoreCase) >= 0
+                    || name.IndexOf("Walk", System.StringComparison.OrdinalIgnoreCase) >= 0
+                    || name.IndexOf("Run", System.StringComparison.OrdinalIgnoreCase) >= 0)
                 {
+                    changed |= clip.wrapMode != WrapMode.Loop || !clip.loopTime || !clip.loopPose;
+                    clip.wrapMode = WrapMode.Loop;
                     clip.loopTime = true;
                     clip.loopPose = true;
+                    clips[i] = clip;
                 }
             }
 
-            importer.clipAnimations = clips;
+            if (changed)
+            {
+                importer.clipAnimations = clips;
+            }
+
+            return changed;
+        }
+
+        private static AnimationClip CreateOrUpdateNativeIdleClip(string modelPath, string assetPath)
+        {
+            var source = LoadExactClip(modelPath, "__preview__CharacterArmature|Idle_Neutral");
+            if (source == null)
+            {
+                Debug.LogError($"[SceneTalkVR] Native Idle source clip was not found in {modelPath}.");
+                return null;
+            }
+
+            var target = AssetDatabase.LoadAssetAtPath<AnimationClip>(assetPath);
+            if (target == null)
+            {
+                target = new AnimationClip();
+                AssetDatabase.CreateAsset(target, assetPath);
+            }
+
+            target.ClearCurves();
+            target.name = System.IO.Path.GetFileNameWithoutExtension(assetPath);
+            target.frameRate = source.frameRate;
+            target.localBounds = source.localBounds;
+            target.legacy = source.legacy;
+            var sourceBindings = AnimationUtility.GetCurveBindings(source);
+            for (var i = 0; i < sourceBindings.Length; i++)
+            {
+                var binding = sourceBindings[i];
+                AnimationUtility.SetEditorCurve(
+                    target,
+                    binding,
+                    AnimationUtility.GetEditorCurve(source, binding));
+            }
+
+            var objectBindings = AnimationUtility.GetObjectReferenceCurveBindings(source);
+            for (var i = 0; i < objectBindings.Length; i++)
+            {
+                var binding = objectBindings[i];
+                AnimationUtility.SetObjectReferenceCurve(
+                    target,
+                    binding,
+                    AnimationUtility.GetObjectReferenceCurve(source, binding));
+            }
+
+            AnimationUtility.SetAnimationEvents(
+                target,
+                AnimationUtility.GetAnimationEvents(source));
+            target.wrapMode = WrapMode.Loop;
+            var settings = AnimationUtility.GetAnimationClipSettings(source);
+            settings.loopTime = true;
+            settings.loopBlend = true;
+            AnimationUtility.SetAnimationClipSettings(target, settings);
+            target.EnsureQuaternionContinuity();
+
+            var hasLeftFootCurves = false;
+            var hasRightFootCurves = false;
+            var bindings = AnimationUtility.GetCurveBindings(target);
+            for (var i = 0; i < bindings.Length; i++)
+            {
+                var binding = bindings[i];
+                if (binding.type != typeof(Transform))
+                {
+                    continue;
+                }
+
+                hasLeftFootCurves |= binding.path == "CharacterArmature/Root/Foot.L";
+                hasRightFootCurves |= binding.path == "CharacterArmature/Root/Foot.R";
+            }
+
+            if (!hasLeftFootCurves || !hasRightFootCurves)
+            {
+                Debug.LogError(
+                    $"[SceneTalkVR] Native Idle is missing foot transform curves: "
+                    + $"path={assetPath}, left={hasLeftFootCurves}, right={hasRightFootCurves}.");
+                return null;
+            }
+
+            EditorUtility.SetDirty(target);
+            return target;
         }
 
         private static HumanDescription CreateQuaterniusHumanDescription(Transform root)
         {
+            var humanBones = new[]
+            {
+                Human("Hips", "Body"),
+                Human("Spine", "Hips"),
+                Human("Chest", "Torso"),
+                Human("UpperChest", "Chest"),
+                Human("Neck", "Neck"),
+                Human("Head", "Head"),
+                Human("LeftShoulder", "Shoulder.L"),
+                Human("LeftUpperArm", "UpperArm.L"),
+                Human("LeftLowerArm", "LowerArm.L"),
+                Human("LeftHand", "Wrist.L"),
+                Human("RightShoulder", "Shoulder.R"),
+                Human("RightUpperArm", "UpperArm.R"),
+                Human("RightLowerArm", "LowerArm.R"),
+                Human("RightHand", "Wrist.R"),
+                Human("LeftUpperLeg", "UpperLeg.L"),
+                Human("LeftLowerLeg", "LowerLeg.L"),
+                Human("LeftFoot", "LowerLeg.L_end"),
+                Human("RightUpperLeg", "UpperLeg.R"),
+                Human("RightLowerLeg", "LowerLeg.R"),
+                Human("RightFoot", "LowerLeg.R_end"),
+                Human("Left Thumb Proximal", "Thumb1.L"),
+                Human("Left Thumb Intermediate", "Thumb2.L"),
+                Human("Left Thumb Distal", "Thumb3.L"),
+                Human("Left Index Proximal", "Index1.L"),
+                Human("Left Index Intermediate", "Index2.L"),
+                Human("Left Index Distal", "Index3.L"),
+                Human("Left Middle Proximal", "Middle1.L"),
+                Human("Left Middle Intermediate", "Middle2.L"),
+                Human("Left Middle Distal", "Middle3.L"),
+                Human("Left Ring Proximal", "Ring1.L"),
+                Human("Left Ring Intermediate", "Ring2.L"),
+                Human("Left Ring Distal", "Ring3.L"),
+                Human("Left Little Proximal", "Pinky1.L"),
+                Human("Left Little Intermediate", "Pinky2.L"),
+                Human("Left Little Distal", "Pinky3.L"),
+                Human("Right Thumb Proximal", "Thumb1.R"),
+                Human("Right Thumb Intermediate", "Thumb2.R"),
+                Human("Right Thumb Distal", "Thumb3.R"),
+                Human("Right Index Proximal", "Index1.R"),
+                Human("Right Index Intermediate", "Index2.R"),
+                Human("Right Index Distal", "Index3.R"),
+                Human("Right Middle Proximal", "Middle1.R"),
+                Human("Right Middle Intermediate", "Middle2.R"),
+                Human("Right Middle Distal", "Middle3.R"),
+                Human("Right Ring Proximal", "Ring1.R"),
+                Human("Right Ring Intermediate", "Ring2.R"),
+                Human("Right Ring Distal", "Ring3.R"),
+                Human("Right Little Proximal", "Pinky1.R"),
+                Human("Right Little Intermediate", "Pinky2.R"),
+                Human("Right Little Distal", "Pinky3.R")
+            };
+            var setupMethod = typeof(ModelImporter).Assembly
+                .GetType("UnityEditor.AvatarSetupTool")
+                ?.GetMethod(
+                    "SetupHumanSkeleton",
+                    System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            if (setupMethod == null)
+            {
+                throw new System.InvalidOperationException("Unity AvatarSetupTool.SetupHumanSkeleton was not found.");
+            }
+
+            object[] setupArguments = { root.gameObject, humanBones, null, false };
+            setupMethod.Invoke(null, setupArguments);
+
             return new HumanDescription
             {
-                human = new[]
-                {
-                    Human("Hips", "Body"),
-                    Human("Spine", "Hips"),
-                    Human("Chest", "Torso"),
-                    Human("UpperChest", "Chest"),
-                    Human("Neck", "Neck"),
-                    Human("Head", "Head"),
-                    Human("LeftShoulder", "Shoulder.L"),
-                    Human("LeftUpperArm", "UpperArm.L"),
-                    Human("LeftLowerArm", "LowerArm.L"),
-                    Human("LeftHand", "Wrist.L"),
-                    Human("RightShoulder", "Shoulder.R"),
-                    Human("RightUpperArm", "UpperArm.R"),
-                    Human("RightLowerArm", "LowerArm.R"),
-                    Human("RightHand", "Wrist.R"),
-                    Human("LeftUpperLeg", "UpperLeg.L"),
-                    Human("LeftLowerLeg", "LowerLeg.L"),
-                    Human("LeftFoot", "LowerLeg.L_end"),
-                    Human("RightUpperLeg", "UpperLeg.R"),
-                    Human("RightLowerLeg", "LowerLeg.R"),
-                    Human("RightFoot", "LowerLeg.R_end"),
-                    Human("Left Thumb Proximal", "Thumb1.L"),
-                    Human("Left Thumb Intermediate", "Thumb2.L"),
-                    Human("Left Thumb Distal", "Thumb3.L"),
-                    Human("Left Index Proximal", "Index1.L"),
-                    Human("Left Index Intermediate", "Index2.L"),
-                    Human("Left Index Distal", "Index3.L"),
-                    Human("Left Middle Proximal", "Middle1.L"),
-                    Human("Left Middle Intermediate", "Middle2.L"),
-                    Human("Left Middle Distal", "Middle3.L"),
-                    Human("Left Ring Proximal", "Ring1.L"),
-                    Human("Left Ring Intermediate", "Ring2.L"),
-                    Human("Left Ring Distal", "Ring3.L"),
-                    Human("Left Little Proximal", "Pinky1.L"),
-                    Human("Left Little Intermediate", "Pinky2.L"),
-                    Human("Left Little Distal", "Pinky3.L"),
-                    Human("Right Thumb Proximal", "Thumb1.R"),
-                    Human("Right Thumb Intermediate", "Thumb2.R"),
-                    Human("Right Thumb Distal", "Thumb3.R"),
-                    Human("Right Index Proximal", "Index1.R"),
-                    Human("Right Index Intermediate", "Index2.R"),
-                    Human("Right Index Distal", "Index3.R"),
-                    Human("Right Middle Proximal", "Middle1.R"),
-                    Human("Right Middle Intermediate", "Middle2.R"),
-                    Human("Right Middle Distal", "Middle3.R"),
-                    Human("Right Ring Proximal", "Ring1.R"),
-                    Human("Right Ring Intermediate", "Ring2.R"),
-                    Human("Right Ring Distal", "Ring3.R"),
-                    Human("Right Little Proximal", "Pinky1.R"),
-                    Human("Right Little Intermediate", "Pinky2.R"),
-                    Human("Right Little Distal", "Pinky3.R")
-                },
-                skeleton = CreateSkeleton(root),
+                human = humanBones,
+                skeleton = (SkeletonBone[])setupArguments[2],
                 upperArmTwist = 0.5f,
                 lowerArmTwist = 0.5f,
                 upperLegTwist = 0.5f,
@@ -400,7 +662,7 @@ namespace SceneTalkVR.EditorTools
                 armStretch = 0.05f,
                 legStretch = 0.05f,
                 feetSpacing = 0f,
-                hasTranslationDoF = false
+                hasTranslationDoF = (bool)setupArguments[3]
             };
         }
 
@@ -417,192 +679,107 @@ namespace SceneTalkVR.EditorTools
             };
         }
 
-        private static HumanDescription CreateDefRigHumanDescription(Transform root)
+        private static AnimatorController BuildCommonHumanoidAnimatorController(AnimationClip idleClip)
         {
-            return new HumanDescription
+            var speakWaveClip = LoadClip("CharacterArmature|Wave") ?? idleClip;
+            var thinkingEnterClip = LoadClip(ThinkingAnimationPath, ThinkingEnterClipName);
+            var thinkingHoldClip = LoadClip(ThinkingAnimationPath, ThinkingHoldClipName);
+            var talkClip = LoadClip(TalkAnimationPath, TalkClipName);
+            if (idleClip == null
+                || speakWaveClip == null
+                || thinkingEnterClip == null
+                || thinkingHoldClip == null
+                || talkClip == null)
             {
-                human = new[]
-                {
-                    Human("Hips", "DEF-hips"),
-                    Human("Spine", "DEF-spine.001"),
-                    Human("Chest", "DEF-spine.002"),
-                    Human("UpperChest", "DEF-spine.003"),
-                    Human("Neck", "DEF-neck"),
-                    Human("Head", "DEF-head"),
-                    Human("LeftShoulder", "DEF-shoulder.L"),
-                    Human("LeftUpperArm", "DEF-upper_arm.L"),
-                    Human("LeftLowerArm", "DEF-forearm.L"),
-                    Human("LeftHand", "DEF-hand.L"),
-                    Human("RightShoulder", "DEF-shoulder.R"),
-                    Human("RightUpperArm", "DEF-upper_arm.R"),
-                    Human("RightLowerArm", "DEF-forearm.R"),
-                    Human("RightHand", "DEF-hand.R"),
-                    Human("LeftUpperLeg", "DEF-thigh.L"),
-                    Human("LeftLowerLeg", "DEF-shin.L"),
-                    Human("LeftFoot", "DEF-foot.L"),
-                    Human("RightUpperLeg", "DEF-thigh.R"),
-                    Human("RightLowerLeg", "DEF-shin.R"),
-                    Human("RightFoot", "DEF-foot.R"),
-                    Human("Left Thumb Proximal", "DEF-thumb.01.L"),
-                    Human("Left Thumb Intermediate", "DEF-thumb.02.L"),
-                    Human("Left Thumb Distal", "DEF-thumb.03.L"),
-                    Human("Left Index Proximal", "DEF-f_index.01.L"),
-                    Human("Left Index Intermediate", "DEF-f_index.02.L"),
-                    Human("Left Index Distal", "DEF-f_index.03.L"),
-                    Human("Left Middle Proximal", "DEF-f_middle.01.L"),
-                    Human("Left Middle Intermediate", "DEF-f_middle.02.L"),
-                    Human("Left Middle Distal", "DEF-f_middle.03.L"),
-                    Human("Left Ring Proximal", "DEF-f_ring.01.L"),
-                    Human("Left Ring Intermediate", "DEF-f_ring.02.L"),
-                    Human("Left Ring Distal", "DEF-f_ring.03.L"),
-                    Human("Left Little Proximal", "DEF-f_pinky.01.L"),
-                    Human("Left Little Intermediate", "DEF-f_pinky.02.L"),
-                    Human("Left Little Distal", "DEF-f_pinky.03.L"),
-                    Human("Right Thumb Proximal", "DEF-thumb.01.R"),
-                    Human("Right Thumb Intermediate", "DEF-thumb.02.R"),
-                    Human("Right Thumb Distal", "DEF-thumb.03.R"),
-                    Human("Right Index Proximal", "DEF-f_index.01.R"),
-                    Human("Right Index Intermediate", "DEF-f_index.02.R"),
-                    Human("Right Index Distal", "DEF-f_index.03.R"),
-                    Human("Right Middle Proximal", "DEF-f_middle.01.R"),
-                    Human("Right Middle Intermediate", "DEF-f_middle.02.R"),
-                    Human("Right Middle Distal", "DEF-f_middle.03.R"),
-                    Human("Right Ring Proximal", "DEF-f_ring.01.R"),
-                    Human("Right Ring Intermediate", "DEF-f_ring.02.R"),
-                    Human("Right Ring Distal", "DEF-f_ring.03.R"),
-                    Human("Right Little Proximal", "DEF-f_pinky.01.R"),
-                    Human("Right Little Intermediate", "DEF-f_pinky.02.R"),
-                    Human("Right Little Distal", "DEF-f_pinky.03.R")
-                },
-                skeleton = CreateSkeleton(root),
-                upperArmTwist = 0.5f,
-                lowerArmTwist = 0.5f,
-                upperLegTwist = 0.5f,
-                lowerLegTwist = 0.5f,
-                armStretch = 0.05f,
-                legStretch = 0.05f,
-                feetSpacing = 0f,
-                hasTranslationDoF = false
-            };
-        }
-
-        private static SkeletonBone[] CreateSkeleton(Transform root)
-        {
-            var transforms = root.GetComponentsInChildren<Transform>(true);
-            var skeleton = new SkeletonBone[transforms.Length];
-            for (var i = 0; i < transforms.Length; i++)
-            {
-                var bone = transforms[i];
-                skeleton[i] = new SkeletonBone
-                {
-                    name = bone.name,
-                    position = bone.localPosition,
-                    rotation = bone.localRotation,
-                    scale = bone.localScale
-                };
+                Debug.LogError(
+                    $"[SceneTalkVR] Shared animation clips are incomplete: idle={idleClip != null}, "
+                    + $"speakWave={speakWaveClip != null}, "
+                    + $"thinkingEnter={thinkingEnterClip != null}, thinkingHold={thinkingHoldClip != null}, "
+                    + $"talk={talkClip != null}.");
+                return null;
             }
 
-            return skeleton;
-        }
-
-        private static AnimatorController CreateCommonHumanoidAnimatorController()
-        {
-            if (AssetDatabase.LoadAssetAtPath<AnimatorController>(CommonHumanoidControllerPath) != null)
+            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(CommonHumanoidControllerPath);
+            if (controller == null)
             {
-                AssetDatabase.DeleteAsset(CommonHumanoidControllerPath);
+                controller = AnimatorController.CreateAnimatorControllerAtPath(CommonHumanoidControllerPath);
             }
 
-            var controller = AnimatorController.CreateAnimatorControllerAtPath(CommonHumanoidControllerPath);
-            controller.AddParameter("Think", AnimatorControllerParameterType.Trigger);
+            ResetAnimatorController(controller);
             controller.AddParameter("Speak", AnimatorControllerParameterType.Trigger);
-            controller.AddParameter("Talk", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("IsThinking", AnimatorControllerParameterType.Bool);
+            controller.AddParameter("IsTalking", AnimatorControllerParameterType.Bool);
 
-            var stateMachine = controller.layers[0].stateMachine;
-            var idleClip = LoadClip("CharacterArmature|Idle_Neutral") ?? LoadClip("CharacterArmature|Idle");
-            var thinkClip = LoadClip("CharacterArmature|Interact") ?? idleClip;
-            var speakClip = LoadClip("CharacterArmature|Wave") ?? thinkClip ?? idleClip;
-            var talkClip = LoadClip(TalkingAnimationModelPath, "Rig|Idle_Talking_Loop")
-                ?? LoadClip(TalkingAnimationModelPath, "CharacterArmature|Idle_Talking_Loop");
-
-            var idle = stateMachine.AddState("Idle");
+            var baseStateMachine = controller.layers[0].stateMachine;
+            var idle = baseStateMachine.AddState("Idle");
             idle.motion = idleClip;
-            stateMachine.defaultState = idle;
-
-            var thinking = stateMachine.AddState("Thinking");
-            thinking.motion = thinkClip;
-            var speaking = stateMachine.AddState("Speaking");
-            speaking.motion = speakClip;
-
-            AddTriggeredReturnTransition(stateMachine, thinking, idle, "Think");
-            AddTriggeredReturnTransition(stateMachine, speaking, idle, "Speak");
-
-            if (talkClip != null)
-            {
-                AddTalkGestureLayer(controller, talkClip);
-            }
-            else
-            {
-                var talking = stateMachine.AddState("TalkingFallback");
-                talking.motion = thinkClip ?? idleClip;
-                AddTriggeredReturnTransition(stateMachine, talking, idle, "Talk");
-                Debug.LogWarning("[SceneTalkVR] External talking clip was not found; Talk falls back to the same-rig Interact clip.");
-            }
-
-            EditorUtility.SetDirty(controller);
-            return controller;
-        }
-
-        private static AnimatorController LoadOrCreateCommonHumanoidAnimatorController()
-        {
-            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(CommonHumanoidControllerPath)
-                ?? CreateCommonHumanoidAnimatorController();
-            EnableBaseLayerIk(controller);
-            return controller;
-        }
-
-        private static void EnableBaseLayerIk(AnimatorController controller)
-        {
-            if (controller == null || controller.layers == null || controller.layers.Length == 0)
-            {
-                return;
-            }
+            idle.writeDefaultValues = false;
+            baseStateMachine.defaultState = idle;
 
             var layers = controller.layers;
             var baseLayer = layers[0];
-            if (baseLayer.iKPass)
-            {
-                return;
-            }
-
             baseLayer.iKPass = true;
             layers[0] = baseLayer;
             controller.layers = layers;
+
+            AddConversationLayer(
+                controller,
+                idleClip,
+                speakWaveClip,
+                thinkingEnterClip,
+                thinkingHoldClip,
+                talkClip);
+            AddThinkingHeadStabilizationLayer(
+                controller,
+                idleClip,
+                speakWaveClip,
+                talkClip);
             EditorUtility.SetDirty(controller);
+            AssetDatabase.SaveAssets();
+            return controller;
+        }
+
+        private static void ResetAnimatorController(AnimatorController controller)
+        {
+            for (var i = controller.layers.Length - 1; i >= 0; i--)
+            {
+                controller.RemoveLayer(i);
+            }
+
+            for (var i = controller.parameters.Length - 1; i >= 0; i--)
+            {
+                controller.RemoveParameter(i);
+            }
+
+            controller.AddLayer("Base Layer");
         }
 
         private static AnimatorOverrideController CreateOrUpdateCharacterOverrideController(
             string assetPath,
             RuntimeAnimatorController baseController,
-            string characterModelPath)
+            string characterModelPath,
+            AnimationClip characterIdle)
         {
-            var baseIdle = LoadClip(TeacherModelPath, "CharacterArmature|Idle_Neutral")
-                ?? LoadClip(TeacherModelPath, "CharacterArmature|Idle");
-            var baseThinking = LoadClip(TeacherModelPath, "CharacterArmature|Interact") ?? baseIdle;
-            var baseSpeaking = LoadClip(TeacherModelPath, "CharacterArmature|Wave") ?? baseThinking;
-            var characterIdle = LoadClip(characterModelPath, "CharacterArmature|Idle_Neutral")
-                ?? LoadClip(characterModelPath, "CharacterArmature|Idle");
-            var characterThinking = LoadClip(characterModelPath, "CharacterArmature|Interact") ?? characterIdle;
-            var characterSpeaking = LoadClip(characterModelPath, "CharacterArmature|Wave") ?? characterThinking;
+            var baseIdle = AssetDatabase.LoadAssetAtPath<AnimationClip>(TeacherIdlePath);
+            var baseSpeaking = LoadClip(TeacherModelPath, "CharacterArmature|Wave") ?? baseIdle;
+            var characterSpeaking = LoadClip(characterModelPath, "CharacterArmature|Wave") ?? baseIdle;
 
             if (baseController == null
                 || baseIdle == null
-                || baseThinking == null
                 || baseSpeaking == null
                 || characterIdle == null
-                || characterThinking == null
                 || characterSpeaking == null)
             {
                 Debug.LogError($"[SceneTalkVR] Missing native animation clips for '{characterModelPath}'.");
+                return null;
+            }
+
+            if (!baseIdle.isLooping || !characterIdle.isLooping)
+            {
+                Debug.LogError(
+                    $"[SceneTalkVR] Native Idle clips must loop: "
+                    + $"base={baseIdle.name} ({baseIdle.isLooping}), "
+                    + $"character={characterIdle.name} ({characterIdle.isLooping}).");
                 return null;
             }
 
@@ -614,13 +791,16 @@ namespace SceneTalkVR.EditorTools
             }
             else
             {
+                // Reassign through the public API so Unity rebuilds its internal clip-key table.
+                overrideController.runtimeAnimatorController = null;
                 overrideController.runtimeAnimatorController = baseController;
             }
+
+            overrideController.name = System.IO.Path.GetFileNameWithoutExtension(assetPath);
 
             var overrides = new List<KeyValuePair<AnimationClip, AnimationClip>>();
             overrideController.GetOverrides(overrides);
             SetClipOverride(overrides, baseIdle, characterIdle);
-            SetClipOverride(overrides, baseThinking, characterThinking);
             SetClipOverride(overrides, baseSpeaking, characterSpeaking);
             overrideController.ApplyOverrides(overrides);
             EditorUtility.SetDirty(overrideController);
@@ -644,10 +824,16 @@ namespace SceneTalkVR.EditorTools
             Debug.LogWarning($"[SceneTalkVR] Animator override source clip '{source.name}' was not found in the base controller.");
         }
 
-        private static void AddTalkGestureLayer(AnimatorController controller, AnimationClip talkClip)
+        private static void AddConversationLayer(
+            AnimatorController controller,
+            AnimationClip idleClip,
+            AnimationClip speakWaveClip,
+            AnimationClip thinkingEnterClip,
+            AnimationClip thinkingHoldClip,
+            AnimationClip talkClip)
         {
-            var mask = CreateTalkGestureMask();
-            controller.AddLayer("Talk Gesture");
+            var mask = CreateOrUpdateConversationMask();
+            controller.AddLayer("Upper Body Conversation");
             var layers = controller.layers;
             var layer = layers[layers.Length - 1];
             layer.defaultWeight = 1f;
@@ -655,25 +841,130 @@ namespace SceneTalkVR.EditorTools
             layer.blendingMode = AnimatorLayerBlendingMode.Override;
 
             var stateMachine = layer.stateMachine;
-            var idle = stateMachine.AddState("TalkLayerIdle");
+            var idle = stateMachine.AddState("ConversationIdle");
+            idle.motion = idleClip;
+            idle.writeDefaultValues = false;
             stateMachine.defaultState = idle;
 
-            var talking = stateMachine.AddState("TalkingGesture");
+            var thinkingEnter = stateMachine.AddState("ThinkingEnter");
+            thinkingEnter.motion = thinkingEnterClip;
+            thinkingEnter.writeDefaultValues = false;
+            var thinkingHold = stateMachine.AddState("ThinkingHold");
+            thinkingHold.motion = thinkingHoldClip;
+            thinkingHold.writeDefaultValues = false;
+            var speakWave = stateMachine.AddState("SpeakWave");
+            speakWave.motion = speakWaveClip;
+            speakWave.writeDefaultValues = false;
+            var talking = stateMachine.AddState("TalkLoop");
             talking.motion = talkClip;
-            AddTriggeredReturnTransition(stateMachine, talking, idle, "Talk");
+            talking.writeDefaultValues = false;
+
+            AddBoolTransition(idle, thinkingEnter, "IsThinking", true);
+            AddBoolTransition(idle, talking, "IsTalking", true);
+            AddBoolTransition(thinkingEnter, talking, "IsTalking", true);
+            AddBoolTransition(thinkingEnter, idle, "IsThinking", false);
+            AddExitTimeTransition(
+                thinkingEnter,
+                thinkingHold,
+                "IsThinking",
+                true,
+                0.95f,
+                0.1f);
+            AddBoolTransition(thinkingHold, talking, "IsTalking", true);
+            AddBoolTransition(thinkingHold, idle, "IsThinking", false);
+            AddBoolTransition(talking, idle, "IsTalking", false);
+
+            var open = stateMachine.AddAnyStateTransition(speakWave);
+            open.AddCondition(AnimatorConditionMode.If, 0f, "Speak");
+            open.duration = 0.1f;
+            open.canTransitionToSelf = false;
+
+            AddExitTimeTransition(speakWave, talking, "IsTalking", true);
+            AddExitTimeTransition(speakWave, idle, "IsTalking", false);
 
             layers[layers.Length - 1] = layer;
             controller.layers = layers;
         }
 
-        private static AvatarMask CreateTalkGestureMask()
+        private static AvatarMask CreateOrUpdateConversationMask()
         {
-            if (AssetDatabase.LoadAssetAtPath<AvatarMask>(TalkGestureMaskPath) != null)
+            var mask = AssetDatabase.LoadAssetAtPath<AvatarMask>(ConversationMaskPath);
+            if (mask == null)
             {
-                AssetDatabase.DeleteAsset(TalkGestureMaskPath);
+                mask = new AvatarMask();
+                AssetDatabase.CreateAsset(mask, ConversationMaskPath);
             }
 
-            var mask = new AvatarMask();
+            for (var i = 0; i < (int)AvatarMaskBodyPart.LastBodyPart; i++)
+            {
+                mask.SetHumanoidBodyPartActive((AvatarMaskBodyPart)i, false);
+            }
+
+            mask.SetHumanoidBodyPartActive(AvatarMaskBodyPart.Head, true);
+            mask.SetHumanoidBodyPartActive(AvatarMaskBodyPart.LeftArm, true);
+            mask.SetHumanoidBodyPartActive(AvatarMaskBodyPart.RightArm, true);
+
+            EditorUtility.SetDirty(mask);
+            return mask;
+        }
+
+        private static void AddThinkingHeadStabilizationLayer(
+            AnimatorController controller,
+            AnimationClip idleClip,
+            AnimationClip speakWaveClip,
+            AnimationClip talkClip)
+        {
+            var mask = CreateOrUpdateThinkingHeadMask();
+            controller.AddLayer("Thinking Head Stabilization");
+            var layers = controller.layers;
+            var layer = layers[layers.Length - 1];
+            layer.defaultWeight = 1f;
+            layer.avatarMask = mask;
+            layer.blendingMode = AnimatorLayerBlendingMode.Override;
+
+            var stateMachine = layer.stateMachine;
+            var idle = stateMachine.AddState("HeadIdle");
+            idle.motion = idleClip;
+            idle.writeDefaultValues = false;
+            stateMachine.defaultState = idle;
+
+            var thinkingHeadIdle = stateMachine.AddState("ThinkingHeadIdle");
+            thinkingHeadIdle.motion = idleClip;
+            thinkingHeadIdle.writeDefaultValues = false;
+            var speakWave = stateMachine.AddState("HeadSpeakWave");
+            speakWave.motion = speakWaveClip;
+            speakWave.writeDefaultValues = false;
+            var talking = stateMachine.AddState("HeadTalkLoop");
+            talking.motion = talkClip;
+            talking.writeDefaultValues = false;
+
+            AddBoolTransition(idle, thinkingHeadIdle, "IsThinking", true);
+            AddBoolTransition(idle, talking, "IsTalking", true);
+            AddBoolTransition(thinkingHeadIdle, talking, "IsTalking", true);
+            AddBoolTransition(thinkingHeadIdle, idle, "IsThinking", false);
+            AddBoolTransition(talking, idle, "IsTalking", false);
+
+            var open = stateMachine.AddAnyStateTransition(speakWave);
+            open.AddCondition(AnimatorConditionMode.If, 0f, "Speak");
+            open.duration = 0.1f;
+            open.canTransitionToSelf = false;
+
+            AddExitTimeTransition(speakWave, talking, "IsTalking", true);
+            AddExitTimeTransition(speakWave, idle, "IsTalking", false);
+
+            layers[layers.Length - 1] = layer;
+            controller.layers = layers;
+        }
+
+        private static AvatarMask CreateOrUpdateThinkingHeadMask()
+        {
+            var mask = AssetDatabase.LoadAssetAtPath<AvatarMask>(ThinkingHeadMaskPath);
+            if (mask == null)
+            {
+                mask = new AvatarMask();
+                AssetDatabase.CreateAsset(mask, ThinkingHeadMaskPath);
+            }
+
             for (var i = 0; i < (int)AvatarMaskBodyPart.LastBodyPart; i++)
             {
                 mask.SetHumanoidBodyPartActive((AvatarMaskBodyPart)i, false);
@@ -681,26 +972,61 @@ namespace SceneTalkVR.EditorTools
 
             mask.SetHumanoidBodyPartActive(AvatarMaskBodyPart.Head, true);
 
-            AssetDatabase.CreateAsset(mask, TalkGestureMaskPath);
             EditorUtility.SetDirty(mask);
             return mask;
         }
 
-        private static void AddTriggeredReturnTransition(
-            AnimatorStateMachine stateMachine,
-            AnimatorState triggeredState,
-            AnimatorState idleState,
-            string triggerName)
+        private static void AddBoolTransition(
+            AnimatorState source,
+            AnimatorState destination,
+            string parameterName,
+            bool expectedValue)
         {
-            var enter = stateMachine.AddAnyStateTransition(triggeredState);
-            enter.AddCondition(AnimatorConditionMode.If, 0f, triggerName);
-            enter.duration = 0.1f;
-            enter.canTransitionToSelf = false;
+            var transition = source.AddTransition(destination);
+            transition.hasExitTime = false;
+            transition.duration = 0.15f;
+            transition.AddCondition(
+                expectedValue ? AnimatorConditionMode.If : AnimatorConditionMode.IfNot,
+                0f,
+                parameterName);
+        }
 
-            var exit = triggeredState.AddTransition(idleState);
-            exit.hasExitTime = true;
-            exit.exitTime = 0.9f;
-            exit.duration = 0.1f;
+        private static void AddExitTimeTransition(
+            AnimatorState source,
+            AnimatorState destination,
+            string parameterName,
+            bool expectedValue,
+            float exitTime = 0.9f,
+            float duration = 0.15f)
+        {
+            var transition = source.AddTransition(destination);
+            transition.hasExitTime = true;
+            transition.exitTime = exitTime;
+            transition.duration = duration;
+            transition.AddCondition(
+                expectedValue ? AnimatorConditionMode.If : AnimatorConditionMode.IfNot,
+                0f,
+                parameterName);
+        }
+
+        private readonly struct MixamoClipDefinition
+        {
+            public MixamoClipDefinition(
+                string name,
+                float? firstFrame,
+                float? lastFrame,
+                bool loopTime)
+            {
+                Name = name;
+                FirstFrame = firstFrame;
+                LastFrame = lastFrame;
+                LoopTime = loopTime;
+            }
+
+            public string Name { get; }
+            public float? FirstFrame { get; }
+            public float? LastFrame { get; }
+            public bool LoopTime { get; }
         }
 
         private static AnimationClip LoadClip(string clipName)
@@ -714,12 +1040,30 @@ namespace SceneTalkVR.EditorTools
                 ?? FindClip(AssetDatabase.LoadAllAssetRepresentationsAtPath(assetPath), clipName);
         }
 
+        private static AnimationClip LoadExactClip(string assetPath, string clipName)
+        {
+            var assets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
+            for (var i = 0; i < assets.Length; i++)
+            {
+                var clip = assets[i] as AnimationClip;
+                if (clip != null
+                    && string.Equals(clip.name, clipName, System.StringComparison.Ordinal))
+                {
+                    return clip;
+                }
+            }
+
+            return null;
+        }
+
         private static AnimationClip FindClip(UnityEngine.Object[] assets, string clipName)
         {
             for (var i = 0; i < assets.Length; i++)
             {
                 var clip = assets[i] as AnimationClip;
-                if (clip != null && IsClipNameMatch(clip.name, clipName))
+                if (clip != null
+                    && !clip.name.StartsWith("__preview__", System.StringComparison.Ordinal)
+                    && IsClipNameMatch(clip.name, clipName))
                 {
                     return clip;
                 }

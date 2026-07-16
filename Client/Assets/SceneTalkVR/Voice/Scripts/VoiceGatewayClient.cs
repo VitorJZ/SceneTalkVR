@@ -216,6 +216,7 @@ namespace SceneTalkVR.Voice
         public bool isFinal;
         public string transcript;
         public float confidence;
+        public bool confidenceAvailable;
         public int durationMs;
         public int latencyMs;
         public string fallbackLevel;

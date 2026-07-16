@@ -9,11 +9,13 @@ AnimatorOverrideController:
   m_Name: barista_male_humanoid_v1
   m_Controller: {fileID: 9100000, guid: 2b78b31307ad14184a55d4c154c482a1, type: 2}
   m_Clips:
-  - m_OriginalClip: {fileID: 5568892555482406616, guid: 3456f8967fc8b468d9066d1c709b6716, type: 3}
-    m_OverrideClip: {fileID: 110800016, guid: 2715cc67cb7e24a2794fdf05b618fbb7, type: 3}
-  - m_OriginalClip: {fileID: -7342239243898120005, guid: 3456f8967fc8b468d9066d1c709b6716, type: 3}
-    m_OverrideClip: {fileID: 110800020, guid: 2715cc67cb7e24a2794fdf05b618fbb7, type: 3}
+  - m_OriginalClip: {fileID: 7400000, guid: 98694c220bac74f8aa41a4eb4c0440dc, type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: 23dc33c8db1244979a28b84183641f4b, type: 2}
   - m_OriginalClip: {fileID: -9021793991225143758, guid: 3456f8967fc8b468d9066d1c709b6716, type: 3}
-    m_OverrideClip: {fileID: 110800046, guid: 2715cc67cb7e24a2794fdf05b618fbb7, type: 3}
-  - m_OriginalClip: {fileID: 110800018, guid: f13dc3a15b294420f9049a1835f0d164, type: 3}
+    m_OverrideClip: {fileID: -9021793991225143758, guid: 2715cc67cb7e24a2794fdf05b618fbb7, type: 3}
+  - m_OriginalClip: {fileID: -203655887218126122, guid: ce2095755d6aa467fb0133d9b908f8b8, type: 3}
+    m_OverrideClip: {fileID: 0}
+  - m_OriginalClip: {fileID: -203655887218126122, guid: bc2f2df51a2f44eb8aaa6f9ca60cd5f5, type: 3}
+    m_OverrideClip: {fileID: 0}
+  - m_OriginalClip: {fileID: 4061839508520268033, guid: ce2095755d6aa467fb0133d9b908f8b8, type: 3}
     m_OverrideClip: {fileID: 0}

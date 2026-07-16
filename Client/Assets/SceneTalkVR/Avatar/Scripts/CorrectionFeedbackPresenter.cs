@@ -125,7 +125,8 @@ namespace SceneTalkVR.AvatarSystem
         internal IEnumerator Present(
             SpringScenePayload payload,
             AvatarSpeechPlaybackContext playbackContext,
-            Action triggerDialogueAvatarSpeaking,
+            Action beginDialogueAvatarSpeaking,
+            Action endDialogueAvatarSpeaking,
             Action<CorrectionPlaybackResult> onComplete)
         {
             if (experimentLocked && debugForceFeedback)
@@ -204,7 +205,8 @@ namespace SceneTalkVR.AvatarSystem
             AvatarSpeechPlaybackResult playbackResult = null;
             if (useDialogueAvatar)
             {
-                triggerDialogueAvatarSpeaking?.Invoke();
+                playbackRequest.playbackStarted = beginDialogueAvatarSpeaking;
+                playbackRequest.playbackEnded = endDialogueAvatarSpeaking;
                 yield return SpeechPlayer.Play(
                     playbackContext,
                     payload,
@@ -216,9 +218,10 @@ namespace SceneTalkVR.AvatarSystem
                 var correctionAgent = ResolveCorrectionAgentPresenter(createCorrectionAgentIfMissing);
                 if (correctionAgent != null)
                 {
-                    correctionAgent.ShowImmediate();
-                    correctionAgent.BeginSpeaking();
+                    correctionAgent.SetVisible(true);
                     playbackRequest.audioSourceOverride = correctionAgent.AudioSource;
+                    playbackRequest.playbackStarted = correctionAgent.BeginSpeaking;
+                    playbackRequest.playbackEnded = correctionAgent.EndSpeaking;
                     yield return SpeechPlayer.Play(
                         playbackContext,
                         payload,
@@ -308,19 +311,12 @@ namespace SceneTalkVR.AvatarSystem
             var shouldShow = ShouldKeepAssistantVisible();
             var correctionAgent = ResolveCorrectionAgentPresenter(
                 shouldShow && createCorrectionAgentIfMissing);
-            if (correctionAgent == null || correctionAgent.IsVisible == shouldShow)
+            if (correctionAgent == null || correctionAgent.TargetVisible == shouldShow)
             {
                 return;
             }
 
-            if (shouldShow)
-            {
-                correctionAgent.ShowImmediate();
-            }
-            else
-            {
-                correctionAgent.HideImmediate();
-            }
+            correctionAgent.SetVisible(shouldShow);
         }
 
         private string ResolveConfiguredProvider(CorrectionFeedbackData feedback)

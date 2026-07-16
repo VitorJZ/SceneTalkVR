@@ -19,6 +19,7 @@ class FallbackSpeechProvider:
                 provider=result.provider,
                 transcript=result.transcript,
                 confidence=result.confidence,
+                confidence_available=result.confidence_available,
                 duration_ms=result.duration_ms,
                 latency_ms=result.latency_ms,
                 fallback_level=f"mock_after_{self._primary.name}_error:{exc}",

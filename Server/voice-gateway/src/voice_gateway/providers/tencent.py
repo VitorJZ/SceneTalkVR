@@ -188,7 +188,9 @@ class TencentSpeechProvider:
             request_id=str(response.get("RequestId") or f"stt_{uuid4().hex[:12]}"),
             provider=self.name,
             transcript=transcript,
-            confidence=1.0,
+            # SentenceRecognition does not return a confidence score.
+            confidence=0.0,
+            confidence_available=False,
             duration_ms=_read_int(response.get("AudioDuration"), 0),
             latency_ms=_elapsed_ms(started),
             fallback_level="none",

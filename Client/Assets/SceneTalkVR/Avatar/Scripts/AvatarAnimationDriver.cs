@@ -4,13 +4,11 @@ namespace SceneTalkVR.AvatarSystem
 {
     public sealed class AvatarAnimationDriver : MonoBehaviour
     {
-        private const string DefaultFollowUpSpeakingTrigger = "Talk";
-
         [SerializeField] private Animator fallbackAnimator;
         [SerializeField] private string idleStateName = "Idle";
-        [SerializeField] private string thinkingTrigger = "Think";
-        [SerializeField] private string speakingTrigger = "Speak";
-        [SerializeField] private string followUpSpeakingTrigger = "Talk";
+        [SerializeField] private string openingSpeechTrigger = "Speak";
+        [SerializeField] private string thinkingParameter = "IsThinking";
+        [SerializeField] private string talkingParameter = "IsTalking";
         [SerializeField] private bool useFallbackAnimator = true;
 
         private Animator currentAnimator;
@@ -19,7 +17,7 @@ namespace SceneTalkVR.AvatarSystem
 
         public void BindAvatar(GameObject avatar)
         {
-            currentAnimator = avatar != null ? avatar.GetComponentInChildren<Animator>() : null;
+            BindAnimator(avatar != null ? avatar.GetComponentInChildren<Animator>() : null);
         }
 
         public void BindAnimator(Animator animator)
@@ -37,22 +35,34 @@ namespace SceneTalkVR.AvatarSystem
             return TryPlayState(idleStateName);
         }
 
-        public bool PlayThinking()
+        public bool SetThinking(bool active)
         {
-            return TryPlayTrigger(thinkingTrigger);
+            return TrySetBool(thinkingParameter, active);
         }
 
-        public bool PlaySpeaking()
+        public bool BeginOpeningSpeech()
         {
-            return TryPlayTrigger(speakingTrigger);
+            SetThinking(false);
+            var talkingSet = TrySetBool(talkingParameter, true);
+            var openingTriggered = TryPlayTrigger(openingSpeechTrigger);
+            return talkingSet || openingTriggered;
         }
 
-        public bool PlayFollowUpSpeaking()
+        public bool BeginTalking()
         {
-            var triggerName = string.IsNullOrWhiteSpace(followUpSpeakingTrigger)
-                ? DefaultFollowUpSpeakingTrigger
-                : followUpSpeakingTrigger;
-            return TryPlayTrigger(triggerName);
+            SetThinking(false);
+            return TrySetBool(talkingParameter, true);
+        }
+
+        public bool EndTalking()
+        {
+            return TrySetBool(talkingParameter, false);
+        }
+
+        public void ResetState()
+        {
+            SetThinking(false);
+            TrySetBool(talkingParameter, false);
         }
 
         public bool TryPlayTrigger(string triggerName)
@@ -65,6 +75,18 @@ namespace SceneTalkVR.AvatarSystem
             return useFallbackAnimator
                 && fallbackAnimator != currentAnimator
                 && TrySetTrigger(fallbackAnimator, triggerName);
+        }
+
+        private bool TrySetBool(string parameterName, bool value)
+        {
+            if (TrySetBool(currentAnimator, parameterName, value))
+            {
+                return true;
+            }
+
+            return useFallbackAnimator
+                && fallbackAnimator != currentAnimator
+                && TrySetBool(fallbackAnimator, parameterName, value);
         }
 
         private bool TryPlayState(string stateName)
@@ -87,6 +109,20 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             animator.SetTrigger(triggerName);
+            return true;
+        }
+
+        private static bool TrySetBool(Animator animator, string parameterName, bool value)
+        {
+            if (!CanUse(animator) || string.IsNullOrWhiteSpace(parameterName) || !HasParameter(
+                    animator,
+                    parameterName,
+                    AnimatorControllerParameterType.Bool))
+            {
+                return false;
+            }
+
+            animator.SetBool(parameterName, value);
             return true;
         }
 
@@ -116,11 +152,19 @@ namespace SceneTalkVR.AvatarSystem
 
         private static bool HasTrigger(Animator animator, string triggerName)
         {
+            return HasParameter(animator, triggerName, AnimatorControllerParameterType.Trigger);
+        }
+
+        private static bool HasParameter(
+            Animator animator,
+            string parameterName,
+            AnimatorControllerParameterType parameterType)
+        {
             var parameters = animator.parameters;
             for (var i = 0; i < parameters.Length; i++)
             {
                 var parameter = parameters[i];
-                if (parameter.type == AnimatorControllerParameterType.Trigger && parameter.name == triggerName)
+                if (parameter.type == parameterType && parameter.name == parameterName)
                 {
                     return true;
                 }

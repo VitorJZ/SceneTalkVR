@@ -26,25 +26,28 @@
 - `book_prop_v1` is a lightweight local prop using existing project materials and defaults to the `LeftHand` socket for `teacher`, `instructor`, and `tutor` roles.
 - Optional prop layer: `AvatarPropPresenter` can consume the same `SpringScenePayload`, read `AvatarPropCatalog.asset`, and attach props through `AvatarAttachmentSockets` when `AvatarPresentationVoiceModule.attachProps` is explicitly enabled.
 - Shared Animator controller: `Assets/SceneTalkVR/Avatar/Animations/Common/AvatarCommonHumanoid.controller`
-- Animation mapping: default `Idle_Neutral`, `Think` trigger to `Interact`, `Speak` trigger to `Wave`, and `Talk` trigger to a conservative masked `Rig|Idle_Talking_Loop` gesture layer.
-- Runtime trigger layer: `AvatarAnimationDriver` binds the loaded avatar Animator and uses the shared `Think` / `Speak` / `Talk` trigger protocol.
-- 2026-06-30 dialogue animation pass: `SceneTalkOrchestrator` marks the first avatar reply in a practice scene as opening speech, so the avatar can keep the greeting wave; later dialogue turns mark replies as follow-up speech and use `Talk`.
+- Base layer: each character keeps its native looping `Idle_Neutral` or `Idle` clip.
+- Upper-body conversation layer: non-looping `ThinkingEnter`, looping `ThinkingHold`, character-native `SpeakWave`, and `TalkLoop` run through `AvatarConversationUpperBody.mask` while root and legs remain on the native idle pose.
+- Runtime parameters: `Speak` is the one-shot opening trigger; `IsThinking` and `IsTalking` are bools that remain active for the real processing and audio playback lifecycles.
+- Opening flow: `SpeakWave -> TalkLoop` while audio is still playing, then `Idle`.
+- Thinking flow: `ThinkingEnter -> ThinkingHold` while processing; a head-only layer mirrors the native Idle, SpeakWave, and TalkLoop head states while replacing only the Thinking head motion with native Idle. Matching transitions keep the source clip's hidden head tilt from appearing between Thinking, correction playback, and TalkLoop.
 - 2026-06-11 idle fix: default idle remains `CharacterArmature|Idle_Neutral`; Idle/Walk/Run clips are imported with loop enabled, and `AvatarPresentationVoiceModule` assigns `AvatarCommonHumanoid.controller` at runtime if a nested FBX Animator loses its controller override.
 - 2026-06-30 existing-rig fix: `SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway` also rebinds `AvatarPresentationVoiceModule.defaultAnimatorController`, so existing voice-gateway rigs recover animation even when prefab-instantiated Animators lose their controller reference.
 - `AvatarCatalog.asset` keeps `teacher_default` as placeholder fallback and adds `teacher_humanoid_v1` as the higher-priority teacher match.
 
-## Masked External Talking Animation
+## Mixamo Conversation Animations
 
-- Source page: https://poly.pizza/m/cwYvO5UauX
-- Creator: Quaternius
-- Original model title: `Animated Base Character`
-- License shown on source page: `Creative Commons Attribution 3.0`
-- Source page metadata checked on 2026-06-30: `Type=FBX / GLTF`, `Animated=true`, `Tris=13.7k`
-- Download used: https://static.poly.pizza/0b65e14d-a349-44cc-836c-efdeb6933d48.zip
-- Imported model: `Assets/SceneTalkVR/Avatar/Models/Humanoid/QuaterniusAnimatedBaseCharacter/animation_library_unity_standard.fbx`
-- Clip used: `Rig|Idle_Talking_Loop`
-- Mask asset: `Assets/SceneTalkVR/Avatar/Animations/Common/AvatarTalkGesture.mask`
-- Result: full-body retargeting this external `DEF-*` rig produced visible deformation, and the arm/finger portion still looked unnatural when masked to the upper body. The shared controller now uses the clip only on a `Talk Gesture` layer with the Head body part enabled; body, root, legs, arms, and fingers remain on the base idle pose.
+- Source service: https://www.mixamo.com/
+- Imported on: 2026-07-13
+- Thinking source: `Assets/SceneTalkVR/Avatar/Animations/Mixamo/Thinking.fbx`
+- Stable Unity clip names: `ThinkingEnter` (frames 0-46, non-looping) and `ThinkingHold` (frames 46-70, looping)
+- Talking source: `Assets/SceneTalkVR/Avatar/Animations/Mixamo/Thoughtful Head Nod.fbx`
+- Stable Unity clip name: `TalkLoop`
+- Import policy: Humanoid rig, Avatar created from each animation FBX, root rotation/height/XZ motion locked, with loop time and loop pose enabled only for `ThinkingHold` and `TalkLoop`.
+- Compatibility policy: both clips are retargeted through Unity Humanoid and limited to the shared upper-body mask. The source character's root, legs, scale, and bind pose do not replace the active Avatar's native idle stance.
+- The mask excludes Mixamo finger curves, which deform the Quaternius hand rigs; `ConversationIdle` reuses each character's native Idle clip so the upper body keeps moving between speech turns.
+- Mask asset: `Assets/SceneTalkVR/Avatar/Animations/Common/AvatarConversationUpperBody.mask`
+- The earlier Quaternius `Rig|Idle_Talking_Loop` experiment remains in the source library for provenance but is no longer referenced by the runtime Animator controller.
 
 ## Barista Humanoid v1
 
@@ -107,7 +110,7 @@
 - Download used: https://static.poly.pizza/90a9e2d4-053f-42f1-99a2-8f5e1180ea7f.zip
 - FBX used from source pack: `Casual_2.fbx`, renamed to `barista_casual_man.fbx` for stable Unity paths.
 - Unity import target: Humanoid rig, Avatar created from this model.
-- Unity animation import: disabled for this converted FBX; runtime animation comes from the shared `AvatarCommonHumanoid.controller` and existing stable Humanoid clips.
+- Unity animation import: enabled so native Idle and Wave clips remain available to the shared controller and character override.
 - Prefab wrapper normalizes the model to about 1.72 meters tall and rotates it 180 degrees around Y so it faces the user from `AvatarRoot`.
 
 ## Female Teacher Humanoid v1
@@ -123,7 +126,7 @@
 - Download used: https://static.poly.pizza/1bd7759c-ab76-4178-8fe6-7706dffa7d5f.zip
 - FBX used from source pack: `Suit.fbx`, renamed to `teacher_suit_woman.fbx` for stable Unity paths.
 - Unity import target: Humanoid rig, Avatar created from this model.
-- Unity animation import: disabled for this converted FBX; runtime animation comes from the shared `AvatarCommonHumanoid.controller` and existing stable Humanoid clips.
+- Unity animation import: enabled so native Idle and Wave clips remain available to the shared controller and character override.
 - Prefab wrapper normalizes the model to about 1.66 meters tall and rotates it 180 degrees around Y so it faces the user from `AvatarRoot`.
 - Attribution note: keep Quaternius / Poly Pizza attribution in presentation or source documentation.
 
@@ -140,7 +143,7 @@
 - Download used: https://static.poly.pizza/66a55d04-4286-44a3-b289-0d774c27db5b.zip
 - FBX used from source pack: `Soldier.fbx`, renamed to `police_soldier_woman.fbx` for stable Unity paths.
 - Unity import target: Humanoid rig, Avatar created from this model.
-- Unity animation import: disabled for this converted FBX; runtime animation comes from the shared `AvatarCommonHumanoid.controller` and existing stable Humanoid clips.
+- Unity animation import: enabled so native Idle and Wave clips remain available to the shared controller and character override.
 - Prefab wrapper normalizes the model to about 1.70 meters tall and rotates it 180 degrees around Y so it faces the user from `AvatarRoot`.
 - Attribution note: keep Quaternius / Poly Pizza attribution in presentation or source documentation.
 

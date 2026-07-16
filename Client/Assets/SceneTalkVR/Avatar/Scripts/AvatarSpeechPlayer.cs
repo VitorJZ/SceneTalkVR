@@ -30,6 +30,8 @@ namespace SceneTalkVR.AvatarSystem
         public string speakingSpeedOverride;
         public string attitudeOverride;
         public AudioSource audioSourceOverride;
+        public Action playbackStarted;
+        public Action playbackEnded;
     }
 
     internal sealed class AvatarSpeechPlaybackResult
@@ -42,6 +44,29 @@ namespace SceneTalkVR.AvatarSystem
         public int audioDurationMs;
     }
 
+    internal sealed class PreparedAvatarSpeech
+    {
+        public AudioClip clip;
+        public TtsResponse ttsResponse;
+        public string fallbackLevel = "none";
+        public string error;
+        public int audioDurationMs;
+        public int preparationDurationMs;
+        public bool useSilentWait;
+        public bool ownsClip;
+
+        public void Release()
+        {
+            if (ownsClip && clip != null)
+            {
+                UnityEngine.Object.Destroy(clip);
+            }
+
+            clip = null;
+            ownsClip = false;
+        }
+    }
+
     internal sealed class AvatarSpeechPlayer
     {
         public IEnumerator Play(
@@ -50,119 +75,196 @@ namespace SceneTalkVR.AvatarSystem
             AvatarSpeechPlaybackRequest playbackRequest,
             Action<AvatarSpeechPlaybackResult> onComplete)
         {
-            var result = new AvatarSpeechPlaybackResult();
+            PreparedAvatarSpeech preparedSpeech = null;
+            yield return Prepare(
+                context,
+                payload,
+                playbackRequest,
+                value => preparedSpeech = value);
+            yield return PlayPrepared(
+                context,
+                playbackRequest,
+                preparedSpeech,
+                onComplete);
+        }
+
+        public IEnumerator Prepare(
+            AvatarSpeechPlaybackContext context,
+            SpringScenePayload payload,
+            AvatarSpeechPlaybackRequest playbackRequest,
+            Action<PreparedAvatarSpeech> onComplete)
+        {
+            var startedAt = Time.realtimeSinceStartup;
+            var preparedSpeech = new PreparedAvatarSpeech();
             if (context == null || playbackRequest == null)
             {
-                result.error = "Speech playback context or request is missing.";
-                onComplete?.Invoke(result);
+                preparedSpeech.error = "Speech playback context or request is missing.";
+                CompletePreparation(preparedSpeech, startedAt, onComplete);
                 yield break;
             }
 
             if (string.IsNullOrWhiteSpace(playbackRequest.text))
             {
-                result.fallbackLevel = "empty_text";
+                preparedSpeech.fallbackLevel = "empty_text";
+                CompletePreparation(preparedSpeech, startedAt, onComplete);
+                yield break;
+            }
+
+            var targetAudioSource = playbackRequest.audioSourceOverride != null
+                ? playbackRequest.audioSourceOverride
+                : context.defaultAudioSource;
+
+            string gatewayError = null;
+            if (context.useVoiceGatewayTts)
+            {
+                if (targetAudioSource == null)
+                {
+                    gatewayError = "AudioSource is not assigned.";
+                }
+                else if (context.gatewayClient == null)
+                {
+                    gatewayError = "Voice gateway client is not assigned.";
+                }
+                else
+                {
+                    var request = BuildTtsRequest(context, payload, playbackRequest);
+                    yield return context.gatewayClient.RequestTtsAudioClip(
+                        request,
+                        (response, audioClip) =>
+                        {
+                            preparedSpeech.ttsResponse = response;
+                            preparedSpeech.clip = audioClip;
+                            preparedSpeech.ownsClip = audioClip != null;
+                            preparedSpeech.audioDurationMs = audioClip == null
+                                ? 0
+                                : Mathf.RoundToInt(audioClip.length * 1000f);
+                        },
+                        message => gatewayError = message);
+                }
+
+                if (preparedSpeech.ttsResponse != null
+                    && !string.IsNullOrWhiteSpace(preparedSpeech.ttsResponse.fallbackLevel)
+                    && !string.Equals(
+                        preparedSpeech.ttsResponse.fallbackLevel,
+                        "none",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    preparedSpeech.fallbackLevel = AppendFallback(
+                        preparedSpeech.fallbackLevel,
+                        preparedSpeech.ttsResponse.fallbackLevel);
+                }
+            }
+
+            if (context.useVoiceGatewayTts && preparedSpeech.clip == null)
+            {
+                gatewayError = string.IsNullOrWhiteSpace(gatewayError)
+                    ? "Voice gateway returned no playable TTS clip."
+                    : gatewayError;
+                preparedSpeech.fallbackLevel = AppendFallback(
+                    preparedSpeech.fallbackLevel,
+                    "gateway_error");
+                if (!context.fallbackToDemoVoiceOnGatewayError)
+                {
+                    preparedSpeech.error = gatewayError;
+                    CompletePreparation(preparedSpeech, startedAt, onComplete);
+                    yield break;
+                }
+
+                Debug.LogWarning(
+                    $"[SceneTalkVR] {playbackRequest.logLabel} voice gateway TTS fallback: {gatewayError}",
+                    context.logContext);
+            }
+
+            if (preparedSpeech.clip == null && targetAudioSource != null && context.demoReplyClip != null)
+            {
+                preparedSpeech.clip = context.demoReplyClip;
+                preparedSpeech.audioDurationMs = Mathf.RoundToInt(context.demoReplyClip.length * 1000f);
+                preparedSpeech.fallbackLevel = AppendFallback(
+                    preparedSpeech.fallbackLevel,
+                    "demo_clip");
+            }
+
+            if (preparedSpeech.clip == null)
+            {
+                preparedSpeech.useSilentWait = true;
+                preparedSpeech.fallbackLevel = AppendFallback(
+                    preparedSpeech.fallbackLevel,
+                    "silent_wait");
+            }
+
+            CompletePreparation(preparedSpeech, startedAt, onComplete);
+        }
+
+        public IEnumerator PlayPrepared(
+            AvatarSpeechPlaybackContext context,
+            AvatarSpeechPlaybackRequest playbackRequest,
+            PreparedAvatarSpeech preparedSpeech,
+            Action<AvatarSpeechPlaybackResult> onComplete)
+        {
+            var result = CreatePlaybackResult(preparedSpeech);
+            if (preparedSpeech == null)
+            {
                 onComplete?.Invoke(result);
                 yield break;
             }
 
-            var playedAudio = false;
-            if (context.useVoiceGatewayTts)
+            if (!string.IsNullOrWhiteSpace(preparedSpeech.error)
+                || string.Equals(preparedSpeech.fallbackLevel, "empty_text", StringComparison.OrdinalIgnoreCase))
             {
-                string gatewayError = null;
-                var gatewayPlaybackCompleted = false;
-                TtsResponse gatewayResponse = null;
-                var gatewayAudioDurationMs = 0;
-                yield return PlayGatewayTts(
-                    context,
-                    payload,
-                    playbackRequest,
-                    (completed, response, audioDurationMs) =>
-                    {
-                        gatewayPlaybackCompleted = completed;
-                        gatewayResponse = response;
-                        gatewayAudioDurationMs = audioDurationMs;
-                    },
-                    message => gatewayError = message);
-
-                playedAudio = string.IsNullOrWhiteSpace(gatewayError) && gatewayPlaybackCompleted;
-                result.ttsProvider = gatewayResponse != null ? gatewayResponse.provider : string.Empty;
-                result.ttsLatencyMs = gatewayResponse != null ? gatewayResponse.latencyMs : 0;
-                result.audioDurationMs = gatewayAudioDurationMs;
-                if (gatewayResponse != null
-                    && !string.IsNullOrWhiteSpace(gatewayResponse.fallbackLevel)
-                    && !string.Equals(gatewayResponse.fallbackLevel, "none", StringComparison.OrdinalIgnoreCase))
-                {
-                    result.fallbackLevel = AppendFallback(
-                        result.fallbackLevel,
-                        gatewayResponse.fallbackLevel);
-                }
-
-                if (!playedAudio)
-                {
-                    if (!context.fallbackToDemoVoiceOnGatewayError)
-                    {
-                        result.fallbackLevel = "gateway_error";
-                        result.error = string.IsNullOrWhiteSpace(gatewayError)
-                            ? "Voice gateway playback did not complete."
-                            : gatewayError;
-                        onComplete?.Invoke(result);
-                        yield break;
-                    }
-
-                    result.fallbackLevel = "gateway_error";
-                    Debug.LogWarning(
-                        $"[SceneTalkVR] {playbackRequest.logLabel} voice gateway TTS fallback: {gatewayError}",
-                        context.logContext);
-                }
+                preparedSpeech.Release();
+                onComplete?.Invoke(result);
+                yield break;
             }
 
-            var targetAudioSource = playbackRequest.audioSourceOverride != null
+            var targetAudioSource = playbackRequest != null && playbackRequest.audioSourceOverride != null
                 ? playbackRequest.audioSourceOverride
-                : context.defaultAudioSource;
-            if (!playedAudio && targetAudioSource != null && context.demoReplyClip != null)
+                : context != null ? context.defaultAudioSource : null;
+            var playedAudio = false;
+            if (preparedSpeech.clip != null && targetAudioSource != null)
             {
-                targetAudioSource.clip = context.demoReplyClip;
+                targetAudioSource.clip = preparedSpeech.clip;
                 targetAudioSource.Play();
+                playbackRequest?.playbackStarted?.Invoke();
+                if (preparedSpeech.ttsResponse != null)
+                {
+                    Debug.Log(
+                        $"[SceneTalkVR] Voice gateway TTS audio ({preparedSpeech.ttsResponse.provider}, "
+                        + $"{preparedSpeech.ttsResponse.latencyMs} ms, cache={preparedSpeech.ttsResponse.cacheHit}, "
+                        + $"prepare={preparedSpeech.preparationDurationMs} ms)",
+                        context != null ? context.logContext : null);
+                }
+
                 yield return new WaitWhile(() => targetAudioSource != null && targetAudioSource.isPlaying);
-
+                playbackRequest?.playbackEnded?.Invoke();
                 playedAudio = targetAudioSource != null && !targetAudioSource.isPlaying;
-                result.fallbackLevel = AppendFallback(result.fallbackLevel, "demo_clip");
-                result.ttsProvider = "demo";
-                result.audioDurationMs = Mathf.RoundToInt(context.demoReplyClip.length * 1000f);
+                if (targetAudioSource != null && targetAudioSource.clip == preparedSpeech.clip)
+                {
+                    targetAudioSource.clip = null;
+                }
             }
-
-            if (!playedAudio)
+            else if (preparedSpeech.useSilentWait)
             {
-                yield return new WaitForSeconds(Mathf.Max(0.1f, context.fallbackSpeakingSeconds));
-                result.fallbackLevel = AppendFallback(result.fallbackLevel, "silent_wait");
+                playbackRequest?.playbackStarted?.Invoke();
+                yield return new WaitForSeconds(Mathf.Max(
+                    0.1f,
+                    context != null ? context.fallbackSpeakingSeconds : 0.1f));
+                playbackRequest?.playbackEnded?.Invoke();
+            }
+            else if (preparedSpeech.clip != null)
+            {
+                result.error = "AudioSource was destroyed before prepared speech could be played.";
             }
 
             result.playbackCompleted = playedAudio;
+            preparedSpeech.Release();
             onComplete?.Invoke(result);
         }
 
-        private static IEnumerator PlayGatewayTts(
+        private static TtsRequest BuildTtsRequest(
             AvatarSpeechPlaybackContext context,
             SpringScenePayload payload,
-            AvatarSpeechPlaybackRequest playbackRequest,
-            Action<bool, TtsResponse, int> onComplete,
-            Action<string> onError)
+            AvatarSpeechPlaybackRequest playbackRequest)
         {
-            var targetAudioSource = playbackRequest.audioSourceOverride != null
-                ? playbackRequest.audioSourceOverride
-                : context.defaultAudioSource;
-            if (targetAudioSource == null)
-            {
-                onError?.Invoke("AudioSource is not assigned.");
-                yield break;
-            }
-
-            if (context.gatewayClient == null)
-            {
-                onError?.Invoke("Voice gateway client is not assigned.");
-                yield break;
-            }
-
             var role = payload != null ? payload.avatarRole : null;
             var voiceId = string.IsNullOrWhiteSpace(playbackRequest.voiceIdOverride)
                 ? ResolveVoiceId(context, payload)
@@ -173,10 +275,11 @@ namespace SceneTalkVR.AvatarSystem
             var attitude = string.IsNullOrWhiteSpace(playbackRequest.attitudeOverride)
                 ? role != null ? role.attitude : string.Empty
                 : playbackRequest.attitudeOverride;
-            var request = new TtsRequest
+
+            return new TtsRequest
             {
                 sessionId = context.sessionId,
-                turnId = $"turn-{Time.frameCount}",
+                turnId = CreateTurnId(),
                 text = playbackRequest.text,
                 language = string.IsNullOrWhiteSpace(context.language) ? "en-US" : context.language,
                 voiceProfile = new VoiceProfile
@@ -194,45 +297,46 @@ namespace SceneTalkVR.AvatarSystem
                     sampleRate = Mathf.Max(8000, context.ttsSampleRate)
                 }
             };
+        }
 
-            AudioClip clip = null;
-            TtsResponse response = null;
-            string requestError = null;
-            yield return context.gatewayClient.RequestTtsAudioClip(
-                request,
-                (value, audioClip) =>
+        internal static string CreateTurnId()
+        {
+            return $"turn-{Time.frameCount}-{Guid.NewGuid():N}";
+        }
+
+        private static AvatarSpeechPlaybackResult CreatePlaybackResult(
+            PreparedAvatarSpeech preparedSpeech)
+        {
+            if (preparedSpeech == null)
+            {
+                return new AvatarSpeechPlaybackResult
                 {
-                    response = value;
-                    clip = audioClip;
-                },
-                message => requestError = message);
-
-            if (!string.IsNullOrWhiteSpace(requestError))
-            {
-                onError?.Invoke(requestError);
-                yield break;
+                    error = "Prepared speech is missing."
+                };
             }
 
-            if (clip == null)
+            return new AvatarSpeechPlaybackResult
             {
-                onError?.Invoke("Voice gateway returned no playable TTS clip.");
-                yield break;
-            }
+                fallbackLevel = preparedSpeech.fallbackLevel,
+                error = preparedSpeech.error,
+                ttsProvider = preparedSpeech.ttsResponse != null
+                    ? preparedSpeech.ttsResponse.provider
+                    : preparedSpeech.clip != null && !preparedSpeech.ownsClip ? "demo" : string.Empty,
+                ttsLatencyMs = preparedSpeech.ttsResponse != null
+                    ? preparedSpeech.ttsResponse.latencyMs
+                    : 0,
+                audioDurationMs = preparedSpeech.audioDurationMs
+            };
+        }
 
-            targetAudioSource.clip = clip;
-            targetAudioSource.Play();
-            Debug.Log(
-                $"[SceneTalkVR] Voice gateway TTS audio ({response?.provider}, {response?.latencyMs} ms, cache={response?.cacheHit})",
-                context.logContext);
-            yield return new WaitWhile(() => targetAudioSource != null && targetAudioSource.isPlaying);
-
-            if (targetAudioSource == null)
-            {
-                onError?.Invoke("AudioSource was destroyed before TTS playback completed.");
-                yield break;
-            }
-
-            onComplete?.Invoke(true, response, Mathf.RoundToInt(clip.length * 1000f));
+        private static void CompletePreparation(
+            PreparedAvatarSpeech preparedSpeech,
+            float startedAt,
+            Action<PreparedAvatarSpeech> onComplete)
+        {
+            preparedSpeech.preparationDurationMs = Mathf.RoundToInt(
+                (Time.realtimeSinceStartup - startedAt) * 1000f);
+            onComplete?.Invoke(preparedSpeech);
         }
 
         private static string ResolveVoiceId(

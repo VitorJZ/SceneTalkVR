@@ -70,6 +70,7 @@ namespace SceneTalkVR.Runtime.Services
         public CorrectionExperimentCondition CurrentCondition => currentCondition;
 
         private float lastSttConfidence = 1.0f;
+        private bool lastSttConfidenceAvailable;
         private float lastRecordingDurationMs = 0f;
         private string lastRecordingStopReason = "unknown";
 
@@ -112,27 +113,8 @@ namespace SceneTalkVR.Runtime.Services
         public IEnumerator GenerateSceneAndReply(string userText, Action<SpringScenePayload> onComplete, Action<string> onError)
         {
             Debug.Log($"[RealLLMService] Generating scene and reply for: {userText}");
-            
-            // Retrieve latest STT metadata from GatewaySpeechInputModule if available (skip if running in test runner)
-            bool isTestRunner = currentCondition != null && currentCondition.participantId == "test_runner";
-            if (!isTestRunner)
-            {
-                lastSttConfidence = 1.0f;
-                lastRecordingDurationMs = 0f;
-                lastRecordingStopReason = "unknown";
-                
-                var speechModule = FindObjectOfType<GatewaySpeechInputModule>();
-                if (speechModule != null)
-                {
-                    lastRecordingDurationMs = speechModule.LastRecordingDurationMs;
-                    lastRecordingStopReason = speechModule.LastRecordingStopReason;
-                    if (speechModule.LastSttResponse != null)
-                    {
-                        lastSttConfidence = speechModule.LastSttResponse.confidence;
-                    }
-                    Debug.Log($"[RealLLMService] STT Metadata - Duration: {lastRecordingDurationMs}ms, StopReason: {lastRecordingStopReason}, Confidence: {lastSttConfidence}");
-                }
-            }
+
+            RefreshSttMetadata(isStreaming: false);
 
             CheckAndResetSession();
 
@@ -471,8 +453,10 @@ namespace SceneTalkVR.Runtime.Services
             builder.AppendLine("\n=== SPEECH CAPTURE METADATA ===");
             builder.AppendLine($"- recordingDurationMs: {lastRecordingDurationMs} ms");
             builder.AppendLine($"- recordingStopReason: {lastRecordingStopReason}");
-            builder.AppendLine($"- sttConfidence: {lastSttConfidence}");
-            if (lastSttConfidence < 0.5f)
+            builder.AppendLine(lastSttConfidenceAvailable
+                ? $"- sttConfidence: {lastSttConfidence}"
+                : "- sttConfidence: unavailable");
+            if (lastSttConfidenceAvailable && lastSttConfidence < 0.5f)
             {
                 builder.AppendLine("CRITICAL: STT/ASR confidence is extremely low. Do NOT perform any grammar correction (set hasFeedback = false) because the errors are likely STT recognition failures. Respond politely asking the user to repeat.");
             }
@@ -569,13 +553,56 @@ namespace SceneTalkVR.Runtime.Services
                 return true;
             }
 
-            if (lastSttConfidence >= 0 && lastSttConfidence < 0.5f)
+            if (lastSttConfidenceAvailable
+                && lastSttConfidence >= 0
+                && lastSttConfidence < 0.5f)
             {
                 sttSuppressionReason = "low_confidence_suppressed";
                 return true;
             }
 
             return false;
+        }
+
+        private void RefreshSttMetadata(bool isStreaming)
+        {
+            var isTestRunner = currentCondition != null
+                && currentCondition.participantId == "test_runner";
+            if (isTestRunner)
+            {
+                // Editor tests inject confidence directly and expect it to participate in suppression.
+                lastSttConfidenceAvailable = true;
+                return;
+            }
+
+            lastSttConfidence = 1.0f;
+            lastSttConfidenceAvailable = false;
+            lastRecordingDurationMs = 0f;
+            lastRecordingStopReason = "unknown";
+
+            var speechModule = FindObjectOfType<GatewaySpeechInputModule>();
+            if (speechModule == null)
+            {
+                return;
+            }
+
+            lastRecordingDurationMs = speechModule.LastRecordingDurationMs;
+            lastRecordingStopReason = speechModule.LastRecordingStopReason;
+            if (speechModule.LastSttResponse != null)
+            {
+                lastSttConfidence = speechModule.LastSttResponse.confidence;
+                lastSttConfidenceAvailable = speechModule.LastSttResponse.confidenceAvailable;
+            }
+
+            var confidenceLog = lastSttConfidenceAvailable
+                ? lastSttConfidence.ToString()
+                : "unavailable";
+            var streamLabel = isStreaming ? " (Streaming)" : string.Empty;
+            Debug.Log(
+                $"[RealLLMService] STT Metadata{streamLabel} - "
+                + $"Duration: {lastRecordingDurationMs}ms, "
+                + $"StopReason: {lastRecordingStopReason}, "
+                + $"Confidence: {confidenceLog}");
         }
 
         private string BuildSafeTaskContinuation(SpringScenePayload payload)
@@ -901,27 +928,8 @@ namespace SceneTalkVR.Runtime.Services
         public IEnumerator GenerateSceneAndReplyStreaming(string userText, Action<string> onSentenceComplete, Action<SpringScenePayload> onComplete, Action<string> onError)
         {
             Debug.Log($"[RealLLMService] Generating streaming scene and reply for: {userText}");
-            
-            // Retrieve latest STT metadata from GatewaySpeechInputModule if available (skip if running in test runner)
-            bool isTestRunner = currentCondition != null && currentCondition.participantId == "test_runner";
-            if (!isTestRunner)
-            {
-                lastSttConfidence = 1.0f;
-                lastRecordingDurationMs = 0f;
-                lastRecordingStopReason = "unknown";
-                
-                var speechModule = FindObjectOfType<GatewaySpeechInputModule>();
-                if (speechModule != null)
-                {
-                    lastRecordingDurationMs = speechModule.LastRecordingDurationMs;
-                    lastRecordingStopReason = speechModule.LastRecordingStopReason;
-                    if (speechModule.LastSttResponse != null)
-                    {
-                        lastSttConfidence = speechModule.LastSttResponse.confidence;
-                    }
-                    Debug.Log($"[RealLLMService] STT Metadata (Streaming) - Duration: {lastRecordingDurationMs}ms, StopReason: {lastRecordingStopReason}, Confidence: {lastSttConfidence}");
-                }
-            }
+
+            RefreshSttMetadata(isStreaming: true);
 
             CheckAndResetSession();
 
