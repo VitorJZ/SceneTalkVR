@@ -6356,6 +6356,10 @@ MonoBehaviour:
   attachProps: 0
   propPresenter: {fileID: 1964602108}
   propCatalog: {fileID: 11400000, guid: f2f19124a37a44c1388f9b3bf8188b6c, type: 2}
+  placementAnchor: {fileID: 0}
+  placementDepthFromAnchor: 1
+  constrainPlacementToGround: 1
+  placementGroundY: 0
   userFacingTarget: {fileID: 534585363}
   faceUserOnSpawn: 1
   visualForwardYawOffset: 180
@@ -6380,9 +6384,6 @@ MonoBehaviour:
   animationDriver: {fileID: 1964602109}
   defaultAnimatorController: {fileID: 9100000, guid: 2b78b31307ad14184a55d4c154c482a1, type: 2}
   fallbackAnimator: {fileID: 0}
-  thinkingTrigger: Think
-  speakingTrigger: Speak
-  followUpSpeakingTrigger: Talk
 --- !u!114 &1964602108
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6412,9 +6413,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.AvatarSystem.AvatarAnimationDriver
   fallbackAnimator: {fileID: 0}
   idleStateName: Idle
-  thinkingTrigger: Think
-  speakingTrigger: Speak
-  followUpSpeakingTrigger: Talk
+  openingSpeechTrigger: Speak
+  thinkingParameter: IsThinking
+  talkingParameter: IsTalking
   useFallbackAnimator: 1
 --- !u!114 &1964602110
 MonoBehaviour:
@@ -6452,7 +6453,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.AvatarSystem.AvatarPresetResolver
   catalog: {fileID: 11400000, guid: 0ebbc1a5d3f5f4343a2d5d400c37fbf1, type: 2}
-  minimumExactScore: 45
 --- !u!114 &1964602116
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6552,7 +6552,7 @@ MonoBehaviour:
   debugMode: 1
   showDebugLabel: 1
   useConditionOrder: 0
-  manualCondition: 3
+  manualCondition: 1
   conditionOrder:
   - dialogue_avatar_explicit
   - dialogue_avatar_recast
@@ -6679,7 +6679,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.AvatarSystem.CorrectionAgentPresenter
   visualMode: 1
-  avatarPrefab: {fileID: 6788538757290762323, guid: ad4137f595ec8e2449cacca9df7d3735, type: 3}
+  avatarPrefab: {fileID: 0}
   avatarLocalEulerAngles: {x: 0, y: 0, z: 0}
   avatarFacingYawOffset: 12
   avatarScale: 0.4
@@ -6695,11 +6695,20 @@ MonoBehaviour:
   emissionColor: {r: 0.1, g: 0.75, b: 1, a: 1}
   lightIntensity: 1.8
   lightRange: 1.5
+  shellColor: {r: 0.56, g: 1, b: 0.94, a: 0.18}
+  visorColor: {r: 0.012, g: 0.035, b: 0.055, a: 1}
+  accentColor: {r: 1, g: 0.48, b: 0.14, a: 1}
+  visualScaleMultiplier: 1.4
+  faceMainCamera: 1
+  lookResponsiveness: 5.5
   fadeSeconds: 0.2
   idleFloatAmplitude: 0.06
   idleFloatSpeed: 1.7
   speakingPulseScale: 0.16
   speakingPulseSpeed: 5.5
+  speakingHaloCycleSpeed: 0.34
+  orbitSpeed: 22
+  audioResponse: 15
 --- !u!114 &1964602127
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6763,10 +6772,10 @@ MonoBehaviour:
   imageSize: 1024x1024
   fallbackTexture: {fileID: 2800000, guid: 2b1cecb1152339547a3b0f46551d6331, type: 3}
   localFallbackPath: SceneTalkVR/Textures/FallbackPanorama
-  forceUseFallback: 1
+  forceUseFallback: 0
   useSkySphere: 1
-  skySphereScale: 20
-  skySpherePositionOffset: {x: 0, y: -1.6, z: 0}
+  skySphereScale: 8
+  skySpherePositionOffset: {x: -1, y: 2.5, z: 1}
   skySphereMaterial: {fileID: 0}
 --- !u!114 &1964602130
 MonoBehaviour:

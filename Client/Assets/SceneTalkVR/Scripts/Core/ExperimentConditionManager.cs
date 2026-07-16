@@ -315,9 +315,11 @@ namespace SceneTalkVR.Core
             if (payload != null)
             {
                 log.dialogueReply = NullToEmpty(payload.dialogueReply);
+                log.dialogueContinuation = NullToEmpty(payload.dialogueContinuation);
                 if (feedback != null)
                 {
                     log.feedbackText = NullToEmpty(feedback.feedbackText);
+                    log.recastText = NullToEmpty(feedback.recastText);
                     log.originalText = NullToEmpty(feedback.originalText);
                     log.correctedText = NullToEmpty(feedback.correctedText);
                     log.rationaleTag = NullToEmpty(feedback.rationaleTag);
@@ -402,6 +404,53 @@ namespace SceneTalkVR.Core
             {
                 log.moduleFallback = AppendToken(log.moduleFallback, moduleFallback);
             }
+        }
+
+        public void RecordDetailMetrics(
+            string dialogueContinuation,
+            string recastText,
+            string correctionRequestStartTime,
+            string dialogueRequestStartTime,
+            string firstTokenTime,
+            string firstSentenceTime,
+            string ttsReadyTime,
+            string correctionPlayStartTime,
+            string correctionPlayEndTime,
+            string dialoguePlayStartTime,
+            string dialoguePlayEndTime,
+            string playbackOrder,
+            float userEndToFeedbackAudioMs,
+            float userEndToDialogueAudioMs,
+            float feedbackToDialogueGapMs,
+            string correctionVoiceId,
+            string actualPlaybackSubject,
+            string timeoutReason,
+            string fallbackReason,
+            string failureReason)
+        {
+            var log = ResolveWritableTurnLog();
+            if (log == null) return;
+
+            log.dialogueContinuation = dialogueContinuation;
+            log.recastText = recastText;
+            log.correctionRequestStartTime = correctionRequestStartTime;
+            log.dialogueRequestStartTime = dialogueRequestStartTime;
+            log.firstTokenTime = firstTokenTime;
+            log.firstSentenceTime = firstSentenceTime;
+            log.ttsReadyTime = ttsReadyTime;
+            log.correctionPlayStartTime = correctionPlayStartTime;
+            log.correctionPlayEndTime = correctionPlayEndTime;
+            log.dialoguePlayStartTime = dialoguePlayStartTime;
+            log.dialoguePlayEndTime = dialoguePlayEndTime;
+            log.playbackOrder = playbackOrder;
+            log.userEndToFeedbackAudioMs = userEndToFeedbackAudioMs;
+            log.userEndToDialogueAudioMs = userEndToDialogueAudioMs;
+            log.feedbackToDialogueGapMs = feedbackToDialogueGapMs;
+            log.correctionVoiceId = correctionVoiceId;
+            log.actualPlaybackSubject = actualPlaybackSubject;
+            log.timeoutReason = timeoutReason;
+            log.fallbackReason = fallbackReason;
+            log.failureReason = failureReason;
         }
 
         public void CompleteActiveTurn()
@@ -1042,8 +1091,30 @@ namespace SceneTalkVR.Core
             public string experimentProvider;
             public string experimentStyle;
 
+            // New design requirements fields
+            public string dialogueContinuation;
+            public string recastText;
+            public string correctionRequestStartTime;
+            public string dialogueRequestStartTime;
+            public string firstTokenTime;
+            public string firstSentenceTime;
+            public string ttsReadyTime;
+            public string correctionPlayStartTime;
+            public string correctionPlayEndTime;
+            public string dialoguePlayStartTime;
+            public string dialoguePlayEndTime;
+            public string playbackOrder;
+            public float userEndToFeedbackAudioMs;
+            public float userEndToDialogueAudioMs;
+            public float feedbackToDialogueGapMs;
+            public string correctionVoiceId;
+            public string actualPlaybackSubject;
+            public string timeoutReason;
+            public string fallbackReason;
+            public string failureReason;
+
             public const string CsvHeader =
-                "participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc,transcript,dialogueReply,feedbackText,originalText,correctedText,rationaleTag,sttConfidence,sttProvider,sttFallbackLevel,sttSuppressionReason,conditionOrderPosition,validationWarnings,selectedTaskId,taskName,taskContext,taskGoals,initialQuestion,sceneMode,whetherHolodeckCalled,panoramaSource,experimentProvider,experimentStyle";
+                "participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc,transcript,dialogueReply,feedbackText,originalText,correctedText,rationaleTag,sttConfidence,sttProvider,sttFallbackLevel,sttSuppressionReason,conditionOrderPosition,validationWarnings,selectedTaskId,taskName,taskContext,taskGoals,initialQuestion,sceneMode,whetherHolodeckCalled,panoramaSource,experimentProvider,experimentStyle,dialogueContinuation,recastText,correctionRequestStartTime,dialogueRequestStartTime,firstTokenTime,firstSentenceTime,ttsReadyTime,correctionPlayStartTime,correctionPlayEndTime,dialoguePlayStartTime,dialoguePlayEndTime,playbackOrder,userEndToFeedbackAudioMs,userEndToDialogueAudioMs,feedbackToDialogueGapMs,correctionVoiceId,actualPlaybackSubject,timeoutReason,fallbackReason,failureReason";
 
             public string ToCsvLine()
             {
@@ -1089,7 +1160,27 @@ namespace SceneTalkVR.Core
                     whetherHolodeckCalled ? "true" : "false",
                     Csv(panoramaSource),
                     Csv(experimentProvider),
-                    Csv(experimentStyle));
+                    Csv(experimentStyle),
+                    Csv(dialogueContinuation),
+                    Csv(recastText),
+                    Csv(correctionRequestStartTime),
+                    Csv(dialogueRequestStartTime),
+                    Csv(firstTokenTime),
+                    Csv(firstSentenceTime),
+                    Csv(ttsReadyTime),
+                    Csv(correctionPlayStartTime),
+                    Csv(correctionPlayEndTime),
+                    Csv(dialoguePlayStartTime),
+                    Csv(dialoguePlayEndTime),
+                    Csv(playbackOrder),
+                    userEndToFeedbackAudioMs.ToString("F2", CultureInfo.InvariantCulture),
+                    userEndToDialogueAudioMs.ToString("F2", CultureInfo.InvariantCulture),
+                    feedbackToDialogueGapMs.ToString("F2", CultureInfo.InvariantCulture),
+                    Csv(correctionVoiceId),
+                    Csv(actualPlaybackSubject),
+                    Csv(timeoutReason),
+                    Csv(fallbackReason),
+                    Csv(failureReason));
             }
 
             private static string Csv(string value)
