@@ -6756,10 +6756,10 @@ MonoBehaviour:
   imageSize: 1024x1024
   fallbackTexture: {fileID: 2800000, guid: 2b1cecb1152339547a3b0f46551d6331, type: 3}
   localFallbackPath: SceneTalkVR/Textures/FallbackPanorama
-  forceUseFallback: 1
+  forceUseFallback: 0
   useSkySphere: 1
-  skySphereScale: 20
-  skySpherePositionOffset: {x: 0, y: -1.6, z: 0}
+  skySphereScale: 8
+  skySpherePositionOffset: {x: -1, y: 2.5, z: 1}
   skySphereMaterial: {fileID: 0}
 --- !u!114 &1964602130
 MonoBehaviour:
