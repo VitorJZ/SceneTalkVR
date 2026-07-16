@@ -247,8 +247,12 @@ namespace SceneTalkVR.Runtime.Services
                 builder.AppendLine("3. Generate unified feedback text under 'recast' style:");
                 builder.AppendLine("   * Both Avatar and Agent MUST use the exact same recastText.");
                 builder.AppendLine("   * Recast text must be a natural confirmation or model utterance suitable for BOTH the main character and helper agent.");
+                builder.AppendLine("   * Recast text MUST use the SECOND person ('you', 'your', 'you'd like') from the speaker's perspective to confirm or recast what the user said. NEVER use the first person ('I', 'my', 'I'd like').");
                 builder.AppendLine("   * Recast text MUST NOT contain any explicit correction words (forbidden: 'you mean', 'should', 'should say', 'correct', 'wrong', 'mistake', 'instead', 'better way', 'remember to', 'grammar tip').");
-                builder.AppendLine("   * Example recastText: 'Ah, you really like this furniture.'");
+                builder.AppendLine("   * Few-Shot Examples under 'recast' style:");
+                builder.AppendLine("     - User: 'I is hungry' -> recastText: 'Ah, you are hungry now.' (CORRECT) | 'I am hungry.' (INCORRECT)");
+                builder.AppendLine("     - User: 'I want join the gym' -> recastText: 'So you want to join the gym.' (CORRECT) | 'I want to join the gym.' (INCORRECT)");
+                builder.AppendLine("     - User: 'I like reserve tomorrow' -> recastText: 'You'd like to reserve for tomorrow.' (CORRECT) | 'I'd like to reserve tomorrow.' (INCORRECT)");
                 builder.AppendLine("   * You MUST set feedbackText = \"\".");
             }
             else
