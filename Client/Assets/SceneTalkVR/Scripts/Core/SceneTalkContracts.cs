@@ -21,6 +21,11 @@ namespace SceneTalkVR.Core
         IEnumerator GenerateSceneAndReply(string userText, Action<SpringScenePayload> onComplete, Action<string> onError);
     }
 
+    public interface ISceneTalkStreamingBrain : ISceneTalkBrain
+    {
+        IEnumerator GenerateSceneAndReplyStreaming(string userText, Action<string> onSentenceComplete, Action<SpringScenePayload> onComplete, Action<string> onError);
+    }
+
     public interface ISceneTalkScenePresenter
     {
         IEnumerator PresentScene(SpringScenePayload payload, Action onComplete, Action<string> onError);
@@ -29,6 +34,13 @@ namespace SceneTalkVR.Core
     public interface ISceneTalkAvatarVoice
     {
         IEnumerator PresentReply(SpringScenePayload payload, Action onComplete, Action<string> onError);
+    }
+
+    public interface ISceneTalkStreamingAvatarVoice : ISceneTalkAvatarVoice
+    {
+        void PrepareStreaming(SpringScenePayload basePayload);
+        void EnqueueSentence(string sentence);
+        void SignalStreamingComplete();
     }
 
     public interface ISceneTalkAvatarReplyContext
@@ -87,6 +99,7 @@ namespace SceneTalkVR.Core
     {
         public string participantId;
         public string sessionId;
+        public bool formalExperiment;
         public string conditionId;
         public string scenarioId;
         public string provider;
@@ -166,5 +179,10 @@ namespace SceneTalkVR.Core
     public interface ISceneTalkSessionReset
     {
         void ResetSession();
+    }
+
+    public interface ISceneTalkExperimentLockReceiver
+    {
+        void SetExperimentLocked(bool isLocked);
     }
 }

@@ -27,7 +27,7 @@ namespace SceneTalkVR.Runtime.Services
 
         [Header("Debug Controls")]
         [Tooltip("If enabled, bypasses SiliconFlow API and forces using local fallback panorama.")]
-        [SerializeField] private bool forceUseFallback = false;
+        [SerializeField] private bool forceUseFallback = true;
 
         [Header("Sky Sphere Settings")]
         [Tooltip("If enabled, renders background inside a 3D Sphere in the scene to allow scaling.")]
@@ -64,8 +64,23 @@ namespace SceneTalkVR.Runtime.Services
             }
         }
 
-        public async Task<Texture2D> GenerateSkyboxAsync(string environmentDescription)
+        public async Task<Texture2D> GenerateSkyboxAsync(string environmentDescription, string skyboxUrl = null)
         {
+            if (!string.IsNullOrEmpty(skyboxUrl) && skyboxUrl.StartsWith("demo://"))
+            {
+                string resourceName = skyboxUrl.Substring("demo://".Length);
+                var loaded = Resources.Load<Texture2D>($"SceneTalkVR/Textures/{resourceName}");
+                if (loaded != null)
+                {
+                    Debug.Log($"[PanoramaSceneService] Loaded fixed local panorama: {resourceName}");
+                    return loaded;
+                }
+                else
+                {
+                    Debug.LogWarning($"[PanoramaSceneService] Fixed local panorama '{resourceName}' not found in Resources. Using fallback.");
+                }
+            }
+
             if (forceUseFallback)
             {
                 Debug.Log("[PanoramaSceneService] Force Use Fallback is enabled. Loading local fallback.");

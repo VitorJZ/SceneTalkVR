@@ -32,6 +32,7 @@ namespace SceneTalkVR.Runtime
         [SerializeField] private Camera interactionCamera;
         [SerializeField] private Canvas worldCanvas;
         [SerializeField] private Vector3 cameraPosition = new Vector3(0f, 1.6f, -1.5f);
+        [SerializeField, Range(20f, 120f)] private float cameraFieldOfView = 90f;
         [SerializeField] private Vector3 canvasPosition = new Vector3(0f, 1.5f, 1.4f);
         [SerializeField] private Vector3 canvasEulerAngles = Vector3.zero;
         [SerializeField] private float canvasScale = 0.005f;
@@ -107,10 +108,37 @@ namespace SceneTalkVR.Runtime
             {
                 StartCoroutine(RecenterCanvasAfterTracking());
             }
+
+            // Cleanup duplicate AudioListeners to prevent Unity warnings
+            var allListeners = FindObjectsByType<AudioListener>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            if (allListeners.Length > 1)
+            {
+                AudioListener activeListener = null;
+                foreach (var listener in allListeners)
+                {
+                    if (listener.gameObject.activeInHierarchy && listener.enabled)
+                    {
+                        if (activeListener == null)
+                        {
+                            activeListener = listener;
+                        }
+                        else
+                        {
+                            Debug.LogWarning($"[SceneTalkVR] Found duplicate active AudioListener on GameObject '{listener.gameObject.name}'. Disabling component to ensure a single active listener.", listener);
+                            listener.enabled = false;
+                        }
+                    }
+                }
+            }
         }
 
         private void Update()
         {
+            if (interactionCamera != null)
+            {
+                interactionCamera.fieldOfView = cameraFieldOfView;
+            }
+
             if (enableControllerRay)
             {
                 HandleControllerRay();
@@ -242,7 +270,7 @@ namespace SceneTalkVR.Runtime
                 cameraToConfigure.transform.rotation = Quaternion.identity;
             }
 
-            cameraToConfigure.fieldOfView = 60f;
+            cameraToConfigure.fieldOfView = cameraFieldOfView;
             cameraToConfigure.nearClipPlane = 0.01f;
             cameraToConfigure.farClipPlane = 100f;
 

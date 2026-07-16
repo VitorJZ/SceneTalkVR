@@ -27,7 +27,7 @@ namespace SceneTalkVR.Runtime.Services
             // 1. Generate and Apply Skybox
             if (panoramaService != null)
             {
-                var task = panoramaService.GenerateSkyboxAsync(payload.environmentType);
+                var task = panoramaService.GenerateSkyboxAsync(payload.environmentType, payload.scene?.skyboxUrl);
                 while (!task.IsCompleted)
                 {
                     yield return null;

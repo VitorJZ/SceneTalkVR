@@ -102,9 +102,9 @@ Defaults:
 ## Tencent Cloud Setup
 
 1. Create or log in to a Tencent Cloud account.
-2. Open and activate ASR: https://cloud.tencent.com/product/asr
-3. Open and activate TTS: https://cloud.tencent.com/product/tts
-4. Create an API key in CAM: https://console.cloud.tencent.com/cam/capi
+2. Open and activate ASR: <https://cloud.tencent.com/product/asr>
+3. Open and activate TTS: <https://cloud.tencent.com/product/tts>
+4. Create an API key in CAM: <https://console.cloud.tencent.com/cam/capi>
 5. Put the key in either your local terminal environment or `voice-gateway.local.json`. Do not write real keys into tracked Git files, Unity `.meta` files, or screenshots.
 
 Example local run:

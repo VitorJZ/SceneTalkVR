@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using SceneTalkVR.Runtime;
 using UnityEngine;
 
 namespace SceneTalkVR.Core
@@ -77,6 +78,16 @@ namespace SceneTalkVR.Core
 
         public bool HasActiveTurn => activeTurnLog != null;
         public bool HasPendingTurnReview => pendingTurnLog != null;
+        public bool IsExperimentLocked => formalExperiment;
+        public string LockedFeedbackSensitivity => IsExperimentLocked ? "moderate" : "moderate";
+
+        public event Action ExperimentConditionChanged;
+
+        public void NotifyConditionChanged()
+        {
+            ExperimentConditionChanged?.Invoke();
+        }
+
         public bool IsFormalExperiment => formalExperiment;
         public bool DebugMode => debugMode;
         public bool ShowDebugLabel => debugMode && showDebugLabel && !formalExperiment;
@@ -166,6 +177,7 @@ namespace SceneTalkVR.Core
             {
                 participantId = string.IsNullOrWhiteSpace(participantId) ? "participant_demo" : participantId.Trim(),
                 sessionId = sessionId,
+                formalExperiment = formalExperiment,
                 conditionId = conditionId,
                 scenarioId = resolvedScenarioId,
                 provider = provider,
@@ -192,6 +204,7 @@ namespace SceneTalkVR.Core
             }
 
             RefreshCondition(false);
+            NotifyConditionChanged();
         }
 
         public void AdvanceScenario()
@@ -205,6 +218,23 @@ namespace SceneTalkVR.Core
             scenarioIndex = (scenarioIndex + 1) % taskDefinitions.Length;
             scenarioId = taskDefinitions[scenarioIndex].scenarioId;
             RefreshCondition(false);
+            NotifyConditionChanged();
+        }
+
+        public void SelectTask(string taskId)
+        {
+            EnsureDefaultTaskDefinitions();
+            for (int i = 0; i < taskDefinitions.Length; i++)
+            {
+                if (string.Equals(taskDefinitions[i].scenarioId, taskId, StringComparison.OrdinalIgnoreCase))
+                {
+                    scenarioIndex = i;
+                    scenarioId = taskDefinitions[i].scenarioId;
+                    break;
+                }
+            }
+            RefreshCondition(false);
+            NotifyConditionChanged();
         }
 
         public void ApplyProviderTo(MonoBehaviour avatarVoiceModule)
@@ -262,7 +292,7 @@ namespace SceneTalkVR.Core
             }
         }
 
-        public void RecordCorrectionPayload(CorrectionFeedbackData feedback)
+        public void RecordCorrectionPayload(SpringScenePayload payload)
         {
             var log = ResolveWritableTurnLog();
             if (log == null)
@@ -271,6 +301,7 @@ namespace SceneTalkVR.Core
             }
 
             var condition = CurrentCondition;
+            var feedback = payload?.correctionFeedback;
             log.provider = ResolveNonEmpty(feedback?.provider, condition?.provider);
             log.style = ResolveNonEmpty(feedback?.style, condition?.style);
             log.hasFeedback = feedback != null && feedback.hasFeedback;
@@ -279,6 +310,64 @@ namespace SceneTalkVR.Core
             {
                 log.correctionOutcome = "none";
                 log.correctionErrorCode = string.Empty;
+            }
+
+            if (payload != null)
+            {
+                log.dialogueReply = NullToEmpty(payload.dialogueReply);
+                if (feedback != null)
+                {
+                    log.feedbackText = NullToEmpty(feedback.feedbackText);
+                    log.originalText = NullToEmpty(feedback.originalText);
+                    log.correctedText = NullToEmpty(feedback.correctedText);
+                    log.rationaleTag = NullToEmpty(feedback.rationaleTag);
+
+                    if (!string.IsNullOrEmpty(feedback.rationaleTag))
+                    {
+                        if (feedback.rationaleTag.Contains("low_confidence_suppressed") || feedback.rationaleTag.Contains("short_recording_suppressed"))
+                        {
+                            log.sttSuppressionReason = feedback.rationaleTag;
+                        }
+                    }
+
+                    // Compute validation warnings
+                    var warnings = new System.Collections.Generic.List<string>();
+                    if (string.Equals(feedback.provider, "assistant_agent", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (CorrectionTextGuards.LooksLikeCorrection(payload.dialogueReply))
+                        {
+                            warnings.Add("dialogue_reply_leakage_detected");
+                        }
+                    }
+                    if (string.Equals(feedback.style, "recast", StringComparison.OrdinalIgnoreCase) && feedback.hasFeedback)
+                    {
+                        if (CorrectionTextGuards.ViolatesRecastPurity(feedback.feedbackText))
+                        {
+                            warnings.Add("recast_purity_violated");
+                        }
+                    }
+                    log.validationWarnings = warnings.Count > 0 ? string.Join(";", warnings) : "none";
+                }
+            }
+        }
+
+        public void RecordSpeechMetadata(string transcript, float confidence, string provider, string fallbackLevel, string suppressionReason)
+        {
+            var log = ResolveWritableTurnLog();
+            if (log != null)
+            {
+                log.transcript = NullToEmpty(transcript);
+                log.sttConfidence = confidence;
+                log.sttProvider = NullToEmpty(provider);
+                log.sttFallbackLevel = NullToEmpty(fallbackLevel);
+                if (!string.IsNullOrEmpty(suppressionReason))
+                {
+                    log.sttSuppressionReason = suppressionReason;
+                }
+                else if (string.IsNullOrEmpty(log.sttSuppressionReason))
+                {
+                    log.sttSuppressionReason = "none";
+                }
             }
         }
 
@@ -415,6 +504,9 @@ namespace SceneTalkVR.Core
             var retryCount = queuedRetryCount;
             queuedRetryCount = 0;
 
+            var config = FindObjectOfType<SceneTalkRuntimeConfigApplier>()?.Config;
+            bool isFixed = config != null ? config.UseFixedExperimentMode : true;
+
             return new ExperimentTurnLogRecord
             {
                 participantId = condition.participantId,
@@ -435,7 +527,33 @@ namespace SceneTalkVR.Core
                 moduleFallback = string.Empty,
                 timestampUtc = now.ToString("o", CultureInfo.InvariantCulture),
                 timestampUnixMs = new DateTimeOffset(now).ToUnixTimeMilliseconds(),
-                completedAtUtc = string.Empty
+                completedAtUtc = string.Empty,
+
+                // Initialize new fields
+                transcript = string.Empty,
+                dialogueReply = string.Empty,
+                feedbackText = string.Empty,
+                originalText = string.Empty,
+                correctedText = string.Empty,
+                rationaleTag = string.Empty,
+                sttConfidence = 1.0f,
+                sttProvider = string.Empty,
+                sttFallbackLevel = string.Empty,
+                sttSuppressionReason = string.Empty,
+                conditionOrderPosition = conditionOrderIndex,
+                validationWarnings = string.Empty,
+
+                // Fixed Experiment Scenario Mode fields
+                selectedTaskId = condition.scenarioId,
+                taskName = condition.task != null ? condition.task.scenarioId : condition.scenarioId,
+                taskContext = condition.task != null ? condition.task.context : string.Empty,
+                taskGoals = (condition.task != null && condition.task.goals != null) ? string.Join(";", condition.task.goals) : string.Empty,
+                initialQuestion = condition.task != null ? condition.task.initialQuestion : string.Empty,
+                sceneMode = isFixed ? "fixed_panorama" : "generative",
+                whetherHolodeckCalled = isFixed ? false : (config != null && config.UseHolodeckBackend),
+                panoramaSource = isFixed ? "local" : (config != null && config.ForceFallbackPanorama ? "fallback" : "generated_once"),
+                experimentProvider = condition.provider,
+                experimentStyle = condition.style
             };
         }
 
@@ -657,6 +775,7 @@ namespace SceneTalkVR.Core
             {
                 participantId = source.participantId,
                 sessionId = source.sessionId,
+                formalExperiment = source.formalExperiment,
                 conditionId = source.conditionId,
                 scenarioId = source.scenarioId,
                 provider = source.provider,
@@ -731,9 +850,9 @@ namespace SceneTalkVR.Core
             {
                 CreateTask(
                     "restaurant_reservation",
-                    "The learner is reserving a table at a restaurant by speaking with a service staff member.",
-                    new[] { "state date and time", "state party size", "ask about availability" },
-                    "Good evening. What date, time, and party size would you like to reserve?",
+                    "Calling an Italian restaurant to reserve a table for a small celebration.",
+                    new[] { "Reserve a table for 5 people", "Ask if a quiet corner table is available", "Ask whether you can bring a small cake", "Ask about parking nearby" },
+                    "Hello! Thank you for calling. How can I help you today?",
                     "restaurant",
                     "barista",
                     "demo://restaurant-360",
@@ -744,9 +863,9 @@ namespace SceneTalkVR.Core
                     }),
                 CreateTask(
                     "furniture_shopping",
-                    "The learner is shopping for furniture and needs to describe preferences, budget, and delivery needs.",
-                    new[] { "describe the item needed", "ask about price", "ask about delivery" },
-                    "Welcome in. What kind of furniture are you looking for today?",
+                    "Speaking with a salesperson at a furniture store to buy a desk.",
+                    new[] { "Describe the desk size or style you want", "Ask about available colors", "Ask whether delivery is available this week", "Ask about discounts or promotions" },
+                    "Hi! Welcome to HomeSpace. What kind of furniture are you looking for today?",
                     "furniture_store",
                     "clerk",
                     "demo://furniture-store-360",
@@ -757,9 +876,9 @@ namespace SceneTalkVR.Core
                     }),
                 CreateTask(
                     "gym_membership",
-                    "The learner is asking about a gym membership, including plans, facilities, and trial options.",
-                    new[] { "ask about membership plans", "ask about facilities", "ask about a trial visit" },
-                    "Hi. Are you interested in a monthly plan, a yearly plan, or a trial visit?",
+                    "Visiting a gym and asking about membership options.",
+                    new[] { "Ask about the monthly membership price", "Ask whether there is a student discount", "Ask about opening hours", "Ask if you can try one class first" },
+                    "Hi! Welcome to FitZone. What would you like to know about our gym?",
                     "gym",
                     "instructor",
                     "demo://gym-360",
@@ -770,9 +889,9 @@ namespace SceneTalkVR.Core
                     }),
                 CreateTask(
                     "hotel_check_in",
-                    "The learner is checking in at a hotel front desk and needs to confirm booking details.",
-                    new[] { "give booking name", "ask about room details", "ask about check-out time" },
-                    "Welcome to the hotel. May I have the name on your reservation?",
+                    "Checking in at a hotel and confirming room details.",
+                    new[] { "Confirm your reservation", "Ask whether breakfast is included", "Ask if the room is quiet", "Ask about check-out time" },
+                    "Good afternoon! Welcome to the hotel. How may I help you today?",
                     "hotel_lobby",
                     "clerk",
                     "demo://hotel-lobby-360",
@@ -897,8 +1016,34 @@ namespace SceneTalkVR.Core
             public long timestampUnixMs;
             public string completedAtUtc;
 
+            // New fields
+            public string transcript;
+            public string dialogueReply;
+            public string feedbackText;
+            public string originalText;
+            public string correctedText;
+            public string rationaleTag;
+            public float sttConfidence;
+            public string sttProvider;
+            public string sttFallbackLevel;
+            public string sttSuppressionReason;
+            public int conditionOrderPosition;
+            public string validationWarnings;
+
+            // Fixed Experiment Scenario Mode fields
+            public string selectedTaskId;
+            public string taskName;
+            public string taskContext;
+            public string taskGoals;
+            public string initialQuestion;
+            public string sceneMode;
+            public bool whetherHolodeckCalled;
+            public string panoramaSource;
+            public string experimentProvider;
+            public string experimentStyle;
+
             public const string CsvHeader =
-                "participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc";
+                "participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc,transcript,dialogueReply,feedbackText,originalText,correctedText,rationaleTag,sttConfidence,sttProvider,sttFallbackLevel,sttSuppressionReason,conditionOrderPosition,validationWarnings,selectedTaskId,taskName,taskContext,taskGoals,initialQuestion,sceneMode,whetherHolodeckCalled,panoramaSource,experimentProvider,experimentStyle";
 
             public string ToCsvLine()
             {
@@ -922,7 +1067,29 @@ namespace SceneTalkVR.Core
                     Csv(moduleFallback),
                     Csv(timestampUtc),
                     timestampUnixMs.ToString(CultureInfo.InvariantCulture),
-                    Csv(completedAtUtc));
+                    Csv(completedAtUtc),
+                    Csv(transcript),
+                    Csv(dialogueReply),
+                    Csv(feedbackText),
+                    Csv(originalText),
+                    Csv(correctedText),
+                    Csv(rationaleTag),
+                    sttConfidence.ToString("F4", CultureInfo.InvariantCulture),
+                    Csv(sttProvider),
+                    Csv(sttFallbackLevel),
+                    Csv(sttSuppressionReason),
+                    conditionOrderPosition.ToString(CultureInfo.InvariantCulture),
+                    Csv(validationWarnings),
+                    Csv(selectedTaskId),
+                    Csv(taskName),
+                    Csv(taskContext),
+                    Csv(taskGoals),
+                    Csv(initialQuestion),
+                    Csv(sceneMode),
+                    whetherHolodeckCalled ? "true" : "false",
+                    Csv(panoramaSource),
+                    Csv(experimentProvider),
+                    Csv(experimentStyle));
             }
 
             private static string Csv(string value)

@@ -1,6 +1,8 @@
+using System;
 using System.Collections;
 using SceneTalkVR.AvatarSystem;
 using SceneTalkVR.Core;
+using SceneTalkVR.Voice;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
@@ -35,6 +37,14 @@ namespace SceneTalkVR.Runtime
         public UnityEvent<SceneTalkState> stateChanged = new UnityEvent<SceneTalkState>();
 
         public SceneTalkState CurrentState { get; private set; } = SceneTalkState.Idle;
+        public SceneTalkRuntimeConfig RuntimeConfig
+        {
+            get
+            {
+                var applier = FindObjectOfType<SceneTalkRuntimeConfigApplier>();
+                return applier != null ? applier.Config : null;
+            }
+        }
         public string LastTranscript { get; private set; }
         public SpringScenePayload LastScenePayload { get; private set; }
         public string LastError { get; private set; }
@@ -187,6 +197,128 @@ namespace SceneTalkVR.Runtime
 
             finishRequested = false;
             currentTurn = StartCoroutine(RunConfirmedPracticeTurn());
+        }
+
+        public void ConfirmFixedTaskSelection(string taskId)
+        {
+            if (currentTurn != null)
+            {
+                return;
+            }
+
+            if (!ValidateGenerationModules())
+            {
+                return;
+            }
+
+            finishRequested = false;
+            currentTurn = StartCoroutine(RunFixedTaskStartup(taskId));
+        }
+
+        private IEnumerator RunFixedTaskStartup(string taskId)
+        {
+            LastScenePayload = null;
+            LastError = string.Empty;
+            
+            var manager = ResolveExperimentConditionManager(true);
+            if (manager != null)
+            {
+                manager.SelectTask(taskId);
+            }
+
+            EnsureExperimentTurnStarted();
+            SetState(SceneTalkState.Processing);
+
+            ApplyExperimentConditionToModules();
+
+            var condition = manager != null ? manager.CurrentCondition : null;
+            var task = condition != null ? condition.task : null;
+            if (task == null)
+            {
+                LastError = "Failed to load default task definition.";
+                SetState(SceneTalkState.Error);
+                currentTurn = null;
+                yield break;
+            }
+
+            var fallbackRole = string.IsNullOrWhiteSpace(task.fallbackAvatarRole) ? "barista" : task.fallbackAvatarRole;
+            var gender = string.IsNullOrWhiteSpace(task.fallbackAvatarGenderPresentation) ? "female" : task.fallbackAvatarGenderPresentation;
+            
+            var roleFamily = "clerk";
+            if (fallbackRole.Contains("barista")) roleFamily = "barista";
+            else if (fallbackRole.Contains("instructor")) roleFamily = "instructor";
+            else if (fallbackRole.Contains("police")) roleFamily = "police";
+            else if (fallbackRole.Contains("teacher")) roleFamily = "teacher";
+
+            var initialPayload = new SpringScenePayload
+            {
+                taskType = taskId,
+                environmentType = string.IsNullOrWhiteSpace(task.fallbackEnvironmentType) ? taskId : task.fallbackEnvironmentType,
+                dialogueReply = task.initialQuestion,
+                avatarRole = new AvatarRoleData
+                {
+                    role = fallbackRole,
+                    speakingSpeed = "medium",
+                    accent = "american",
+                    attitude = string.IsNullOrWhiteSpace(task.fallbackAvatarAttitude) ? "helpful" : task.fallbackAvatarAttitude,
+                    appearance = new AvatarAppearanceData
+                    {
+                        styleId = "semi_realistic_v1",
+                        genderPresentation = gender,
+                        ageBucket = "adult",
+                        bodyBuild = "average",
+                        outfitRole = roleFamily,
+                        outfitColor = "blue",
+                        seed = 42345 + Mathf.Abs(taskId.GetHashCode() % 1000)
+                    }
+                },
+                scene = new ScenePayload
+                {
+                    mode = "skybox",
+                    skyboxUrl = string.IsNullOrWhiteSpace(task.fallbackSkyboxUrl) ? $"demo://{taskId}" : task.fallbackSkyboxUrl,
+                    layoutObjects = task.fallbackLayoutObjects ?? Array.Empty<LayoutObjectData>()
+                }
+            };
+
+            ApplyExperimentConditionToPayload(initialPayload);
+            LastScenePayload = initialPayload;
+            RefreshUi();
+            SetState(SceneTalkState.SceneReady);
+
+            string error = null;
+            yield return ScenePresenter.PresentScene(
+                initialPayload,
+                () => { },
+                message => error = message);
+
+            if (HandleErrorOrFinish(error, "Scene presentation failed."))
+            {
+                currentTurn = null;
+                yield break;
+            }
+
+            IsDialogueActive = true;
+            PrepareCorrectionReview(initialPayload);
+            SubscribeAvatarCorrectionPlayback();
+            
+            SetState(LastCorrectionHasFeedback
+                ? SceneTalkState.CorrectionFeedbackSpeaking
+                : SceneTalkState.DialogueSpeaking);
+
+            AvatarReplyContext?.SetReplyContext(true);
+            yield return AvatarVoice.PresentReply(
+                initialPayload,
+                () => { },
+                message => error = message);
+
+            if (HandleErrorOrFinish(error, "Avatar voice playback failed."))
+            {
+                currentTurn = null;
+                yield break;
+            }
+
+            currentTurn = null;
+            EnterTurnReviewState();
         }
 
         public void StartDialogueTurn()
@@ -479,6 +611,7 @@ namespace SceneTalkVR.Runtime
 
             CompleteSpeechCaptureState();
             ResolveExperimentConditionManager(false)?.CompleteRecording();
+            RecordSpeechMetadataHelper(transcript);
 
             if (HandleErrorOrFinish(error, "Speech input failed."))
             {
@@ -503,7 +636,7 @@ namespace SceneTalkVR.Runtime
             string error = null;
             SpringScenePayload payload = null;
             ApplyExperimentConditionToModules();
-            yield return Brain.GenerateSceneAndReply(
+            yield return GenerateSceneAndReplyWithStreamingSupport(
                 transcript,
                 value => payload = value,
                 message => error = message);
@@ -569,6 +702,7 @@ namespace SceneTalkVR.Runtime
 
             CompleteSpeechCaptureState();
             ResolveExperimentConditionManager(false)?.CompleteRecording();
+            RecordSpeechMetadataHelper(transcript);
 
             if (HandleErrorOrFinish(error, "Speech input failed."))
             {
@@ -584,7 +718,7 @@ namespace SceneTalkVR.Runtime
             SpringScenePayload payload = null;
             error = null;
             ApplyExperimentConditionToModules();
-            yield return Brain.GenerateSceneAndReply(
+            yield return GenerateSceneAndReplyWithStreamingSupport(
                 transcript,
                 value => payload = value,
                 message => error = message);
@@ -747,6 +881,23 @@ namespace SceneTalkVR.Runtime
             manager.RefreshCondition(manager.HasActiveTurn);
             manager.ApplyProviderTo(avatarVoiceModule);
             manager.InjectInto(brainModule);
+            PropagateExperimentLockState(manager.IsExperimentLocked);
+        }
+
+        private void PropagateExperimentLockState(bool locked)
+        {
+            #if UNITY_2023_1_OR_NEWER
+            var lockReceivers = FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            #else
+            var lockReceivers = FindObjectsOfType<MonoBehaviour>(true);
+            #endif
+            foreach (var mono in lockReceivers)
+            {
+                if (mono is ISceneTalkExperimentLockReceiver receiver)
+                {
+                    receiver.SetExperimentLocked(locked);
+                }
+            }
         }
 
         private void ApplyExperimentConditionToPayload(SpringScenePayload payload)
@@ -797,7 +948,25 @@ namespace SceneTalkVR.Runtime
                 : "No correction feedback this turn.";
             IsAwaitingTurnReviewAction = false;
 
-            ResolveExperimentConditionManager(false)?.RecordCorrectionPayload(feedback);
+            ResolveExperimentConditionManager(false)?.RecordCorrectionPayload(payload);
+        }
+
+        private void RecordSpeechMetadataHelper(string transcript)
+        {
+            if (speechInputModule is GatewaySpeechInputModule gatewayStt)
+            {
+                var response = gatewayStt.LastSttResponse;
+                float confidence = response != null ? response.confidence : 1.0f;
+                string sttProv = response != null ? response.provider : "unknown";
+                string fallbackLvl = response != null ? response.fallbackLevel : "none";
+                string suppressionReason = "";
+                ResolveExperimentConditionManager(false)?.RecordSpeechMetadata(
+                    transcript,
+                    confidence,
+                    sttProv,
+                    fallbackLvl,
+                    suppressionReason);
+            }
         }
 
         private void EnterTurnReviewState()
@@ -958,6 +1127,64 @@ namespace SceneTalkVR.Runtime
             if (errorLabel != null)
             {
                 errorLabel.text = string.IsNullOrWhiteSpace(LastError) ? string.Empty : $"Error: {LastError}";
+            }
+        }
+
+        private IEnumerator GenerateSceneAndReplyWithStreamingSupport(
+            string transcript,
+            Action<SpringScenePayload> onCompleteCallback,
+            Action<string> onErrorCallback)
+        {
+            var streamingBrain = Brain as ISceneTalkStreamingBrain;
+            var streamingVoice = AvatarVoice as ISceneTalkStreamingAvatarVoice;
+
+            if (streamingBrain != null && streamingVoice != null)
+            {
+                var basePayload = LastScenePayload;
+                streamingVoice.PrepareStreaming(basePayload);
+
+                bool isDone = false;
+                SpringScenePayload finalPayload = null;
+                string brainError = null;
+
+                string accumulatedSubtitle = string.Empty;
+                yield return streamingBrain.GenerateSceneAndReplyStreaming(
+                    transcript,
+                    sentence => {
+                        streamingVoice.EnqueueSentence(sentence);
+                        accumulatedSubtitle += (string.IsNullOrEmpty(accumulatedSubtitle) ? "" : " ") + sentence;
+                        if (replyLabel != null)
+                        {
+                            replyLabel.text = $"Avatar: {accumulatedSubtitle}";
+                        }
+                    },
+                    payload => {
+                        finalPayload = payload;
+                        isDone = true;
+                    },
+                    err => {
+                        brainError = err;
+                        isDone = true;
+                    }
+                );
+
+                streamingVoice.SignalStreamingComplete();
+
+                if (!string.IsNullOrEmpty(brainError))
+                {
+                    onErrorCallback?.Invoke(brainError);
+                    yield break;
+                }
+
+                onCompleteCallback?.Invoke(finalPayload);
+            }
+            else
+            {
+                yield return Brain.GenerateSceneAndReply(
+                    transcript,
+                    onCompleteCallback,
+                    onErrorCallback
+                );
             }
         }
     }

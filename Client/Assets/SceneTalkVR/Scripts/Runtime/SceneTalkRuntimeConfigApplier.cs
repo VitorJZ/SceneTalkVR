@@ -134,9 +134,14 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
-            var speech = config.UseVoiceGatewaySpeech
-                ? gatewaySpeechInput as MonoBehaviour
-                : demoSpeechInput as MonoBehaviour;
+            var speech = config.UseDeveloperTextConsole || !config.UseVoiceGatewaySpeech
+                ? demoSpeechInput as MonoBehaviour
+                : gatewaySpeechInput as MonoBehaviour;
+
+            if (demoSpeechInput is SceneTalkVR.Demo.DemoSpeechInputModule demoSpeech)
+            {
+                demoSpeech.EnableDeveloperConsole = config.UseDeveloperTextConsole;
+            }
 
             MonoBehaviour brain = null;
             switch (config.BrainMode)

@@ -6,7 +6,7 @@ using UnityEngine;
 namespace SceneTalkVR.AvatarSystem
 {
     [DisallowMultipleComponent]
-    public sealed class CorrectionFeedbackPresenter : MonoBehaviour
+    public sealed class CorrectionFeedbackPresenter : MonoBehaviour, ISceneTalkExperimentLockReceiver
     {
         private enum TencentVoiceType
         {
@@ -79,10 +79,20 @@ namespace SceneTalkVR.AvatarSystem
         private AvatarSpeechPlayer speechPlayer;
         private bool isSessionActive;
         private string currentFeedbackProvider = AssistantAgentProvider;
+        private bool experimentLocked;
 
         private AvatarSpeechPlayer SpeechPlayer => speechPlayer ??= new AvatarSpeechPlayer();
 
         public string CurrentFeedbackProvider => NormalizeProvider(currentFeedbackProvider);
+
+        public void SetExperimentLocked(bool locked)
+        {
+            experimentLocked = locked;
+            if (experimentLocked)
+            {
+                debugForceFeedback = false;
+            }
+        }
 
         private void Start()
         {
@@ -119,6 +129,12 @@ namespace SceneTalkVR.AvatarSystem
             Action endDialogueAvatarSpeaking,
             Action<CorrectionPlaybackResult> onComplete)
         {
+            if (experimentLocked && debugForceFeedback)
+            {
+                Debug.LogWarning("[CorrectionFeedbackPresenter] debugForceFeedback disabled in formal experiment.");
+                debugForceFeedback = false;
+            }
+
             var feedback = payload != null ? payload.correctionFeedback : null;
             var provider = ResolveConfiguredProvider(feedback);
             currentFeedbackProvider = provider;
@@ -135,6 +151,19 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             var style = ResolveEffectiveStyle(feedback);
+            var useDialogueAvatar = string.Equals(
+                provider,
+                DialogueAvatarProvider,
+                StringComparison.OrdinalIgnoreCase);
+
+            if (useDialogueAvatar && string.Equals(style, RecastStyle, StringComparison.OrdinalIgnoreCase))
+            {
+                // Dialogue avatar recast is already naturally spoken in the main dialogueReply.
+                // Do not play it again to prevent redundant repetition.
+                onComplete?.Invoke(Result(provider, "played", "skipped_audio_avatar_recast"));
+                yield break;
+            }
+
             var text = ResolveEffectiveFeedbackText(feedback);
             if (string.IsNullOrWhiteSpace(text))
             {
@@ -157,7 +186,7 @@ namespace SceneTalkVR.AvatarSystem
                     this);
             }
 
-            var useDialogueAvatar = string.Equals(
+            useDialogueAvatar = string.Equals(
                 provider,
                 DialogueAvatarProvider,
                 StringComparison.OrdinalIgnoreCase);
@@ -265,7 +294,7 @@ namespace SceneTalkVR.AvatarSystem
 
         private bool IsDebugForceFeedbackEnabled()
         {
-            return debugForceFeedback;
+            return debugForceFeedback && !experimentLocked;
         }
 
         private bool ShouldKeepAssistantVisible()

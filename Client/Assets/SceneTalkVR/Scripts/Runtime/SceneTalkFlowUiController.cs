@@ -21,6 +21,7 @@ namespace SceneTalkVR.Runtime
         private GameObject settingsPanel;
         private GameObject settingsGeneralGroup;
         private GameObject requestPanel;
+        private GameObject taskSelectionPanel;
         private GameObject loadingPanel;
         private GameObject subtitlePanel;
         private GameObject subtitleTextContainer;
@@ -38,6 +39,11 @@ namespace SceneTalkVR.Runtime
         private Button confirmButton;
         private Button exitButton;
         private Button dialogueListenButton;
+
+        private Button taskButton1;
+        private Button taskButton2;
+        private Button taskButton3;
+        private Button taskButton4;
 
         private Text settingsTitleText;
         private Text settingsPageText;
@@ -151,6 +157,22 @@ namespace SceneTalkVR.Runtime
             listenButton = CreateButton(requestPanel.transform, "ListenButton", "Listen", new Vector2(-110f, -142f), new Vector2(150f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f));
             confirmButton = CreateButton(requestPanel.transform, "ConfirmButton", "Confirm", new Vector2(110f, -142f), new Vector2(150f, 54f), new Color(0.12f, 0.52f, 0.38f, 1f));
 
+            // Fixed Task Selection Panel
+            taskSelectionPanel = CreatePanel(root, "TaskSelectionPanel", new Vector2(0f, 0f), new Vector2(900f, 520f), new Color(0.04f, 0.05f, 0.07f, 0.95f));
+            CreateText(taskSelectionPanel.transform, "Title", "Select a Practice Task", new Vector2(0f, 220f), new Vector2(800f, 44f), 28, TextAnchor.MiddleCenter, Color.white);
+
+            taskButton1 = CreateButton(taskSelectionPanel.transform, "Task1Button", "Restaurant Reservation", new Vector2(-210f, 90f), new Vector2(380f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f));
+            CreateText(taskSelectionPanel.transform, "Task1Context", "Context: Reserve a table at an Italian restaurant for 5 people.\nGoals: corner table, bring cake, parking.", new Vector2(-210f, 10f), new Vector2(380f, 80f), 15, TextAnchor.UpperCenter, new Color(0.8f, 0.8f, 0.8f, 1f));
+
+            taskButton2 = CreateButton(taskSelectionPanel.transform, "Task2Button", "Furniture Shopping", new Vector2(210f, 90f), new Vector2(380f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f));
+            CreateText(taskSelectionPanel.transform, "Task2Context", "Context: Speak with a salesperson to buy a desk.\nGoals: desk size/style, colors, delivery, discounts.", new Vector2(210f, 10f), new Vector2(380f, 80f), 15, TextAnchor.UpperCenter, new Color(0.8f, 0.8f, 0.8f, 1f));
+
+            taskButton3 = CreateButton(taskSelectionPanel.transform, "Task3Button", "Gym Membership", new Vector2(-210f, -100f), new Vector2(380f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f));
+            CreateText(taskSelectionPanel.transform, "Task3Context", "Context: Ask about gym membership options.\nGoals: monthly price, student discount, opening hours, trial class.", new Vector2(-210f, -180f), new Vector2(380f, 80f), 15, TextAnchor.UpperCenter, new Color(0.8f, 0.8f, 0.8f, 1f));
+
+            taskButton4 = CreateButton(taskSelectionPanel.transform, "Task4Button", "Hotel Check-In", new Vector2(210f, -100f), new Vector2(380f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f));
+            CreateText(taskSelectionPanel.transform, "Task4Context", "Context: Check in at a hotel and confirm details.\nGoals: confirm booking, breakfast included, quiet room, check-out.", new Vector2(210f, -180f), new Vector2(380f, 80f), 15, TextAnchor.UpperCenter, new Color(0.8f, 0.8f, 0.8f, 1f));
+
             loadingPanel = CreatePanel(root, "LoadingPanel", new Vector2(0f, 0f), new Vector2(540f, 220f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
             loadingText = CreateText(loadingPanel.transform, "LoadingText", "Loading scene and avatar...", new Vector2(0f, 0f), new Vector2(480f, 80f), 26, TextAnchor.MiddleCenter, Color.white);
 
@@ -251,6 +273,30 @@ namespace SceneTalkVR.Runtime
                 confirmButton.onClick.AddListener(() => orchestrator?.ConfirmPracticeRequest());
             }
 
+            if (taskButton1 != null)
+            {
+                taskButton1.onClick.RemoveAllListeners();
+                taskButton1.onClick.AddListener(() => orchestrator?.ConfirmFixedTaskSelection("restaurant_reservation"));
+            }
+
+            if (taskButton2 != null)
+            {
+                taskButton2.onClick.RemoveAllListeners();
+                taskButton2.onClick.AddListener(() => orchestrator?.ConfirmFixedTaskSelection("furniture_shopping"));
+            }
+
+            if (taskButton3 != null)
+            {
+                taskButton3.onClick.RemoveAllListeners();
+                taskButton3.onClick.AddListener(() => orchestrator?.ConfirmFixedTaskSelection("gym_membership"));
+            }
+
+            if (taskButton4 != null)
+            {
+                taskButton4.onClick.RemoveAllListeners();
+                taskButton4.onClick.AddListener(() => orchestrator?.ConfirmFixedTaskSelection("hotel_check_in"));
+            }
+
             if (dialogueListenButton != null)
             {
                 dialogueListenButton.onClick.RemoveAllListeners();
@@ -273,13 +319,19 @@ namespace SceneTalkVR.Runtime
 
             var state = orchestrator.CurrentState;
             var dialogueActive = orchestrator.IsDialogueActive;
+            bool isFixedMode = orchestrator.RuntimeConfig != null && orchestrator.RuntimeConfig.UseFixedExperimentMode;
+
             var showMain = state == SceneTalkState.Idle || state == SceneTalkState.Finished;
             var showSettings = state == SceneTalkState.Settings;
             var showRequest = !dialogueActive
+                && (!isFixedMode || state != SceneTalkState.Listening)
                 && (state == SceneTalkState.Listening
                     || state == SceneTalkState.Recording
                     || state == SceneTalkState.Transcribing
                     || state == SceneTalkState.Error);
+            var showTaskSelection = isFixedMode
+                && !dialogueActive
+                && (state == SceneTalkState.Listening);
             var showLoading = !dialogueActive && (state == SceneTalkState.Processing || state == SceneTalkState.SceneReady);
             var showDialogue = dialogueActive
                 || state == SceneTalkState.AvatarSpeaking
@@ -290,6 +342,7 @@ namespace SceneTalkVR.Runtime
             SetActive(mainMenuPanel, showMain);
             SetActive(settingsPanel, showSettings);
             SetActive(requestPanel, showRequest);
+            SetActive(taskSelectionPanel, showTaskSelection);
             SetActive(loadingPanel, showLoading);
             SetActive(subtitlePanel, showDialogue);
             SetActive(exitButtonObject, !showMain);

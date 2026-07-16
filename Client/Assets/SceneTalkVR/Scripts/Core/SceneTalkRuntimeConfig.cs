@@ -17,6 +17,8 @@ namespace SceneTalkVR.Core
         [SerializeField] private SceneTalkBrainRuntimeMode brainMode = SceneTalkBrainRuntimeMode.KeepCurrent;
         [SerializeField] private bool useVoiceGatewaySpeech = true;
         [SerializeField] private bool useVoiceGatewayTts = true;
+        [SerializeField] private bool useFixedExperimentMode = true;
+        [SerializeField] private bool useDeveloperTextConsole = false;
 
         [Header("LAN Services")]
         [SerializeField] private string voiceGatewayBaseUrl = string.Empty;
@@ -25,14 +27,14 @@ namespace SceneTalkVR.Core
         [SerializeField] private int holodeckTimeoutSeconds = 300;
 
         [Header("Mobile Safety")]
-        [SerializeField] private bool onlyUsePanorama;
-        [SerializeField] private bool forceFallbackPanorama;
+        [SerializeField] private bool onlyUsePanorama = true;
+        [SerializeField] private bool forceFallbackPanorama = true;
         [SerializeField] private bool enableSpatialClipping = true;
         [SerializeField] private int maxSpawnCount = 2;
 
         [Header("Direct LLM Defaults")]
         [SerializeField] private string directLlmApiUrl = "https://models.sjtu.edu.cn/api/v1/chat/completions";
-        [SerializeField] private string directLlmModelName = "minimax-m2.7";
+        [SerializeField] private string directLlmModelName = "deepseek-chat";
 
         [Header("Panorama Defaults")]
         [SerializeField] private string panoramaModelName = "Tongyi-MAI/Z-Image";
@@ -41,6 +43,8 @@ namespace SceneTalkVR.Core
         public SceneTalkBrainRuntimeMode BrainMode => brainMode;
         public bool UseVoiceGatewaySpeech => useVoiceGatewaySpeech;
         public bool UseVoiceGatewayTts => useVoiceGatewayTts;
+        public bool UseFixedExperimentMode => useFixedExperimentMode;
+        public bool UseDeveloperTextConsole => useDeveloperTextConsole;
         public string VoiceGatewayBaseUrl => NormalizeUrl(voiceGatewayBaseUrl);
         public bool HasVoiceGatewayBaseUrl => !string.IsNullOrWhiteSpace(VoiceGatewayBaseUrl);
         public bool UseHolodeckBackend => useHolodeckBackend;
@@ -53,7 +57,7 @@ namespace SceneTalkVR.Core
         public int MaxSpawnCount => Mathf.Max(0, maxSpawnCount);
         public string DirectLlmApiUrl => NormalizeUrl(directLlmApiUrl);
         public string DirectLlmModelName => string.IsNullOrWhiteSpace(directLlmModelName)
-            ? "minimax-m2.7"
+            ? "deepseek-chat"
             : directLlmModelName.Trim();
         public string PanoramaModelName => string.IsNullOrWhiteSpace(panoramaModelName)
             ? "Tongyi-MAI/Z-Image"
@@ -91,9 +95,10 @@ namespace SceneTalkVR.Core
             brainMode = SceneTalkBrainRuntimeMode.DirectRealLlm;
             useVoiceGatewaySpeech = true;
             useVoiceGatewayTts = true;
+            useFixedExperimentMode = true;
             useHolodeckBackend = false;
-            onlyUsePanorama = false;
-            forceFallbackPanorama = false;
+            onlyUsePanorama = true;
+            forceFallbackPanorama = true;
             enableSpatialClipping = true;
             maxSpawnCount = 2;
             holodeckTimeoutSeconds = 300;
@@ -104,7 +109,7 @@ namespace SceneTalkVR.Core
 
             if (string.IsNullOrWhiteSpace(directLlmModelName))
             {
-                directLlmModelName = "minimax-m2.7";
+                directLlmModelName = "deepseek-chat";
             }
 
             if (string.IsNullOrWhiteSpace(panoramaModelName))
