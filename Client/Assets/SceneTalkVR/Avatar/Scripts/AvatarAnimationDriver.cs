@@ -17,7 +17,7 @@ namespace SceneTalkVR.AvatarSystem
 
         public void BindAvatar(GameObject avatar)
         {
-            currentAnimator = avatar != null ? avatar.GetComponentInChildren<Animator>() : null;
+            BindAnimator(avatar != null ? avatar.GetComponentInChildren<Animator>() : null);
         }
 
         public void BindAnimator(Animator animator)
@@ -42,6 +42,7 @@ namespace SceneTalkVR.AvatarSystem
 
         public bool BeginOpeningSpeech()
         {
+            SetThinking(false);
             var talkingSet = TrySetBool(talkingParameter, true);
             var openingTriggered = TryPlayTrigger(openingSpeechTrigger);
             return talkingSet || openingTriggered;
@@ -49,6 +50,7 @@ namespace SceneTalkVR.AvatarSystem
 
         public bool BeginTalking()
         {
+            SetThinking(false);
             return TrySetBool(talkingParameter, true);
         }
 
@@ -59,7 +61,7 @@ namespace SceneTalkVR.AvatarSystem
 
         public void ResetState()
         {
-            TrySetBool(thinkingParameter, false);
+            SetThinking(false);
             TrySetBool(talkingParameter, false);
         }
 

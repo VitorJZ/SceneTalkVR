@@ -50,6 +50,7 @@ namespace SceneTalkVR.EditorTools
         private const string FemaleTeacherOverrideControllerPath = OverrideControllerFolder + "/teacher_female_humanoid_v1.overrideController";
         private const string FemalePoliceOverrideControllerPath = OverrideControllerFolder + "/police_female_humanoid_v1.overrideController";
         private const string ConversationMaskPath = CommonAnimationFolder + "/AvatarConversationUpperBody.mask";
+        private const string ThinkingHeadMaskPath = CommonAnimationFolder + "/AvatarThinkingHead.mask";
         private const string HumanoidPrefabFolder = AvatarRoot + "/Prefabs/Humanoid";
         private const string PropPrefabFolder = AvatarRoot + "/Prefabs/Props";
         private const string TeacherPrefabPath = HumanoidPrefabFolder + "/teacher_humanoid_v1.prefab";
@@ -728,6 +729,11 @@ namespace SceneTalkVR.EditorTools
                 thinkingEnterClip,
                 thinkingHoldClip,
                 talkClip);
+            AddThinkingHeadStabilizationLayer(
+                controller,
+                idleClip,
+                speakWaveClip,
+                talkClip);
             EditorUtility.SetDirty(controller);
             AssetDatabase.SaveAssets();
             return controller;
@@ -897,6 +903,74 @@ namespace SceneTalkVR.EditorTools
             mask.SetHumanoidBodyPartActive(AvatarMaskBodyPart.Head, true);
             mask.SetHumanoidBodyPartActive(AvatarMaskBodyPart.LeftArm, true);
             mask.SetHumanoidBodyPartActive(AvatarMaskBodyPart.RightArm, true);
+
+            EditorUtility.SetDirty(mask);
+            return mask;
+        }
+
+        private static void AddThinkingHeadStabilizationLayer(
+            AnimatorController controller,
+            AnimationClip idleClip,
+            AnimationClip speakWaveClip,
+            AnimationClip talkClip)
+        {
+            var mask = CreateOrUpdateThinkingHeadMask();
+            controller.AddLayer("Thinking Head Stabilization");
+            var layers = controller.layers;
+            var layer = layers[layers.Length - 1];
+            layer.defaultWeight = 1f;
+            layer.avatarMask = mask;
+            layer.blendingMode = AnimatorLayerBlendingMode.Override;
+
+            var stateMachine = layer.stateMachine;
+            var idle = stateMachine.AddState("HeadIdle");
+            idle.motion = idleClip;
+            idle.writeDefaultValues = false;
+            stateMachine.defaultState = idle;
+
+            var thinkingHeadIdle = stateMachine.AddState("ThinkingHeadIdle");
+            thinkingHeadIdle.motion = idleClip;
+            thinkingHeadIdle.writeDefaultValues = false;
+            var speakWave = stateMachine.AddState("HeadSpeakWave");
+            speakWave.motion = speakWaveClip;
+            speakWave.writeDefaultValues = false;
+            var talking = stateMachine.AddState("HeadTalkLoop");
+            talking.motion = talkClip;
+            talking.writeDefaultValues = false;
+
+            AddBoolTransition(idle, thinkingHeadIdle, "IsThinking", true);
+            AddBoolTransition(idle, talking, "IsTalking", true);
+            AddBoolTransition(thinkingHeadIdle, talking, "IsTalking", true);
+            AddBoolTransition(thinkingHeadIdle, idle, "IsThinking", false);
+            AddBoolTransition(talking, idle, "IsTalking", false);
+
+            var open = stateMachine.AddAnyStateTransition(speakWave);
+            open.AddCondition(AnimatorConditionMode.If, 0f, "Speak");
+            open.duration = 0.1f;
+            open.canTransitionToSelf = false;
+
+            AddExitTimeTransition(speakWave, talking, "IsTalking", true);
+            AddExitTimeTransition(speakWave, idle, "IsTalking", false);
+
+            layers[layers.Length - 1] = layer;
+            controller.layers = layers;
+        }
+
+        private static AvatarMask CreateOrUpdateThinkingHeadMask()
+        {
+            var mask = AssetDatabase.LoadAssetAtPath<AvatarMask>(ThinkingHeadMaskPath);
+            if (mask == null)
+            {
+                mask = new AvatarMask();
+                AssetDatabase.CreateAsset(mask, ThinkingHeadMaskPath);
+            }
+
+            for (var i = 0; i < (int)AvatarMaskBodyPart.LastBodyPart; i++)
+            {
+                mask.SetHumanoidBodyPartActive((AvatarMaskBodyPart)i, false);
+            }
+
+            mask.SetHumanoidBodyPartActive(AvatarMaskBodyPart.Head, true);
 
             EditorUtility.SetDirty(mask);
             return mask;
