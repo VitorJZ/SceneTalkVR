@@ -229,6 +229,7 @@ namespace SceneTalkVR.EditorTools
             SetObject(avatarVoice, "resolver", avatarResolver);
             SetObject(avatarVoice, "loaderModule", avatarLoader);
             SetObject(avatarVoice, "avatarRoot", avatarRootTransform);
+            SetObject(avatarVoice, "placementAnchor", ui.canvas.transform);
             SetObject(avatarVoice, "userFacingTarget", interactionCamera.transform);
             SetObject(avatarVoice, "propPresenter", avatarProps);
             SetObject(avatarVoice, "propCatalog", avatarPropCatalog);
