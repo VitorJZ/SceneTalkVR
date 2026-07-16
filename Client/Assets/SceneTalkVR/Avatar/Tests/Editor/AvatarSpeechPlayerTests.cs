@@ -67,5 +67,38 @@ namespace SceneTalkVR.AvatarSystem.Tests
             Assert.That(first, Does.StartWith($"turn-{Time.frameCount}-"));
             Assert.That(second, Does.StartWith($"turn-{Time.frameCount}-"));
         }
+
+        [TestCase("female", "male", "custom_voice", "default_female_en")]
+        [TestCase("male", "female", "custom_voice", "default_male_en")]
+        [TestCase("", "male", "custom_voice", "default_male_en")]
+        [TestCase("unknown", "female", "custom_voice", "default_female_en")]
+        [TestCase("unknown", "unknown", "custom_voice", "custom_voice")]
+        [TestCase("", "", "", "default_female_en")]
+        public void ResolveVoiceId_PrioritizesResolvedAvatarGender(
+            string avatarGender,
+            string requestedGender,
+            string defaultVoiceId,
+            string expectedVoiceId)
+        {
+            var context = new AvatarSpeechPlaybackContext
+            {
+                currentAvatarGenderPresentation = avatarGender,
+                defaultVoiceId = defaultVoiceId
+            };
+            var payload = new SpringScenePayload
+            {
+                avatarRole = new AvatarRoleData
+                {
+                    appearance = new AvatarAppearanceData
+                    {
+                        genderPresentation = requestedGender
+                    }
+                }
+            };
+
+            Assert.That(
+                AvatarSpeechPlayer.ResolveVoiceId(context, payload),
+                Is.EqualTo(expectedVoiceId));
+        }
     }
 }

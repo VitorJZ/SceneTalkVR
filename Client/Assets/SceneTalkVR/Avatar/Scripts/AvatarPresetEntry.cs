@@ -15,6 +15,9 @@ namespace SceneTalkVR.AvatarSystem
         public GameObject prefab;
         public string addressableKey;
 
+        [Header("Fixed Scenario Mapping")]
+        public string[] scenarioIds = Array.Empty<string>();
+
         [Header("Matching Tags")]
         public string[] roles = Array.Empty<string>();
         public string[] environmentTags = Array.Empty<string>();
