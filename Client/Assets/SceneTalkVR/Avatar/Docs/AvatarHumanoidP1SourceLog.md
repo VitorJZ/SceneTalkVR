@@ -30,7 +30,7 @@
 - Upper-body conversation layer: non-looping `ThinkingEnter`, looping `ThinkingHold`, character-native `SpeakWave`, and `TalkLoop` run through `AvatarConversationUpperBody.mask` while root and legs remain on the native idle pose.
 - Runtime parameters: `Speak` is the one-shot opening trigger; `IsThinking` and `IsTalking` are bools that remain active for the real processing and audio playback lifecycles.
 - Opening flow: `SpeakWave -> TalkLoop` while audio is still playing, then `Idle`.
-- Thinking flow: `ThinkingEnter -> ThinkingHold` while processing; both states can transition directly to `TalkLoop` when audio starts, then `Idle` when playback ends.
+- Thinking flow: `ThinkingEnter -> ThinkingHold` while processing; a head-only layer mirrors the native Idle, SpeakWave, and TalkLoop head states while replacing only the Thinking head motion with native Idle. Matching transitions keep the source clip's hidden head tilt from appearing between Thinking, correction playback, and TalkLoop.
 - 2026-06-11 idle fix: default idle remains `CharacterArmature|Idle_Neutral`; Idle/Walk/Run clips are imported with loop enabled, and `AvatarPresentationVoiceModule` assigns `AvatarCommonHumanoid.controller` at runtime if a nested FBX Animator loses its controller override.
 - 2026-06-30 existing-rig fix: `SceneTalkVR/Setup/Rebuild Demo Rig With Voice Gateway` also rebinds `AvatarPresentationVoiceModule.defaultAnimatorController`, so existing voice-gateway rigs recover animation even when prefab-instantiated Animators lose their controller reference.
 - `AvatarCatalog.asset` keeps `teacher_default` as placeholder fallback and adds `teacher_humanoid_v1` as the higher-priority teacher match.

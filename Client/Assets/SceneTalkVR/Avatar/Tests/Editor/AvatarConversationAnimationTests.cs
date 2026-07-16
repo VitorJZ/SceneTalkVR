@@ -120,6 +120,51 @@ namespace SceneTalkVR.AvatarSystem.Tests
             }
         }
 
+        [TestCase("teacher_humanoid_v1")]
+        [TestCase("barista_humanoid_v1")]
+        [TestCase("police_humanoid_v1")]
+        [TestCase("barista_male_humanoid_v1")]
+        [TestCase("teacher_female_humanoid_v1")]
+        [TestCase("police_female_humanoid_v1")]
+        public void ThinkingHeadStabilization_PreservesNativeHeadPose(string prefabName)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                $"Assets/SceneTalkVR/Avatar/Prefabs/Humanoid/{prefabName}.prefab");
+            Assert.That(prefab, Is.Not.Null);
+
+            var idleInstance = Object.Instantiate(prefab);
+            var thinkingInstance = Object.Instantiate(prefab);
+            try
+            {
+                var idleAnimator = idleInstance.GetComponentInChildren<Animator>();
+                var thinkingAnimator = thinkingInstance.GetComponentInChildren<Animator>();
+                PrepareAnimator(idleAnimator);
+                PrepareAnimator(thinkingAnimator);
+                var driver = thinkingInstance.AddComponent<AvatarAnimationDriver>();
+                driver.BindAnimator(thinkingAnimator);
+                Assert.That(driver.SetThinking(true), Is.True);
+
+                AdvanceAnimators(idleAnimator, thinkingAnimator, 3f);
+
+                Assert.That(
+                    thinkingAnimator.GetCurrentAnimatorStateInfo(2).IsName("ThinkingHeadIdle"),
+                    Is.True);
+                var idleHead = idleAnimator.GetBoneTransform(HumanBodyBones.Head);
+                var thinkingHead = thinkingAnimator.GetBoneTransform(HumanBodyBones.Head);
+                Assert.That(idleHead, Is.Not.Null);
+                Assert.That(thinkingHead, Is.Not.Null);
+                Assert.That(
+                    Quaternion.Angle(idleHead.rotation, thinkingHead.rotation),
+                    Is.LessThan(10f),
+                    $"{prefabName} retained too much of the Thinking clip's head tilt.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(idleInstance);
+                Object.DestroyImmediate(thinkingInstance);
+            }
+        }
+
         [TestCase(
             "Assets/SceneTalkVR/Avatar/Animations/Mixamo/Thoughtful Head Nod 70AS.fbx",
             "TalkLoop")]
@@ -244,6 +289,43 @@ namespace SceneTalkVR.AvatarSystem.Tests
             Assert.That(
                 conversationLayer.avatarMask.GetHumanoidBodyPartActive(AvatarMaskBodyPart.RightFingers),
                 Is.False);
+
+            var headLayer = controller.layers.Single(
+                layer => layer.name == "Thinking Head Stabilization");
+            var headStates = headLayer.stateMachine.states.Select(state => state.state).ToArray();
+            Assert.That(headStates.Select(state => state.name), Is.EquivalentTo(new[]
+            {
+                "HeadIdle",
+                "ThinkingHeadIdle",
+                "HeadSpeakWave",
+                "HeadTalkLoop"
+            }));
+            Assert.That(headLayer.defaultWeight, Is.EqualTo(1f));
+            Assert.That(
+                headStates.Single(state => state.name == "HeadIdle").motion.name,
+                Does.Contain("idle").IgnoreCase);
+            Assert.That(
+                headStates.Single(state => state.name == "ThinkingHeadIdle").motion.name,
+                Does.Contain("idle").IgnoreCase);
+            Assert.That(
+                headStates.Single(state => state.name == "HeadSpeakWave").motion.name,
+                Does.EndWith("Wave"));
+            Assert.That(
+                headStates.Single(state => state.name == "HeadTalkLoop").motion.name,
+                Is.EqualTo("TalkLoop"));
+            Assert.That(headLayer.avatarMask, Is.Not.Null);
+            Assert.That(
+                headLayer.avatarMask.GetHumanoidBodyPartActive(AvatarMaskBodyPart.Head),
+                Is.True);
+            Assert.That(
+                headLayer.avatarMask.GetHumanoidBodyPartActive(AvatarMaskBodyPart.Body),
+                Is.False);
+            Assert.That(
+                headLayer.avatarMask.GetHumanoidBodyPartActive(AvatarMaskBodyPart.LeftArm),
+                Is.False);
+            Assert.That(
+                headLayer.avatarMask.GetHumanoidBodyPartActive(AvatarMaskBodyPart.RightArm),
+                Is.False);
         }
 
         [Test]
@@ -264,6 +346,7 @@ namespace SceneTalkVR.AvatarSystem.Tests
                 Assert.That(animator.GetBool("IsThinking"), Is.True);
 
                 Assert.That(driver.BeginTalking(), Is.True);
+                Assert.That(animator.GetBool("IsThinking"), Is.False);
                 Assert.That(animator.GetBool("IsTalking"), Is.True);
 
                 Assert.That(driver.EndTalking(), Is.True);
@@ -284,6 +367,8 @@ namespace SceneTalkVR.AvatarSystem.Tests
             try
             {
                 var animator = instance.GetComponentInChildren<Animator>();
+                var driver = instance.AddComponent<AvatarAnimationDriver>();
+                driver.BindAnimator(animator);
                 animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
                 animator.Rebind();
 
@@ -291,20 +376,24 @@ namespace SceneTalkVR.AvatarSystem.Tests
                 animator.SetTrigger("Speak");
                 AdvanceAnimator(animator, 0.3f);
                 Assert.That(animator.GetCurrentAnimatorStateInfo(1).IsName("SpeakWave"), Is.True);
+                Assert.That(animator.GetCurrentAnimatorStateInfo(2).IsName("HeadSpeakWave"), Is.True);
 
                 var waveLength = animator.runtimeAnimatorController.animationClips
                     .First(clip => clip.name.EndsWith("Wave"))
                     .length;
                 AdvanceAnimator(animator, waveLength + 0.5f);
                 Assert.That(animator.GetCurrentAnimatorStateInfo(1).IsName("TalkLoop"), Is.True);
+                Assert.That(animator.GetCurrentAnimatorStateInfo(2).IsName("HeadTalkLoop"), Is.True);
 
                 animator.SetBool("IsTalking", false);
                 AdvanceAnimator(animator, 0.3f);
                 Assert.That(animator.GetCurrentAnimatorStateInfo(1).IsName("ConversationIdle"), Is.True);
+                Assert.That(animator.GetCurrentAnimatorStateInfo(2).IsName("HeadIdle"), Is.True);
 
-                animator.SetBool("IsThinking", true);
+                Assert.That(driver.SetThinking(true), Is.True);
                 AdvanceAnimator(animator, 0.3f);
                 Assert.That(animator.GetCurrentAnimatorStateInfo(1).IsName("ThinkingEnter"), Is.True);
+                Assert.That(animator.GetCurrentAnimatorStateInfo(2).IsName("ThinkingHeadIdle"), Is.True);
 
                 var thinkingEnterLength = animator.runtimeAnimatorController.animationClips
                     .Single(clip => clip.name == "ThinkingEnter")
@@ -318,10 +407,109 @@ namespace SceneTalkVR.AvatarSystem.Tests
                 AdvanceAnimator(animator, thinkingHoldLength * 2f + 0.2f);
                 Assert.That(animator.GetCurrentAnimatorStateInfo(1).IsName("ThinkingHold"), Is.True);
 
-                animator.SetBool("IsThinking", false);
-                animator.SetBool("IsTalking", true);
+                Assert.That(driver.BeginTalking(), Is.True);
                 AdvanceAnimator(animator, 0.3f);
                 Assert.That(animator.GetCurrentAnimatorStateInfo(1).IsName("TalkLoop"), Is.True);
+                Assert.That(animator.GetCurrentAnimatorStateInfo(2).IsName("HeadTalkLoop"), Is.True);
+            }
+            finally
+            {
+                Object.DestroyImmediate(instance);
+            }
+        }
+
+        [TestCase("teacher_humanoid_v1")]
+        [TestCase("barista_humanoid_v1")]
+        [TestCase("police_humanoid_v1")]
+        [TestCase("barista_male_humanoid_v1")]
+        [TestCase("teacher_female_humanoid_v1")]
+        [TestCase("police_female_humanoid_v1")]
+        public void TalkLoop_PreservesHeadMotionAfterThinking(string prefabName)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                $"Assets/SceneTalkVR/Avatar/Prefabs/Humanoid/{prefabName}.prefab");
+            Assert.That(prefab, Is.Not.Null);
+
+            var instance = Object.Instantiate(prefab);
+            try
+            {
+                var animator = instance.GetComponentInChildren<Animator>();
+                PrepareAnimator(animator);
+                var driver = instance.AddComponent<AvatarAnimationDriver>();
+                driver.BindAnimator(animator);
+                Assert.That(driver.SetThinking(true), Is.True);
+                AdvanceAnimator(animator, 0.5f);
+                Assert.That(driver.BeginTalking(), Is.True);
+                AdvanceAnimator(animator, 0.5f);
+
+                Assert.That(animator.GetCurrentAnimatorStateInfo(1).IsName("TalkLoop"), Is.True);
+                Assert.That(animator.GetCurrentAnimatorStateInfo(2).IsName("HeadTalkLoop"), Is.True);
+                var head = animator.GetBoneTransform(HumanBodyBones.Head);
+                Assert.That(head, Is.Not.Null);
+                var startRotation = head.localRotation;
+                var maxHeadDelta = 0f;
+                for (var i = 0; i < 40; i++)
+                {
+                    animator.Update(0.1f);
+                    maxHeadDelta = Mathf.Max(
+                        maxHeadDelta,
+                        Quaternion.Angle(startRotation, head.localRotation));
+                }
+
+                Assert.That(
+                    maxHeadDelta,
+                    Is.GreaterThan(5f),
+                    $"{prefabName} lost the TalkLoop head motion.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(instance);
+            }
+        }
+
+        [TestCase("teacher_humanoid_v1")]
+        [TestCase("barista_humanoid_v1")]
+        [TestCase("police_humanoid_v1")]
+        [TestCase("barista_male_humanoid_v1")]
+        [TestCase("teacher_female_humanoid_v1")]
+        [TestCase("police_female_humanoid_v1")]
+        public void ThinkingToIdle_DoesNotExposeSourceHeadTilt(string prefabName)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                $"Assets/SceneTalkVR/Avatar/Prefabs/Humanoid/{prefabName}.prefab");
+            Assert.That(prefab, Is.Not.Null);
+
+            var instance = Object.Instantiate(prefab);
+            try
+            {
+                var animator = instance.GetComponentInChildren<Animator>();
+                PrepareAnimator(animator);
+                var driver = instance.AddComponent<AvatarAnimationDriver>();
+                driver.BindAnimator(animator);
+                Assert.That(driver.SetThinking(true), Is.True);
+                AdvanceAnimator(animator, 3f);
+
+                var head = animator.GetBoneTransform(HumanBodyBones.Head);
+                Assert.That(head, Is.Not.Null);
+                var previousRotation = head.localRotation;
+                var maxSingleFrameDelta = 0f;
+                Assert.That(driver.SetThinking(false), Is.True);
+                for (var i = 0; i < 30; i++)
+                {
+                    animator.Update(0.01f);
+                    var currentRotation = head.localRotation;
+                    maxSingleFrameDelta = Mathf.Max(
+                        maxSingleFrameDelta,
+                        Quaternion.Angle(previousRotation, currentRotation));
+                    previousRotation = currentRotation;
+                }
+
+                Assert.That(animator.GetCurrentAnimatorStateInfo(1).IsName("ConversationIdle"), Is.True);
+                Assert.That(animator.GetCurrentAnimatorStateInfo(2).IsName("HeadIdle"), Is.True);
+                Assert.That(
+                    maxSingleFrameDelta,
+                    Is.LessThan(10f),
+                    $"{prefabName} exposed the source Thinking head tilt while returning to idle.");
             }
             finally
             {
