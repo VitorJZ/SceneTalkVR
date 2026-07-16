@@ -6773,7 +6773,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e31b3f8bd2f2f3c40a93708c122d2846, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Runtime.Services.RealLLMService
-  apiUrl: https://models.sjtu.edu.cn/api/v1/chat/completions
+  apiUrl: http://192.168.137.1:8788/api/llm/chat/completions
   apiKey: 
   modelName: deepseek-chat
   feedbackSensitivity: moderate

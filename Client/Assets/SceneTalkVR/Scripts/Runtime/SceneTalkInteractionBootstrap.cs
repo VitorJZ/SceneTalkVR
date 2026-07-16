@@ -1092,36 +1092,14 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
-            var rawPosition = position;
-            var rawRotation = rotation;
             var trackingSpace = ResolveTrackingSpaceTransform();
             if (trackingSpace == null)
             {
                 return;
             }
 
-            var transformedPosition = trackingSpace.TransformPoint(rawPosition);
-            var transformedRotation = trackingSpace.rotation * rawRotation;
-
-            if (interactionCamera == null)
-            {
-                position = transformedPosition;
-                rotation = transformedRotation;
-                return;
-            }
-
-            var headsetPosition = interactionCamera.transform.position;
-            var rawDistanceToHeadset = Vector3.Distance(rawPosition, headsetPosition);
-            var transformedDistanceToHeadset = Vector3.Distance(transformedPosition, headsetPosition);
-            if (transformedDistanceToHeadset < rawDistanceToHeadset)
-            {
-                position = transformedPosition;
-                rotation = transformedRotation;
-                return;
-            }
-
-            position = rawPosition;
-            rotation = rawRotation;
+            position = trackingSpace.TransformPoint(position);
+            rotation = trackingSpace.rotation * rotation;
         }
 
         private Transform ResolveTrackingSpaceTransform()

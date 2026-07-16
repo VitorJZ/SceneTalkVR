@@ -134,6 +134,23 @@ namespace SceneTalkVR.EditorTools
         private static void ConfigurePicoOpenXRDefaults(bool runPreflight)
         {
             var addedDefine = EnsureAndroidDefine(PicoOpenXrDefine);
+
+            if (addedDefine)
+            {
+                AssetDatabase.SaveAssets();
+                Debug.LogWarning(
+                    "PICO_OPENXR_SDK was added. Wait for Unity to finish recompiling, then rerun " +
+                    "`SceneTalkVR/Setup/Apply Recommended Project Settings` to register and enable PICO OpenXR features.");
+
+                if (runPreflight)
+                {
+                    RunPreflightCheck();
+                }
+
+                return;
+            }
+
+            UnityEditor.XR.OpenXR.Features.FeatureHelpers.RefreshFeatures(BuildTargetGroup.Android);
             var enabledSupport = SetAndroidOpenXRFeatureEnabled(PicoXrSupportFeatureId, true);
             var enabledExtensions = SetAndroidOpenXRFeatureEnabled(PicoOpenXrFeaturesFeatureId, true);
             var enabledPico4 = SetAndroidOpenXRFeatureEnabled(Pico4ControllerFeatureId, true);
@@ -145,13 +162,6 @@ namespace SceneTalkVR.EditorTools
             }
 
             AssetDatabase.SaveAssets();
-
-            if (addedDefine && (!enabledSupport || !enabledExtensions || (!enabledPico4 && !enabledPico4Ultra)))
-            {
-                Debug.LogWarning(
-                    "PICO_OPENXR_SDK was added. Wait for Unity to finish recompiling, then rerun " +
-                    "`SceneTalkVR/Setup/Apply Recommended Project Settings` to enable PICO OpenXR features.");
-            }
 
             if (runPreflight)
             {
@@ -238,6 +248,7 @@ namespace SceneTalkVR.EditorTools
             AppendCheck(report, IsAndroidDefineEnabled(PicoOpenXrDefine), "`PICO_OPENXR_SDK` define is set for Android");
             AppendCheck(report, HasAndroidXRLoader(OpenXrLoaderTypeName), "Android XR loader uses OpenXR");
             AppendCheck(report, HasAndroidXRAutoStartEnabled(), "Android XR initializes and runs on startup");
+            AppendCheck(report, AreRequiredPicoOpenXRFeaturesRegistered(), "Required PICO features are registered in Android OpenXR settings");
             AppendCheck(report, IsAndroidOpenXRFeatureIdEnabled(PicoXrSupportFeatureId), "PICO XR Support feature is enabled for Android OpenXR");
             AppendCheck(report, IsAndroidOpenXRFeatureIdEnabled(PicoOpenXrFeaturesFeatureId), "PICO OpenXR Features extension is enabled");
             AppendCheck(report, IsAndroidOpenXRFeatureIdEnabled(Pico4ControllerFeatureId) || IsAndroidOpenXRFeatureIdEnabled(Pico4UltraControllerFeatureId), "PICO 4 controller profile is enabled for Android OpenXR");
@@ -343,6 +354,14 @@ namespace SceneTalkVR.EditorTools
                 || IsAndroidOpenXRFeatureIdEnabled(Pico4UltraControllerFeatureId);
         }
 
+        private static bool AreRequiredPicoOpenXRFeaturesRegistered()
+        {
+            return FindAndroidOpenXRFeature(PicoXrSupportFeatureId) != null
+                && FindAndroidOpenXRFeature(PicoOpenXrFeaturesFeatureId) != null
+                && FindAndroidOpenXRFeature(Pico4ControllerFeatureId) != null
+                && FindAndroidOpenXRFeature(Pico4UltraControllerFeatureId) != null;
+        }
+
         private static bool IsAndroidOpenXRFeatureIdEnabled(string featureId)
         {
             var feature = FindAndroidOpenXRFeature(featureId);
@@ -355,6 +374,7 @@ namespace SceneTalkVR.EditorTools
 
             if (feature == null)
             {
+                Debug.LogWarning($"OpenXR feature '{featureId}' was not registered for Android after refreshing features.");
                 return false;
             }
 

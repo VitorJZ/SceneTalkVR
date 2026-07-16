@@ -15,8 +15,8 @@ MonoBehaviour:
   brainMode: 2
   useVoiceGatewaySpeech: 1
   useVoiceGatewayTts: 1
-  useDeveloperTextConsole: 1
-  voiceGatewayBaseUrl: http://127.0.0.1:8787
+  useDeveloperTextConsole: 0
+  voiceGatewayBaseUrl: http://192.168.137.1:8787
   useHolodeckBackend: 0
   holodeckBackendUrl: 
   holodeckTimeoutSeconds: 300
@@ -24,7 +24,7 @@ MonoBehaviour:
   forceFallbackPanorama: 1
   enableSpatialClipping: 1
   maxSpawnCount: 2
-  directLlmApiUrl: https://models.sjtu.edu.cn/api/v1/chat/completions
+  directLlmApiUrl: http://192.168.137.1:8788/api/llm/chat/completions
   directLlmModelName: deepseek-chat
   panoramaModelName: Tongyi-MAI/Z-Image
   panoramaImageSize: 1024x1024
