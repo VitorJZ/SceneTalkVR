@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using SceneTalkVR.Runtime;
 using UnityEngine;
 
 namespace SceneTalkVR.Core
@@ -216,6 +217,22 @@ namespace SceneTalkVR.Core
 
             scenarioIndex = (scenarioIndex + 1) % taskDefinitions.Length;
             scenarioId = taskDefinitions[scenarioIndex].scenarioId;
+            RefreshCondition(false);
+            NotifyConditionChanged();
+        }
+
+        public void SelectTask(string taskId)
+        {
+            EnsureDefaultTaskDefinitions();
+            for (int i = 0; i < taskDefinitions.Length; i++)
+            {
+                if (string.Equals(taskDefinitions[i].scenarioId, taskId, StringComparison.OrdinalIgnoreCase))
+                {
+                    scenarioIndex = i;
+                    scenarioId = taskDefinitions[i].scenarioId;
+                    break;
+                }
+            }
             RefreshCondition(false);
             NotifyConditionChanged();
         }
@@ -487,6 +504,9 @@ namespace SceneTalkVR.Core
             var retryCount = queuedRetryCount;
             queuedRetryCount = 0;
 
+            var config = FindObjectOfType<SceneTalkRuntimeConfigApplier>()?.Config;
+            bool isFixed = config != null ? config.UseFixedExperimentMode : true;
+
             return new ExperimentTurnLogRecord
             {
                 participantId = condition.participantId,
@@ -508,7 +528,7 @@ namespace SceneTalkVR.Core
                 timestampUtc = now.ToString("o", CultureInfo.InvariantCulture),
                 timestampUnixMs = new DateTimeOffset(now).ToUnixTimeMilliseconds(),
                 completedAtUtc = string.Empty,
-                
+
                 // Initialize new fields
                 transcript = string.Empty,
                 dialogueReply = string.Empty,
@@ -521,7 +541,19 @@ namespace SceneTalkVR.Core
                 sttFallbackLevel = string.Empty,
                 sttSuppressionReason = string.Empty,
                 conditionOrderPosition = conditionOrderIndex,
-                validationWarnings = string.Empty
+                validationWarnings = string.Empty,
+
+                // Fixed Experiment Scenario Mode fields
+                selectedTaskId = condition.scenarioId,
+                taskName = condition.task != null ? condition.task.scenarioId : condition.scenarioId,
+                taskContext = condition.task != null ? condition.task.context : string.Empty,
+                taskGoals = (condition.task != null && condition.task.goals != null) ? string.Join(";", condition.task.goals) : string.Empty,
+                initialQuestion = condition.task != null ? condition.task.initialQuestion : string.Empty,
+                sceneMode = isFixed ? "fixed_panorama" : "generative",
+                whetherHolodeckCalled = isFixed ? false : (config != null && config.UseHolodeckBackend),
+                panoramaSource = isFixed ? "local" : (config != null && config.ForceFallbackPanorama ? "fallback" : "generated_once"),
+                experimentProvider = condition.provider,
+                experimentStyle = condition.style
             };
         }
 
@@ -818,9 +850,9 @@ namespace SceneTalkVR.Core
             {
                 CreateTask(
                     "restaurant_reservation",
-                    "The learner is reserving a table at a restaurant by speaking with a service staff member.",
-                    new[] { "state date and time", "state party size", "ask about availability" },
-                    "Good evening. What date, time, and party size would you like to reserve?",
+                    "Calling an Italian restaurant to reserve a table for a small celebration.",
+                    new[] { "Reserve a table for 5 people", "Ask if a quiet corner table is available", "Ask whether you can bring a small cake", "Ask about parking nearby" },
+                    "Hello! Thank you for calling. How can I help you today?",
                     "restaurant",
                     "barista",
                     "demo://restaurant-360",
@@ -831,9 +863,9 @@ namespace SceneTalkVR.Core
                     }),
                 CreateTask(
                     "furniture_shopping",
-                    "The learner is shopping for furniture and needs to describe preferences, budget, and delivery needs.",
-                    new[] { "describe the item needed", "ask about price", "ask about delivery" },
-                    "Welcome in. What kind of furniture are you looking for today?",
+                    "Speaking with a salesperson at a furniture store to buy a desk.",
+                    new[] { "Describe the desk size or style you want", "Ask about available colors", "Ask whether delivery is available this week", "Ask about discounts or promotions" },
+                    "Hi! Welcome to HomeSpace. What kind of furniture are you looking for today?",
                     "furniture_store",
                     "clerk",
                     "demo://furniture-store-360",
@@ -844,9 +876,9 @@ namespace SceneTalkVR.Core
                     }),
                 CreateTask(
                     "gym_membership",
-                    "The learner is asking about a gym membership, including plans, facilities, and trial options.",
-                    new[] { "ask about membership plans", "ask about facilities", "ask about a trial visit" },
-                    "Hi. Are you interested in a monthly plan, a yearly plan, or a trial visit?",
+                    "Visiting a gym and asking about membership options.",
+                    new[] { "Ask about the monthly membership price", "Ask whether there is a student discount", "Ask about opening hours", "Ask if you can try one class first" },
+                    "Hi! Welcome to FitZone. What would you like to know about our gym?",
                     "gym",
                     "instructor",
                     "demo://gym-360",
@@ -857,9 +889,9 @@ namespace SceneTalkVR.Core
                     }),
                 CreateTask(
                     "hotel_check_in",
-                    "The learner is checking in at a hotel front desk and needs to confirm booking details.",
-                    new[] { "give booking name", "ask about room details", "ask about check-out time" },
-                    "Welcome to the hotel. May I have the name on your reservation?",
+                    "Checking in at a hotel and confirming room details.",
+                    new[] { "Confirm your reservation", "Ask whether breakfast is included", "Ask if the room is quiet", "Ask about check-out time" },
+                    "Good afternoon! Welcome to the hotel. How may I help you today?",
                     "hotel_lobby",
                     "clerk",
                     "demo://hotel-lobby-360",
@@ -998,8 +1030,20 @@ namespace SceneTalkVR.Core
             public int conditionOrderPosition;
             public string validationWarnings;
 
+            // Fixed Experiment Scenario Mode fields
+            public string selectedTaskId;
+            public string taskName;
+            public string taskContext;
+            public string taskGoals;
+            public string initialQuestion;
+            public string sceneMode;
+            public bool whetherHolodeckCalled;
+            public string panoramaSource;
+            public string experimentProvider;
+            public string experimentStyle;
+
             public const string CsvHeader =
-                "participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc,transcript,dialogueReply,feedbackText,originalText,correctedText,rationaleTag,sttConfidence,sttProvider,sttFallbackLevel,sttSuppressionReason,conditionOrderPosition,validationWarnings";
+                "participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc,transcript,dialogueReply,feedbackText,originalText,correctedText,rationaleTag,sttConfidence,sttProvider,sttFallbackLevel,sttSuppressionReason,conditionOrderPosition,validationWarnings,selectedTaskId,taskName,taskContext,taskGoals,initialQuestion,sceneMode,whetherHolodeckCalled,panoramaSource,experimentProvider,experimentStyle";
 
             public string ToCsvLine()
             {
@@ -1035,7 +1079,17 @@ namespace SceneTalkVR.Core
                     Csv(sttFallbackLevel),
                     Csv(sttSuppressionReason),
                     conditionOrderPosition.ToString(CultureInfo.InvariantCulture),
-                    Csv(validationWarnings));
+                    Csv(validationWarnings),
+                    Csv(selectedTaskId),
+                    Csv(taskName),
+                    Csv(taskContext),
+                    Csv(taskGoals),
+                    Csv(initialQuestion),
+                    Csv(sceneMode),
+                    whetherHolodeckCalled ? "true" : "false",
+                    Csv(panoramaSource),
+                    Csv(experimentProvider),
+                    Csv(experimentStyle));
             }
 
             private static string Csv(string value)

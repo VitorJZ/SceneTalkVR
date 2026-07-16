@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using SceneTalkVR.Core;
 using UnityEngine;
 
@@ -60,13 +61,17 @@ namespace SceneTalkVR.Runtime.Services
             ClearScene();
 
             // 1. Generate Panorama Background
-            var panoTask = panoramaService.GenerateSkyboxAsync(payload.environmentType);
+            var panoTask = panoramaService.GenerateSkyboxAsync(payload.environmentType, payload.scene?.skyboxUrl);
             
-            // 2. Generate Holodeck 3D Layout
-            var holodeckTask = holodeckService.GenerateLayoutAsync(payload.environmentType);
+            // 2. Generate Holodeck 3D Layout (only if onlyUsePanorama is false)
+            Task<HolodeckSceneService.HolodeckResponse> holodeckTask = null;
+            if (!onlyUsePanorama)
+            {
+                holodeckTask = holodeckService.GenerateLayoutAsync(payload.environmentType);
+            }
 
-            // Wait for both
-            while (!panoTask.IsCompleted || !holodeckTask.IsCompleted)
+            // Wait for tasks
+            while (!panoTask.IsCompleted || (holodeckTask != null && !holodeckTask.IsCompleted))
             {
                 yield return null;
             }
@@ -81,16 +86,19 @@ namespace SceneTalkVR.Runtime.Services
                 Debug.LogWarning($"[HybridScenePresenter] Panorama failed: {panoTask.Exception?.Message}");
             }
 
-            // Apply 3D Objects
-            if (holodeckTask.IsCompletedSuccessfully)
+            // Apply 3D Objects (only if onlyUsePanorama is false)
+            if (!onlyUsePanorama && holodeckTask != null)
             {
-                InstantiateHolodeckObjects(holodeckTask.Result);
-            }
-            else
-            {
-                Debug.LogError($"[HybridScenePresenter] Holodeck failed: {holodeckTask.Exception?.Message}");
-                onError?.Invoke($"Failed to generate 3D layout: {holodeckTask.Exception?.Message}");
-                yield break;
+                if (holodeckTask.IsCompletedSuccessfully)
+                {
+                    InstantiateHolodeckObjects(holodeckTask.Result);
+                }
+                else
+                {
+                    Debug.LogError($"[HybridScenePresenter] Holodeck failed: {holodeckTask.Exception?.Message}");
+                    onError?.Invoke($"Failed to generate 3D layout: {holodeckTask.Exception?.Message}");
+                    yield break;
+                }
             }
 
             onComplete?.Invoke();

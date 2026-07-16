@@ -37,6 +37,14 @@ namespace SceneTalkVR.Runtime
         public UnityEvent<SceneTalkState> stateChanged = new UnityEvent<SceneTalkState>();
 
         public SceneTalkState CurrentState { get; private set; } = SceneTalkState.Idle;
+        public SceneTalkRuntimeConfig RuntimeConfig
+        {
+            get
+            {
+                var applier = FindObjectOfType<SceneTalkRuntimeConfigApplier>();
+                return applier != null ? applier.Config : null;
+            }
+        }
         public string LastTranscript { get; private set; }
         public SpringScenePayload LastScenePayload { get; private set; }
         public string LastError { get; private set; }
@@ -188,6 +196,128 @@ namespace SceneTalkVR.Runtime
 
             finishRequested = false;
             currentTurn = StartCoroutine(RunConfirmedPracticeTurn());
+        }
+
+        public void ConfirmFixedTaskSelection(string taskId)
+        {
+            if (currentTurn != null)
+            {
+                return;
+            }
+
+            if (!ValidateGenerationModules())
+            {
+                return;
+            }
+
+            finishRequested = false;
+            currentTurn = StartCoroutine(RunFixedTaskStartup(taskId));
+        }
+
+        private IEnumerator RunFixedTaskStartup(string taskId)
+        {
+            LastScenePayload = null;
+            LastError = string.Empty;
+            
+            var manager = ResolveExperimentConditionManager(true);
+            if (manager != null)
+            {
+                manager.SelectTask(taskId);
+            }
+
+            EnsureExperimentTurnStarted();
+            SetState(SceneTalkState.Processing);
+
+            ApplyExperimentConditionToModules();
+
+            var condition = manager != null ? manager.CurrentCondition : null;
+            var task = condition != null ? condition.task : null;
+            if (task == null)
+            {
+                LastError = "Failed to load default task definition.";
+                SetState(SceneTalkState.Error);
+                currentTurn = null;
+                yield break;
+            }
+
+            var fallbackRole = string.IsNullOrWhiteSpace(task.fallbackAvatarRole) ? "barista" : task.fallbackAvatarRole;
+            var gender = string.IsNullOrWhiteSpace(task.fallbackAvatarGenderPresentation) ? "female" : task.fallbackAvatarGenderPresentation;
+            
+            var roleFamily = "clerk";
+            if (fallbackRole.Contains("barista")) roleFamily = "barista";
+            else if (fallbackRole.Contains("instructor")) roleFamily = "instructor";
+            else if (fallbackRole.Contains("police")) roleFamily = "police";
+            else if (fallbackRole.Contains("teacher")) roleFamily = "teacher";
+
+            var initialPayload = new SpringScenePayload
+            {
+                taskType = taskId,
+                environmentType = string.IsNullOrWhiteSpace(task.fallbackEnvironmentType) ? taskId : task.fallbackEnvironmentType,
+                dialogueReply = task.initialQuestion,
+                avatarRole = new AvatarRoleData
+                {
+                    role = fallbackRole,
+                    speakingSpeed = "medium",
+                    accent = "american",
+                    attitude = string.IsNullOrWhiteSpace(task.fallbackAvatarAttitude) ? "helpful" : task.fallbackAvatarAttitude,
+                    appearance = new AvatarAppearanceData
+                    {
+                        styleId = "semi_realistic_v1",
+                        genderPresentation = gender,
+                        ageBucket = "adult",
+                        bodyBuild = "average",
+                        outfitRole = roleFamily,
+                        outfitColor = "blue",
+                        seed = 42345 + Mathf.Abs(taskId.GetHashCode() % 1000)
+                    }
+                },
+                scene = new ScenePayload
+                {
+                    mode = "skybox",
+                    skyboxUrl = string.IsNullOrWhiteSpace(task.fallbackSkyboxUrl) ? $"demo://{taskId}" : task.fallbackSkyboxUrl,
+                    layoutObjects = task.fallbackLayoutObjects ?? Array.Empty<LayoutObjectData>()
+                }
+            };
+
+            ApplyExperimentConditionToPayload(initialPayload);
+            LastScenePayload = initialPayload;
+            RefreshUi();
+            SetState(SceneTalkState.SceneReady);
+
+            string error = null;
+            yield return ScenePresenter.PresentScene(
+                initialPayload,
+                () => { },
+                message => error = message);
+
+            if (HandleErrorOrFinish(error, "Scene presentation failed."))
+            {
+                currentTurn = null;
+                yield break;
+            }
+
+            IsDialogueActive = true;
+            PrepareCorrectionReview(initialPayload);
+            SubscribeAvatarCorrectionPlayback();
+            
+            SetState(LastCorrectionHasFeedback
+                ? SceneTalkState.CorrectionFeedbackSpeaking
+                : SceneTalkState.DialogueSpeaking);
+
+            AvatarReplyContext?.SetReplyContext(true);
+            yield return AvatarVoice.PresentReply(
+                initialPayload,
+                () => { },
+                message => error = message);
+
+            if (HandleErrorOrFinish(error, "Avatar voice playback failed."))
+            {
+                currentTurn = null;
+                yield break;
+            }
+
+            currentTurn = null;
+            EnterTurnReviewState();
         }
 
         public void StartDialogueTurn()
