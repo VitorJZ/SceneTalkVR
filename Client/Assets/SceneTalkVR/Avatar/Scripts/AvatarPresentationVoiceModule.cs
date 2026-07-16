@@ -166,7 +166,7 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             // If streaming was already used to play dialogue in real-time, just present correction and wait
-            if (isStreamingPlaying || (isStreamingFinished && streamingBasePayload != null))
+            if (isDialogueGateOpen && (isStreamingPlaying || (isStreamingFinished && streamingBasePayload != null)))
             {
                 // Ensure avatar is loaded first if it is the first turn and wasn't loaded in PrepareStreaming
                 if (currentAvatar == null)
