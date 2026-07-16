@@ -74,6 +74,10 @@ namespace SceneTalkVR.Runtime.Services
         private float lastRecordingDurationMs = 0f;
         private string lastRecordingStopReason = "unknown";
 
+        public float LastFirstTokenLatencyMs { get; private set; } = -1f;
+        public float LastFirstSentenceLatencyMs { get; private set; } = -1f;
+        private float streamStartTime;
+
         public void ConfigureApi(string runtimeApiUrl, string runtimeModelName)
         {
             if (!string.IsNullOrWhiteSpace(runtimeApiUrl))
@@ -118,96 +122,53 @@ namespace SceneTalkVR.Runtime.Services
 
             CheckAndResetSession();
 
-            Task<SpringScenePayload> task;
-            if (chatHistory.Count == 0)
-            {
-                task = ParseIntentAsync(userText);
-            }
-            else
-            {
-                task = GenerateDialogueTurnAsync(userText);
-            }
-            
-            while (!task.IsCompleted)
+            var correctionTask = ParseCorrectionFeedbackAsync(userText);
+            var dialogueTask = ParseDialogueContinuationNonStreamingAsync(userText);
+
+            while (!correctionTask.IsCompleted || !dialogueTask.IsCompleted)
             {
                 yield return null;
             }
 
-            if (task.IsFaulted)
+            if (correctionTask.IsFaulted || dialogueTask.IsFaulted)
             {
-                var ex = task.Exception?.InnerException ?? task.Exception;
-                onError?.Invoke(ex?.Message ?? "Task faulted during LLM request.");
+                var ex = correctionTask.Exception?.InnerException ?? correctionTask.Exception ?? dialogueTask.Exception?.InnerException ?? dialogueTask.Exception;
+                onError?.Invoke(ex?.Message ?? "Parallel LLM tasks faulted.");
+                yield break;
             }
-            else if (task.IsCompletedSuccessfully)
+
+            var payload = dialogueTask.Result;
+            var feedback = correctionTask.Result;
+            payload.correctionFeedback = feedback;
+            ApplyExperimentConditionToPayload(payload);
+
+            // Update chat history
+            if (chatHistory.Count == 0)
             {
-                onComplete?.Invoke(task.Result);
+                chatHistory.Clear();
+                string rpSysPrompt = BuildRoleplaySystemPrompt(payload);
+                chatHistory.Add(new OpenAiMessage { role = "system", content = rpSysPrompt });
+                chatHistory.Add(new OpenAiMessage { role = "user", content = userText });
+                chatHistory.Add(new OpenAiMessage { role = "assistant", content = payload.dialogueReply });
             }
             else
             {
-                onError?.Invoke("LLM request was cancelled or failed.");
+                chatHistory.Add(new OpenAiMessage { role = "user", content = userText });
+                chatHistory.Add(new OpenAiMessage { role = "assistant", content = payload.dialogueReply });
             }
+
+            onComplete?.Invoke(payload);
         }
 
         #region ILLMService Implementation
 
         public async Task<SpringScenePayload> ParseIntentAsync(string userInput)
         {
-            if (ShouldSuppressCorrectionByStt(out var suppressionReason))
-            {
-                var payload = new SpringScenePayload
-                {
-                    dialogueReply = "Sorry, I didn't catch that clearly. Could you say it again?",
-                    taskType = currentCondition == null ? string.Empty : currentCondition.scenarioId,
-                    environmentType = currentCondition?.task == null ? string.Empty : currentCondition.task.fallbackEnvironmentType,
-                    avatarRole = new AvatarRoleData(),
-                    scene = new ScenePayload(),
-                    correctionFeedback = new CorrectionFeedbackData
-                    {
-                        hasFeedback = false,
-                        provider = currentCondition?.provider ?? "dialogue_avatar",
-                        style = currentCondition?.style ?? "explicit",
-                        errorType = "none",
-                        originalText = "",
-                        correctedText = "",
-                        feedbackText = "",
-                        targetSpan = "",
-                        confidence = 1f,
-                        rationaleTag = suppressionReason
-                    }
-                };
-                return payload;
-            }
-
-            string responseJson = await SendChatRequest(BuildSceneSystemPrompt(), userInput, true);
-            
-            try
-            {
-                var response = JsonUtility.FromJson<OpenAiResponse>(responseJson);
-                if (response != null && response.choices != null && response.choices.Length > 0)
-                {
-                    var content = response.choices[0].message.content;
-                    Debug.Log($"[RealLLMService] Intent Parse Result: {content}");
-                    
-                    content = CleanJsonString(content);
-                    var payload = JsonUtility.FromJson<SpringScenePayload>(content);
-
-                    EnsureDialogueReplyPresent(payload);
-                    ApplyExperimentConditionToPayload(payload);
-                    chatHistory.Clear();
-                    string rpSysPrompt = BuildRoleplaySystemPrompt(payload);
-                    chatHistory.Add(new OpenAiMessage { role = "system", content = rpSysPrompt });
-                    chatHistory.Add(new OpenAiMessage { role = "user", content = userInput });
-                    chatHistory.Add(new OpenAiMessage { role = "assistant", content = payload.dialogueReply });
-
-                    return payload;
-                }
-                throw new Exception("API response structure is invalid or empty.");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[RealLLMService] Parse error: {ex.Message}\nRaw Response: {responseJson}");
-                throw;
-            }
+            var feedback = await ParseCorrectionFeedbackAsync(userInput);
+            var payload = await ParseDialogueContinuationNonStreamingAsync(userInput);
+            payload.correctionFeedback = feedback;
+            ApplyExperimentConditionToPayload(payload);
+            return payload;
         }
 
         public async Task<string> GenerateReplyAsync(string chatHistoryJson)
@@ -235,61 +196,211 @@ namespace SceneTalkVR.Runtime.Services
 
         #region Dialogue Multi-Turn Helpers
 
-        private async Task<SpringScenePayload> GenerateDialogueTurnAsync(string userInput)
+        private async Task<CorrectionFeedbackData> ParseCorrectionFeedbackAsync(string userInput)
         {
             if (ShouldSuppressCorrectionByStt(out var suppressionReason))
             {
-                var payload = new SpringScenePayload
+                return new CorrectionFeedbackData
                 {
-                    dialogueReply = "Sorry, I didn't catch that clearly. Could you say it again?",
-                    taskType = currentCondition == null ? string.Empty : currentCondition.scenarioId,
-                    environmentType = currentCondition?.task == null ? string.Empty : currentCondition.task.fallbackEnvironmentType,
-                    avatarRole = new AvatarRoleData(),
-                    scene = new ScenePayload(),
-                    correctionFeedback = new CorrectionFeedbackData
-                    {
-                        hasFeedback = false,
-                        provider = currentCondition?.provider ?? "dialogue_avatar",
-                        style = currentCondition?.style ?? "explicit",
-                        errorType = "none",
-                        originalText = "",
-                        correctedText = "",
-                        feedbackText = "",
-                        targetSpan = "",
-                        confidence = 1f,
-                        rationaleTag = suppressionReason
-                    }
+                    hasFeedback = false,
+                    provider = currentCondition?.provider ?? "dialogue_avatar",
+                    style = currentCondition?.style ?? "explicit",
+                    errorType = "none",
+                    originalText = "",
+                    correctedText = "",
+                    feedbackText = "",
+                    recastText = "",
+                    targetSpan = "",
+                    confidence = 1f,
+                    rationaleTag = suppressionReason
                 };
-                return payload;
             }
 
-            chatHistory.Add(new OpenAiMessage { role = "user", content = userInput });
+            var builder = new System.Text.StringBuilder();
+            builder.AppendLine("You are an English language tutor analyzing the user's speech in a VR oral practice context.");
+            builder.AppendLine("Your ONLY job is to analyze the user's input for grammar, vocabulary, pronunciation, or expression errors.");
+            builder.AppendLine("Do NOT continue the dialogue, do NOT act as the roleplay character, and do NOT generate any conversational replies.");
+            
+            if (currentCondition != null)
+            {
+                builder.AppendLine("\n=== EXPERIMENT & TASK CONTEXT ===");
+                builder.AppendLine($"- scenarioId: {currentCondition.scenarioId}");
+                builder.AppendLine($"- feedbackStyle: {currentCondition.style}");
+                builder.AppendLine($"- feedbackSensitivity: {feedbackSensitivity}");
+                if (currentCondition.task != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(currentCondition.task.context))
+                        builder.AppendLine($"- taskContext: {currentCondition.task.context}");
+                    if (currentCondition.task.goals != null && currentCondition.task.goals.Length > 0)
+                        builder.AppendLine($"- taskGoals: {string.Join("; ", currentCondition.task.goals)}");
+                }
+            }
 
-            string responseJson = await SendChatRequest(chatHistory.ToArray(), true);
+            bool isRecast = currentCondition != null && string.Equals(currentCondition.style, "recast", StringComparison.OrdinalIgnoreCase);
 
+            builder.AppendLine("\n=== LANGUAGE CORRECTION INSTRUCTIONS ===");
+            builder.AppendLine("1. Detect at most ONE major error in the user's speech. If no clear error, set hasFeedback = false.");
+            builder.AppendLine("2. Respect the feedback sensitivity level. Ignore minor repetitions or normal self-corrections.");
+            
+            if (isRecast)
+            {
+                builder.AppendLine("3. Generate unified feedback text under 'recast' style:");
+                builder.AppendLine("   * Both Avatar and Agent MUST use the exact same recastText.");
+                builder.AppendLine("   * Recast text must be a natural confirmation or model utterance suitable for BOTH the main character and helper agent.");
+                builder.AppendLine("   * Recast text MUST use the SECOND person ('you', 'your', 'you'd like') from the speaker's perspective to confirm or recast what the user said. NEVER use the first person ('I', 'my', 'I'd like').");
+                builder.AppendLine("   * Recast text MUST NOT contain any explicit correction words (forbidden: 'you mean', 'should', 'should say', 'correct', 'wrong', 'mistake', 'instead', 'better way', 'remember to', 'grammar tip').");
+                builder.AppendLine("   * Few-Shot Examples under 'recast' style:");
+                builder.AppendLine("     - User: 'I is hungry' -> recastText: 'Ah, you are hungry now.' (CORRECT) | 'I am hungry.' (INCORRECT)");
+                builder.AppendLine("     - User: 'I want join the gym' -> recastText: 'So you want to join the gym.' (CORRECT) | 'I want to join the gym.' (INCORRECT)");
+                builder.AppendLine("     - User: 'I like reserve tomorrow' -> recastText: 'You'd like to reserve for tomorrow.' (CORRECT) | 'I'd like to reserve tomorrow.' (INCORRECT)");
+                builder.AppendLine("   * You MUST set feedbackText = \"\".");
+            }
+            else
+            {
+                builder.AppendLine("3. Generate unified feedback text under 'explicit' style:");
+                builder.AppendLine("   * Both Avatar and Agent MUST use the exact same explicit feedbackText.");
+                builder.AppendLine("   * You MUST use this exact format: 'Grammar tip: [one short rule]. Try: \"[correct expression]\".'");
+                builder.AppendLine("   * Example: 'Grammar tip: Use \"really\" before a verb, not \"very.\" Try: \"I really like this furniture.\"'");
+                builder.AppendLine("   * You MUST set recastText = \"\".");
+            }
+
+            builder.AppendLine("4. Keep the text brief and natural for VR spoken TTS.");
+            builder.AppendLine("5. Output ONLY a valid JSON object matching this schema:");
+            builder.AppendLine("{");
+            builder.AppendLine("  \"hasFeedback\": true/false,");
+            builder.AppendLine("  \"errorType\": \"grammar|unnatural|vocabulary|incomplete|unknown\",");
+            builder.AppendLine("  \"originalText\": \"user's incorrect sentence\",");
+            builder.AppendLine("  \"correctedText\": \"corrected sentence\",");
+            if (isRecast)
+            {
+                builder.AppendLine("  \"feedbackText\": \"\",");
+                builder.AppendLine("  \"recastText\": \"natural confirmation/model utterance (recast style)\",");
+            }
+            else
+            {
+                builder.AppendLine("  \"feedbackText\": \"Grammar tip: [rule]. Try: \\\"[correct expression]\\\" (explicit style)\",");
+                builder.AppendLine("  \"recastText\": \"\",");
+            }
+            builder.AppendLine("  \"targetSpan\": \"wrong phrase/word\",");
+            builder.AppendLine("  \"confidence\": 1.0,");
+            builder.AppendLine("  \"rationaleTag\": \"short tag explanation\"");
+            builder.AppendLine("}");
+
+            string systemPrompt = builder.ToString();
+            string responseText = await SendChatRequest(systemPrompt, userInput, true);
+            responseText = CleanJsonString(responseText);
+            Debug.Log($"[RealLLMService] Correction Planner response: {responseText}");
+            
+            var response = JsonUtility.FromJson<OpenAiResponse>(responseText);
+            if (response == null || response.choices == null || response.choices.Length == 0)
+            {
+                throw new Exception("Correction Planner returned invalid or empty response structure.");
+            }
+
+            string content = response.choices[0].message.content;
+            content = CleanJsonString(content);
+            
+            var feedback = JsonUtility.FromJson<CorrectionFeedbackData>(content);
+            if (feedback == null)
+            {
+                throw new Exception("Correction Planner returned malformed JSON content.");
+            }
+
+            if (feedback.hasFeedback && currentCondition != null && string.Equals(currentCondition.style, "recast", StringComparison.OrdinalIgnoreCase))
+            {
+                feedback.recastText = string.IsNullOrEmpty(feedback.recastText) ? feedback.feedbackText : feedback.recastText;
+                feedback.feedbackText = feedback.recastText;
+            }
+
+            return feedback;
+        }
+
+        private async Task<SpringScenePayload> ParseDialogueContinuationNonStreamingAsync(string userInput)
+        {
+            var builder = new System.Text.StringBuilder();
+            
+            string role = "tutor";
+            string speed = "medium";
+            string accent = "american";
+            string attitude = "friendly";
+            string env = "classroom";
+
+            if (currentCondition != null && currentCondition.task != null)
+            {
+                env = currentCondition.task.fallbackEnvironmentType ?? env;
+                role = currentCondition.task.fallbackAvatarRole ?? role;
+                attitude = currentCondition.task.fallbackAvatarAttitude ?? attitude;
+            }
+
+            builder.AppendLine($"You are playing the role of a {role} in a {env} environment for English oral practice.");
+            builder.AppendLine($"Your accent is {accent}, your attitude is {attitude}, and you should speak at a {speed} speed.");
+            builder.AppendLine("Reply to the user's statement naturally and concisely (1-3 sentences). Keep the practice interactive and realistic.");
+            
+            if (currentCondition != null)
+            {
+                builder.AppendLine("\n=== TASK CONTEXT ===");
+                builder.AppendLine($"- scenarioId: {currentCondition.scenarioId}");
+                if (currentCondition.task != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(currentCondition.task.context))
+                        builder.AppendLine($"- taskContext: {currentCondition.task.context}");
+                    if (currentCondition.task.goals != null && currentCondition.task.goals.Length > 0)
+                        builder.AppendLine($"- taskGoals: {string.Join("; ", currentCondition.task.goals)}");
+                }
+            }
+
+            builder.AppendLine("\n=== DIALOGUE INSTRUCTIONS ===");
+            builder.AppendLine("1. Continue the dialogue roleplay naturally and concisely.");
+            builder.AppendLine("2. CRITICAL: You are strictly forbidden from performing any language correction, grammar tips, or alternative phrasing.");
+            builder.AppendLine("3. Do NOT comment on the user's English. Just act in role!");
+            builder.AppendLine("4. Do NOT duplicate or include any grammatical corrections in your reply.");
+            builder.AppendLine("5. Output ONLY a valid JSON object matching this schema:");
+            builder.AppendLine("{");
+            builder.AppendLine("  \"dialogueContinuation\": \"character's reply text\"");
+            builder.AppendLine("}");
+
+            string systemPrompt = builder.ToString();
+
+            var messagesList = new System.Collections.Generic.List<OpenAiMessage>();
+            if (chatHistory.Count == 0)
+            {
+                messagesList.Add(new OpenAiMessage { role = "system", content = systemPrompt });
+                messagesList.Add(new OpenAiMessage { role = "user", content = userInput });
+            }
+            else
+            {
+                messagesList.Add(new OpenAiMessage { role = "system", content = systemPrompt });
+                for (int i = 1; i < chatHistory.Count; i++)
+                {
+                    messagesList.Add(chatHistory[i]);
+                }
+                messagesList.Add(new OpenAiMessage { role = "user", content = userInput });
+            }
+
+            string responseJson = await SendChatRequest(messagesList.ToArray(), true);
             try
             {
                 var response = JsonUtility.FromJson<OpenAiResponse>(responseJson);
                 if (response != null && response.choices != null && response.choices.Length > 0)
                 {
                     var content = response.choices[0].message.content;
-                    
-                    // Clean content by stripping <think>...</think> reasoning blocks
                     content = CleanJsonString(content);
                     
-                    Debug.Log($"[RealLLMService] Dialogue Turn Reply: {content}");
-
                     var payload = TryParseDialoguePayload(content);
-                    ApplyExperimentConditionToPayload(payload);
-                    chatHistory.Add(new OpenAiMessage { role = "assistant", content = payload.dialogueReply });
-
+                    if (payload != null)
+                    {
+                        if (string.IsNullOrEmpty(payload.dialogueReply) && !string.IsNullOrEmpty(payload.dialogueContinuation))
+                        {
+                            payload.dialogueReply = payload.dialogueContinuation;
+                        }
+                    }
                     return payload;
                 }
-                throw new Exception("API response structure is invalid or empty.");
+                throw new Exception("Dialogue Continuation Generator returned invalid response structure.");
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[RealLLMService] Dialogue turn error: {ex.Message}\nRaw Response: {responseJson}");
+                Debug.LogError($"[RealLLMService] Dialogue continuation error: {ex.Message}");
                 throw;
             }
         }
@@ -308,6 +419,10 @@ namespace SceneTalkVR.Runtime.Services
                     var payload = JsonUtility.FromJson<SpringScenePayload>(content);
                     if (payload != null)
                     {
+                        if (string.IsNullOrEmpty(payload.dialogueReply) && !string.IsNullOrEmpty(payload.dialogueContinuation))
+                        {
+                            payload.dialogueReply = payload.dialogueContinuation;
+                        }
                         EnsureDialogueReplyPresent(payload);
                         EnsurePayloadDefaults(payload);
                         return payload;
@@ -702,31 +817,35 @@ namespace SceneTalkVR.Runtime.Services
             feedback.provider = currentCondition.provider == "assistant_agent" ? "assistant_agent" : "dialogue_avatar";
             feedback.style = currentCondition.style == "recast" ? "recast" : "explicit";
 
-            // 2. Dialogue Reply Leakage Guard
+            // 2. Dialogue Reply Leakage Guard (Unconditional)
             if (string.Equals(feedback.provider, "assistant_agent", StringComparison.OrdinalIgnoreCase))
             {
                 if (CorrectionTextGuards.LooksLikeCorrection(payload.dialogueReply))
                 {
                     Debug.LogWarning($"[RealLLMService] Correction leakage detected in dialogueReply under assistant_agent: {payload.dialogueReply}");
-                    if (IsExperimentLocked())
-                    {
-                        payload.dialogueReply = BuildSafeTaskContinuation(payload);
-                        feedback.rationaleTag = AppendRationale(feedback.rationaleTag, "dialogue_reply_leakage_suppressed");
-                    }
+                    payload.dialogueReply = BuildSafeTaskContinuation(payload);
+                    feedback.rationaleTag = AppendRationale(feedback.rationaleTag, "dialogue_reply_leakage_suppressed");
                 }
             }
 
-            // 3. Recast Purity Guard
+            // 3. Recast Purity Guard (Unconditional)
             if (string.Equals(feedback.style, "recast", StringComparison.OrdinalIgnoreCase) && feedback.hasFeedback)
             {
-                if (CorrectionTextGuards.ViolatesRecastPurity(feedback.feedbackText))
+                if (string.IsNullOrEmpty(feedback.recastText))
                 {
-                    Debug.LogWarning($"[RealLLMService] Recast purity violation in feedbackText: {feedback.feedbackText}");
-                    if (IsExperimentLocked())
-                    {
-                        feedback.feedbackText = BuildMinimalRecast(feedback.correctedText);
-                        feedback.rationaleTag = AppendRationale(feedback.rationaleTag, "recast_purity_repaired");
-                    }
+                    feedback.recastText = feedback.feedbackText;
+                }
+                else if (string.IsNullOrEmpty(feedback.feedbackText))
+                {
+                    feedback.feedbackText = feedback.recastText;
+                }
+
+                if (CorrectionTextGuards.ViolatesRecastPurity(feedback.recastText))
+                {
+                    Debug.LogWarning($"[RealLLMService] Recast purity violation in recastText: {feedback.recastText}");
+                    feedback.recastText = BuildMinimalRecast(feedback.correctedText);
+                    feedback.feedbackText = feedback.recastText;
+                    feedback.rationaleTag = AppendRationale(feedback.rationaleTag, "recast_purity_repaired");
                 }
             }
         }
@@ -928,105 +1047,138 @@ namespace SceneTalkVR.Runtime.Services
         public IEnumerator GenerateSceneAndReplyStreaming(string userText, Action<string> onSentenceComplete, Action<SpringScenePayload> onComplete, Action<string> onError)
         {
             Debug.Log($"[RealLLMService] Generating streaming scene and reply for: {userText}");
-
+            LastFirstTokenLatencyMs = -1f;
+            LastFirstSentenceLatencyMs = -1f;
+            streamStartTime = Time.realtimeSinceStartup;
             RefreshSttMetadata(isStreaming: true);
 
             CheckAndResetSession();
 
-            Task<SpringScenePayload> task;
-            if (chatHistory.Count == 0)
-            {
-                task = ParseIntentStreamingAsync(userText, onSentenceComplete);
-            }
-            else
-            {
-                task = GenerateDialogueTurnStreamingAsync(userText, onSentenceComplete);
-            }
-            
-            while (!task.IsCompleted)
+            var correctionTask = ParseCorrectionFeedbackAsync(userText);
+            var dialogueTask = ParseDialogueContinuationStreamingAsync(userText, onSentenceComplete);
+
+            while (!correctionTask.IsCompleted || !dialogueTask.IsCompleted)
             {
                 yield return null;
             }
 
-            if (task.IsFaulted)
+            if (correctionTask.IsFaulted || dialogueTask.IsFaulted)
             {
-                var ex = task.Exception?.InnerException ?? task.Exception;
-                onError?.Invoke(ex?.Message ?? "Task faulted during LLM request.");
+                var ex = correctionTask.Exception?.InnerException ?? correctionTask.Exception ?? dialogueTask.Exception?.InnerException ?? dialogueTask.Exception;
+                onError?.Invoke(ex?.Message ?? "Parallel LLM streaming tasks faulted.");
+                yield break;
             }
-            else if (task.IsCompletedSuccessfully)
+
+            var payload = dialogueTask.Result;
+            var feedback = correctionTask.Result;
+            payload.correctionFeedback = feedback;
+            ApplyExperimentConditionToPayload(payload);
+
+            // Update chat history
+            if (chatHistory.Count == 0)
             {
-                onComplete?.Invoke(task.Result);
+                chatHistory.Clear();
+                string rpSysPrompt = BuildRoleplaySystemPrompt(payload);
+                chatHistory.Add(new OpenAiMessage { role = "system", content = rpSysPrompt });
+                chatHistory.Add(new OpenAiMessage { role = "user", content = userText });
+                chatHistory.Add(new OpenAiMessage { role = "assistant", content = payload.dialogueReply });
             }
             else
             {
-                onError?.Invoke("LLM request was cancelled or failed.");
+                chatHistory.Add(new OpenAiMessage { role = "user", content = userText });
+                chatHistory.Add(new OpenAiMessage { role = "assistant", content = payload.dialogueReply });
             }
+
+            onComplete?.Invoke(payload);
         }
 
-        private async Task<SpringScenePayload> ParseIntentStreamingAsync(string userInput, Action<string> onSentenceComplete)
+        private async Task<SpringScenePayload> ParseDialogueContinuationStreamingAsync(string userInput, Action<string> onSentenceComplete)
         {
-            if (ShouldSuppressCorrectionByStt(out var suppressionReason))
+            var builder = new System.Text.StringBuilder();
+            
+            string role = "tutor";
+            string speed = "medium";
+            string accent = "american";
+            string attitude = "friendly";
+            string env = "classroom";
+
+            if (currentCondition != null && currentCondition.task != null)
             {
-                var suppressedPayload = BuildSuppressedPayload(suppressionReason);
-                onSentenceComplete?.Invoke(suppressedPayload.dialogueReply);
-                return suppressedPayload;
+                env = currentCondition.task.fallbackEnvironmentType ?? env;
+                role = currentCondition.task.fallbackAvatarRole ?? role;
+                attitude = currentCondition.task.fallbackAvatarAttitude ?? attitude;
             }
 
-            string systemPrompt = BuildSceneSystemPrompt();
-            var messages = new[]
+            builder.AppendLine($"You are playing the role of a {role} in a {env} environment for English oral practice.");
+            builder.AppendLine($"Your accent is {accent}, your attitude is {attitude}, and you speak at a {speed} speed.");
+            builder.AppendLine("Reply to the user's statement naturally and concisely (1-3 sentences). Keep the practice interactive and realistic.");
+            
+            if (currentCondition != null)
             {
-                new OpenAiMessage { role = "system", content = systemPrompt },
-                new OpenAiMessage { role = "user", content = userInput }
-            };
-
-            var parser = new IncrementalJsonParser();
-            string fullResponse = await SendChatRequestStreaming(messages, chunk =>
-            {
-                var sentences = parser.Feed(chunk);
-                foreach (var s in sentences)
+                builder.AppendLine("\n=== TASK CONTEXT ===");
+                builder.AppendLine($"- scenarioId: {currentCondition.scenarioId}");
+                if (currentCondition.task != null)
                 {
-                    onSentenceComplete?.Invoke(s);
+                    if (!string.IsNullOrWhiteSpace(currentCondition.task.context))
+                        builder.AppendLine($"- taskContext: {currentCondition.task.context}");
+                    if (currentCondition.task.goals != null && currentCondition.task.goals.Length > 0)
+                        builder.AppendLine($"- taskGoals: {string.Join("; ", currentCondition.task.goals)}");
                 }
-            });
-
-            fullResponse = CleanJsonString(fullResponse);
-            var payload = JsonUtility.FromJson<SpringScenePayload>(fullResponse);
-            EnsureDialogueReplyPresent(payload);
-            ApplyExperimentConditionToPayload(payload);
-
-            chatHistory.Clear();
-            string rpSysPrompt = BuildRoleplaySystemPrompt(payload);
-            chatHistory.Add(new OpenAiMessage { role = "system", content = rpSysPrompt });
-            chatHistory.Add(new OpenAiMessage { role = "user", content = userInput });
-            chatHistory.Add(new OpenAiMessage { role = "assistant", content = payload.dialogueReply });
-            return payload;
-        }
-
-        private async Task<SpringScenePayload> GenerateDialogueTurnStreamingAsync(string userInput, Action<string> onSentenceComplete)
-        {
-            if (ShouldSuppressCorrectionByStt(out var suppressionReason))
-            {
-                var suppressedPayload = BuildSuppressedPayload(suppressionReason);
-                onSentenceComplete?.Invoke(suppressedPayload.dialogueReply);
-                return suppressedPayload;
             }
 
-            chatHistory.Add(new OpenAiMessage { role = "user", content = userInput });
+            builder.AppendLine("\n=== DIALOGUE INSTRUCTIONS ===");
+            builder.AppendLine("1. Continue the dialogue roleplay naturally and concisely.");
+            builder.AppendLine("2. CRITICAL: You are strictly forbidden from performing any language correction, grammar tips, or alternative phrasing.");
+            builder.AppendLine("3. Do NOT comment on the user's English. Just act in role!");
+            builder.AppendLine("4. Do NOT duplicate or include any grammatical corrections in your reply.");
+            builder.AppendLine("5. Output ONLY a valid JSON object matching this schema:");
+            builder.AppendLine("{");
+            builder.AppendLine("  \"dialogueContinuation\": \"character's reply text\"");
+            builder.AppendLine("}");
+
+            string systemPrompt = builder.ToString();
+
+            var messagesList = new System.Collections.Generic.List<OpenAiMessage>();
+            if (chatHistory.Count == 0)
+            {
+                messagesList.Add(new OpenAiMessage { role = "system", content = systemPrompt });
+                messagesList.Add(new OpenAiMessage { role = "user", content = userInput });
+            }
+            else
+            {
+                messagesList.Add(new OpenAiMessage { role = "system", content = systemPrompt });
+                for (int i = 1; i < chatHistory.Count; i++)
+                {
+                    messagesList.Add(chatHistory[i]);
+                }
+                messagesList.Add(new OpenAiMessage { role = "user", content = userInput });
+            }
 
             var parser = new IncrementalJsonParser();
-            string fullResponse = await SendChatRequestStreaming(chatHistory.ToArray(), chunk =>
+            bool firstSentence = false;
+            string fullResponse = await SendChatRequestStreaming(messagesList.ToArray(), chunk =>
             {
                 var sentences = parser.Feed(chunk);
                 foreach (var s in sentences)
                 {
+                    if (!firstSentence)
+                    {
+                        firstSentence = true;
+                        LastFirstSentenceLatencyMs = (Time.realtimeSinceStartup - streamStartTime) * 1000f;
+                    }
                     onSentenceComplete?.Invoke(s);
                 }
             });
 
             fullResponse = CleanJsonString(fullResponse);
             var payload = TryParseDialoguePayload(fullResponse);
-            ApplyExperimentConditionToPayload(payload);
-            chatHistory.Add(new OpenAiMessage { role = "assistant", content = payload.dialogueReply });
+            if (payload != null)
+            {
+                if (string.IsNullOrEmpty(payload.dialogueReply) && !string.IsNullOrEmpty(payload.dialogueContinuation))
+                {
+                    payload.dialogueReply = payload.dialogueContinuation;
+                }
+            }
             return payload;
         }
 
@@ -1056,8 +1208,14 @@ namespace SceneTalkVR.Runtime.Services
             webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
 
             var fullResponseBuilder = new StringBuilder();
+            bool firstChunkReceived = false;
             webRequest.downloadHandler = new StreamingDownloadHandler(chunk =>
             {
+                if (!firstChunkReceived)
+                {
+                    firstChunkReceived = true;
+                    LastFirstTokenLatencyMs = (Time.realtimeSinceStartup - streamStartTime) * 1000f;
+                }
                 fullResponseBuilder.Append(chunk);
                 onChunkReceived?.Invoke(chunk);
             });
@@ -1195,9 +1353,16 @@ namespace SceneTalkVR.Runtime.Services
                 if (!inDialogueReply)
                 {
                     int keyIndex = buffer.IndexOf("\"dialogueReply\"");
+                    int keyLen = 15;
+                    if (keyIndex == -1)
+                    {
+                        keyIndex = buffer.IndexOf("\"dialogueContinuation\"");
+                        keyLen = 22;
+                    }
+
                     if (keyIndex != -1)
                     {
-                        int colonIndex = buffer.IndexOf(':', keyIndex + 15);
+                        int colonIndex = buffer.IndexOf(':', keyIndex + keyLen);
                         if (colonIndex != -1)
                         {
                             int quoteIndex = buffer.IndexOf('"', colonIndex + 1);

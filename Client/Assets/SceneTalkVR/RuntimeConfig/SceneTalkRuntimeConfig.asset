@@ -15,6 +15,7 @@ MonoBehaviour:
   brainMode: 2
   useVoiceGatewaySpeech: 1
   useVoiceGatewayTts: 1
+  useFixedExperimentMode: 1
   useDeveloperTextConsole: 1
   voiceGatewayBaseUrl: http://127.0.0.1:8787
   useHolodeckBackend: 0
