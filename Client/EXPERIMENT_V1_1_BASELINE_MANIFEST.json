@@ -1,0 +1,26 @@
+{
+  "manifestVersion": "1.0",
+  "protocolVersion": "1.1.0-stage0",
+  "buildVersion": "stage0-20260717",
+  "sourceCommit": "26217dfee11b4cfad263a3618f78f934c505edfd",
+  "sourceBranch": "spring-dev",
+  "integrationBranch": "experiment-v1.1-integration",
+  "experimentPhase": "stage0_baseline",
+  "formalModeLocked": true,
+  "formalConditionCodes": ["NE", "NR", "SE", "SR"],
+  "formalTaskIds": ["hotel_check_in", "furniture_shopping", "gym_membership", "tourist_assistance"],
+  "pilotTaskIds": ["restaurant_reservation"],
+  "pilotEmbodimentOptions": ["voice_only", "floating_orb", "humanoid_agent"],
+  "feedbackTimingPolicy": "feedback_first_then_dialogue; dialogue TTS may be prepared before the playback gate opens",
+  "protocolAsset": "Assets/SceneTalkVR/ExperimentProtocol/ExperimentV11Protocol.asset",
+  "runtimeConfigAsset": "Assets/SceneTalkVR/RuntimeConfig/SceneTalkRuntimeConfig.asset",
+  "scene": "Assets/Scenes/SampleScene.unity",
+  "formalModeReady": false,
+  "unconfirmedDecisionIds": [
+    "condition_letter_mapping",
+    "pilot_feedback_style",
+    "voice_only_spatial_audio",
+    "formal_social_comfort",
+    "formal_task_no_replacement"
+  ]
+}

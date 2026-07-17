@@ -29,6 +29,7 @@ namespace SceneTalkVR.EditorTools
         private const string MainScenePath = "Assets/Scenes/SampleScene.unity";
         private const string ReportPath = "Assets/SceneTalkVR/Docs/VitorPreflightReport.md";
         private const string RuntimeConfigPath = "Assets/SceneTalkVR/RuntimeConfig/SceneTalkRuntimeConfig.asset";
+        private const string ExperimentProtocolPath = "Assets/SceneTalkVR/ExperimentProtocol/ExperimentV11Protocol.asset";
         private const string AndroidPackageName = "com.scenetalkvr.demo";
         private const string PicoOpenXrDefine = "PICO_OPENXR_SDK";
         private const string OpenXrLoaderTypeName = "UnityEngine.XR.OpenXR.OpenXRLoader";
@@ -174,7 +175,10 @@ namespace SceneTalkVR.EditorTools
             AppendSection(report, "Client Scene");
             AppendCheck(report, File.Exists(ToAbsolutePath(MainScenePath)), $"Main scene exists: `{MainScenePath}`");
             AppendCheck(report, IsSceneInBuildSettings(MainScenePath), "Main scene is included in Build Settings");
+            AppendCheck(report, !EditorBuildSettings.scenes.Any(scene => scene.path.IndexOf("_Recovery/", StringComparison.OrdinalIgnoreCase) >= 0), "Recovery scenes are excluded from Build Settings");
             AppendCheck(report, SceneManager.GetActiveScene().path == MainScenePath, "Active scene is SampleScene");
+            AppendCheck(report, !EditorSceneManager.GetActiveScene().isDirty, "Active scene has no unsaved changes");
+            AppendCheck(report, !HasMissingScriptsInLoadedScene(), "Scene has no missing scripts");
 
             AppendSection(report, "Demo Rig");
             var orchestrators = FindAll<SceneTalkOrchestrator>();
@@ -206,6 +210,7 @@ namespace SceneTalkVR.EditorTools
 
             AppendSection(report, "PICO Real Service Routing");
             var runtimeConfig = AssetDatabase.LoadAssetAtPath<SceneTalkRuntimeConfig>(RuntimeConfigPath);
+            var protocol = AssetDatabase.LoadAssetAtPath<ExperimentV11ProtocolConfig>(ExperimentProtocolPath);
             var configAppliers = FindAll<SceneTalkRuntimeConfigApplier>();
             var voiceClients = FindAll<VoiceGatewayClient>();
             var holodeckServices = FindAll<HolodeckSceneService>();
@@ -216,7 +221,18 @@ namespace SceneTalkVR.EditorTools
                 : holodeckServices.FirstOrDefault() != null && holodeckServices.First().UseLocalBackend;
 
             AppendCheck(report, runtimeConfig != null, "SceneTalkRuntimeConfig asset exists");
+            AppendCheck(report, runtimeConfig != null && !EditorUtility.IsDirty(runtimeConfig), "RuntimeConfig asset has no unsaved changes");
+            AppendCheck(report, protocol != null, "Experiment v1.1 protocol asset exists");
+            AppendCheck(report, protocol != null && !EditorUtility.IsDirty(protocol), "Experiment protocol asset has no unsaved changes");
+            AppendCheck(report, experimentManagers.Length == 1 && experimentManagers[0].ExperimentProtocol == protocol, "ExperimentConditionManager is bound to the protocol asset");
+            AppendCheck(report, protocol != null && !string.IsNullOrWhiteSpace(protocol.ProtocolVersion), "Experiment protocol version is non-empty");
+            AppendCheck(report, protocol != null && protocol.FormalModeLocked, "Experiment protocol marks Formal Mode as locked");
+            var formalProtocolValid = protocol != null && protocol.ValidateForFormalMode(out var formalProtocolError);
+            AppendCheck(report, formalProtocolValid, formalProtocolValid
+                ? "Formal Mode decisions are confirmed"
+                : $"Formal Mode is blocked until protocol decisions are confirmed: {formalProtocolError}");
             AppendCheck(report, configAppliers.Length >= 1, $"Scene has runtime config applier (found {configAppliers.Length})");
+            AppendCheck(report, HasRequiredSceneReferences(configAppliers, experimentManagers), "Required runtime, protocol, and avatar catalog references are assigned");
             AppendCheck(report, !string.IsNullOrWhiteSpace(effectiveVoiceUrl), "Voice gateway URL is configured");
             AppendCheck(report, !SceneTalkRuntimeConfig.IsLoopbackUrl(effectiveVoiceUrl), $"Voice gateway URL is not localhost for PICO: `{DisplayEndpoint(effectiveVoiceUrl)}`");
             AppendCheck(report, !usesHolodeckBackend || !string.IsNullOrWhiteSpace(effectiveHolodeckUrl), "Holodeck backend URL is configured when backend mode is enabled");
@@ -478,6 +494,41 @@ namespace SceneTalkVR.EditorTools
             }
 
             return false;
+        }
+
+        private static bool HasMissingScriptsInLoadedScene()
+        {
+            foreach (var root in SceneManager.GetActiveScene().GetRootGameObjects())
+            {
+                foreach (var component in root.GetComponentsInChildren<Component>(true))
+                {
+                    if (component == null)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static bool HasRequiredSceneReferences(
+            SceneTalkRuntimeConfigApplier[] configAppliers,
+            ExperimentConditionManager[] experimentManagers)
+        {
+            if (configAppliers.Length == 0 || experimentManagers.Length != 1 || experimentManagers[0].ExperimentProtocol == null)
+            {
+                return false;
+            }
+
+            var resolver = FindAll<AvatarPresetResolver>().FirstOrDefault();
+            if (resolver == null)
+            {
+                return false;
+            }
+
+            var resolverObject = new SerializedObject(resolver);
+            return resolverObject.FindProperty("catalog")?.objectReferenceValue != null;
         }
 
         private static bool EnsureAndroidDefine(string define)

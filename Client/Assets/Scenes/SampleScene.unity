@@ -6551,8 +6551,9 @@ MonoBehaviour:
   formalExperiment: 0
   debugMode: 1
   showDebugLabel: 1
+  experimentProtocol: {fileID: 11400000, guid: 78275b064f314c0e88ea5e79d2e9f49c, type: 2}
   useConditionOrder: 0
-  manualCondition: 1
+  manualCondition: 0
   conditionOrder:
   - dialogue_avatar_explicit
   - dialogue_avatar_recast

@@ -775,6 +775,13 @@ namespace SceneTalkVR.Runtime
 
         private bool ValidateGenerationModules()
         {
+            var experimentManager = ResolveExperimentConditionManager(false);
+            if (experimentManager != null && !experimentManager.ValidateFormalProtocol(out var protocolError))
+            {
+                EnterError($"Formal experiment protocol is invalid: {protocolError}");
+                return false;
+            }
+
             if (Brain == null)
             {
                 EnterError("Brain module is missing or does not implement ISceneTalkBrain.");

@@ -1,0 +1,59 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6f18c731c34e4a31a7d52a780b93f504, type: 3}
+  m_Name: ExperimentV11Protocol
+  m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentV11ProtocolConfig
+  protocolVersion: 1.1.0-stage0
+  buildVersion: stage0-20260717
+  gitCommit: 26217dfee11b4cfad263a3618f78f934c505edfd
+  activeBranch: experiment-v1.1-integration
+  experimentPhase: stage0_baseline
+  formalModeLocked: 1
+  formalConditionCodes:
+  - NE
+  - NR
+  - SE
+  - SR
+  conditionSequenceDefinitions: []
+  formalTaskIds:
+  - hotel_check_in
+  - furniture_shopping
+  - gym_membership
+  - tourist_assistance
+  pilotTaskIds:
+  - restaurant_reservation
+  pilotEmbodimentOptions:
+  - voice_only
+  - floating_orb
+  - humanoid_agent
+  feedbackTimingPolicy: feedback_first_then_dialogue; dialogue TTS may be prepared before the playback gate opens
+  requiredDecisions:
+  - decisionId: condition_letter_mapping
+    question: Map a/b/c/d to NE/NR/SE/SR.
+    status: 0
+    confirmedValue: ''
+  - decisionId: pilot_feedback_style
+    question: Fix pilot feedback style: Explicit, Recast, or another approved design.
+    status: 0
+    confirmedValue: ''
+  - decisionId: voice_only_spatial_audio
+    question: Define whether Voice Only is spatial, non-spatial, and its source position.
+    status: 0
+    confirmedValue: ''
+  - decisionId: formal_social_comfort
+    question: Decide whether Social Comfort is included in the formal questionnaire.
+    status: 0
+    confirmedValue: ''
+  - decisionId: formal_task_no_replacement
+    question: Decide whether formal task assignment is strictly without replacement.
+    status: 0
+    confirmedValue: ''

@@ -29,6 +29,7 @@ namespace SceneTalkVR.Core
         [SerializeField] private bool formalExperiment;
         [SerializeField] private bool debugMode = true;
         [SerializeField] private bool showDebugLabel = true;
+        [SerializeField] private ExperimentV11ProtocolConfig experimentProtocol;
 
         [Header("Condition")]
         [SerializeField] private bool useConditionOrder;
@@ -91,6 +92,24 @@ namespace SceneTalkVR.Core
         public bool IsFormalExperiment => formalExperiment;
         public bool DebugMode => debugMode;
         public bool ShowDebugLabel => debugMode && showDebugLabel && !formalExperiment;
+        public ExperimentV11ProtocolConfig ExperimentProtocol => experimentProtocol;
+
+        public bool ValidateFormalProtocol(out string error)
+        {
+            if (!formalExperiment)
+            {
+                error = string.Empty;
+                return true;
+            }
+
+            if (experimentProtocol == null)
+            {
+                error = "Formal Mode requires an ExperimentV11ProtocolConfig asset.";
+                return false;
+            }
+
+            return experimentProtocol.ValidateForFormalMode(out error);
+        }
 
         public string CurrentTurnId
         {
@@ -558,6 +577,12 @@ namespace SceneTalkVR.Core
 
             return new ExperimentTurnLogRecord
             {
+                protocolVersion = experimentProtocol == null ? string.Empty : experimentProtocol.ProtocolVersion,
+                buildVersion = experimentProtocol == null ? string.Empty : experimentProtocol.BuildVersion,
+                gitCommit = experimentProtocol == null ? string.Empty : experimentProtocol.GitCommit,
+                activeBranch = experimentProtocol == null ? string.Empty : experimentProtocol.ActiveBranch,
+                experimentPhase = experimentProtocol == null ? string.Empty : experimentProtocol.ExperimentPhase,
+                formalModeLocked = experimentProtocol != null && experimentProtocol.FormalModeLocked,
                 participantId = condition.participantId,
                 sessionId = condition.sessionId,
                 conditionId = condition.conditionId,
@@ -1045,6 +1070,12 @@ namespace SceneTalkVR.Core
         [Serializable]
         private sealed class ExperimentTurnLogRecord
         {
+            public string protocolVersion;
+            public string buildVersion;
+            public string gitCommit;
+            public string activeBranch;
+            public string experimentPhase;
+            public bool formalModeLocked;
             public string participantId;
             public string sessionId;
             public string conditionId;
@@ -1114,12 +1145,18 @@ namespace SceneTalkVR.Core
             public string failureReason;
 
             public const string CsvHeader =
-                "participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc,transcript,dialogueReply,feedbackText,originalText,correctedText,rationaleTag,sttConfidence,sttProvider,sttFallbackLevel,sttSuppressionReason,conditionOrderPosition,validationWarnings,selectedTaskId,taskName,taskContext,taskGoals,initialQuestion,sceneMode,whetherHolodeckCalled,panoramaSource,experimentProvider,experimentStyle,dialogueContinuation,recastText,correctionRequestStartTime,dialogueRequestStartTime,firstTokenTime,firstSentenceTime,ttsReadyTime,correctionPlayStartTime,correctionPlayEndTime,dialoguePlayStartTime,dialoguePlayEndTime,playbackOrder,userEndToFeedbackAudioMs,userEndToDialogueAudioMs,feedbackToDialogueGapMs,correctionVoiceId,actualPlaybackSubject,timeoutReason,fallbackReason,failureReason";
+                "protocolVersion,buildVersion,gitCommit,activeBranch,experimentPhase,formalModeLocked,participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc,transcript,dialogueReply,feedbackText,originalText,correctedText,rationaleTag,sttConfidence,sttProvider,sttFallbackLevel,sttSuppressionReason,conditionOrderPosition,validationWarnings,selectedTaskId,taskName,taskContext,taskGoals,initialQuestion,sceneMode,whetherHolodeckCalled,panoramaSource,experimentProvider,experimentStyle,dialogueContinuation,recastText,correctionRequestStartTime,dialogueRequestStartTime,firstTokenTime,firstSentenceTime,ttsReadyTime,correctionPlayStartTime,correctionPlayEndTime,dialoguePlayStartTime,dialoguePlayEndTime,playbackOrder,userEndToFeedbackAudioMs,userEndToDialogueAudioMs,feedbackToDialogueGapMs,correctionVoiceId,actualPlaybackSubject,timeoutReason,fallbackReason,failureReason";
 
             public string ToCsvLine()
             {
                 return string.Join(
                     ",",
+                    Csv(protocolVersion),
+                    Csv(buildVersion),
+                    Csv(gitCommit),
+                    Csv(activeBranch),
+                    Csv(experimentPhase),
+                    formalModeLocked ? "true" : "false",
                     Csv(participantId),
                     Csv(sessionId),
                     Csv(conditionId),
