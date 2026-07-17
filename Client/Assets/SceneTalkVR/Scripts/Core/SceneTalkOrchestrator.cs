@@ -625,6 +625,7 @@ namespace SceneTalkVR.Runtime
 
             CompleteSpeechCaptureState();
             ResolveExperimentConditionManager(false)?.CompleteRecording();
+            ResolveExperimentConditionManager(false)?.RecordTimingEvent(ExperimentTimingEventType.UserSpeechEnded);
             RecordSpeechMetadataHelper(transcript);
 
             if (HandleErrorOrFinish(error, "Speech input failed."))
@@ -718,6 +719,7 @@ namespace SceneTalkVR.Runtime
 
             CompleteSpeechCaptureState();
             ResolveExperimentConditionManager(false)?.CompleteRecording();
+            ResolveExperimentConditionManager(false)?.RecordTimingEvent(ExperimentTimingEventType.UserSpeechEnded);
             RecordSpeechMetadataHelper(transcript);
 
             if (HandleErrorOrFinish(error, "Speech input failed."))
@@ -1173,25 +1175,41 @@ namespace SceneTalkVR.Runtime
                 string brainError = null;
 
                 string accumulatedSubtitle = string.Empty;
-                yield return streamingBrain.GenerateSceneAndReplyStreaming(
-                    transcript,
-                    sentence => {
+                Action<string> sentenceReady = sentence => {
                         streamingVoice.EnqueueSentence(sentence);
                         accumulatedSubtitle += (string.IsNullOrEmpty(accumulatedSubtitle) ? "" : " ") + sentence;
                         if (replyLabel != null)
                         {
                             replyLabel.text = $"Avatar: {accumulatedSubtitle}";
                         }
-                    },
-                    payload => {
+                    };
+                Action<SpringScenePayload> generationComplete = payload => {
                         finalPayload = payload;
                         isDone = true;
-                    },
-                    err => {
+                    };
+                Action<string> generationError = err => {
                         brainError = err;
                         isDone = true;
-                    }
-                );
+                    };
+
+                if (streamingBrain is ISceneTalkFeedbackFirstStreamingBrain feedbackFirstBrain
+                    && streamingVoice is ISceneTalkFeedbackFirstStreamingAvatarVoice feedbackFirstVoice)
+                {
+                    yield return feedbackFirstBrain.GenerateFeedbackFirstStreaming(
+                        transcript,
+                        feedbackFirstVoice.ResolveCorrectionPlan,
+                        sentenceReady,
+                        generationComplete,
+                        generationError);
+                }
+                else
+                {
+                    yield return streamingBrain.GenerateSceneAndReplyStreaming(
+                        transcript,
+                        sentenceReady,
+                        generationComplete,
+                        generationError);
+                }
 
                 streamingVoice.SignalStreamingComplete();
 
@@ -1224,8 +1242,9 @@ namespace SceneTalkVR.Runtime
                 string dialogueContinuation = payload.dialogueReply;
                 string recastText = (payload.correctionFeedback != null) ? payload.correctionFeedback.recastText : string.Empty;
                 
-                string correctionRequestStartTime = System.DateTime.UtcNow.ToString("o");
-                string dialogueRequestStartTime = System.DateTime.UtcNow.ToString("o");
+                // Compatibility columns remain empty; the event JSONL is the authoritative clock.
+                string correctionRequestStartTime = string.Empty;
+                string dialogueRequestStartTime = string.Empty;
 
                 string firstTokenTime = (realLLM != null && realLLM.LastFirstTokenLatencyMs >= 0) 
                     ? realLLM.LastFirstTokenLatencyMs.ToString("F2") : "n/a";
@@ -1267,16 +1286,15 @@ namespace SceneTalkVR.Runtime
                 }
 
                 string correctionVoiceId = string.Empty;
-                string actualPlaybackSubject = "Avatar";
+                string actualPlaybackSubject = string.Empty;
                 if (hasCorrection && payload.correctionFeedback != null)
                 {
                     actualPlaybackSubject = (payload.correctionFeedback.provider == "assistant_agent") ? "Agent" : "Avatar";
-                    correctionVoiceId = (payload.correctionFeedback.provider == "assistant_agent") ? "WeJames" : "TencentVoice";
                 }
 
-                string timeoutReason = "none";
-                string fallbackReason = "none";
-                string failureReason = "none";
+                string timeoutReason = string.Empty;
+                string fallbackReason = voiceModule?.LastCorrectionPlaybackResult?.outcome ?? string.Empty;
+                string failureReason = voiceModule?.LastCorrectionPlaybackResult?.errorCode ?? string.Empty;
 
                 expManager.RecordDetailMetrics(
                     dialogueContinuation,

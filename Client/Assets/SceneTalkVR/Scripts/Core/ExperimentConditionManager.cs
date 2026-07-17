@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -64,6 +65,10 @@ namespace SceneTalkVR.Core
         private bool recordingActive;
         private int turnIndex;
         private int queuedRetryCount;
+        private readonly ExperimentEventTimeline eventTimeline = new ExperimentEventTimeline();
+        private long eventTurnStartedTicks;
+
+        public IReadOnlyList<ExperimentTimingEvent> ActiveTimingEvents => eventTimeline.Events;
 
         public CorrectionExperimentCondition CurrentCondition
         {
@@ -182,6 +187,9 @@ namespace SceneTalkVR.Core
             turnIndex++;
             RefreshCondition(true);
             activeTurnLog = CreateTurnLog(CurrentCondition);
+            eventTimeline.Reset();
+            eventTurnStartedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+            RecordTimingEvent(ExperimentTimingEventType.DialogueGateClosed);
             return CloneCondition(CurrentCondition);
         }
 
@@ -572,6 +580,12 @@ namespace SceneTalkVR.Core
             {
                 activeTurnLog.correctionOutcome = activeTurnLog.hasFeedback ? "unknown" : "none";
             }
+
+            RecordTimingEvent(ExperimentTimingEventType.TurnCompleted);
+            var timing = eventTimeline.CalculateSummary();
+            activeTurnLog.userEndToFeedbackAudioMs = timing.userEndToFeedbackAudioMs;
+            activeTurnLog.userEndToDialogueAudioMs = timing.userEndToDialogueAudioMs;
+            activeTurnLog.feedbackToDialogueGapMs = timing.feedbackToDialogueGapMs;
 
             pendingTurnLog = activeTurnLog;
             activeTurnLog = null;
@@ -1012,10 +1026,84 @@ namespace SceneTalkVR.Core
             activeTurnLog = null;
             pendingTurnLog = null;
             currentCondition = null;
+            eventTimeline.Reset();
+            eventTurnStartedTicks = 0;
             foreach (var module in FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 if (module is ISceneTalkSessionReset reset) reset.ResetSession();
             RefreshCondition(false);
             NotifyConditionChanged();
+        }
+
+        public ExperimentTimingEvent RecordTimingEvent(
+            ExperimentTimingEventType eventType,
+            string reason = "",
+            string failureStage = "",
+            ExperimentTechnicalValidity validity = ExperimentTechnicalValidity.Valid,
+            string actualPlaybackActor = "",
+            string voiceProfile = "",
+            string speakingSpeed = "",
+            float volume = 1f,
+            string subtitlePolicy = "dialogue_only",
+            string feedbackText = "",
+            string fallback = "")
+        {
+            if (activeTurnLog == null) return null;
+            if (eventTurnStartedTicks == 0) eventTurnStartedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+            var elapsedTicks = System.Diagnostics.Stopwatch.GetTimestamp() - eventTurnStartedTicks;
+            var elapsedMs = (long)(elapsedTicks * 1000d / System.Diagnostics.Stopwatch.Frequency);
+            var record = eventTimeline.Add(new ExperimentTimingEvent
+            {
+                timestampUtc = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture),
+                monotonicElapsedMs = elapsedMs,
+                participantId = activeTurnLog.participantId,
+                sessionId = activeTurnLog.sessionId,
+                turnId = activeTurnLog.turnId,
+                turnIndex = activeTurnLog.turnIndex,
+                condition = CurrentFormalCondition.ToString(),
+                provider = activeTurnLog.provider,
+                style = activeTurnLog.style,
+                taskId = activeTurnLog.taskId,
+                eventType = eventType.ToString(),
+                technicalValidity = validity.ToString(),
+                failureStage = failureStage ?? string.Empty,
+                reason = reason ?? string.Empty,
+                actualPlaybackActor = actualPlaybackActor ?? string.Empty,
+                voiceProfile = voiceProfile ?? string.Empty,
+                speakingSpeed = speakingSpeed ?? string.Empty,
+                volume = volume,
+                subtitlePolicy = subtitlePolicy ?? string.Empty,
+                feedbackTextHash = string.IsNullOrEmpty(feedbackText) ? string.Empty : ExperimentEventTimeline.HashText(feedbackText),
+                fallback = fallback ?? string.Empty
+            });
+            WriteTimingEvent(record);
+            return record;
+        }
+
+        public void MarkTurnTechnicalInvalid(string failureStage, string reason)
+        {
+            var log = ResolveWritableTurnLog();
+            if (log != null)
+            {
+                log.failureReason = reason ?? string.Empty;
+                log.timeoutReason = (reason ?? string.Empty).IndexOf("timeout", StringComparison.OrdinalIgnoreCase) >= 0 ? reason : string.Empty;
+            }
+            RecordTimingEvent(ExperimentTimingEventType.TurnTechnicalInvalid, reason, failureStage, ExperimentTechnicalValidity.TechnicalInvalid);
+        }
+
+        private void WriteTimingEvent(ExperimentTimingEvent record)
+        {
+            if (!enableLogging || !writeJsonLines || record == null) return;
+            try
+            {
+                var folder = ResolveLogFolder();
+                Directory.CreateDirectory(folder);
+                var filePrefix = $"{SanitizeFileToken(record.participantId)}_{SanitizeFileToken(record.sessionId)}";
+                File.AppendAllText(Path.Combine(folder, $"{filePrefix}_events_v1.jsonl"), JsonUtility.ToJson(record) + Environment.NewLine, Encoding.UTF8);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[SceneTalkVR] Failed to write timing event: {ex.Message}", this);
+            }
         }
 
         public static CorrectionExperimentCondition CloneCondition(CorrectionExperimentCondition source)

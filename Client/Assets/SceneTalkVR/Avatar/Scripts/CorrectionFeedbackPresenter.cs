@@ -191,21 +191,44 @@ namespace SceneTalkVR.AvatarSystem
             var assistantAgentVoiceId = useDialogueAvatar
                 ? null
                 : ResolveAssistantAgentVoiceId();
+            var timing = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include);
+            var actualActor = useDialogueAvatar ? "Avatar" : "Agent";
+            var actualVoice = string.IsNullOrWhiteSpace(assistantAgentVoiceId)
+                ? playbackContext.defaultVoiceId
+                : assistantAgentVoiceId;
             var playbackRequest = new AvatarSpeechPlaybackRequest
             {
                 text = text,
                 logLabel = useDialogueAvatar
                     ? "Correction feedback"
                     : "Assistant correction feedback",
-                voiceIdOverride = assistantAgentVoiceId
+                voiceIdOverride = assistantAgentVoiceId,
+                preparationStarted = () => timing?.RecordTimingEvent(ExperimentTimingEventType.CorrectionTtsStarted, feedbackText: text),
+                preparationReady = () => timing?.RecordTimingEvent(ExperimentTimingEventType.CorrectionTtsReady, feedbackText: text),
+                playbackStarted = () => timing?.RecordTimingEvent(
+                    ExperimentTimingEventType.CorrectionPlaybackStarted,
+                    actualPlaybackActor: actualActor,
+                    voiceProfile: actualVoice,
+                    speakingSpeed: payload?.avatarRole?.speakingSpeed,
+                    volume: playbackContext.defaultAudioSource == null ? 1f : playbackContext.defaultAudioSource.volume,
+                    feedbackText: text),
+                playbackEnded = () => timing?.RecordTimingEvent(
+                    ExperimentTimingEventType.CorrectionPlaybackEnded,
+                    actualPlaybackActor: actualActor,
+                    voiceProfile: actualVoice,
+                    speakingSpeed: payload?.avatarRole?.speakingSpeed,
+                    volume: playbackContext.defaultAudioSource == null ? 1f : playbackContext.defaultAudioSource.volume,
+                    feedbackText: text)
             };
 
             AvatarSpeechPlaybackResult playbackResult = null;
             if (useDialogueAvatar)
             {
                 Debug.Log($"[CorrectionFeedbackPresenter] Playing correction feedback via Dialogue Avatar: \"{text}\"");
-                playbackRequest.playbackStarted = beginDialogueAvatarSpeaking;
-                playbackRequest.playbackEnded = endDialogueAvatarSpeaking;
+                var timingStarted = playbackRequest.playbackStarted;
+                var timingEnded = playbackRequest.playbackEnded;
+                playbackRequest.playbackStarted = () => { timingStarted?.Invoke(); beginDialogueAvatarSpeaking?.Invoke(); };
+                playbackRequest.playbackEnded = () => { endDialogueAvatarSpeaking?.Invoke(); timingEnded?.Invoke(); };
                 yield return SpeechPlayer.Play(
                     playbackContext,
                     payload,
@@ -220,8 +243,10 @@ namespace SceneTalkVR.AvatarSystem
                     Debug.Log($"[CorrectionFeedbackPresenter] Playing correction feedback via Assistant Agent: \"{text}\"");
                     correctionAgent.SetVisible(true);
                     playbackRequest.audioSourceOverride = correctionAgent.AudioSource;
-                    playbackRequest.playbackStarted = correctionAgent.BeginSpeaking;
-                    playbackRequest.playbackEnded = correctionAgent.EndSpeaking;
+                    var timingStarted = playbackRequest.playbackStarted;
+                    var timingEnded = playbackRequest.playbackEnded;
+                    playbackRequest.playbackStarted = () => { timingStarted?.Invoke(); correctionAgent.BeginSpeaking(); };
+                    playbackRequest.playbackEnded = () => { correctionAgent.EndSpeaking(); timingEnded?.Invoke(); };
                     yield return SpeechPlayer.Play(
                         playbackContext,
                         payload,

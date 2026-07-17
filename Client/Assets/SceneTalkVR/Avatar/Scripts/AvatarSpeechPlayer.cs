@@ -32,6 +32,8 @@ namespace SceneTalkVR.AvatarSystem
         public AudioSource audioSourceOverride;
         public Action playbackStarted;
         public Action playbackEnded;
+        public Action preparationStarted;
+        public Action preparationReady;
     }
 
     internal sealed class AvatarSpeechPlaybackResult
@@ -96,17 +98,18 @@ namespace SceneTalkVR.AvatarSystem
         {
             var startedAt = Time.realtimeSinceStartup;
             var preparedSpeech = new PreparedAvatarSpeech();
+            playbackRequest?.preparationStarted?.Invoke();
             if (context == null || playbackRequest == null)
             {
                 preparedSpeech.error = "Speech playback context or request is missing.";
-                CompletePreparation(preparedSpeech, startedAt, onComplete);
+                CompletePreparation(preparedSpeech, startedAt, playbackRequest, onComplete);
                 yield break;
             }
 
             if (string.IsNullOrWhiteSpace(playbackRequest.text))
             {
                 preparedSpeech.fallbackLevel = "empty_text";
-                CompletePreparation(preparedSpeech, startedAt, onComplete);
+                CompletePreparation(preparedSpeech, startedAt, playbackRequest, onComplete);
                 yield break;
             }
 
@@ -166,7 +169,7 @@ namespace SceneTalkVR.AvatarSystem
                 if (!context.fallbackToDemoVoiceOnGatewayError)
                 {
                     preparedSpeech.error = gatewayError;
-                    CompletePreparation(preparedSpeech, startedAt, onComplete);
+                    CompletePreparation(preparedSpeech, startedAt, playbackRequest, onComplete);
                     yield break;
                 }
 
@@ -192,7 +195,7 @@ namespace SceneTalkVR.AvatarSystem
                     "silent_wait");
             }
 
-            CompletePreparation(preparedSpeech, startedAt, onComplete);
+            CompletePreparation(preparedSpeech, startedAt, playbackRequest, onComplete);
         }
 
         public IEnumerator PlayPrepared(
@@ -332,10 +335,12 @@ namespace SceneTalkVR.AvatarSystem
         private static void CompletePreparation(
             PreparedAvatarSpeech preparedSpeech,
             float startedAt,
+            AvatarSpeechPlaybackRequest playbackRequest,
             Action<PreparedAvatarSpeech> onComplete)
         {
             preparedSpeech.preparationDurationMs = Mathf.RoundToInt(
                 (Time.realtimeSinceStartup - startedAt) * 1000f);
+            playbackRequest?.preparationReady?.Invoke();
             onComplete?.Invoke(preparedSpeech);
         }
 
