@@ -80,6 +80,35 @@ namespace SceneTalkVR.Core
         public bool HasPendingTurnReview => pendingTurnLog != null;
         public bool IsExperimentLocked => formalExperiment;
         public string LockedFeedbackSensitivity => IsExperimentLocked ? "moderate" : "moderate";
+        public string CurrentConditionId => CurrentCondition?.conditionId ?? string.Empty;
+        public string CurrentFeedbackProvider => CurrentCondition?.provider ?? DialogueAvatarProvider;
+        public string CurrentFeedbackStyle => CurrentCondition?.style ?? ExplicitStyle;
+        public bool CanUseManualRuntimeCondition => !formalExperiment
+            && !useConditionOrder
+            && !HasActiveTurn
+            && !HasPendingTurnReview;
+        public string ManualRuntimeConditionLockReason
+        {
+            get
+            {
+                if (formalExperiment)
+                {
+                    return "Locked by formal experiment.";
+                }
+
+                if (useConditionOrder)
+                {
+                    return "Locked by condition order.";
+                }
+
+                if (HasActiveTurn || HasPendingTurnReview)
+                {
+                    return "Available after the current turn.";
+                }
+
+                return string.Empty;
+            }
+        }
 
         public event Action ExperimentConditionChanged;
 
@@ -196,15 +225,36 @@ namespace SceneTalkVR.Core
             {
                 var order = GetEffectiveConditionOrder();
                 conditionOrderIndex = order.Length == 0 ? 0 : (conditionOrderIndex + 1) % order.Length;
-            }
-            else
-            {
-                manualCondition = (ExperimentConditionPreset)(((int)manualCondition + 1)
-                    % Enum.GetValues(typeof(ExperimentConditionPreset)).Length);
+                RefreshCondition(false);
+                NotifyConditionChanged();
+                return;
             }
 
-            RefreshCondition(false);
-            NotifyConditionChanged();
+            var nextCondition = (ExperimentConditionPreset)(((int)manualCondition + 1)
+                % Enum.GetValues(typeof(ExperimentConditionPreset)).Length);
+            SetManualCondition(nextCondition);
+        }
+
+        public bool TrySetManualFeedbackProvider(string provider)
+        {
+            if (!CanUseManualRuntimeCondition || !TryNormalizeProvider(provider, out var normalizedProvider))
+            {
+                return false;
+            }
+
+            var preset = ResolvePreset(normalizedProvider, CurrentFeedbackStyle);
+            return SetManualCondition(preset);
+        }
+
+        public bool TrySetManualFeedbackStyle(string style)
+        {
+            if (!CanUseManualRuntimeCondition || !TryNormalizeStyle(style, out var normalizedStyle))
+            {
+                return false;
+            }
+
+            var preset = ResolvePreset(CurrentFeedbackProvider, normalizedStyle);
+            return SetManualCondition(preset);
         }
 
         public void AdvanceScenario()
@@ -553,7 +603,7 @@ namespace SceneTalkVR.Core
             var retryCount = queuedRetryCount;
             queuedRetryCount = 0;
 
-            var config = FindObjectOfType<SceneTalkRuntimeConfigApplier>()?.Config;
+            var config = FindFirstObjectByType<SceneTalkRuntimeConfigApplier>()?.Config;
             bool isFixed = config != null ? config.UseFixedExperimentMode : true;
 
             return new ExperimentTurnLogRecord
@@ -773,6 +823,81 @@ namespace SceneTalkVR.Core
                 ExperimentConditionPreset.AssistantAgentRecast => "assistant_agent_recast",
                 _ => "dialogue_avatar_explicit"
             };
+        }
+
+        private bool SetManualCondition(ExperimentConditionPreset preset)
+        {
+            var changed = manualCondition != preset;
+            manualCondition = preset;
+            RefreshCondition(false);
+
+            if (changed)
+            {
+                Debug.Log(
+                    $"[ExperimentConditionManager] Runtime correction condition changed: "
+                    + $"conditionId={CurrentConditionId}, provider={CurrentFeedbackProvider}, "
+                    + $"style={CurrentFeedbackStyle}, applies=next_turn",
+                    this);
+                NotifyConditionChanged();
+            }
+
+            return true;
+        }
+
+        private static ExperimentConditionPreset ResolvePreset(string provider, string style)
+        {
+            var useAssistant = string.Equals(
+                provider,
+                AssistantAgentProvider,
+                StringComparison.OrdinalIgnoreCase);
+            var useRecast = string.Equals(style, RecastStyle, StringComparison.OrdinalIgnoreCase);
+
+            if (useAssistant)
+            {
+                return useRecast
+                    ? ExperimentConditionPreset.AssistantAgentRecast
+                    : ExperimentConditionPreset.AssistantAgentExplicit;
+            }
+
+            return useRecast
+                ? ExperimentConditionPreset.DialogueAvatarRecast
+                : ExperimentConditionPreset.DialogueAvatarExplicit;
+        }
+
+        private static bool TryNormalizeProvider(string provider, out string normalizedProvider)
+        {
+            if (string.Equals(provider, DialogueAvatarProvider, StringComparison.OrdinalIgnoreCase))
+            {
+                normalizedProvider = DialogueAvatarProvider;
+                return true;
+            }
+
+            if (string.Equals(provider, AssistantAgentProvider, StringComparison.OrdinalIgnoreCase))
+            {
+                normalizedProvider = AssistantAgentProvider;
+                return true;
+            }
+
+            normalizedProvider = string.Empty;
+            return false;
+        }
+
+        private static bool TryNormalizeStyle(string style, out string normalizedStyle)
+        {
+            if (string.Equals(style, ExplicitStyle, StringComparison.OrdinalIgnoreCase))
+            {
+                normalizedStyle = ExplicitStyle;
+                return true;
+            }
+
+            if (string.Equals(style, RecastStyle, StringComparison.OrdinalIgnoreCase))
+            {
+                normalizedStyle = RecastStyle;
+                return true;
+            }
+
+            normalizedStyle = string.Empty;
+            return false;
         }
 
         private static string NormalizeConditionId(string conditionId)

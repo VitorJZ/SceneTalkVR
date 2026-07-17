@@ -35,6 +35,8 @@ namespace SceneTalkVR.Runtime
         private Button uiMinusButton;
         private Button uiPlusButton;
         private Button subtitleChangeButton;
+        private Button correctionSourceChangeButton;
+        private Button correctionStyleChangeButton;
         private Button listenButton;
         private Button confirmButton;
         private Button exitButton;
@@ -50,6 +52,9 @@ namespace SceneTalkVR.Runtime
         private Text fontValueText;
         private Text uiValueText;
         private Text subtitleValueText;
+        private Text correctionSourceValueText;
+        private Text correctionStyleValueText;
+        private Text correctionSettingsStatusText;
         private Text requestTitleText;
         private Text requestStatusText;
         private Text requestTranscriptText;
@@ -129,25 +134,35 @@ namespace SceneTalkVR.Runtime
             settingsButton = CreateButton(mainMenuPanel.transform, "SettingsButton", "Settings", new Vector2(0f, -24f), new Vector2(190f, 54f), new Color(0.24f, 0.36f, 0.42f, 1f));
             quitButton = CreateButton(mainMenuPanel.transform, "QuitButton", "Quit", new Vector2(0f, -96f), new Vector2(190f, 54f), new Color(0.58f, 0.18f, 0.18f, 1f));
 
-            settingsPanel = CreatePanel(root, "SettingsPanel", new Vector2(0f, 0f), new Vector2(820f, 380f), new Color(0.04f, 0.05f, 0.07f, 0.92f));
-            settingsTitleText = CreateText(settingsPanel.transform, "Title", "Settings", new Vector2(0f, 146f), new Vector2(480f, 48f), 30, TextAnchor.MiddleCenter, Color.white);
-            settingsPageText = CreateText(settingsPanel.transform, "Page", "Display", new Vector2(0f, 106f), new Vector2(700f, 32f), 18, TextAnchor.MiddleCenter, new Color(0.74f, 0.86f, 1f, 1f));
+            settingsPanel = CreatePanel(root, "SettingsPanel", new Vector2(0f, 0f), new Vector2(820f, 500f), new Color(0.04f, 0.05f, 0.07f, 0.92f));
+            settingsTitleText = CreateText(settingsPanel.transform, "Title", "Settings", new Vector2(0f, 210f), new Vector2(480f, 44f), 30, TextAnchor.MiddleCenter, Color.white);
+            settingsPageText = CreateText(settingsPanel.transform, "Page", "Display & Correction", new Vector2(0f, 174f), new Vector2(700f, 30f), 18, TextAnchor.MiddleCenter, new Color(0.74f, 0.86f, 1f, 1f));
 
             settingsGeneralGroup = new GameObject("GeneralSettings");
             settingsGeneralGroup.transform.SetParent(settingsPanel.transform, false);
-            CreateText(settingsGeneralGroup.transform, "FontLabel", "Font Size", new Vector2(-240f, 42f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
-            fontMinusButton = CreateButton(settingsGeneralGroup.transform, "FontMinusButton", "-", new Vector2(78f, 42f), new Vector2(52f, 48f), new Color(0.24f, 0.36f, 0.42f, 1f));
-            fontValueText = CreateText(settingsGeneralGroup.transform, "FontValue", string.Empty, new Vector2(174f, 42f), new Vector2(120f, 44f), 20, TextAnchor.MiddleCenter, Color.white);
-            fontPlusButton = CreateButton(settingsGeneralGroup.transform, "FontPlusButton", "+", new Vector2(270f, 42f), new Vector2(52f, 48f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            CreateText(settingsGeneralGroup.transform, "FontLabel", "Font Size", new Vector2(-240f, 108f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
+            fontMinusButton = CreateButton(settingsGeneralGroup.transform, "FontMinusButton", "-", new Vector2(78f, 108f), new Vector2(52f, 48f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            fontValueText = CreateText(settingsGeneralGroup.transform, "FontValue", string.Empty, new Vector2(174f, 108f), new Vector2(120f, 44f), 20, TextAnchor.MiddleCenter, Color.white);
+            fontPlusButton = CreateButton(settingsGeneralGroup.transform, "FontPlusButton", "+", new Vector2(270f, 108f), new Vector2(52f, 48f), new Color(0.24f, 0.36f, 0.42f, 1f));
 
-            CreateText(settingsGeneralGroup.transform, "UiLabel", "Interface Size", new Vector2(-240f, -30f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
-            uiMinusButton = CreateButton(settingsGeneralGroup.transform, "UiMinusButton", "-", new Vector2(78f, -30f), new Vector2(52f, 48f), new Color(0.24f, 0.36f, 0.42f, 1f));
-            uiValueText = CreateText(settingsGeneralGroup.transform, "UiValue", string.Empty, new Vector2(174f, -30f), new Vector2(120f, 44f), 20, TextAnchor.MiddleCenter, Color.white);
-            uiPlusButton = CreateButton(settingsGeneralGroup.transform, "UiPlusButton", "+", new Vector2(270f, -30f), new Vector2(52f, 48f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            CreateText(settingsGeneralGroup.transform, "UiLabel", "Interface Size", new Vector2(-240f, 46f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
+            uiMinusButton = CreateButton(settingsGeneralGroup.transform, "UiMinusButton", "-", new Vector2(78f, 46f), new Vector2(52f, 48f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            uiValueText = CreateText(settingsGeneralGroup.transform, "UiValue", string.Empty, new Vector2(174f, 46f), new Vector2(120f, 44f), 20, TextAnchor.MiddleCenter, Color.white);
+            uiPlusButton = CreateButton(settingsGeneralGroup.transform, "UiPlusButton", "+", new Vector2(270f, 46f), new Vector2(52f, 48f), new Color(0.24f, 0.36f, 0.42f, 1f));
 
-            CreateText(settingsGeneralGroup.transform, "SubtitleLabel", "Dialogue Subtitles", new Vector2(-240f, -102f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
-            subtitleValueText = CreateText(settingsGeneralGroup.transform, "SubtitleValue", string.Empty, new Vector2(110f, -102f), new Vector2(140f, 44f), 20, TextAnchor.MiddleCenter, Color.white);
-            subtitleChangeButton = CreateButton(settingsGeneralGroup.transform, "SubtitleChangeButton", "Change", new Vector2(293f, -102f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
+            CreateText(settingsGeneralGroup.transform, "SubtitleLabel", "Dialogue Subtitles", new Vector2(-240f, -16f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
+            subtitleValueText = CreateText(settingsGeneralGroup.transform, "SubtitleValue", string.Empty, new Vector2(110f, -16f), new Vector2(140f, 44f), 20, TextAnchor.MiddleCenter, Color.white);
+            subtitleChangeButton = CreateButton(settingsGeneralGroup.transform, "SubtitleChangeButton", "Change", new Vector2(293f, -16f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
+
+            CreateText(settingsGeneralGroup.transform, "CorrectionSourceLabel", "Correction Source", new Vector2(-240f, -78f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
+            correctionSourceValueText = CreateText(settingsGeneralGroup.transform, "CorrectionSourceValue", string.Empty, new Vector2(110f, -78f), new Vector2(190f, 44f), 18, TextAnchor.MiddleCenter, Color.white);
+            correctionSourceChangeButton = CreateButton(settingsGeneralGroup.transform, "CorrectionSourceChangeButton", "Change", new Vector2(293f, -78f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
+
+            CreateText(settingsGeneralGroup.transform, "CorrectionStyleLabel", "Correction Style", new Vector2(-240f, -140f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
+            correctionStyleValueText = CreateText(settingsGeneralGroup.transform, "CorrectionStyleValue", string.Empty, new Vector2(110f, -140f), new Vector2(190f, 44f), 18, TextAnchor.MiddleCenter, Color.white);
+            correctionStyleChangeButton = CreateButton(settingsGeneralGroup.transform, "CorrectionStyleChangeButton", "Change", new Vector2(293f, -140f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
+
+            correctionSettingsStatusText = CreateText(settingsGeneralGroup.transform, "CorrectionSettingsStatus", string.Empty, new Vector2(0f, -202f), new Vector2(700f, 30f), 15, TextAnchor.MiddleCenter, new Color(0.72f, 0.8f, 0.86f, 1f));
 
             requestPanel = CreatePanel(root, "RequestPanel", new Vector2(0f, 0f), new Vector2(700f, 380f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
             requestTitleText = CreateText(requestPanel.transform, "Title", "Scene And Avatar Request", new Vector2(0f, 146f), new Vector2(640f, 42f), 26, TextAnchor.MiddleCenter, Color.white);
@@ -261,6 +276,18 @@ namespace SceneTalkVR.Runtime
                     SceneTalkUserSettingsStore.SetHideDialogueSubtitles(!SceneTalkUserSettingsStore.Current.hideDialogueSubtitles));
             }
 
+            if (correctionSourceChangeButton != null)
+            {
+                correctionSourceChangeButton.onClick.RemoveAllListeners();
+                correctionSourceChangeButton.onClick.AddListener(() => orchestrator?.ChangeCorrectionProviderSetting());
+            }
+
+            if (correctionStyleChangeButton != null)
+            {
+                correctionStyleChangeButton.onClick.RemoveAllListeners();
+                correctionStyleChangeButton.onClick.AddListener(() => orchestrator?.ChangeCorrectionStyleSetting());
+            }
+
             if (listenButton != null)
             {
                 listenButton.onClick.RemoveAllListeners();
@@ -306,7 +333,7 @@ namespace SceneTalkVR.Runtime
             if (exitButton != null)
             {
                 exitButton.onClick.RemoveAllListeners();
-                exitButton.onClick.AddListener(() => orchestrator?.ReturnToInitialMenu());
+                exitButton.onClick.AddListener(ExitCurrentView);
             }
         }
 
@@ -371,7 +398,7 @@ namespace SceneTalkVR.Runtime
 
             if (settingsPageText != null)
             {
-                settingsPageText.text = "Display";
+                settingsPageText.text = "Display & Correction";
             }
 
             if (fontValueText != null)
@@ -387,6 +414,31 @@ namespace SceneTalkVR.Runtime
             if (subtitleValueText != null)
             {
                 subtitleValueText.text = settings.hideDialogueSubtitles ? "Hidden" : "Shown";
+            }
+
+            if (correctionSourceValueText != null)
+            {
+                correctionSourceValueText.text = ResolveCorrectionSourceDisplayName(
+                    orchestrator.CorrectionProviderSetting);
+            }
+
+            if (correctionStyleValueText != null)
+            {
+                correctionStyleValueText.text = ResolveCorrectionStyleDisplayName(
+                    orchestrator.CorrectionStyleSetting);
+            }
+
+            var canChangeCorrection = orchestrator.CanChangeCorrectionSetting;
+            SetInteractable(correctionSourceChangeButton, canChangeCorrection);
+            SetInteractable(correctionStyleChangeButton, canChangeCorrection);
+            SetButtonLabel(correctionSourceChangeButton, canChangeCorrection ? "Change" : "Locked");
+            SetButtonLabel(correctionStyleChangeButton, canChangeCorrection ? "Change" : "Locked");
+
+            if (correctionSettingsStatusText != null)
+            {
+                correctionSettingsStatusText.text = canChangeCorrection
+                    ? "Changes apply from the next turn."
+                    : orchestrator.CorrectionSettingLockReason;
             }
         }
 
@@ -710,6 +762,22 @@ namespace SceneTalkVR.Runtime
             orchestrator?.OpenSettings();
         }
 
+        private void ExitCurrentView()
+        {
+            if (orchestrator == null)
+            {
+                return;
+            }
+
+            if (orchestrator.CurrentState == SceneTalkState.Settings)
+            {
+                orchestrator.CloseSettings();
+                return;
+            }
+
+            orchestrator.ReturnToInitialMenu();
+        }
+
         private void CaptureBaseFontSizes(Transform root)
         {
             if (root == null)
@@ -903,6 +971,26 @@ namespace SceneTalkVR.Runtime
             {
                 text.text = label;
             }
+        }
+
+        private static string ResolveCorrectionSourceDisplayName(string provider)
+        {
+            return string.Equals(
+                provider,
+                ExperimentConditionManager.AssistantAgentProvider,
+                System.StringComparison.OrdinalIgnoreCase)
+                ? "Assistant Agent"
+                : "Dialogue Avatar";
+        }
+
+        private static string ResolveCorrectionStyleDisplayName(string style)
+        {
+            return string.Equals(
+                style,
+                ExperimentConditionManager.RecastStyle,
+                System.StringComparison.OrdinalIgnoreCase)
+                ? "Recast"
+                : "Explicit";
         }
 
         private static void DestroyRuntimeOrImmediate(Object target)

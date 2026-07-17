@@ -806,7 +806,7 @@ namespace SceneTalkVR.AvatarSystem
                 {
                     if (LastTtsReadyLatencyMs < 0f)
                     {
-                        var orchestrator = FindObjectOfType<SceneTalkOrchestrator>();
+                        var orchestrator = FindFirstObjectByType<SceneTalkOrchestrator>();
                         float captureEnd = orchestrator != null ? orchestrator.LastSpeechCaptureEndTime : Time.realtimeSinceStartup;
                         LastTtsReadyLatencyMs = (Time.realtimeSinceStartup - captureEnd) * 1000f;
                     }

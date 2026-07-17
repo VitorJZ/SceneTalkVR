@@ -695,7 +695,7 @@ namespace SceneTalkVR.Runtime.Services
             lastRecordingDurationMs = 0f;
             lastRecordingStopReason = "unknown";
 
-            var speechModule = FindObjectOfType<GatewaySpeechInputModule>();
+            var speechModule = FindFirstObjectByType<GatewaySpeechInputModule>();
             if (speechModule == null)
             {
                 return;
@@ -865,7 +865,7 @@ namespace SceneTalkVR.Runtime.Services
         {
             if (cachedOrchestrator == null)
             {
-                cachedOrchestrator = FindObjectOfType<SceneTalkOrchestrator>();
+                cachedOrchestrator = FindFirstObjectByType<SceneTalkOrchestrator>();
             }
 
             if (cachedOrchestrator != null)
