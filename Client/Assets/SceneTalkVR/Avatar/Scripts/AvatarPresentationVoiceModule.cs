@@ -8,7 +8,7 @@ using UnityEngine.Serialization;
 
 namespace SceneTalkVR.AvatarSystem
 {
-    public sealed class AvatarPresentationVoiceModule : MonoBehaviour, ISceneTalkStreamingAvatarVoice, ISceneTalkAvatarReplyContext, ISceneTalkAvatarThinkingState, ISceneTalkAvatarSessionReset, ISceneTalkCorrectionFeedbackProviderReceiver
+    public sealed class AvatarPresentationVoiceModule : MonoBehaviour, ISceneTalkStreamingAvatarVoice, ISceneTalkAvatarReplyContext, ISceneTalkAvatarThinkingState, ISceneTalkAvatarSessionReset, ISceneTalkCorrectionFeedbackProviderReceiver, ISceneTalkSessionReset
     {
         [Header("Avatar Resolution")]
         [SerializeField] private AvatarPresetResolver resolver;
@@ -139,6 +139,8 @@ namespace SceneTalkVR.AvatarSystem
                 DestroyAvatarObject(avatarToDestroy);
             }
         }
+
+        public void ResetSession() => ClearAvatar();
 
         public IEnumerator PresentReply(SpringScenePayload payload, Action onComplete, Action<string> onError)
         {

@@ -1,0 +1,63 @@
+using System;
+using UnityEngine;
+
+namespace SceneTalkVR.Core
+{
+    // v1.1 runtime types. String condition IDs are intentionally confined to legacy adapters.
+    public enum ExperimentPhase { Developer, Pilot, Formal }
+    public enum FormalConditionCode { NE, NR, SE, SR }
+    public enum FeedbackProvider { DialogueAvatar, AssistantAgent }
+    public enum FeedbackStyle { Explicit, Recast }
+    public enum EmbodimentCondition { VoiceOnly, FloatingOrb, HumanoidAgent }
+    public enum ExperimentTechnicalValidity { Valid, Retry, FallbackUsed, TechnicalInvalid }
+
+    [Serializable]
+    public struct ExperimentTaskReference
+    {
+        public string taskId;
+        public string scenarioId;
+    }
+
+    [Serializable]
+    public struct ExperimentAssignment
+    {
+        public FormalConditionCode condition;
+        public ExperimentTaskReference task;
+        public string sequenceId;
+        public int conditionOrderIndex;
+    }
+
+    [Serializable]
+    public struct ExperimentRunContext
+    {
+        public string participantId;
+        public string sessionId;
+        public ExperimentPhase phase;
+        public FormalConditionCode formalCondition;
+        public ExperimentAssignment assignment;
+    }
+
+    public static class FormalConditionResolver
+    {
+        public static bool TryResolve(FormalConditionCode code, out FeedbackProvider provider, out FeedbackStyle style)
+        {
+            provider = code == FormalConditionCode.SE || code == FormalConditionCode.SR
+                ? FeedbackProvider.AssistantAgent : FeedbackProvider.DialogueAvatar;
+            style = code == FormalConditionCode.NR || code == FormalConditionCode.SR
+                ? FeedbackStyle.Recast : FeedbackStyle.Explicit;
+            return Enum.IsDefined(typeof(FormalConditionCode), code);
+        }
+
+        public static string ToLegacyProvider(FeedbackProvider value) => value == FeedbackProvider.AssistantAgent
+            ? ExperimentConditionManager.AssistantAgentProvider : ExperimentConditionManager.DialogueAvatarProvider;
+        public static string ToLegacyStyle(FeedbackStyle value) => value == FeedbackStyle.Recast
+            ? ExperimentConditionManager.RecastStyle : ExperimentConditionManager.ExplicitStyle;
+        public static string ToLegacyConditionId(FormalConditionCode code) => code switch
+        {
+            FormalConditionCode.NR => "dialogue_avatar_recast",
+            FormalConditionCode.SE => "assistant_agent_explicit",
+            FormalConditionCode.SR => "assistant_agent_recast",
+            _ => "dialogue_avatar_explicit"
+        };
+    }
+}

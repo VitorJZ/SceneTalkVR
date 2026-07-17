@@ -6534,6 +6534,7 @@ MonoBehaviour:
   panoramaSceneService: {fileID: 1964602129}
   avatarVoiceModule: {fileID: 1964602107}
   voiceGatewayClient: {fileID: 1964602118}
+  experimentConditionManager: {fileID: 0}
 --- !u!114 &1964602124
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6552,8 +6553,10 @@ MonoBehaviour:
   debugMode: 1
   showDebugLabel: 1
   experimentProtocol: {fileID: 11400000, guid: 78275b064f314c0e88ea5e79d2e9f49c, type: 2}
+  experimentBuildInfo: {fileID: 11400000, guid: 917be4f734ff4f6aa5bed03a4648cd1a, type: 2}
   useConditionOrder: 0
   manualCondition: 0
+  formalCondition: 0
   conditionOrder:
   - dialogue_avatar_explicit
   - dialogue_avatar_recast

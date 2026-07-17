@@ -5,7 +5,7 @@ using UnityEngine.Rendering;
 namespace SceneTalkVR.AvatarSystem
 {
     [DisallowMultipleComponent]
-    public sealed class CorrectionAgentPresenter : MonoBehaviour
+    public sealed class CorrectionAgentPresenter : MonoBehaviour, SceneTalkVR.Core.ISceneTalkSessionReset
     {
         private const string VisualRootName = "Assistant Visuals";
         private const string AvatarVisualName = "Assistant Avatar";
@@ -210,6 +210,8 @@ namespace SceneTalkVR.AvatarSystem
 
             ApplyVisibility(visibleAmount);
         }
+
+        public void ResetSession() => HideImmediate();
 
         public void ShowImmediate()
         {

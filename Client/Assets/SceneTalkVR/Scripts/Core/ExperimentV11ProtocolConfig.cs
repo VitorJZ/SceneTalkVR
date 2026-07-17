@@ -32,11 +32,9 @@ namespace SceneTalkVR.Core
     public sealed class ExperimentV11ProtocolConfig : ScriptableObject
     {
         [Header("Immutable Baseline Metadata")]
-        [SerializeField] private string protocolVersion = "1.1.0-stage0";
-        [SerializeField] private string buildVersion = "stage0-20260717";
-        [SerializeField] private string gitCommit = "26217dfee11b4cfad263a3618f78f934c505edfd";
-        [SerializeField] private string activeBranch = "experiment-v1.1-integration";
-        [SerializeField] private string experimentPhase = "stage0_baseline";
+        [SerializeField] private string protocolVersion = "1.1.0-stage1";
+        [SerializeField] private string buildVersion = "stage1-20260717";
+        [SerializeField] private ExperimentPhase experimentPhase = ExperimentPhase.Formal;
         [SerializeField] private bool formalModeLocked = true;
 
         [Header("Formal Conditions")]
@@ -64,9 +62,7 @@ namespace SceneTalkVR.Core
 
         public string ProtocolVersion => protocolVersion?.Trim() ?? string.Empty;
         public string BuildVersion => buildVersion?.Trim() ?? string.Empty;
-        public string GitCommit => gitCommit?.Trim() ?? string.Empty;
-        public string ActiveBranch => activeBranch?.Trim() ?? string.Empty;
-        public string ExperimentPhase => experimentPhase?.Trim() ?? string.Empty;
+        public ExperimentPhase ExperimentPhase => experimentPhase;
         public bool FormalModeLocked => formalModeLocked;
         public IReadOnlyList<string> FormalConditionCodes => formalConditionCodes;
         public IReadOnlyList<ExperimentConditionSequenceDefinition> ConditionSequenceDefinitions => conditionSequenceDefinitions;
@@ -81,8 +77,6 @@ namespace SceneTalkVR.Core
             var issues = new List<string>();
             if (string.IsNullOrWhiteSpace(ProtocolVersion)) issues.Add("protocolVersion is empty");
             if (string.IsNullOrWhiteSpace(BuildVersion)) issues.Add("buildVersion is empty");
-            if (string.IsNullOrWhiteSpace(GitCommit)) issues.Add("gitCommit is empty");
-            if (string.IsNullOrWhiteSpace(ActiveBranch)) issues.Add("activeBranch is empty");
             if (!FormalModeLocked) issues.Add("formalModeLocked is false");
             if (!HasExactlyFormalConditions()) issues.Add("formalConditionCodes must contain NE, NR, SE, SR exactly once");
             if (requiredDecisions == null || requiredDecisions.Length == 0)

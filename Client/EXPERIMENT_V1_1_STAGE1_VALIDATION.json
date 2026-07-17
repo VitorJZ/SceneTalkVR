@@ -1,0 +1,29 @@
+{
+  "stage": "Experiment v1.1 Stage 1",
+  "date": "2026-07-17",
+  "baseline": {
+    "requestedHead": "6e4ab20",
+    "actualStartingHead": "4330897",
+    "branch": "experiment-v1.1-integration",
+    "remotePushedBeforeStage1": true,
+    "mainMerged": false
+  },
+  "unityPreChange": {
+    "unityVersion": "6000.3.16f1",
+    "compilation": { "success": true, "errorCount": 0, "warningCount": 0, "finishedAtUtc": "2026-07-17T06:08:42.9912705Z" },
+    "consoleErrors": 0,
+    "missingReferences": 0,
+    "preflightExecuted": true,
+    "formalModeBlockedByUnconfirmedDecisions": true
+  },
+  "postChange": {
+    "unitySkillsServerResponsive": true,
+    "compileVerified": true,
+    "consoleErrorsAfterCompile": 0,
+    "missingReferences": 0,
+    "editModeTests": { "filter": "SceneTalkVR.Tests.Editor.FormalConditionResolverTests", "passed": 4, "total": 4 },
+    "developerModePlayMode": { "durationSeconds": 8, "completed": true, "consoleErrors": 0 },
+    "formalModeMissingDecisionGuard": { "durationSeconds": 5, "blocked": true, "expectedError": "five unconfirmed protocol decisions", "sceneRestoredToDeveloperMode": true }
+  },
+  "picoVerified": false
+}

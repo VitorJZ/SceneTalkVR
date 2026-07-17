@@ -6,7 +6,7 @@ using UnityEngine;
 namespace SceneTalkVR.AvatarSystem
 {
     [DisallowMultipleComponent]
-    public sealed class CorrectionFeedbackPresenter : MonoBehaviour, ISceneTalkExperimentLockReceiver
+    public sealed class CorrectionFeedbackPresenter : MonoBehaviour, ISceneTalkExperimentLockReceiver, ISceneTalkSessionReset
     {
         private enum TencentVoiceType
         {
@@ -281,6 +281,8 @@ namespace SceneTalkVR.AvatarSystem
             currentFeedbackProvider = AssistantAgentProvider;
             ResolveCorrectionAgentPresenter(false)?.HideImmediate();
         }
+
+        public void ResetSession() => ResetPresentation();
 
         private bool ShouldPlayCorrectionFeedback(CorrectionFeedbackData feedback)
         {

@@ -30,10 +30,12 @@ namespace SceneTalkVR.Core
         [SerializeField] private bool debugMode = true;
         [SerializeField] private bool showDebugLabel = true;
         [SerializeField] private ExperimentV11ProtocolConfig experimentProtocol;
+        [SerializeField] private ExperimentBuildInfo experimentBuildInfo;
 
         [Header("Condition")]
         [SerializeField] private bool useConditionOrder;
         [SerializeField] private ExperimentConditionPreset manualCondition = ExperimentConditionPreset.AssistantAgentExplicit;
+        [SerializeField] private FormalConditionCode formalCondition = FormalConditionCode.NE;
         [SerializeField] private string[] conditionOrder =
         {
             "dialogue_avatar_explicit",
@@ -93,6 +95,8 @@ namespace SceneTalkVR.Core
         public bool DebugMode => debugMode;
         public bool ShowDebugLabel => debugMode && showDebugLabel && !formalExperiment;
         public ExperimentV11ProtocolConfig ExperimentProtocol => experimentProtocol;
+        public ExperimentBuildInfo ExperimentBuildInfo => experimentBuildInfo;
+        public FormalConditionCode CurrentFormalCondition => formalExperiment ? formalCondition : LegacyToFormal(CurrentCondition?.conditionId);
 
         public bool ValidateFormalProtocol(out string error)
         {
@@ -108,6 +112,11 @@ namespace SceneTalkVR.Core
                 return false;
             }
 
+            if (experimentBuildInfo == null)
+            {
+                error = "Formal Mode requires an ExperimentBuildInfo asset.";
+                return false;
+            }
             return experimentProtocol.ValidateForFormalMode(out error);
         }
 
@@ -188,7 +197,7 @@ namespace SceneTalkVR.Core
             EnsureDefaultTaskDefinitions();
             EnsureSessionId();
 
-            var conditionId = ResolveCurrentConditionId();
+            var conditionId = formalExperiment ? FormalConditionResolver.ToLegacyConditionId(formalCondition) : ResolveCurrentConditionId();
             ResolveCondition(conditionId, out var provider, out var style);
             var resolvedScenarioId = ResolveScenarioId();
 
@@ -211,6 +220,7 @@ namespace SceneTalkVR.Core
 
         public void AdvanceCondition()
         {
+            if (formalExperiment) { Debug.LogWarning("[Experiment] Formal Mode rejects inspector/debug condition changes.", this); return; }
             if (useConditionOrder)
             {
                 var order = GetEffectiveConditionOrder();
@@ -228,6 +238,7 @@ namespace SceneTalkVR.Core
 
         public void AdvanceScenario()
         {
+            if (formalExperiment) { Debug.LogWarning("[Experiment] Formal Mode rejects scene/task changes.", this); return; }
             EnsureDefaultTaskDefinitions();
             if (taskDefinitions.Length == 0)
             {
@@ -242,6 +253,7 @@ namespace SceneTalkVR.Core
 
         public void SelectTask(string taskId)
         {
+            if (formalExperiment) { Debug.LogWarning("[Experiment] Formal Mode rejects scene/task changes outside an assignment.", this); return; }
             EnsureDefaultTaskDefinitions();
             for (int i = 0; i < taskDefinitions.Length; i++)
             {
@@ -578,10 +590,10 @@ namespace SceneTalkVR.Core
             return new ExperimentTurnLogRecord
             {
                 protocolVersion = experimentProtocol == null ? string.Empty : experimentProtocol.ProtocolVersion,
-                buildVersion = experimentProtocol == null ? string.Empty : experimentProtocol.BuildVersion,
-                gitCommit = experimentProtocol == null ? string.Empty : experimentProtocol.GitCommit,
-                activeBranch = experimentProtocol == null ? string.Empty : experimentProtocol.ActiveBranch,
-                experimentPhase = experimentProtocol == null ? string.Empty : experimentProtocol.ExperimentPhase,
+                buildVersion = experimentBuildInfo == null ? (experimentProtocol == null ? string.Empty : experimentProtocol.BuildVersion) : experimentBuildInfo.BuildVersion,
+                gitCommit = experimentBuildInfo == null ? string.Empty : experimentBuildInfo.GitCommit,
+                activeBranch = experimentBuildInfo == null ? string.Empty : experimentBuildInfo.ActiveBranch,
+                experimentPhase = experimentProtocol == null ? string.Empty : experimentProtocol.ExperimentPhase.ToString(),
                 formalModeLocked = experimentProtocol != null && experimentProtocol.FormalModeLocked,
                 participantId = condition.participantId,
                 sessionId = condition.sessionId,
@@ -836,6 +848,32 @@ namespace SceneTalkVR.Core
             style = normalized.EndsWith("recast", StringComparison.OrdinalIgnoreCase)
                 ? RecastStyle
                 : ExplicitStyle;
+        }
+
+        private static FormalConditionCode LegacyToFormal(string conditionId)
+        {
+            var id = NormalizeConditionId(conditionId);
+            return id == "dialogue_avatar_recast" ? FormalConditionCode.NR
+                : id == "assistant_agent_explicit" ? FormalConditionCode.SE
+                : id == "assistant_agent_recast" ? FormalConditionCode.SR : FormalConditionCode.NE;
+        }
+
+        /// <summary>Boundary reset for a future allocator. It deliberately never chooses a new assignment.</summary>
+        public void ResetConditionSessionBoundary()
+        {
+            FlushActiveTurn("reset");
+            FlushPendingTurn("reset");
+            recordingActive = false;
+            recordingStartedAt = 0f;
+            turnIndex = 0;
+            queuedRetryCount = 0;
+            activeTurnLog = null;
+            pendingTurnLog = null;
+            currentCondition = null;
+            foreach (var module in FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (module is ISceneTalkSessionReset reset) reset.ResetSession();
+            RefreshCondition(false);
+            NotifyConditionChanged();
         }
 
         public static CorrectionExperimentCondition CloneCondition(CorrectionExperimentCondition source)

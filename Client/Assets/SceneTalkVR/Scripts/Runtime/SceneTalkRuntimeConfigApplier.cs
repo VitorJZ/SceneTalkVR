@@ -24,6 +24,7 @@ namespace SceneTalkVR.Runtime
         [SerializeField] private PanoramaSceneService panoramaSceneService;
         [SerializeField] private AvatarPresentationVoiceModule avatarVoiceModule;
         [SerializeField] private VoiceGatewayClient voiceGatewayClient;
+        [SerializeField] private ExperimentConditionManager experimentConditionManager;
 
         public SceneTalkRuntimeConfig Config => config;
 
@@ -44,6 +45,14 @@ namespace SceneTalkVR.Runtime
             }
 
             ResolveModules();
+            var formalLock = experimentConditionManager != null && experimentConditionManager.IsFormalExperiment;
+            config.ConfigureFormalModeRuntimeLock(formalLock);
+            if (formalLock && !experimentConditionManager.ValidateFormalProtocol(out var protocolError))
+            {
+                Debug.LogError($"[SceneTalkVR] Formal Mode startup blocked: {protocolError}", this);
+                enabled = false;
+                return;
+            }
             ConfigureVoiceGateway();
             ConfigureBrain();
             ConfigureSceneServices();
@@ -68,6 +77,7 @@ namespace SceneTalkVR.Runtime
             panoramaSceneService = Resolve(panoramaSceneService);
             avatarVoiceModule = Resolve(avatarVoiceModule);
             voiceGatewayClient = Resolve(voiceGatewayClient);
+            experimentConditionManager = Resolve(experimentConditionManager);
         }
 
         private void ConfigureVoiceGateway()
@@ -92,6 +102,7 @@ namespace SceneTalkVR.Runtime
         {
             if (holodeckSceneService != null)
             {
+                holodeckSceneService.ConfigureFormalModeLock(config.IsFormalModeRuntimeLocked);
                 holodeckSceneService.ConfigureBackend(
                     config.UseHolodeckBackend,
                     config.HolodeckBackendUrl,
@@ -134,13 +145,13 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
-            var speech = config.UseDeveloperTextConsole || !config.UseVoiceGatewaySpeech
+            var speech = (!config.IsFormalModeRuntimeLocked && config.UseDeveloperTextConsole) || !config.UseVoiceGatewaySpeech
                 ? demoSpeechInput as MonoBehaviour
                 : gatewaySpeechInput as MonoBehaviour;
 
             if (demoSpeechInput is SceneTalkVR.Demo.DemoSpeechInputModule demoSpeech)
             {
-                demoSpeech.EnableDeveloperConsole = config.UseDeveloperTextConsole;
+                demoSpeech.EnableDeveloperConsole = !config.IsFormalModeRuntimeLocked && config.UseDeveloperTextConsole;
             }
 
             MonoBehaviour brain = null;
