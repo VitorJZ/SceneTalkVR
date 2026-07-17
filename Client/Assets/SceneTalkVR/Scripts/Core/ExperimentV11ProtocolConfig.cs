@@ -72,6 +72,20 @@ namespace SceneTalkVR.Core
         public string FeedbackTimingPolicy => feedbackTimingPolicy?.Trim() ?? string.Empty;
         public IReadOnlyList<ExperimentProtocolDecision> RequiredDecisions => requiredDecisions;
 
+        public bool TryGetConfirmedDecision(string decisionId, out string confirmedValue)
+        {
+            confirmedValue = string.Empty;
+            if (requiredDecisions == null || string.IsNullOrWhiteSpace(decisionId)) return false;
+            foreach (var decision in requiredDecisions)
+            {
+                if (decision == null || !string.Equals(decision.decisionId, decisionId, StringComparison.OrdinalIgnoreCase)) continue;
+                if (decision.status != ProtocolDecisionStatus.Confirmed) return false;
+                confirmedValue = decision.confirmedValue?.Trim() ?? string.Empty;
+                return true;
+            }
+            return false;
+        }
+
         public bool ValidateForFormalMode(out string error)
         {
             var issues = new List<string>();

@@ -33,6 +33,7 @@ namespace SceneTalkVR.Core
         [SerializeField] private ExperimentV11ProtocolConfig experimentProtocol;
         [SerializeField] private ExperimentBuildInfo experimentBuildInfo;
         [SerializeField] private ExperimentTaskCatalog taskCatalog;
+        [SerializeField] private QuestionnaireCatalog questionnaireCatalog;
 
         [Header("Condition")]
         [SerializeField] private bool useConditionOrder;
@@ -104,6 +105,7 @@ namespace SceneTalkVR.Core
         public ExperimentV11ProtocolConfig ExperimentProtocol => experimentProtocol;
         public ExperimentBuildInfo ExperimentBuildInfo => experimentBuildInfo;
         public ExperimentTaskCatalog TaskCatalog => taskCatalog;
+        public QuestionnaireCatalog QuestionnaireCatalog => questionnaireCatalog;
         public FormalConditionCode CurrentFormalCondition => formalExperiment ? formalCondition : LegacyToFormal(CurrentCondition?.conditionId);
         public int CurrentTurnIndex => turnIndex;
         public ExperimentLifecycleCoordinator LifecycleCoordinator => GetComponent<ExperimentLifecycleCoordinator>();
@@ -129,6 +131,8 @@ namespace SceneTalkVR.Core
             }
             if (taskCatalog == null) { error = "Formal Mode requires an ExperimentTaskCatalog asset."; return false; }
             if (!taskCatalog.ValidateFormal(experimentProtocol, out error)) return false;
+            if (questionnaireCatalog == null) { error = "Formal Mode requires a QuestionnaireCatalog asset."; return false; }
+            if (!questionnaireCatalog.ValidateFormal(experimentProtocol, out error)) return false;
             return experimentProtocol.ValidateForFormalMode(out error);
         }
 
@@ -166,6 +170,14 @@ namespace SceneTalkVR.Core
             if (GetComponent<ExperimentLifecycleCoordinator>() == null)
             {
                 gameObject.AddComponent<ExperimentLifecycleCoordinator>();
+            }
+            if (GetComponent<QuestionnaireRuntimeController>() == null)
+            {
+                gameObject.AddComponent<QuestionnaireRuntimeController>();
+            }
+            if (GetComponent<QuestionnaireVrPanel>() == null)
+            {
+                gameObject.AddComponent<QuestionnaireVrPanel>();
             }
             EnsureSessionId();
             EnsureDefaultTaskDefinitions();

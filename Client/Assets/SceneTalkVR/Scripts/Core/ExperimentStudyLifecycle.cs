@@ -12,7 +12,9 @@ namespace SceneTalkVR.Core
     {
         AssignmentCreated, AssignmentLoaded, ConditionPrepared, ConditionStarted, TaskLoaded,
         GoalCandidateSubmitted, GoalConfirmed, GoalRejected, TaskCompleted,
-        ConditionAwaitingQuestionnaire, ConditionCompleted, ConditionTechnicalInvalid,
+        ConditionAwaitingQuestionnaire, QuestionnaireStarted, QuestionnairePageCompleted,
+        QuestionnaireSubmitted, QuestionnaireReopened, FinalRankingStarted, FinalRankingSubmitted,
+        InterviewStarted, InterviewCompleted, ConditionCompleted, ConditionTechnicalInvalid,
         ConditionAborted, ExperimentCompleted
     }
 
@@ -202,13 +204,45 @@ namespace SceneTalkVR.Core
             WriteEvent(StudyEventType.ConditionAwaitingQuestionnaire, reason: CompletionReason, actor: actor);
         }
 
-        public void CompleteQuestionnaireBoundary(string actor = "experimenter")
+        public bool BeginQuestionnaire(string conditionRunId, string linkageKey, out string error)
         {
-            if (currentCondition == null || currentCondition.status != ConditionRunStatus.AwaitingQuestionnaire) return;
+            if (currentCondition == null || currentCondition.status != ConditionRunStatus.AwaitingQuestionnaire) { error = "condition_not_awaiting_questionnaire"; return false; }
+            if (conditionRunId != ConditionRunId || linkageKey != QuestionnaireLinkageKey) { error = "questionnaire_linkage_mismatch"; return false; }
+            if (TechnicalValidity == ExperimentTechnicalValidity.TechnicalInvalid) { error = "technical_invalid_condition"; return false; }
+            currentCondition.status = ConditionRunStatus.QuestionnaireInProgress;
+            WriteEvent(StudyEventType.QuestionnaireStarted, actor: "participant");
+            error = string.Empty; return true;
+        }
+
+        public bool CompleteQuestionnaireSubmission(string conditionRunId, string linkageKey, out string error, string actor = "participant")
+        {
+            if (!ValidateQuestionnaireSubmission(conditionRunId, linkageKey, out error)) return false;
+            currentCondition.status = ConditionRunStatus.QuestionnaireSubmitted;
+            WriteEvent(StudyEventType.QuestionnaireSubmitted, actor: actor);
             currentCondition.status = ConditionRunStatus.Completed;
             WriteEvent(StudyEventType.ConditionCompleted, reason: CompletionReason, actor: actor);
             if (AllConditionsCompleted()) { assignment.status = AssignmentStatus.Completed; WriteEvent(StudyEventType.ExperimentCompleted, actor: actor); }
+            error = string.Empty; return true;
         }
+
+        public bool ValidateQuestionnaireSubmission(string conditionRunId, string linkageKey, out string error)
+        {
+            if (currentCondition == null || currentCondition.status != ConditionRunStatus.QuestionnaireInProgress) { error = "questionnaire_not_in_progress"; return false; }
+            if (conditionRunId != ConditionRunId || linkageKey != QuestionnaireLinkageKey) { error = "questionnaire_linkage_mismatch"; return false; }
+            if (TechnicalValidity == ExperimentTechnicalValidity.TechnicalInvalid) { error = "technical_invalid_condition"; return false; }
+            error = string.Empty; return true;
+        }
+
+        [Obsolete("Questionnaires must submit through CompleteQuestionnaireSubmission with linkage validation.")]
+        public void CompleteQuestionnaireBoundary(string actor = "experimenter")
+        {
+            if (conditionManager != null && conditionManager.IsFormalExperiment) return;
+            if (currentCondition == null || currentCondition.status != ConditionRunStatus.AwaitingQuestionnaire) return;
+            currentCondition.status = ConditionRunStatus.Completed;
+            WriteEvent(StudyEventType.ConditionCompleted, reason: "developer_legacy_questionnaire_boundary", actor: actor);
+        }
+
+        public void RecordStudyEvent(StudyEventType type, string actor = "system", string reason = "") => WriteEvent(type, actor: actor, reason: reason);
 
         public void MarkTechnicalInvalid(string reason)
         {

@@ -20,7 +20,11 @@ namespace SceneTalkVR.Core
 
     public enum AssignmentPolicy { Undefined, StrictWithoutReplacement, WithReplacement, Manual }
     public enum AssignmentStatus { Created, Active, Completed, Incompatible, Aborted }
-    public enum ConditionRunStatus { Assigned, Preparing, Running, TaskCompleted, AwaitingQuestionnaire, Completed, TechnicalInvalid, Aborted }
+    public enum ConditionRunStatus
+    {
+        Assigned, Preparing, Running, TaskCompleted, AwaitingQuestionnaire,
+        QuestionnaireInProgress, QuestionnaireSubmitted, Completed, TechnicalInvalid, Aborted
+    }
 
     [Serializable]
     public sealed class ExperimentParticipant

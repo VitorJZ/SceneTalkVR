@@ -6555,6 +6555,7 @@ MonoBehaviour:
   experimentProtocol: {fileID: 11400000, guid: 78275b064f314c0e88ea5e79d2e9f49c, type: 2}
   experimentBuildInfo: {fileID: 11400000, guid: 917be4f734ff4f6aa5bed03a4648cd1a, type: 2}
   taskCatalog: {fileID: 11400000, guid: 6b65d8f0228f4db5a5bc8dd8d4911c1e, type: 2}
+  questionnaireCatalog: {fileID: 11400000, guid: 86947b6478341f14dadc1ae614ba437f, type: 2}
   useConditionOrder: 0
   manualCondition: 0
   formalCondition: 0

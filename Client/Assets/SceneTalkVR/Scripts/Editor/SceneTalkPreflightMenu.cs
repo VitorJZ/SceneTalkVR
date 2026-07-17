@@ -31,6 +31,7 @@ namespace SceneTalkVR.EditorTools
         private const string RuntimeConfigPath = "Assets/SceneTalkVR/RuntimeConfig/SceneTalkRuntimeConfig.asset";
         private const string ExperimentProtocolPath = "Assets/SceneTalkVR/ExperimentProtocol/ExperimentV11Protocol.asset";
         private const string ExperimentTaskCatalogPath = "Assets/SceneTalkVR/ExperimentProtocol/ExperimentTaskCatalog.asset";
+        private const string QuestionnaireCatalogPath = "Assets/SceneTalkVR/ExperimentProtocol/ExperimentQuestionnaireCatalog.asset";
         private const string AndroidPackageName = "com.scenetalkvr.demo";
         private const string PicoOpenXrDefine = "PICO_OPENXR_SDK";
         private const string OpenXrLoaderTypeName = "UnityEngine.XR.OpenXR.OpenXRLoader";
@@ -213,6 +214,7 @@ namespace SceneTalkVR.EditorTools
             var runtimeConfig = AssetDatabase.LoadAssetAtPath<SceneTalkRuntimeConfig>(RuntimeConfigPath);
             var protocol = AssetDatabase.LoadAssetAtPath<ExperimentV11ProtocolConfig>(ExperimentProtocolPath);
             var taskCatalog = AssetDatabase.LoadAssetAtPath<ExperimentTaskCatalog>(ExperimentTaskCatalogPath);
+            var questionnaireCatalog = AssetDatabase.LoadAssetAtPath<QuestionnaireCatalog>(QuestionnaireCatalogPath);
             var configAppliers = FindAll<SceneTalkRuntimeConfigApplier>();
             var voiceClients = FindAll<VoiceGatewayClient>();
             var holodeckServices = FindAll<HolodeckSceneService>();
@@ -235,6 +237,21 @@ namespace SceneTalkVR.EditorTools
             AppendCheck(report, taskCatalogValid, taskCatalogValid
                 ? "Formal Task Catalog is complete"
                 : $"Formal Task Catalog is blocked: {taskCatalogError}");
+            AppendCheck(report, questionnaireCatalog != null, "Experiment v1.1 Questionnaire Catalog asset exists");
+            AppendCheck(report, questionnaireCatalog != null && !EditorUtility.IsDirty(questionnaireCatalog), "Questionnaire Catalog asset has no unsaved changes");
+            AppendCheck(report, experimentManagers.Length == 1 && experimentManagers[0].QuestionnaireCatalog == questionnaireCatalog, "ExperimentConditionManager is bound to the Questionnaire Catalog asset");
+            var questionnaireError = questionnaireCatalog == null ? "Questionnaire Catalog asset is missing" : string.Empty;
+            var questionnaireValid = questionnaireCatalog != null && questionnaireCatalog.ValidateFormal(protocol, out questionnaireError);
+            AppendCheck(report, questionnaireValid, questionnaireValid
+                ? $"Questionnaire Catalog {questionnaireCatalog.CatalogVersion} is valid; Social Comfort follows protocol decision"
+                : $"Questionnaire Catalog is blocked: {questionnaireError}");
+            var socialValue = string.Empty;
+            var socialConfirmed = protocol != null && protocol.TryGetConfirmedDecision("formal_social_comfort", out socialValue);
+            AppendCheck(report, !socialConfirmed || !string.IsNullOrWhiteSpace(socialValue), socialConfirmed
+                ? $"Social Comfort protocol decision is confirmed as `{socialValue}`"
+                : "Social Comfort remains excluded because `formal_social_comfort` is unconfirmed");
+            AppendCheck(report, questionnaireCatalog?.Find("formal_condition_v1") != null,
+                "AwaitingQuestionnaire resolves to formal_condition_v1");
             AppendCheck(report, protocol != null && !string.IsNullOrWhiteSpace(protocol.ProtocolVersion), "Experiment protocol version is non-empty");
             AppendCheck(report, protocol != null && protocol.FormalModeLocked, "Experiment protocol marks Formal Mode as locked");
             var formalProtocolError = protocol == null ? "protocol asset is missing" : string.Empty;
