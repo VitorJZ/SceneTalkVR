@@ -227,7 +227,8 @@ namespace SceneTalkVR.EditorTools
             AppendCheck(report, experimentManagers.Length == 1 && experimentManagers[0].ExperimentProtocol == protocol, "ExperimentConditionManager is bound to the protocol asset");
             AppendCheck(report, protocol != null && !string.IsNullOrWhiteSpace(protocol.ProtocolVersion), "Experiment protocol version is non-empty");
             AppendCheck(report, protocol != null && protocol.FormalModeLocked, "Experiment protocol marks Formal Mode as locked");
-            var formalProtocolValid = protocol != null && protocol.ValidateForFormalMode(out var formalProtocolError);
+            var formalProtocolError = protocol == null ? "protocol asset is missing" : string.Empty;
+            var formalProtocolValid = protocol != null && protocol.ValidateForFormalMode(out formalProtocolError);
             AppendCheck(report, formalProtocolValid, formalProtocolValid
                 ? "Formal Mode decisions are confirmed"
                 : $"Formal Mode is blocked until protocol decisions are confirmed: {formalProtocolError}");
