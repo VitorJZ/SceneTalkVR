@@ -447,6 +447,11 @@ namespace SceneTalkVR.Runtime
         {
             finishRequested = true;
             ResolveExperimentConditionManager(false)?.RecordUserAction("exit");
+            var lifecycle = ResolveExperimentConditionManager(false)?.LifecycleCoordinator;
+            if (lifecycle?.CurrentConditionAssignment?.status == ConditionRunStatus.Running)
+            {
+                lifecycle.Abort("participant_exit");
+            }
             CancelActiveSpeechCapture();
 
             if (currentTurn != null)
@@ -999,6 +1004,11 @@ namespace SceneTalkVR.Runtime
         private void EnterTurnReviewState()
         {
             ResolveExperimentConditionManager(false)?.CompleteActiveTurn();
+            var lifecycle = ResolveExperimentConditionManager(false)?.LifecycleCoordinator;
+            if (lifecycle != null && lifecycle.ShouldEndForLimit(out var limitReason))
+            {
+                lifecycle.CompleteTask(limitReason, "system");
+            }
             IsAwaitingTurnReviewAction = false;
             if (string.IsNullOrWhiteSpace(LastCorrectionStatus))
             {

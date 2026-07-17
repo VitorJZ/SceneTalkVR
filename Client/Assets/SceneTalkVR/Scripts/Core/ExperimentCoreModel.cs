@@ -18,13 +18,62 @@ namespace SceneTalkVR.Core
         public string scenarioId;
     }
 
+    public enum AssignmentPolicy { Undefined, StrictWithoutReplacement, WithReplacement, Manual }
+    public enum AssignmentStatus { Created, Active, Completed, Incompatible, Aborted }
+    public enum ConditionRunStatus { Assigned, Preparing, Running, TaskCompleted, AwaitingQuestionnaire, Completed, TechnicalInvalid, Aborted }
+
     [Serializable]
-    public struct ExperimentAssignment
+    public sealed class ExperimentParticipant
     {
+        public string participantId;
+        public string experimentSessionId;
+    }
+
+    [Serializable]
+    public sealed class TaskAssignment
+    {
+        public string taskId;
+        public string taskAssignmentId;
+    }
+
+    [Serializable]
+    public sealed class ConditionAssignment
+    {
+        public int conditionPosition;
+        public FormalConditionCode formalConditionCode;
+        public TaskAssignment task = new TaskAssignment();
+        public ConditionRunStatus status = ConditionRunStatus.Assigned;
+        public string latestConditionRunId;
+        public int runAttempt;
+    }
+
+    [Serializable]
+    public sealed class AssignmentSequence
+    {
+        public string sequenceId;
+        public FormalConditionCode[] conditions = Array.Empty<FormalConditionCode>();
+    }
+
+    [Serializable]
+    public sealed class ExperimentAssignment
+    {
+        // Legacy-compatible single-assignment view.
         public FormalConditionCode condition;
         public ExperimentTaskReference task;
         public string sequenceId;
         public int conditionOrderIndex;
+
+        public string participantId;
+        public string experimentSessionId;
+        public string assignmentSeed;
+        public string assignmentVersion;
+        public string protocolVersion;
+        public string taskCatalogVersion;
+        public string createdAtUtc;
+        public AssignmentPolicy policy;
+        public AssignmentStatus status;
+        public bool developerTestAssignment;
+        public ConditionAssignment[] conditions = Array.Empty<ConditionAssignment>();
     }
 
     [Serializable]

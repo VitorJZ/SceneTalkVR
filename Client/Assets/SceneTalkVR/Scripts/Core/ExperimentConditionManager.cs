@@ -65,6 +65,7 @@ namespace SceneTalkVR.Core
         private bool recordingActive;
         private int turnIndex;
         private int queuedRetryCount;
+        private bool assignmentConditionActive;
         private readonly ExperimentEventTimeline eventTimeline = new ExperimentEventTimeline();
         private long eventTurnStartedTicks;
 
@@ -104,6 +105,8 @@ namespace SceneTalkVR.Core
         public ExperimentBuildInfo ExperimentBuildInfo => experimentBuildInfo;
         public ExperimentTaskCatalog TaskCatalog => taskCatalog;
         public FormalConditionCode CurrentFormalCondition => formalExperiment ? formalCondition : LegacyToFormal(CurrentCondition?.conditionId);
+        public int CurrentTurnIndex => turnIndex;
+        public ExperimentLifecycleCoordinator LifecycleCoordinator => GetComponent<ExperimentLifecycleCoordinator>();
 
         public bool ValidateFormalProtocol(out string error)
         {
@@ -160,6 +163,10 @@ namespace SceneTalkVR.Core
 
         private void Awake()
         {
+            if (GetComponent<ExperimentLifecycleCoordinator>() == null)
+            {
+                gameObject.AddComponent<ExperimentLifecycleCoordinator>();
+            }
             EnsureSessionId();
             EnsureDefaultTaskDefinitions();
             RefreshCondition(false);
@@ -209,7 +216,7 @@ namespace SceneTalkVR.Core
             EnsureDefaultTaskDefinitions();
             EnsureSessionId();
 
-            var conditionId = formalExperiment ? FormalConditionResolver.ToLegacyConditionId(formalCondition) : ResolveCurrentConditionId();
+            var conditionId = formalExperiment || assignmentConditionActive ? FormalConditionResolver.ToLegacyConditionId(formalCondition) : ResolveCurrentConditionId();
             ResolveCondition(conditionId, out var provider, out var style);
             var resolvedScenarioId = ResolveScenarioId();
 
@@ -339,6 +346,21 @@ namespace SceneTalkVR.Core
             }
 
             scenarioId = definition.taskId;
+            RefreshCondition(false);
+            NotifyConditionChanged();
+            return true;
+        }
+
+        public bool ApplyFormalAssignment(FormalConditionCode code, string taskId, out string error, string assignedParticipantId = null, string assignedSessionId = null)
+        {
+            error = string.Empty;
+            if (!Enum.IsDefined(typeof(FormalConditionCode), code)) { error = "Invalid formal condition code."; return false; }
+            if (formalExperiment && !ValidateFormalProtocol(out error)) return false;
+            if (!LoadAssignedTask(taskId, out error)) return false;
+            if (!string.IsNullOrWhiteSpace(assignedParticipantId)) participantId = assignedParticipantId.Trim();
+            if (!string.IsNullOrWhiteSpace(assignedSessionId)) sessionId = assignedSessionId.Trim();
+            formalCondition = code;
+            assignmentConditionActive = true;
             RefreshCondition(false);
             NotifyConditionChanged();
             return true;
@@ -586,6 +608,12 @@ namespace SceneTalkVR.Core
             activeTurnLog.userEndToFeedbackAudioMs = timing.userEndToFeedbackAudioMs;
             activeTurnLog.userEndToDialogueAudioMs = timing.userEndToDialogueAudioMs;
             activeTurnLog.feedbackToDialogueGapMs = timing.feedbackToDialogueGapMs;
+            var lifecycle = LifecycleCoordinator;
+            activeTurnLog.completedGoalCount = lifecycle?.GoalTracker?.ConfirmedCount ?? 0;
+            activeTurnLog.totalGoalCount = lifecycle?.GoalTracker?.Goals?.Count ?? 0;
+            activeTurnLog.taskCompletionRate = lifecycle?.GoalTracker?.GetCompletionRate() ?? 0f;
+            activeTurnLog.turnsToCompletion = lifecycle?.TurnsToCompletion ?? 0;
+            activeTurnLog.completionReason = lifecycle?.CompletionReason ?? string.Empty;
 
             pendingTurnLog = activeTurnLog;
             activeTurnLog = null;
@@ -676,6 +704,9 @@ namespace SceneTalkVR.Core
 
             var config = FindObjectOfType<SceneTalkRuntimeConfigApplier>()?.Config;
             bool isFixed = config != null ? config.UseFixedExperimentMode : true;
+            var lifecycle = LifecycleCoordinator;
+            var studyAssignment = lifecycle?.Assignment;
+            var conditionAssignment = lifecycle?.CurrentConditionAssignment;
 
             return new ExperimentTurnLogRecord
             {
@@ -738,7 +769,17 @@ namespace SceneTalkVR.Core
                 voiceProfileKey = condition.task != null ? condition.task.voiceProfileKey : string.Empty,
                 whetherImageGenerationCalled = !isFixed,
                 experimentProvider = condition.provider,
-                experimentStyle = condition.style
+                experimentStyle = condition.style,
+                sequenceId = studyAssignment?.sequenceId ?? string.Empty,
+                conditionRunId = lifecycle?.ConditionRunId ?? string.Empty,
+                taskAssignmentId = conditionAssignment?.task?.taskAssignmentId ?? string.Empty,
+                assignmentVersion = studyAssignment?.assignmentVersion ?? string.Empty,
+                questionnaireLinkageKey = lifecycle?.QuestionnaireLinkageKey ?? string.Empty,
+                completedGoalCount = lifecycle?.GoalTracker?.ConfirmedCount ?? 0,
+                totalGoalCount = lifecycle?.GoalTracker?.Goals?.Count ?? 0,
+                taskCompletionRate = lifecycle?.GoalTracker?.GetCompletionRate() ?? 0f,
+                turnsToCompletion = lifecycle?.TurnsToCompletion ?? 0,
+                completionReason = lifecycle?.CompletionReason ?? string.Empty
             };
         }
 
@@ -1026,6 +1067,8 @@ namespace SceneTalkVR.Core
             activeTurnLog = null;
             pendingTurnLog = null;
             currentCondition = null;
+            assignmentConditionActive = false;
+            scenarioId = string.Empty;
             eventTimeline.Reset();
             eventTurnStartedTicks = 0;
             foreach (var module in FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None))
@@ -1088,6 +1131,7 @@ namespace SceneTalkVR.Core
                 log.timeoutReason = (reason ?? string.Empty).IndexOf("timeout", StringComparison.OrdinalIgnoreCase) >= 0 ? reason : string.Empty;
             }
             RecordTimingEvent(ExperimentTimingEventType.TurnTechnicalInvalid, reason, failureStage, ExperimentTechnicalValidity.TechnicalInvalid);
+            LifecycleCoordinator?.MarkTechnicalInvalid(reason);
         }
 
         private void WriteTimingEvent(ExperimentTimingEvent record)
@@ -1430,9 +1474,19 @@ namespace SceneTalkVR.Core
             public string timeoutReason;
             public string fallbackReason;
             public string failureReason;
+            public string sequenceId;
+            public string conditionRunId;
+            public string taskAssignmentId;
+            public string assignmentVersion;
+            public string questionnaireLinkageKey;
+            public int completedGoalCount;
+            public int totalGoalCount;
+            public float taskCompletionRate;
+            public int turnsToCompletion;
+            public string completionReason;
 
             public const string CsvHeader =
-                "protocolVersion,buildVersion,gitCommit,activeBranch,experimentPhase,formalModeLocked,participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc,transcript,dialogueReply,feedbackText,originalText,correctedText,rationaleTag,sttConfidence,sttProvider,sttFallbackLevel,sttSuppressionReason,conditionOrderPosition,validationWarnings,selectedTaskId,taskCatalogVersion,taskId,taskPhase,taskName,taskContext,taskGoals,initialQuestion,sceneMode,whetherHolodeckCalled,whetherImageGenerationCalled,panoramaResourceKey,panoramaSource,avatarPresetKey,resolvedAvatarPresetKey,avatarFallbackLevel,voiceProfileKey,experimentProvider,experimentStyle,dialogueContinuation,recastText,correctionRequestStartTime,dialogueRequestStartTime,firstTokenTime,firstSentenceTime,ttsReadyTime,correctionPlayStartTime,correctionPlayEndTime,dialoguePlayStartTime,dialoguePlayEndTime,playbackOrder,userEndToFeedbackAudioMs,userEndToDialogueAudioMs,feedbackToDialogueGapMs,correctionVoiceId,actualPlaybackSubject,timeoutReason,fallbackReason,failureReason";
+                "protocolVersion,buildVersion,gitCommit,activeBranch,experimentPhase,formalModeLocked,participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc,transcript,dialogueReply,feedbackText,originalText,correctedText,rationaleTag,sttConfidence,sttProvider,sttFallbackLevel,sttSuppressionReason,conditionOrderPosition,validationWarnings,selectedTaskId,taskCatalogVersion,taskId,taskPhase,taskName,taskContext,taskGoals,initialQuestion,sceneMode,whetherHolodeckCalled,whetherImageGenerationCalled,panoramaResourceKey,panoramaSource,avatarPresetKey,resolvedAvatarPresetKey,avatarFallbackLevel,voiceProfileKey,experimentProvider,experimentStyle,dialogueContinuation,recastText,correctionRequestStartTime,dialogueRequestStartTime,firstTokenTime,firstSentenceTime,ttsReadyTime,correctionPlayStartTime,correctionPlayEndTime,dialoguePlayStartTime,dialoguePlayEndTime,playbackOrder,userEndToFeedbackAudioMs,userEndToDialogueAudioMs,feedbackToDialogueGapMs,correctionVoiceId,actualPlaybackSubject,timeoutReason,fallbackReason,failureReason,sequenceId,conditionRunId,taskAssignmentId,assignmentVersion,questionnaireLinkageKey,completedGoalCount,totalGoalCount,taskCompletionRate,turnsToCompletion,completionReason";
 
             public string ToCsvLine()
             {
@@ -1513,7 +1567,10 @@ namespace SceneTalkVR.Core
                     Csv(actualPlaybackSubject),
                     Csv(timeoutReason),
                     Csv(fallbackReason),
-                    Csv(failureReason));
+                    Csv(failureReason),
+                    Csv(sequenceId), Csv(conditionRunId), Csv(taskAssignmentId), Csv(assignmentVersion), Csv(questionnaireLinkageKey),
+                    completedGoalCount.ToString(CultureInfo.InvariantCulture), totalGoalCount.ToString(CultureInfo.InvariantCulture),
+                    taskCompletionRate.ToString("F4", CultureInfo.InvariantCulture), turnsToCompletion.ToString(CultureInfo.InvariantCulture), Csv(completionReason));
             }
 
             private static string Csv(string value)

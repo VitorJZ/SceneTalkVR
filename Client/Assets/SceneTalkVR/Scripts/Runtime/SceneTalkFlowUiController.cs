@@ -26,6 +26,7 @@ namespace SceneTalkVR.Runtime
         private GameObject subtitlePanel;
         private GameObject subtitleTextContainer;
         private GameObject exitButtonObject;
+        private GameObject taskGoalPanel;
 
         private Button startButton;
         private Button settingsButton;
@@ -59,6 +60,8 @@ namespace SceneTalkVR.Runtime
         private Text correctionFeedbackText;
         private Text playerSubtitleText;
         private Text avatarSubtitleText;
+        private Text taskGoalText;
+        private bool goalPanelVisible = true;
         private RectTransform subtitlePanelRect;
         private RectTransform subtitleTextContainerRect;
 
@@ -189,6 +192,10 @@ namespace SceneTalkVR.Runtime
             ConfigureDialogueText(dialogueStatusText);
 
             dialogueListenButton = CreateButton(subtitlePanel.transform, "DialogueListenButton", "Speak", new Vector2(350f, -92f), new Vector2(110f, 40f), new Color(0.12f, 0.52f, 0.38f, 1f));
+
+            taskGoalPanel = CreatePanel(root, "ReadOnlyTaskGoalPanel", new Vector2(-610f, 30f), new Vector2(340f, 360f), new Color(0.03f, 0.04f, 0.06f, 0.84f));
+            CreateText(taskGoalPanel.transform, "Title", "Task Goals", new Vector2(0f, 150f), new Vector2(300f, 36f), 22, TextAnchor.MiddleCenter, Color.white);
+            taskGoalText = CreateText(taskGoalPanel.transform, "GoalStateText", string.Empty, new Vector2(0f, -5f), new Vector2(300f, 270f), 16, TextAnchor.UpperLeft, new Color(0.86f, 0.92f, 1f, 1f));
             
             exitButton = CreateButton(root, "ExitButton", "Exit", ExitButtonPosition, ExitButtonSize, ExitButtonColor);
             exitButtonObject = exitButton.gameObject;
@@ -339,12 +346,33 @@ namespace SceneTalkVR.Runtime
             SetActive(taskSelectionPanel, showTaskSelection);
             SetActive(loadingPanel, showLoading);
             SetActive(subtitlePanel, showDialogue);
+            RefreshGoalPanel(showDialogue);
             SetActive(exitButtonObject, !showMain);
 
             RefreshSettingsPanel(showSettings);
             RefreshRequestPanel(showRequest);
             RefreshLoadingPanel(showLoading);
             RefreshSubtitlePanel(showDialogue);
+        }
+
+        public void SetGoalPanelVisible(bool visible)
+        {
+            goalPanelVisible = visible;
+            Refresh();
+        }
+
+        private void RefreshGoalPanel(bool dialogueVisible)
+        {
+            var lifecycle = FindFirstObjectByType<ExperimentLifecycleCoordinator>(FindObjectsInactive.Include);
+            var tracker = lifecycle?.GoalTracker;
+            var hasGoals = tracker != null && tracker.Goals.Count > 0;
+            SetActive(taskGoalPanel, dialogueVisible && goalPanelVisible && hasGoals);
+            if (taskGoalText == null || !hasGoals) return;
+            var taskName = lifecycle.CurrentConditionAssignment?.task?.taskId ?? "Task";
+            var builder = new System.Text.StringBuilder(taskName).AppendLine();
+            foreach (var goal in tracker.Goals)
+                builder.Append('[').Append(goal.state).Append("] ").AppendLine(goal.goalText);
+            taskGoalText.text = builder.ToString();
         }
 
         private void RefreshSettingsPanel(bool isVisible)
