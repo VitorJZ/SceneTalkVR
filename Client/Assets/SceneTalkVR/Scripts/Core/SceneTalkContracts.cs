@@ -115,7 +115,10 @@ namespace SceneTalkVR.Core
     [Serializable]
     public sealed class SceneTalkExperimentTask
     {
+        public string taskId;
         public string scenarioId;
+        public string displayName;
+        public string taskPhase;
         public string context;
         public string[] goals = Array.Empty<string>();
         public string initialQuestion;
@@ -124,12 +127,23 @@ namespace SceneTalkVR.Core
         public string fallbackAvatarGenderPresentation;
         public string fallbackAvatarAttitude;
         public string fallbackSkyboxUrl;
+        public string panoramaResourceKey;
+        public string avatarPresetKey;
+        public string voiceProfileKey;
+        public string roleplayPrompt;
+        public Vector3 spawnPosition;
+        public Vector3 spawnRotation;
+        public bool developerPlaceholderAvatar;
         public LayoutObjectData[] fallbackLayoutObjects = Array.Empty<LayoutObjectData>();
     }
 
     [Serializable]
     public sealed class AvatarRoleData
     {
+        public string presetKey;
+        public string voiceProfileKey;
+        public Vector3 spawnPosition;
+        public Vector3 spawnRotation;
         public string role;
         public string speakingSpeed;
         public string accent;

@@ -534,6 +534,13 @@ namespace SceneTalkVR.Runtime.Services
                 {
                     builder.AppendLine($"- taskContext: {task.context}");
                 }
+                builder.AppendLine($"- currentTaskId: {task.taskId}");
+                builder.AppendLine($"- avatarRole: {task.fallbackAvatarRole}");
+                if (!string.IsNullOrWhiteSpace(task.roleplayPrompt))
+                {
+                    builder.AppendLine($"- roleplayPrompt: {task.roleplayPrompt}");
+                }
+                builder.AppendLine("The task, scene, panorama, avatar identity, provider, and style are immutable. Continue only the in-task dialogue; never parse a new scene intent or output replacement scene/layout/avatar data.");
                 if (!string.IsNullOrWhiteSpace(goals))
                 {
                     builder.AppendLine($"- taskGoals: {goals}");
@@ -561,6 +568,10 @@ namespace SceneTalkVR.Runtime.Services
                     break;
                 case "hotel_check_in":
                     builder.AppendLine("Acceptable short task phrases: 'I have a reservation under Johnson.', 'When is check-out?', 'Could I get a quiet room?'. Only correct clear errors like missing articles (e.g. 'I have reservation' -> 'I have a reservation'), time questions (e.g. 'What time I must leave?' -> 'What time do I need to check out?'), or abrupt demands (e.g. 'Give me key' -> 'Could I get my key, please?').");
+                    builder.AppendLine("If feedbackProvider is assistant_agent: Your dialogueReply MUST NOT contain correction, grammar tips, alternative phrasing, or comments about the user's English.");
+                    break;
+                case "tourist_assistance":
+                    builder.AppendLine("Keep the conversation at the tourist information center. Help with directions to the city museum, tickets, photography rules, and one nearby attraction. Do not change location or staff identity.");
                     builder.AppendLine("If feedbackProvider is assistant_agent: Your dialogueReply MUST NOT contain correction, grammar tips, alternative phrasing, or comments about the user's English.");
                     break;
             }

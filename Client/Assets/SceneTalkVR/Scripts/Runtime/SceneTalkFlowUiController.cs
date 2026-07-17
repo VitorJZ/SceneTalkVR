@@ -40,10 +40,8 @@ namespace SceneTalkVR.Runtime
         private Button exitButton;
         private Button dialogueListenButton;
 
-        private Button taskButton1;
-        private Button taskButton2;
-        private Button taskButton3;
-        private Button taskButton4;
+        private readonly List<Button> taskButtons = new List<Button>();
+        private readonly List<ExperimentTaskDefinition> taskButtonDefinitions = new List<ExperimentTaskDefinition>();
 
         private Text settingsTitleText;
         private Text settingsPageText;
@@ -161,17 +159,7 @@ namespace SceneTalkVR.Runtime
             taskSelectionPanel = CreatePanel(root, "TaskSelectionPanel", new Vector2(0f, 0f), new Vector2(900f, 520f), new Color(0.04f, 0.05f, 0.07f, 0.95f));
             CreateText(taskSelectionPanel.transform, "Title", "Select a Practice Task", new Vector2(0f, 220f), new Vector2(800f, 44f), 28, TextAnchor.MiddleCenter, Color.white);
 
-            taskButton1 = CreateButton(taskSelectionPanel.transform, "Task1Button", "Restaurant Reservation", new Vector2(-210f, 90f), new Vector2(380f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f));
-            CreateText(taskSelectionPanel.transform, "Task1Context", "Context: Reserve a table at an Italian restaurant for 5 people.\nGoals: corner table, bring cake, parking.", new Vector2(-210f, 10f), new Vector2(380f, 80f), 15, TextAnchor.UpperCenter, new Color(0.8f, 0.8f, 0.8f, 1f));
-
-            taskButton2 = CreateButton(taskSelectionPanel.transform, "Task2Button", "Furniture Shopping", new Vector2(210f, 90f), new Vector2(380f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f));
-            CreateText(taskSelectionPanel.transform, "Task2Context", "Context: Speak with a salesperson to buy a desk.\nGoals: desk size/style, colors, delivery, discounts.", new Vector2(210f, 10f), new Vector2(380f, 80f), 15, TextAnchor.UpperCenter, new Color(0.8f, 0.8f, 0.8f, 1f));
-
-            taskButton3 = CreateButton(taskSelectionPanel.transform, "Task3Button", "Gym Membership", new Vector2(-210f, -100f), new Vector2(380f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f));
-            CreateText(taskSelectionPanel.transform, "Task3Context", "Context: Ask about gym membership options.\nGoals: monthly price, student discount, opening hours, trial class.", new Vector2(-210f, -180f), new Vector2(380f, 80f), 15, TextAnchor.UpperCenter, new Color(0.8f, 0.8f, 0.8f, 1f));
-
-            taskButton4 = CreateButton(taskSelectionPanel.transform, "Task4Button", "Hotel Check-In", new Vector2(210f, -100f), new Vector2(380f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f));
-            CreateText(taskSelectionPanel.transform, "Task4Context", "Context: Check in at a hotel and confirm details.\nGoals: confirm booking, breakfast included, quiet room, check-out.", new Vector2(210f, -180f), new Vector2(380f, 80f), 15, TextAnchor.UpperCenter, new Color(0.8f, 0.8f, 0.8f, 1f));
+            BuildTaskButtons();
 
             loadingPanel = CreatePanel(root, "LoadingPanel", new Vector2(0f, 0f), new Vector2(540f, 220f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
             loadingText = CreateText(loadingPanel.transform, "LoadingText", "Loading scene and avatar...", new Vector2(0f, 0f), new Vector2(480f, 80f), 26, TextAnchor.MiddleCenter, Color.white);
@@ -273,28 +261,12 @@ namespace SceneTalkVR.Runtime
                 confirmButton.onClick.AddListener(() => orchestrator?.ConfirmPracticeRequest());
             }
 
-            if (taskButton1 != null)
+            for (var i = 0; i < taskButtons.Count && i < taskButtonDefinitions.Count; i++)
             {
-                taskButton1.onClick.RemoveAllListeners();
-                taskButton1.onClick.AddListener(() => orchestrator?.ConfirmFixedTaskSelection("restaurant_reservation"));
-            }
-
-            if (taskButton2 != null)
-            {
-                taskButton2.onClick.RemoveAllListeners();
-                taskButton2.onClick.AddListener(() => orchestrator?.ConfirmFixedTaskSelection("furniture_shopping"));
-            }
-
-            if (taskButton3 != null)
-            {
-                taskButton3.onClick.RemoveAllListeners();
-                taskButton3.onClick.AddListener(() => orchestrator?.ConfirmFixedTaskSelection("gym_membership"));
-            }
-
-            if (taskButton4 != null)
-            {
-                taskButton4.onClick.RemoveAllListeners();
-                taskButton4.onClick.AddListener(() => orchestrator?.ConfirmFixedTaskSelection("hotel_check_in"));
+                var button = taskButtons[i];
+                var taskId = taskButtonDefinitions[i].taskId;
+                button.onClick.RemoveAllListeners();
+                button.onClick.AddListener(() => orchestrator?.LoadAssignedTask(taskId));
             }
 
             if (dialogueListenButton != null)
@@ -307,6 +279,28 @@ namespace SceneTalkVR.Runtime
             {
                 exitButton.onClick.RemoveAllListeners();
                 exitButton.onClick.AddListener(() => orchestrator?.ReturnToInitialMenu());
+            }
+        }
+
+        public IReadOnlyList<ExperimentTaskDefinition> CurrentTaskOptions => taskButtonDefinitions;
+
+        private void BuildTaskButtons()
+        {
+            taskButtons.Clear();
+            taskButtonDefinitions.Clear();
+            var manager = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include);
+            var catalog = manager == null ? null : manager.TaskCatalog;
+            if (catalog == null) return;
+            var phase = manager.ExperimentProtocol != null && manager.ExperimentProtocol.ExperimentPhase == ExperimentPhase.Pilot
+                ? ExperimentTaskPhase.Pilot : ExperimentTaskPhase.Formal;
+            taskButtonDefinitions.AddRange(catalog.GetTasks(phase));
+            for (var i = 0; i < taskButtonDefinitions.Count; i++)
+            {
+                var task = taskButtonDefinitions[i];
+                var column = i % 2; var row = i / 2;
+                var x = column == 0 ? -210f : 210f; var y = 90f - row * 190f;
+                taskButtons.Add(CreateButton(taskSelectionPanel.transform, $"Task{i + 1}Button", task.displayName, new Vector2(x, y), new Vector2(380f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f)));
+                CreateText(taskSelectionPanel.transform, $"Task{i + 1}Context", task.context + "\nOpening: " + task.initialQuestion, new Vector2(x, y - 80f), new Vector2(380f, 88f), 15, TextAnchor.UpperCenter, new Color(0.8f, 0.8f, 0.8f, 1f));
             }
         }
 

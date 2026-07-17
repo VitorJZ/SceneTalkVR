@@ -1,0 +1,17 @@
+{
+  "name": "SceneTalkVR.Stage2.PlayModeTests",
+  "rootNamespace": "SceneTalkVR.Tests.PlayMode",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}

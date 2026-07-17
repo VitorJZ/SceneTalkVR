@@ -30,6 +30,7 @@ namespace SceneTalkVR.EditorTools
         private const string ReportPath = "Assets/SceneTalkVR/Docs/VitorPreflightReport.md";
         private const string RuntimeConfigPath = "Assets/SceneTalkVR/RuntimeConfig/SceneTalkRuntimeConfig.asset";
         private const string ExperimentProtocolPath = "Assets/SceneTalkVR/ExperimentProtocol/ExperimentV11Protocol.asset";
+        private const string ExperimentTaskCatalogPath = "Assets/SceneTalkVR/ExperimentProtocol/ExperimentTaskCatalog.asset";
         private const string AndroidPackageName = "com.scenetalkvr.demo";
         private const string PicoOpenXrDefine = "PICO_OPENXR_SDK";
         private const string OpenXrLoaderTypeName = "UnityEngine.XR.OpenXR.OpenXRLoader";
@@ -211,6 +212,7 @@ namespace SceneTalkVR.EditorTools
             AppendSection(report, "PICO Real Service Routing");
             var runtimeConfig = AssetDatabase.LoadAssetAtPath<SceneTalkRuntimeConfig>(RuntimeConfigPath);
             var protocol = AssetDatabase.LoadAssetAtPath<ExperimentV11ProtocolConfig>(ExperimentProtocolPath);
+            var taskCatalog = AssetDatabase.LoadAssetAtPath<ExperimentTaskCatalog>(ExperimentTaskCatalogPath);
             var configAppliers = FindAll<SceneTalkRuntimeConfigApplier>();
             var voiceClients = FindAll<VoiceGatewayClient>();
             var holodeckServices = FindAll<HolodeckSceneService>();
@@ -225,6 +227,14 @@ namespace SceneTalkVR.EditorTools
             AppendCheck(report, protocol != null, "Experiment v1.1 protocol asset exists");
             AppendCheck(report, protocol != null && !EditorUtility.IsDirty(protocol), "Experiment protocol asset has no unsaved changes");
             AppendCheck(report, experimentManagers.Length == 1 && experimentManagers[0].ExperimentProtocol == protocol, "ExperimentConditionManager is bound to the protocol asset");
+            AppendCheck(report, taskCatalog != null, "Experiment v1.1 Task Catalog asset exists");
+            AppendCheck(report, taskCatalog != null && !EditorUtility.IsDirty(taskCatalog), "Experiment Task Catalog asset has no unsaved changes");
+            AppendCheck(report, experimentManagers.Length == 1 && experimentManagers[0].TaskCatalog == taskCatalog, "ExperimentConditionManager is bound to the Task Catalog asset");
+            var taskCatalogError = taskCatalog == null ? "Task Catalog asset is missing" : string.Empty;
+            var taskCatalogValid = taskCatalog != null && taskCatalog.ValidateFormal(protocol, out taskCatalogError);
+            AppendCheck(report, taskCatalogValid, taskCatalogValid
+                ? "Formal Task Catalog is complete"
+                : $"Formal Task Catalog is blocked: {taskCatalogError}");
             AppendCheck(report, protocol != null && !string.IsNullOrWhiteSpace(protocol.ProtocolVersion), "Experiment protocol version is non-empty");
             AppendCheck(report, protocol != null && protocol.FormalModeLocked, "Experiment protocol marks Formal Mode as locked");
             var formalProtocolError = protocol == null ? "protocol asset is missing" : string.Empty;

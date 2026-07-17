@@ -1,0 +1,84 @@
+{
+  "stage": "Experiment v1.1 Stage 2",
+  "branch": "experiment-v1.1-integration",
+  "baseCommit": "aabecbdd3fe500e94096e2d45195762371acdbdf",
+  "taskCatalogVersion": "1.1.0-stage2",
+  "unityVersion": "6000.3.16f1",
+  "status": "PARTIAL",
+  "statusReason": "Task catalog, fixed panoramas, UI, runtime routing, logging, validation and tests are complete; four formal Avatar presets and five protocol decisions intentionally continue to block Formal Mode.",
+  "compilation": {
+    "success": true,
+    "errorCount": 0,
+    "warningCount": 6,
+    "finishedAtUtc": "2026-07-17T08:27:35.7348908Z"
+  },
+  "console": {
+    "errorOrExceptionCount": 0
+  },
+  "scene": {
+    "name": "SampleScene",
+    "missingReferences": 0,
+    "sceneHealthErrors": 0,
+    "sceneHealthWarnings": 0,
+    "taskCatalogBound": true,
+    "legacySerializedTasksCleared": true
+  },
+  "editModeTests": {
+    "jobId": "f76cca51",
+    "total": 29,
+    "passed": 29,
+    "failed": 0
+  },
+  "playModeTests": {
+    "test": "SceneTalkVR.Tests.PlayMode.Stage2TaskCatalogPlayModeTests.DeveloperMode_MainMenuAndFourCatalogTasksStartOffline",
+    "unityTestResult": "Passed",
+    "durationSeconds": 1.703526,
+    "unitySkillsWrapperResult": "failed_to_recover_after_domain_reload",
+    "wrapperAssessment": "transport reporting defect; authoritative Unity TestResults.xml records the test case as Passed"
+  },
+  "minimumPlayMode": {
+    "jobId": "8f5761bf",
+    "healthy": true,
+    "observedSeconds": 6.002,
+    "runtimeErrorCount": 0
+  },
+  "preflight": {
+    "mainScene": "pass",
+    "buildSettings": "pass",
+    "recoveryExcluded": "pass",
+    "protocolBinding": "pass",
+    "taskCatalogBinding": "pass",
+    "runtimeConfigBinding": "pass",
+    "formalTaskCatalog": "blocked_pending_avatar_presets",
+    "formalProtocol": "blocked_pending_five_research_decisions",
+    "picoConfiguration": "not_stage2_complete"
+  },
+  "formalTasks": [
+    "hotel_check_in",
+    "furniture_shopping",
+    "gym_membership",
+    "tourist_assistance"
+  ],
+  "pilotTasks": [
+    "restaurant_reservation"
+  ],
+  "localPanoramasLoadable": true,
+  "formalRemoteImageGenerationBlocked": true,
+  "formalHolodeckBlocked": true,
+  "formalLayoutObjectsEmpty": true,
+  "dynamicCatalogUiVerified": true,
+  "fourTaskOfflineResourcePathVerified": true,
+  "physicalNetworkAdapterDisabled": false,
+  "picoDeviceTested": false,
+  "expectedFormalBlockers": [
+    "condition_letter_mapping",
+    "pilot_feedback_style",
+    "voice_only_spatial_audio",
+    "formal_social_comfort",
+    "formal_task_no_replacement",
+    "hotel_check_in_avatar_preset",
+    "furniture_shopping_avatar_preset",
+    "gym_membership_avatar_preset",
+    "tourist_assistance_avatar_preset"
+  ]
+}

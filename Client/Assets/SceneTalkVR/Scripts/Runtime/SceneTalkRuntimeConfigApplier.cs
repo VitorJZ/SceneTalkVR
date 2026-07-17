@@ -111,6 +111,7 @@ namespace SceneTalkVR.Runtime
 
             if (panoramaSceneService != null)
             {
+                panoramaSceneService.ConfigureFormalModeLock(config.IsFormalModeRuntimeLocked);
                 panoramaSceneService.ConfigureRuntime(
                     config.ForceFallbackPanorama,
                     config.PanoramaModelName,

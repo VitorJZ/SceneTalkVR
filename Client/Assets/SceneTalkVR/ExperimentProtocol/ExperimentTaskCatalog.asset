@@ -1,0 +1,90 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4c7590b75c2b47d689fe3a3316a325f1, type: 3}
+  m_Name: ExperimentTaskCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentTaskCatalog
+  catalogVersion: 1.1.0-stage2
+  tasks:
+  - taskId: hotel_check_in
+    scenarioId: hotel_check_in
+    displayName: Hotel Check-In
+    phase: 1
+    context: Checking in at a hotel and confirming accommodation details.
+    goals: [{text: Provide the reservation name.}, {text: Ask whether breakfast is included.}, {text: Ask whether a high-floor room can be arranged.}, {text: Ask about the check-out time.}]
+    initialQuestion: Good afternoon! Welcome to City Hotel. How can I help you today?
+    environmentType: hotel_lobby
+    panoramaResourceKey: SceneTalkVR/Textures/hotel-lobby-360
+    avatarPresetKey: ''
+    avatarRole: hotel receptionist
+    voiceProfileKey: hotel_receptionist_en
+    roleplayPrompt: Stay in the hotel check-in task. Do not change scene, avatar, task, or condition.
+    spawnPosition: {x: 0, y: 0, z: 2}
+    spawnRotation: {x: 0, y: 180, z: 0}
+    developerPlaceholderAvatar: 1
+  - taskId: furniture_shopping
+    scenarioId: furniture_shopping
+    displayName: Furniture Shopping
+    phase: 1
+    context: Speaking with a furniture salesperson to purchase a desk.
+    goals: [{text: Describe the desk size needed.}, {text: Ask about available materials.}, {text: State or ask about the maximum budget.}, {text: Ask whether home delivery is available.}]
+    initialQuestion: Hello! Is there anything in particular you're looking for today?
+    environmentType: furniture_store
+    panoramaResourceKey: SceneTalkVR/Textures/furniture-store-360
+    avatarPresetKey: ''
+    avatarRole: furniture salesperson
+    voiceProfileKey: furniture_salesperson_en
+    roleplayPrompt: Stay in the furniture-shopping task. Do not change scene, avatar, task, or condition.
+    spawnPosition: {x: 0, y: 0, z: 2}
+    spawnRotation: {x: 0, y: 180, z: 0}
+    developerPlaceholderAvatar: 1
+  - taskId: gym_membership
+    scenarioId: gym_membership
+    displayName: Gym Membership
+    phase: 1
+    context: Asking at a gym about membership and a training plan.
+    goals: [{text: Explain a fitness goal.}, {text: Ask about the monthly membership price.}, {text: Ask about a suitable workout plan.}, {text: Ask whether a free trial is available.}]
+    initialQuestion: Hi! Welcome to Active Gym. How can I help you today?
+    environmentType: gym
+    panoramaResourceKey: SceneTalkVR/Textures/gym-360
+    avatarPresetKey: ''
+    avatarRole: gym membership consultant
+    voiceProfileKey: gym_consultant_en
+    roleplayPrompt: Stay in the gym-membership task. Do not change scene, avatar, task, or condition.
+    spawnPosition: {x: 0, y: 0, z: 2}
+    spawnRotation: {x: 0, y: 180, z: 0}
+    developerPlaceholderAvatar: 1
+  - taskId: tourist_assistance
+    scenarioId: tourist_assistance
+    displayName: Tourist Assistance
+    phase: 1
+    context: Asking staff at a tourist information point for city-visit information.
+    goals: [{text: Ask how to reach the city museum.}, {text: Ask whether a ticket is required.}, {text: Ask whether indoor photography is allowed.}, {text: Ask for another nearby attraction recommendation.}]
+    initialQuestion: Hello! Welcome to the tourist information center. How can I help you today?
+    environmentType: tourist_information_point
+    panoramaResourceKey: SceneTalkVR/Textures/tourist-information-360
+    avatarPresetKey: ''
+    avatarRole: tourist information officer
+    voiceProfileKey: tourist_information_officer_en
+    roleplayPrompt: Stay in the tourist-assistance task. Do not change scene, avatar, task, or condition.
+    spawnPosition: {x: 0, y: 0, z: 2}
+    spawnRotation: {x: 0, y: 180, z: 0}
+    developerPlaceholderAvatar: 1
+  - taskId: restaurant_reservation
+    scenarioId: restaurant_reservation
+    displayName: Restaurant Reservation
+    phase: 0
+    context: Calling an Italian restaurant to reserve a table for a small celebration.
+    goals: [{text: Reserve a table for five people.}, {text: Ask for a quiet corner table.}, {text: Ask about bringing a cake.}, {text: Ask about parking.}]
+    initialQuestion: Hello! Thank you for calling. How can I help you today?
+    environmentType: restaurant
+    panoramaResourceKey: SceneTalkVR/Textures/restaurant-360
+    avatarPresetKey: barista_humanoid_v1
+    avatarRole: restaurant host
+    voiceProfileKey: restaurant_host_en
+    roleplayPrompt: Pilot only.
+    spawnPosition: {x: 0, y: 0, z: 2}
+    spawnRotation: {x: 0, y: 180, z: 0}
+    developerPlaceholderAvatar: 0

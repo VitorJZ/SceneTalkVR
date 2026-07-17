@@ -6554,6 +6554,7 @@ MonoBehaviour:
   showDebugLabel: 1
   experimentProtocol: {fileID: 11400000, guid: 78275b064f314c0e88ea5e79d2e9f49c, type: 2}
   experimentBuildInfo: {fileID: 11400000, guid: 917be4f734ff4f6aa5bed03a4648cd1a, type: 2}
+  taskCatalog: {fileID: 11400000, guid: 6b65d8f0228f4db5a5bc8dd8d4911c1e, type: 2}
   useConditionOrder: 0
   manualCondition: 0
   formalCondition: 0
@@ -6563,91 +6564,9 @@ MonoBehaviour:
   - assistant_agent_explicit
   - assistant_agent_recast
   conditionOrderIndex: 0
-  scenarioId: restaurant_reservation
+  scenarioId: hotel_check_in
   scenarioIndex: 0
-  taskDefinitions:
-  - scenarioId: restaurant_reservation
-    context: The learner is reserving a table at a restaurant by speaking with a
-      service staff member.
-    goals:
-    - state date and time
-    - state party size
-    - ask about availability
-    initialQuestion: Good evening. What date, time, and party size would you like
-      to reserve?
-    fallbackEnvironmentType: restaurant
-    fallbackAvatarRole: barista
-    fallbackAvatarGenderPresentation: unknown
-    fallbackAvatarAttitude: helpful
-    fallbackSkyboxUrl: demo://restaurant-360
-    fallbackLayoutObjects:
-    - prefabKey: generic_table
-      position: {x: 0.55, y: 0, z: 1.35}
-      rotationY: 18
-    - prefabKey: generic_chair
-      position: {x: -0.45, y: 0, z: 1.2}
-      rotationY: -12
-  - scenarioId: furniture_shopping
-    context: The learner is shopping for furniture and needs to describe preferences,
-      budget, and delivery needs.
-    goals:
-    - describe the item needed
-    - ask about price
-    - ask about delivery
-    initialQuestion: Welcome in. What kind of furniture are you looking for today?
-    fallbackEnvironmentType: furniture_store
-    fallbackAvatarRole: clerk
-    fallbackAvatarGenderPresentation: unknown
-    fallbackAvatarAttitude: helpful
-    fallbackSkyboxUrl: demo://furniture-store-360
-    fallbackLayoutObjects:
-    - prefabKey: generic_table
-      position: {x: 0.65, y: 0, z: 1.25}
-      rotationY: 8
-    - prefabKey: generic_chair
-      position: {x: -0.55, y: 0, z: 1.25}
-      rotationY: -16
-  - scenarioId: gym_membership
-    context: The learner is asking about a gym membership, including plans, facilities,
-      and trial options.
-    goals:
-    - ask about membership plans
-    - ask about facilities
-    - ask about a trial visit
-    initialQuestion: Hi. Are you interested in a monthly plan, a yearly plan, or
-      a trial visit?
-    fallbackEnvironmentType: gym
-    fallbackAvatarRole: instructor
-    fallbackAvatarGenderPresentation: unknown
-    fallbackAvatarAttitude: helpful
-    fallbackSkyboxUrl: demo://gym-360
-    fallbackLayoutObjects:
-    - prefabKey: generic_table
-      position: {x: 0.6, y: 0, z: 1.3}
-      rotationY: 12
-    - prefabKey: plant
-      position: {x: -0.65, y: 0, z: 1.45}
-      rotationY: -8
-  - scenarioId: hotel_check_in
-    context: The learner is checking in at a hotel front desk and needs to confirm
-      booking details.
-    goals:
-    - give booking name
-    - ask about room details
-    - ask about check-out time
-    initialQuestion: Welcome to the hotel. May I have the name on your reservation?
-    fallbackEnvironmentType: hotel_lobby
-    fallbackAvatarRole: clerk
-    fallbackAvatarGenderPresentation: unknown
-    fallbackAvatarAttitude: helpful
-    fallbackSkyboxUrl: demo://hotel-lobby-360
-    fallbackLayoutObjects:
-    - prefabKey: generic_table
-      position: {x: 0.7, y: 0, z: 1.28}
-      rotationY: 4
-    - prefabKey: generic_chair
-      position: {x: -0.55, y: 0, z: 1.35}
-      rotationY: -10
+  taskDefinitions: []
   enableLogging: 1
   writeJsonLines: 1
   writeCsv: 1

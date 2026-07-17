@@ -19,6 +19,15 @@ namespace SceneTalkVR.AvatarSystem
                 return AvatarResolutionResult.Empty("Avatar catalog is not assigned.");
             }
 
+            var requestedKey = payload.avatarRole == null ? string.Empty : payload.avatarRole.presetKey;
+            if (!string.IsNullOrWhiteSpace(requestedKey))
+            {
+                var exact = catalog.FindByKey(requestedKey);
+                if (exact != null && exact.IsUsable) return CreateResult(exact, "exact_task_key", string.Empty);
+                if (payload.avatarRole != null && !string.IsNullOrWhiteSpace(payload.avatarRole.presetKey))
+                    return AvatarResolutionResult.Empty($"Task requires unavailable avatar preset '{requestedKey}'.");
+            }
+
             var scenarioEntry = catalog.FindByScenarioId(payload.taskType);
             if (scenarioEntry != null)
             {

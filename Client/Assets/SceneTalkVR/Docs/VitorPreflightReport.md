@@ -1,6 +1,6 @@
 ﻿# Vitor Preflight Report
 
-Generated: 2026-07-17 14:49:16
+Generated: 2026-07-17 16:19:58
 Unity: 6000.3.16f1
 Active Build Target: Android
 Android Build Support Path: `D:/Unity/Hub/Editor/6000.3.16f1/Editor/Data\PlaybackEngines\AndroidPlayer`
@@ -37,6 +37,10 @@ Android Build Support Path: `D:/Unity/Hub/Editor/6000.3.16f1/Editor/Data\Playbac
 - [x] Experiment v1.1 protocol asset exists
 - [x] Experiment protocol asset has no unsaved changes
 - [x] ExperimentConditionManager is bound to the protocol asset
+- [x] Experiment v1.1 Task Catalog asset exists
+- [x] Experiment Task Catalog asset has no unsaved changes
+- [x] ExperimentConditionManager is bound to the Task Catalog asset
+- [ ] Formal Task Catalog is blocked: hotel_check_in: formal avatar preset is unavailable or placeholder; furniture_shopping: formal avatar preset is unavailable or placeholder; gym_membership: formal avatar preset is unavailable or placeholder; tourist_assistance: formal avatar preset is unavailable or placeholder
 - [x] Experiment protocol version is non-empty
 - [x] Experiment protocol marks Formal Mode as locked
 - [ ] Formal Mode is blocked until protocol decisions are confirmed: unconfirmed protocol decision: condition_letter_mapping; unconfirmed protocol decision: pilot_feedback_style; unconfirmed protocol decision: voice_only_spatial_audio; unconfirmed protocol decision: formal_social_comfort; unconfirmed protocol decision: formal_task_no_replacement

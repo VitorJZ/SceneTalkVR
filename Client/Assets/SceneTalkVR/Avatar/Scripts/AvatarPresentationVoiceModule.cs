@@ -327,6 +327,8 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             var resolution = resolver.Resolve(payload);
+            FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)
+                ?.RecordAvatarResolution(resolution == null ? string.Empty : resolution.avatarKey, resolution == null ? "resolver_null" : resolution.fallbackLevel);
             if (resolution == null || !resolution.HasPreset)
             {
                 onError?.Invoke(resolution == null ? "Avatar resolver returned null." : resolution.fallbackReason);
@@ -347,6 +349,7 @@ namespace SceneTalkVR.AvatarSystem
             var parent = avatarRoot != null ? avatarRoot : transform;
 
             AlignAvatarRootToPlacementAnchor();
+            ApplyFixedTaskPlacement(payload, parent);
 
             yield return loader.LoadAvatar(
                 resolution,
@@ -370,6 +373,18 @@ namespace SceneTalkVR.AvatarSystem
             Debug.Log(
                 $"[SceneTalkVR] Avatar resolved: key={resolution.avatarKey}, score={resolution.score}, fallback={resolution.fallbackLevel}",
                 this);
+        }
+
+        private static void ApplyFixedTaskPlacement(SpringScenePayload payload, Transform parent)
+        {
+            var role = payload == null ? null : payload.avatarRole;
+            if (parent == null || role == null || string.IsNullOrWhiteSpace(role.voiceProfileKey))
+            {
+                return;
+            }
+
+            parent.position = role.spawnPosition;
+            parent.rotation = Quaternion.Euler(role.spawnRotation);
         }
 
         private AvatarSpeechPlaybackContext BuildSpeechPlaybackContext()

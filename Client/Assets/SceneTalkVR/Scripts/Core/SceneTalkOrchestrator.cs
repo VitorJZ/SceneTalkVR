@@ -216,6 +216,8 @@ namespace SceneTalkVR.Runtime
             currentTurn = StartCoroutine(RunFixedTaskStartup(taskId));
         }
 
+        public void LoadAssignedTask(string taskId) => ConfirmFixedTaskSelection(taskId);
+
         private IEnumerator RunFixedTaskStartup(string taskId)
         {
             LastScenePayload = null;
@@ -224,7 +226,13 @@ namespace SceneTalkVR.Runtime
             var manager = ResolveExperimentConditionManager(true);
             if (manager != null)
             {
-                manager.SelectTask(taskId);
+                if (!manager.LoadAssignedTask(taskId, out var assignmentError))
+                {
+                    LastError = assignmentError;
+                    SetState(SceneTalkState.Error);
+                    currentTurn = null;
+                    yield break;
+                }
             }
 
             EnsureExperimentTurnStarted();
@@ -258,6 +266,10 @@ namespace SceneTalkVR.Runtime
                 dialogueReply = task.initialQuestion,
                 avatarRole = new AvatarRoleData
                 {
+                    presetKey = task.avatarPresetKey,
+                    voiceProfileKey = task.voiceProfileKey,
+                    spawnPosition = task.spawnPosition,
+                    spawnRotation = task.spawnRotation,
                     role = fallbackRole,
                     speakingSpeed = "medium",
                     accent = "american",
