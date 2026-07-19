@@ -7,6 +7,7 @@ namespace SceneTalkVR.AvatarSystem
     public sealed class AvatarPresetResolver : MonoBehaviour
     {
         [SerializeField] private AvatarCatalog catalog;
+        public AvatarCatalog Catalog => catalog;
         public AvatarResolutionResult Resolve(SpringScenePayload payload)
         {
             if (payload == null)

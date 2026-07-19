@@ -1,0 +1,20 @@
+{
+  "schemaVersion":"1.0",
+  "generatedAtUtc":"2026-07-19T00:00:00Z",
+  "taskCatalogVersion":"1.1.0-stage2",
+  "formalAvatars":[
+    {"taskId":"hotel_check_in","requiredRole":"hotel receptionist","avatarPresetKey":"","status":"BLOCKED_PENDING_ASSET"},
+    {"taskId":"furniture_shopping","requiredRole":"furniture salesperson","avatarPresetKey":"","status":"BLOCKED_PENDING_ASSET"},
+    {"taskId":"gym_membership","requiredRole":"gym membership consultant","avatarPresetKey":"","status":"BLOCKED_PENDING_ASSET"},
+    {"taskId":"tourist_assistance","requiredRole":"tourist information officer","avatarPresetKey":"","status":"BLOCKED_PENDING_ASSET"}
+  ],
+  "pilotHumanoid":{"prefab":"unapproved/placeholder","status":"BLOCKED_PENDING_ASSET","orbFallbackAllowed":false},
+  "voiceProfiles":{"catalog":"Assets/SceneTalkVR/ExperimentProtocol/ExperimentVoiceProfileCatalog.asset","approvedProfiles":0,"status":"BLOCKED_PENDING_ASSET"},
+  "panoramas":[
+    {"taskId":"hotel_check_in","resourceKey":"SceneTalkVR/Textures/hotel-lobby-360","dimensions":"1024x1024","aspect":"1:1","status":"BLOCKED_PENDING_ASSET"},
+    {"taskId":"furniture_shopping","resourceKey":"SceneTalkVR/Textures/furniture-store-360","dimensions":"1024x1024","aspect":"1:1","status":"BLOCKED_PENDING_ASSET"},
+    {"taskId":"gym_membership","resourceKey":"SceneTalkVR/Textures/gym-360","dimensions":"1024x1024","aspect":"1:1","status":"BLOCKED_PENDING_ASSET"},
+    {"taskId":"tourist_assistance","resourceKey":"SceneTalkVR/Textures/tourist-information-360","dimensions":"2048x1024","aspect":"2:1","status":"PRESENT_NOT_DEVICE_VALIDATED"}
+  ],
+  "note":"No substitute formal Avatar, Humanoid, voice, or panorama was generated. Source/licence and PICO import/memory checks remain required."
+}

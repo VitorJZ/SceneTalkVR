@@ -35,6 +35,9 @@ namespace SceneTalkVR.Core
         [SerializeField] private ExperimentTaskCatalog taskCatalog;
         [SerializeField] private QuestionnaireCatalog questionnaireCatalog;
         [SerializeField] private PilotPresentationCatalog pilotPresentationCatalog;
+        [SerializeField] private ExperimentVoiceProfileCatalog voiceProfileCatalog;
+        [SerializeField] private ExperimentDeploymentCatalog deploymentCatalog;
+        [SerializeField] private ExperimentDeploymentProfileId deploymentProfile = ExperimentDeploymentProfileId.DevelopmentEditor;
 
         [Header("Condition")]
         [SerializeField] private bool useConditionOrder;
@@ -108,6 +111,9 @@ namespace SceneTalkVR.Core
         public ExperimentTaskCatalog TaskCatalog => taskCatalog;
         public QuestionnaireCatalog QuestionnaireCatalog => questionnaireCatalog;
         public PilotPresentationCatalog PilotPresentationCatalog => pilotPresentationCatalog;
+        public ExperimentVoiceProfileCatalog VoiceProfileCatalog => voiceProfileCatalog;
+        public ExperimentDeploymentCatalog DeploymentCatalog => deploymentCatalog;
+        public ExperimentDeploymentProfileId DeploymentProfile => deploymentProfile;
         public FormalConditionCode CurrentFormalCondition => formalExperiment ? formalCondition : LegacyToFormal(CurrentCondition?.conditionId);
         public int CurrentTurnIndex => turnIndex;
         public ExperimentLifecycleCoordinator LifecycleCoordinator => GetComponent<ExperimentLifecycleCoordinator>();
@@ -135,6 +141,11 @@ namespace SceneTalkVR.Core
             if (!taskCatalog.ValidateFormal(experimentProtocol, out error)) return false;
             if (questionnaireCatalog == null) { error = "Formal Mode requires a QuestionnaireCatalog asset."; return false; }
             if (!questionnaireCatalog.ValidateFormal(experimentProtocol, out error)) return false;
+            if (voiceProfileCatalog == null) { error = "Formal Mode requires an ExperimentVoiceProfileCatalog asset."; return false; }
+            var dialogueVoiceKeys = new List<string>(); foreach (var task in taskCatalog.GetTasks(ExperimentTaskPhase.Formal)) dialogueVoiceKeys.Add(task.voiceProfileKey);
+            if (!voiceProfileCatalog.ValidateForLockedCollection(dialogueVoiceKeys, out error)) return false;
+            if (deploymentCatalog == null) { error = "Formal Mode requires an ExperimentDeploymentCatalog asset."; return false; }
+            if (!deploymentCatalog.ValidateForCollection(deploymentProfile, out error)) return false;
             return experimentProtocol.ValidateForFormalMode(out error);
         }
 

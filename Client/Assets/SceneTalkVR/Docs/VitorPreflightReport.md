@@ -1,6 +1,6 @@
 ﻿# Vitor Preflight Report
 
-Generated: 2026-07-17 23:20:22
+Generated: 2026-07-19 11:45:59
 Unity: 6000.3.16f1
 Active Build Target: Android
 Android Build Support Path: `D:/Unity/Hub/Editor/6000.3.16f1/Editor/Data\PlaybackEngines\AndroidPlayer`
@@ -65,7 +65,35 @@ Android Build Support Path: `D:/Unity/Hub/Editor/6000.3.16f1/Editor/Data\Playbac
 - [ ] Locked Pilot remains blocked: pilot_feedback_style_unconfirmed; voice_only_spatial_audio_unconfirmed; humanoid_prefab_missing_or_placeholder
 - [x] Experiment protocol version is non-empty
 - [x] Experiment protocol marks Formal Mode as locked
-- [ ] Formal Mode is blocked until protocol decisions are confirmed: unconfirmed protocol decision: condition_letter_mapping; unconfirmed protocol decision: pilot_feedback_style; unconfirmed protocol decision: voice_only_spatial_audio; unconfirmed protocol decision: formal_social_comfort; unconfirmed protocol decision: formal_task_no_replacement
+
+## Stage 7 Research Decisions and Evidence
+
+- [ ] condition_letter_mapping: value=``, confirmedBy=``, evidence=``
+- [ ] formal_task_no_replacement: value=``, confirmedBy=``, evidence=``
+- [ ] formal_social_comfort: value=``, confirmedBy=``, evidence=``
+- [ ] pilot_feedback_style: value=``, confirmedBy=``, evidence=``
+- [ ] voice_only_spatial_audio: value=``, confirmedBy=``, evidence=``
+- [ ] pilot_sequence_mapping: value=``, confirmedBy=``, evidence=``
+- [ ] formal_max_turns: value=``, confirmedBy=``, evidence=``
+- [ ] formal_max_duration: value=``, confirmedBy=``, evidence=``
+- [ ] pilot_max_turns: value=``, confirmedBy=``, evidence=``
+- [ ] pilot_max_duration: value=``, confirmedBy=``, evidence=``
+- [ ] questionnaire_scale_anchors: value=``, confirmedBy=``, evidence=``
+
+## Stage 7 Collection Assets
+
+- [ ] Voice profiles blocked: approved_voice_profiles_missing; required_voice_profile_key_unconfirmed; voice_profile_missing:hotel_receptionist_en; voice_profile_missing:furniture_salesperson_en; voice_profile_missing:gym_consultant_en; voice_profile_missing:tourist_information_officer_en
+- [ ] PicoLab blocked: deployment_profile_unapproved; deployment_endpoint_empty
+- [ ] PicoPortable blocked: deployment_profile_unapproved; deployment_endpoint_empty
+- [ ] hotel_check_in avatar blocked: formal_avatar_preset_key_unconfirmed
+- [ ] hotel_check_in panorama is collection-grade 2:1 (actual 1024x1024)
+- [ ] furniture_shopping avatar blocked: formal_avatar_preset_key_unconfirmed
+- [ ] furniture_shopping panorama is collection-grade 2:1 (actual 1024x1024)
+- [ ] gym_membership avatar blocked: formal_avatar_preset_key_unconfirmed
+- [ ] gym_membership panorama is collection-grade 2:1 (actual 1024x1024)
+- [ ] tourist_assistance avatar blocked: formal_avatar_preset_key_unconfirmed
+- [x] tourist_assistance panorama is collection-grade 2:1 (actual 2048x1024)
+- [ ] Formal Mode is blocked until protocol decisions are confirmed: unconfirmed protocol decision: condition_letter_mapping; unconfirmed protocol decision: formal_task_no_replacement; unconfirmed protocol decision: formal_social_comfort; unconfirmed protocol decision: pilot_feedback_style; unconfirmed protocol decision: voice_only_spatial_audio; unconfirmed protocol decision: pilot_sequence_mapping; unconfirmed protocol decision: formal_max_turns; unconfirmed protocol decision: formal_max_duration; unconfirmed protocol decision: pilot_max_turns; unconfirmed protocol decision: pilot_max_duration; unconfirmed protocol decision: questionnaire_scale_anchors
 - [x] Scene has runtime config applier (found 1)
 - [x] Required runtime, protocol, and avatar catalog references are assigned
 - [x] Voice gateway URL is configured

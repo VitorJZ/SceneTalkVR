@@ -1,0 +1,22 @@
+{
+  "schemaVersion":"1.0",
+  "releaseCandidateEligible":false,
+  "tagCreated":false,
+  "tag":"",
+  "apk":"",
+  "apkSha256":"",
+  "baseGitCommit":"eae67af6b0f2fd2dbf55ce1e9cc08222fe9f11ec",
+  "protocolVersion":"1.1.0-stage7",
+  "taskCatalogVersion":"1.1.0-stage2",
+  "blockingStatuses":["BLOCKED_PENDING_RESEARCH_INPUT","BLOCKED_PENDING_ASSET","BLOCKED_DEVICE_UNAVAILABLE"],
+  "blockingReasons":[
+    "Eleven research decisions are not all confirmed with evidence.",
+    "Four exact Formal Avatar presets are not provided.",
+    "Pilot Humanoid and approved Formal/Pilot voice profiles are not provided.",
+    "Hotel, Furniture and Gym panoramas remain 1024x1024 rather than collection-grade 2:1.",
+    "Formal 16 and Pilot 9 matrices cannot run in locked collection mode.",
+    "No PICO end-to-end evidence or real-service latency dataset is available.",
+    "No genuine completed-session data-integrity PASS is available."
+  ],
+  "freezePolicy":"After RC eligibility, any Prompt/task/feedback/voice/Avatar/panorama/questionnaire/assignment change requires version increase and full revalidation."
+}

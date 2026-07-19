@@ -44,6 +44,9 @@ namespace SceneTalkVR.Core
         [Range(0,1)] public float spatialBlend; public float minDistance = .2f; public float maxDistance = 4f;
         public float volume = 1f; public float speakingSpeed = 1f; public string subtitlePolicy = "feedback_only";
         public int appearanceDelayMs; public int disappearanceDelayMs; public string visualPrefabKey; public GameObject visualPrefab;
+        public RuntimeAnimatorController animatorController; public string idleParameterOrState; public string speakingParameterOrState;
+        public Vector3 spawnRotation; public Vector3 scale = Vector3.one; public bool audioSourceRequired = true;
+        public bool mobileReady; public string assetVersion; public bool approvedForCollection; public string evidenceReference;
         public bool developerPlaceholder;
     }
 
@@ -55,7 +58,8 @@ namespace SceneTalkVR.Core
             assignment=null; var issues=new List<string>();var style=PilotFeedbackStyleChoice.Undefined;var audio=PilotAudioSourcePolicy.Undefined;var decisionError="protocol_missing";var presentationError="presentation_catalog_missing";
             if(protocol==null || !protocol.TryResolvePilotDecisions(out style,out audio,out decisionError)) issues.Add(decisionError);
             if(presentations==null || !presentations.ValidateLocked(protocol,out presentationError)) issues.Add(presentationError);
-            var sequences=protocol?.PilotSequenceDefinitions?.Where(x=>x!=null&&x.confirmed).ToArray()??Array.Empty<PilotSequenceDefinition>();
+            var sequences=Array.Empty<PilotSequenceDefinition>();
+            if(protocol!=null && !protocol.TryResolvePilotSequences(out sequences,out var sequenceError)){issues.Add(sequenceError);issues.Add("pilot_sequences_unconfirmed");}
             if(sequences.Length!=3) issues.Add("pilot_sequences_unconfirmed");
             var pilotTasks=tasks?.GetTasks(ExperimentTaskPhase.Pilot).ToArray()??Array.Empty<ExperimentTaskDefinition>();
             if(!ExperimentTaskCatalog.ValidatePilotTasks(pilotTasks,out var taskError)) issues.Add(taskError);

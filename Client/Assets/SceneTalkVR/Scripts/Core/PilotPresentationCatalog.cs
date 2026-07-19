@@ -25,6 +25,9 @@ namespace SceneTalkVR.Core
             if (voiceOnly!=null && audio!=PilotAudioSourcePolicy.Undefined && voiceOnly.audioSourcePolicy!=PilotAudioSourcePolicy.Undefined && voiceOnly.audioSourcePolicy!=audio) issues.Add("voice_only_audio_policy_mismatch");
             var orb=Find(PilotEmbodimentCondition.FloatingOrb); if (orb==null || orb.visualMode!=PilotVisualMode.FloatingOrb || orb.developerPlaceholder) issues.Add("orb_profile_missing_or_placeholder");
             var human=Find(PilotEmbodimentCondition.HumanoidAgent); if (human==null || human.visualMode!=PilotVisualMode.Humanoid || human.visualPrefab==null || human.developerPlaceholder) issues.Add("humanoid_prefab_missing_or_placeholder");
+            else if(human.animatorController==null || string.IsNullOrWhiteSpace(human.idleParameterOrState) || string.IsNullOrWhiteSpace(human.speakingParameterOrState)
+                || human.scale==Vector3.zero || !human.audioSourceRequired || !human.mobileReady || !human.approvedForCollection
+                || string.IsNullOrWhiteSpace(human.assetVersion) || string.IsNullOrWhiteSpace(human.evidenceReference)) issues.Add("humanoid_collection_metadata_incomplete_or_unapproved");
             error=string.Join("; ",issues.Where(x=>!string.IsNullOrWhiteSpace(x))); return issues.Count==0;
         }
 #if UNITY_EDITOR

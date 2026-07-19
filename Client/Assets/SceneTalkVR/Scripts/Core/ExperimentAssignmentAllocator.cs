@@ -34,7 +34,8 @@ namespace SceneTalkVR.Core
                 else if (!TryResolveConfirmedPolicy(protocol, out var confirmedPolicy)) issues.Add("formal_task_policy_value_invalid");
                 else if (policy != confirmedPolicy) issues.Add("requested_policy_does_not_match_protocol");
             }
-            var sequences = protocol == null ? Array.Empty<AssignmentSequence>() : ParseConfirmedSequences(protocol);
+            var sequences = Array.Empty<AssignmentSequence>();
+            if (protocol != null && !protocol.TryResolveFormalSequences(out sequences, out var sequenceError)) issues.Add(sequenceError);
             if (sequences.Length != 4) issues.Add("four_confirmed_condition_sequences_required");
             if (issues.Count > 0)
             {
@@ -148,19 +149,6 @@ namespace SceneTalkVR.Core
             Application.persistentDataPath, "SceneTalkVR", "Assignments",
             $"{Sanitize(participantId)}_{Sanitize(sessionId)}_assignment_v1.json");
 
-        private static AssignmentSequence[] ParseConfirmedSequences(ExperimentV11ProtocolConfig protocol)
-        {
-            var result = new List<AssignmentSequence>();
-            foreach (var source in protocol.ConditionSequenceDefinitions)
-            {
-                if (source == null || !source.confirmed || source.conditionCodes == null) continue;
-                var codes = new List<FormalConditionCode>();
-                foreach (var value in source.conditionCodes)
-                    if (Enum.TryParse(value, true, out FormalConditionCode code)) codes.Add(code);
-                result.Add(new AssignmentSequence { sequenceId = source.sequenceId, conditions = codes.ToArray() });
-            }
-            return result.ToArray();
-        }
 
         private static bool IsDecisionConfirmed(ExperimentV11ProtocolConfig protocol, string id)
         {

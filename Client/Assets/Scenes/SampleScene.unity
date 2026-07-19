@@ -6557,6 +6557,9 @@ MonoBehaviour:
   taskCatalog: {fileID: 11400000, guid: 6b65d8f0228f4db5a5bc8dd8d4911c1e, type: 2}
   questionnaireCatalog: {fileID: 11400000, guid: 86947b6478341f14dadc1ae614ba437f, type: 2}
   pilotPresentationCatalog: {fileID: 11400000, guid: bcb059205ef079849a47aa2b6a827a17, type: 2}
+  voiceProfileCatalog: {fileID: 11400000, guid: 0846d6a23b4e2be478a4b19b179a9a5b, type: 2}
+  deploymentCatalog: {fileID: 11400000, guid: 2ef2e88fa75cb404f913132175eba57f, type: 2}
+  deploymentProfile: 0
   useConditionOrder: 0
   manualCondition: 0
   formalCondition: 0

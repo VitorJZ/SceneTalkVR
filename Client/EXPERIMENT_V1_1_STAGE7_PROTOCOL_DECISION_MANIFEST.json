@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "1.0",
+  "protocolVersion": "1.1.0-stage7",
+  "generatedAtUtc": "2026-07-19T00:00:00Z",
+  "policy": "Only team-approved values with confirmer, UTC time, and evidence may become Confirmed.",
+  "decisions": [
+    {"decisionId":"condition_letter_mapping","status":"Unconfirmed","confirmedValue":"","confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":""},
+    {"decisionId":"formal_task_no_replacement","status":"Unconfirmed","confirmedValue":"","confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":""},
+    {"decisionId":"formal_social_comfort","status":"Unconfirmed","confirmedValue":"","confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":""},
+    {"decisionId":"pilot_feedback_style","status":"Unconfirmed","confirmedValue":"","confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":""},
+    {"decisionId":"voice_only_spatial_audio","status":"Unconfirmed","confirmedValue":"","confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":""},
+    {"decisionId":"pilot_sequence_mapping","status":"Unconfirmed","confirmedValue":"","confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":""},
+    {"decisionId":"formal_max_turns","status":"Unconfirmed","confirmedValue":"","confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":""},
+    {"decisionId":"formal_max_duration","status":"Unconfirmed","confirmedValue":"","confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":""},
+    {"decisionId":"pilot_max_turns","status":"Unconfirmed","confirmedValue":"","confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":""},
+    {"decisionId":"pilot_max_duration","status":"Unconfirmed","confirmedValue":"","confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":""},
+    {"decisionId":"questionnaire_scale_anchors","status":"Unconfirmed","confirmedValue":"","confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":""}
+  ],
+  "formalSequenceRule": ["a-b-c-d","b-c-d-a","c-d-a-b","d-a-b-c"],
+  "pilotSequenceRule": ["a-b-c","b-c-a","c-a-b"],
+  "mappingValues": "BLOCKED_PENDING_RESEARCH_INPUT"
+}
