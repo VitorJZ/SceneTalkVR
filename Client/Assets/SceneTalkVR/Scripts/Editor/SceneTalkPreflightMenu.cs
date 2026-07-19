@@ -32,6 +32,7 @@ namespace SceneTalkVR.EditorTools
         private const string ExperimentProtocolPath = "Assets/SceneTalkVR/ExperimentProtocol/ExperimentV11Protocol.asset";
         private const string ExperimentTaskCatalogPath = "Assets/SceneTalkVR/ExperimentProtocol/ExperimentTaskCatalog.asset";
         private const string QuestionnaireCatalogPath = "Assets/SceneTalkVR/ExperimentProtocol/ExperimentQuestionnaireCatalog.asset";
+        private const string PilotPresentationCatalogPath = "Assets/SceneTalkVR/ExperimentProtocol/PilotPresentationCatalog.asset";
         private const string AndroidPackageName = "com.scenetalkvr.demo";
         private const string PicoOpenXrDefine = "PICO_OPENXR_SDK";
         private const string OpenXrLoaderTypeName = "UnityEngine.XR.OpenXR.OpenXRLoader";
@@ -215,6 +216,7 @@ namespace SceneTalkVR.EditorTools
             var protocol = AssetDatabase.LoadAssetAtPath<ExperimentV11ProtocolConfig>(ExperimentProtocolPath);
             var taskCatalog = AssetDatabase.LoadAssetAtPath<ExperimentTaskCatalog>(ExperimentTaskCatalogPath);
             var questionnaireCatalog = AssetDatabase.LoadAssetAtPath<QuestionnaireCatalog>(QuestionnaireCatalogPath);
+            var pilotPresentations = AssetDatabase.LoadAssetAtPath<PilotPresentationCatalog>(PilotPresentationCatalogPath);
             var configAppliers = FindAll<SceneTalkRuntimeConfigApplier>();
             var voiceClients = FindAll<VoiceGatewayClient>();
             var holodeckServices = FindAll<HolodeckSceneService>();
@@ -252,6 +254,38 @@ namespace SceneTalkVR.EditorTools
                 : "Social Comfort remains excluded because `formal_social_comfort` is unconfirmed");
             AppendCheck(report, questionnaireCatalog?.Find("formal_condition_v1") != null,
                 "AwaitingQuestionnaire resolves to formal_condition_v1");
+
+            AppendSection(report, "Pilot Embodiment Readiness");
+            AppendCheck(report, pilotPresentations != null, "Pilot Presentation Catalog exists");
+            AppendCheck(report, experimentManagers.Length == 1 && experimentManagers[0].PilotPresentationCatalog == pilotPresentations,
+                "ExperimentConditionManager is bound to the Pilot Presentation Catalog");
+            var profiles = pilotPresentations?.Profiles?.Where(x => x != null).ToArray() ?? Array.Empty<PilotPresentationProfile>();
+            AppendCheck(report, profiles.Length == 3 && profiles.Select(x => x.embodimentCondition).Distinct().Count() == 3,
+                "Voice Only, Floating Orb, and Humanoid Agent profiles are unique");
+            var voiceOnly = pilotPresentations?.Find(PilotEmbodimentCondition.VoiceOnly);
+            var orb = pilotPresentations?.Find(PilotEmbodimentCondition.FloatingOrb);
+            var humanoid = pilotPresentations?.Find(PilotEmbodimentCondition.HumanoidAgent);
+            AppendCheck(report, voiceOnly != null && voiceOnly.visualMode == PilotVisualMode.None,
+                "Voice Only is an explicit no-visual condition, not a fallback");
+            AppendCheck(report, orb != null && orb.visualMode == PilotVisualMode.FloatingOrb && !orb.developerPlaceholder,
+                "Floating Orb has a non-placeholder fixed configuration");
+            AppendCheck(report, humanoid != null && humanoid.visualMode == PilotVisualMode.Humanoid && humanoid.visualPrefab != null && !humanoid.developerPlaceholder,
+                "Humanoid Agent has a non-placeholder prefab");
+            AppendCheck(report, profiles.Length == 3 && profiles.Select(x => x.voiceProfileKey).Distinct().Count() == 1,
+                "All Pilot embodiments share one voice profile");
+            var pilotTaskError = taskCatalog == null ? "Task Catalog asset is missing" : string.Empty;
+            var pilotTasksValid = taskCatalog != null && ExperimentTaskCatalog.ValidatePilotTasks(taskCatalog.GetTasks(ExperimentTaskPhase.Pilot).ToArray(), out pilotTaskError);
+            AppendCheck(report, pilotTasksValid, pilotTasksValid ? "Three Pilot restaurant tasks are complete and unique" : $"Pilot tasks blocked: {pilotTaskError}");
+            var pilotDecisionError = protocol == null ? "protocol asset is missing" : string.Empty;
+            var pilotDecisionsValid = protocol != null && protocol.TryResolvePilotDecisions(out _, out _, out pilotDecisionError);
+            AppendCheck(report, pilotDecisionsValid, pilotDecisionsValid ? "Pilot feedback style and Voice Only audio policy are confirmed" : $"Locked Pilot decisions blocked: {pilotDecisionError}");
+            AppendCheck(report, protocol?.PilotSequenceDefinitions?.Count == 3 && protocol.PilotSequenceDefinitions.All(x => x != null && x.confirmed),
+                "Pilot a/b/c sequence mapping is confirmed in the protocol asset");
+            AppendCheck(report, questionnaireCatalog?.Find("pilot_condition_v1") != null, "Stage 5 pilot_condition_v1 resolves");
+            AppendCheck(report, questionnaireCatalog?.Find("pilot_final_v1") != null, "Stage 5 pilot_final_v1 resolves");
+            var lockedPilotError = pilotPresentations == null ? "presentation catalog missing" : string.Empty;
+            var lockedPilotValid = pilotPresentations != null && pilotPresentations.ValidateLocked(protocol, out lockedPilotError);
+            AppendCheck(report, lockedPilotValid, lockedPilotValid ? "Locked Pilot has no placeholder or unresolved configuration" : $"Locked Pilot remains blocked: {lockedPilotError}");
             AppendCheck(report, protocol != null && !string.IsNullOrWhiteSpace(protocol.ProtocolVersion), "Experiment protocol version is non-empty");
             AppendCheck(report, protocol != null && protocol.FormalModeLocked, "Experiment protocol marks Formal Mode as locked");
             var formalProtocolError = protocol == null ? "protocol asset is missing" : string.Empty;

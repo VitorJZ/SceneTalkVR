@@ -28,7 +28,9 @@ MonoBehaviour:
   - gym_membership
   - tourist_assistance
   pilotTaskIds:
-  - restaurant_reservation
+  - pilot_restaurant_walk_in
+  - pilot_restaurant_ordering
+  - pilot_restaurant_wrong_dish
   pilotEmbodimentOptions:
   - voice_only
   - floating_orb

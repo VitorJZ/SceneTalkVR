@@ -1,0 +1,67 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8c29d2d102ff4897a70d2eca71c74b32, type: 3}
+  m_Name: PilotPresentationCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.PilotPresentationCatalog
+  catalogVersion: 1.1-stage6.1
+  profiles:
+  - embodimentCondition: 0
+    visualMode: 0
+    feedbackActor: voice_only_feedback_agent
+    voiceProfileKey: 101050
+    audioSourcePolicy: 0
+    sourcePosition: {x: 0.9, y: 1.45, z: 1.8}
+    spatialBlend: 0
+    minDistance: 0.2
+    maxDistance: 4
+    volume: 1
+    speakingSpeed: 1
+    subtitlePolicy: feedback_only
+    appearanceDelayMs: 0
+    disappearanceDelayMs: 0
+    visualPrefabKey: none
+    visualPrefab: {fileID: 0}
+    developerPlaceholder: 0
+  - embodimentCondition: 1
+    visualMode: 1
+    feedbackActor: floating_orb_feedback_agent
+    voiceProfileKey: 101050
+    audioSourcePolicy: 1
+    sourcePosition: {x: 0.9, y: 1.45, z: 1.8}
+    spatialBlend: 1
+    minDistance: 0.2
+    maxDistance: 4
+    volume: 1
+    speakingSpeed: 1
+    subtitlePolicy: feedback_only
+    appearanceDelayMs: 0
+    disappearanceDelayMs: 0
+    visualPrefabKey: generated_orb_v1
+    visualPrefab: {fileID: 0}
+    developerPlaceholder: 0
+  - embodimentCondition: 2
+    visualMode: 2
+    feedbackActor: humanoid_feedback_agent
+    voiceProfileKey: 101050
+    audioSourcePolicy: 1
+    sourcePosition: {x: 0.9, y: 0, z: 1.8}
+    spatialBlend: 1
+    minDistance: 0.2
+    maxDistance: 4
+    volume: 1
+    speakingSpeed: 1
+    subtitlePolicy: feedback_only
+    appearanceDelayMs: 0
+    disappearanceDelayMs: 0
+    visualPrefabKey: humanoid_feedback_agent_pending
+    visualPrefab: {fileID: 0}
+    developerPlaceholder: 1

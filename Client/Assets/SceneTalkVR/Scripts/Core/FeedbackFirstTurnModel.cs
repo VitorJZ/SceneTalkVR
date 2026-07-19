@@ -64,6 +64,8 @@ namespace SceneTalkVR.Core
         public float volume;
         public string subtitlePolicy;
         public string feedbackTextHash;
+        public string embodimentCondition;
+        public string pilotRunId;
         public string fallback;
     }
 

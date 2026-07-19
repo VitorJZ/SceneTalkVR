@@ -72,19 +72,51 @@ MonoBehaviour:
     spawnPosition: {x: 0, y: 0, z: 2}
     spawnRotation: {x: 0, y: 180, z: 0}
     developerPlaceholderAvatar: 1
-  - taskId: restaurant_reservation
-    scenarioId: restaurant_reservation
-    displayName: Restaurant Reservation
+  - taskId: pilot_restaurant_walk_in
+    scenarioId: pilot_restaurant
+    displayName: Walk-in Without Reservation
     phase: 0
-    context: Calling an Italian restaurant to reserve a table for a small celebration.
-    goals: [{text: Reserve a table for five people.}, {text: Ask for a quiet corner table.}, {text: Ask about bringing a cake.}, {text: Ask about parking.}]
-    initialQuestion: Hello! Thank you for calling. How can I help you today?
+    context: Arriving at a restaurant without a reservation and asking whether a table is available.
+    goals: [{text: Explain that you do not have a reservation.}, {text: State the number of diners.}, {text: Ask whether a table is available.}, {text: Ask how long the wait will be.}]
+    initialQuestion: Good evening! Welcome to Riverside Restaurant. Do you have a reservation?
     environmentType: restaurant
     panoramaResourceKey: SceneTalkVR/Textures/restaurant-360
     avatarPresetKey: barista_humanoid_v1
     avatarRole: restaurant host
     voiceProfileKey: restaurant_host_en
-    roleplayPrompt: Pilot only.
+    roleplayPrompt: Stay in the walk-in restaurant task. Do not change scene, role, task, feedback style, or embodiment.
+    spawnPosition: {x: 0, y: 0, z: 2}
+    spawnRotation: {x: 0, y: 180, z: 0}
+    developerPlaceholderAvatar: 0
+  - taskId: pilot_restaurant_ordering
+    scenarioId: pilot_restaurant
+    displayName: Ordering a Meal
+    phase: 0
+    context: Looking at a restaurant menu and ordering a meal.
+    goals: [{text: Ask for a recommended dish.}, {text: Order one main course.}, {text: Explain a dietary requirement or food restriction.}, {text: Order a drink.}]
+    initialQuestion: Here is the menu. Would you like a recommendation, or are you ready to order?
+    environmentType: restaurant
+    panoramaResourceKey: SceneTalkVR/Textures/restaurant-360
+    avatarPresetKey: barista_humanoid_v1
+    avatarRole: restaurant server
+    voiceProfileKey: restaurant_host_en
+    roleplayPrompt: Stay in the meal-ordering task. Do not change scene, role, task, feedback style, or embodiment.
+    spawnPosition: {x: 0, y: 0, z: 2}
+    spawnRotation: {x: 0, y: 180, z: 0}
+    developerPlaceholderAvatar: 0
+  - taskId: pilot_restaurant_wrong_dish
+    scenarioId: pilot_restaurant
+    displayName: Wrong Dish Problem
+    phase: 0
+    context: Politely resolving a problem after the restaurant server brings the wrong dish.
+    goals: [{text: Explain that the received dish is incorrect.}, {text: State what was originally ordered.}, {text: Ask for the dish to be replaced.}, {text: Ask how long the replacement will take.}]
+    initialQuestion: Here is your meal. Is everything all right with your order?
+    environmentType: restaurant
+    panoramaResourceKey: SceneTalkVR/Textures/restaurant-360
+    avatarPresetKey: barista_humanoid_v1
+    avatarRole: restaurant server
+    voiceProfileKey: restaurant_host_en
+    roleplayPrompt: Stay in the wrong-dish resolution task. Do not change scene, role, task, feedback style, or embodiment.
     spawnPosition: {x: 0, y: 0, z: 2}
     spawnRotation: {x: 0, y: 180, z: 0}
     developerPlaceholderAvatar: 0

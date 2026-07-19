@@ -34,6 +34,7 @@ namespace SceneTalkVR.Core
         [SerializeField] private ExperimentBuildInfo experimentBuildInfo;
         [SerializeField] private ExperimentTaskCatalog taskCatalog;
         [SerializeField] private QuestionnaireCatalog questionnaireCatalog;
+        [SerializeField] private PilotPresentationCatalog pilotPresentationCatalog;
 
         [Header("Condition")]
         [SerializeField] private bool useConditionOrder;
@@ -106,6 +107,7 @@ namespace SceneTalkVR.Core
         public ExperimentBuildInfo ExperimentBuildInfo => experimentBuildInfo;
         public ExperimentTaskCatalog TaskCatalog => taskCatalog;
         public QuestionnaireCatalog QuestionnaireCatalog => questionnaireCatalog;
+        public PilotPresentationCatalog PilotPresentationCatalog => pilotPresentationCatalog;
         public FormalConditionCode CurrentFormalCondition => formalExperiment ? formalCondition : LegacyToFormal(CurrentCondition?.conditionId);
         public int CurrentTurnIndex => turnIndex;
         public ExperimentLifecycleCoordinator LifecycleCoordinator => GetComponent<ExperimentLifecycleCoordinator>();
@@ -178,6 +180,10 @@ namespace SceneTalkVR.Core
             if (GetComponent<QuestionnaireVrPanel>() == null)
             {
                 gameObject.AddComponent<QuestionnaireVrPanel>();
+            }
+            if (GetComponent<PilotWorkflowCoordinator>() == null)
+            {
+                gameObject.AddComponent<PilotWorkflowCoordinator>();
             }
             EnsureSessionId();
             EnsureDefaultTaskDefinitions();
@@ -376,6 +382,17 @@ namespace SceneTalkVR.Core
             RefreshCondition(false);
             NotifyConditionChanged();
             return true;
+        }
+
+        public bool ApplyPilotAssignment(PilotFeedbackStyleChoice style, string taskId, string assignedParticipantId, string assignedSessionId, out string error)
+        {
+            if (style == PilotFeedbackStyleChoice.Undefined) { error = "pilot_feedback_style_unconfirmed"; return false; }
+            if (!LoadAssignedTask(taskId, out error)) return false;
+            formalCondition = style == PilotFeedbackStyleChoice.Recast ? FormalConditionCode.SR : FormalConditionCode.SE;
+            assignmentConditionActive = true;
+            if (!string.IsNullOrWhiteSpace(assignedParticipantId)) participantId = assignedParticipantId.Trim();
+            if (!string.IsNullOrWhiteSpace(assignedSessionId)) sessionId = assignedSessionId.Trim();
+            RefreshCondition(false); NotifyConditionChanged(); error = string.Empty; return true;
         }
 
         public void ApplyProviderTo(MonoBehaviour avatarVoiceModule)
@@ -1130,6 +1147,13 @@ namespace SceneTalkVR.Core
                 feedbackTextHash = string.IsNullOrEmpty(feedbackText) ? string.Empty : ExperimentEventTimeline.HashText(feedbackText),
                 fallback = fallback ?? string.Empty
             });
+            var pilot = PilotWorkflowCoordinator.Active;
+            if (pilot != null && pilot.HasActivePilotRun)
+            {
+                record.embodimentCondition = PilotProtocolValues.Label(pilot.CurrentEmbodiment);
+                record.pilotRunId = pilot.PilotRunId;
+                pilot.ObserveTimingEvent(record);
+            }
             WriteTimingEvent(record);
             return record;
         }

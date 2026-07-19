@@ -45,6 +45,7 @@ namespace SceneTalkVR.Core
         [SerializeField] private string[] formalTaskIds = { "hotel_check_in", "furniture_shopping", "gym_membership", "tourist_assistance" };
         [SerializeField] private string[] pilotTaskIds = { "restaurant_reservation" };
         [SerializeField] private string[] pilotEmbodimentOptions = { "voice_only", "floating_orb", "humanoid_agent" };
+        [SerializeField] private PilotSequenceDefinition[] pilotSequenceDefinitions = Array.Empty<PilotSequenceDefinition>();
 
         [Header("Feedback Timing")]
         [TextArea]
@@ -67,6 +68,7 @@ namespace SceneTalkVR.Core
         public IReadOnlyList<string> FormalConditionCodes => formalConditionCodes;
         public IReadOnlyList<ExperimentConditionSequenceDefinition> ConditionSequenceDefinitions => conditionSequenceDefinitions;
         public IReadOnlyList<string> PilotEmbodimentOptions => pilotEmbodimentOptions;
+        public IReadOnlyList<PilotSequenceDefinition> PilotSequenceDefinitions => pilotSequenceDefinitions;
         public IReadOnlyList<string> FormalTaskIds => formalTaskIds;
         public IReadOnlyList<string> PilotTaskIds => pilotTaskIds;
         public string FeedbackTimingPolicy => feedbackTimingPolicy?.Trim() ?? string.Empty;
@@ -84,6 +86,17 @@ namespace SceneTalkVR.Core
                 return true;
             }
             return false;
+        }
+
+        public bool TryResolvePilotDecisions(out PilotFeedbackStyleChoice style, out PilotAudioSourcePolicy audioPolicy, out string error)
+        {
+            style = PilotFeedbackStyleChoice.Undefined; audioPolicy = PilotAudioSourcePolicy.Undefined;
+            var issues = new List<string>();
+            if (!TryGetConfirmedDecision("pilot_feedback_style", out var styleValue)) issues.Add("pilot_feedback_style_unconfirmed");
+            else if (!PilotProtocolValues.TryParseFeedbackStyle(styleValue, out style)) issues.Add("pilot_feedback_style_invalid");
+            if (!TryGetConfirmedDecision("voice_only_spatial_audio", out var audioValue)) issues.Add("voice_only_spatial_audio_unconfirmed");
+            else if (!PilotProtocolValues.TryParseAudioPolicy(audioValue, out audioPolicy)) issues.Add("voice_only_spatial_audio_invalid");
+            error = string.Join("; ", issues); return issues.Count == 0;
         }
 
         public bool ValidateForFormalMode(out string error)

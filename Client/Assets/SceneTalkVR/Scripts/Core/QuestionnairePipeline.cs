@@ -24,6 +24,7 @@ namespace SceneTalkVR.Core
         public string assignmentPolicy;
         public int formalConditionEnumValue;
         public string formalConditionCode;
+        public string embodimentCondition;
         public int conditionStatusEnumValue;
         public string conditionStatus;
         public string taskId;
@@ -33,6 +34,7 @@ namespace SceneTalkVR.Core
         public string itemId;
         public string itemVersion;
         public string rawValue;
+        public string responseCapturedAtUtc;
         public float scoredValue;
         public bool hasScoredValue;
         public bool reverseScored;
@@ -41,6 +43,9 @@ namespace SceneTalkVR.Core
         public bool missing;
         public int revision;
         public string submittedAtUtc;
+        public string questionnaireStatus;
+        public string questionnaireSubmittedAtUtc;
+        public string conditionCompletedAtUtc;
         public int technicalValidityEnumValue;
         public string technicalValidity;
     }
@@ -71,6 +76,7 @@ namespace SceneTalkVR.Core
         public int conditionPosition;
         public AssignmentPolicy assignmentPolicy;
         public FormalConditionCode formalCondition;
+        public string embodimentCondition;
         public ConditionRunStatus conditionStatus;
         public string taskId;
         public string taskAssignmentId;
@@ -106,6 +112,8 @@ namespace SceneTalkVR.Core
         public string sequenceId;
         public string questionnaireId;
         public PreferenceRankEntry[] rankings = Array.Empty<PreferenceRankEntry>();
+        public string preferredConditionCode;
+        public string preferredEmbodimentCondition;
         public string reason;
         public string submittedAtUtc;
 
@@ -185,6 +193,7 @@ namespace SceneTalkVR.Core
             var response = responses.FirstOrDefault(x => x.itemId == item.itemId);
             if (response == null) { response = CreateResponse(item); responses.Add(response); }
             response.rawValue = rawValue ?? string.Empty;
+            response.responseCapturedAtUtc = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
             response.missing = string.IsNullOrWhiteSpace(response.rawValue);
             Score(item, response);
             ActiveSession.responses = responses.ToArray();
@@ -208,7 +217,15 @@ namespace SceneTalkVR.Core
             if (!CanSubmit(out error)) return false;
             ActiveSession.submittedAtUtc = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
             ActiveSession.completionStatus = QuestionnaireCompletionStatus.Submitted;
-            foreach (var response in ActiveSession.responses) response.submittedAtUtc = ActiveSession.submittedAtUtc;
+            foreach (var response in ActiveSession.responses)
+            {
+                response.submittedAtUtc = ActiveSession.submittedAtUtc;
+                response.questionnaireStatus = QuestionnaireCompletionStatus.Submitted.ToString();
+                response.questionnaireSubmittedAtUtc = ActiveSession.submittedAtUtc;
+                response.conditionStatusEnumValue = (int)ConditionRunStatus.Completed;
+                response.conditionStatus = ConditionRunStatus.Completed.ToString();
+                response.conditionCompletedAtUtc = ActiveSession.submittedAtUtc;
+            }
             RefreshSummary(); QuestionnaireResearchExporter.AppendResponses(folder, ActiveSession);
             SaveDraft(); SessionChanged?.Invoke(ActiveSession); return true;
         }
@@ -250,6 +267,7 @@ namespace SceneTalkVR.Core
             conditionPosition = ActiveSession.conditionPosition, formalConditionEnumValue = (int)ActiveSession.formalCondition,
             assignmentPolicyEnumValue = (int)ActiveSession.assignmentPolicy, assignmentPolicy = ActiveSession.assignmentPolicy.ToString(),
             formalConditionCode = ActiveSession.formalCondition.ToString(), conditionStatusEnumValue = (int)ActiveSession.conditionStatus,
+            embodimentCondition = ActiveSession.embodimentCondition ?? string.Empty,
             conditionStatus = ActiveSession.conditionStatus.ToString(), taskId = ActiveSession.taskId,
             taskAssignmentId = ActiveSession.taskAssignmentId, questionnaireId = ActiveSession.questionnaireId,
             sectionId = item.sectionId, itemId = item.itemId, itemVersion = item.itemVersion,
@@ -284,12 +302,13 @@ namespace SceneTalkVR.Core
             try { Directory.CreateDirectory(DefaultFolder); File.WriteAllText(DraftPath, JsonUtility.ToJson(ActiveSession, true), Encoding.UTF8); }
             catch (Exception ex) { Debug.LogWarning("[Questionnaire] Draft save failed: " + ex.Message); }
         }
+        public void Reset(){ActiveSession=null;Definition=null;SessionChanged?.Invoke(null);}
         private static string Safe(string value) => string.IsNullOrWhiteSpace(value) ? "unknown" : string.Concat(value.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
     }
 
     public static class QuestionnaireResearchExporter
     {
-        public const string CsvHeader = "schemaVersion,protocolVersion,questionnaireCatalogVersion,participantId,sessionId,sequenceId,conditionRunId,questionnaireLinkageKey,conditionPosition,assignmentPolicyEnumValue,assignmentPolicy,formalConditionEnumValue,formalConditionCode,conditionStatusEnumValue,conditionStatus,taskId,taskAssignmentId,questionnaireId,sectionId,itemId,itemVersion,rawValue,scoredValue,reverseScored,scaleMin,scaleMax,missing,revision,submittedAtUtc,technicalValidityEnumValue,technicalValidity";
+        public const string CsvHeader = "schemaVersion,protocolVersion,questionnaireCatalogVersion,participantId,sessionId,sequenceId,conditionRunId,questionnaireLinkageKey,conditionPosition,assignmentPolicyEnumValue,assignmentPolicy,formalConditionEnumValue,formalConditionCode,embodimentCondition,conditionStatusEnumValue,conditionStatus,taskId,taskAssignmentId,questionnaireId,sectionId,itemId,itemVersion,rawValue,responseCapturedAtUtc,scoredValue,reverseScored,scaleMin,scaleMax,missing,revision,submittedAtUtc,questionnaireStatus,questionnaireSubmittedAtUtc,conditionCompletedAtUtc,technicalValidityEnumValue,technicalValidity";
         public static void AppendResponses(string folder, QuestionnaireSession session)
         {
             Directory.CreateDirectory(folder);
@@ -299,7 +318,7 @@ namespace SceneTalkVR.Core
             foreach (var r in session.responses ?? Array.Empty<QuestionnaireResponse>())
             {
                 File.AppendAllText(json, JsonUtility.ToJson(r) + Environment.NewLine, Encoding.UTF8);
-                File.AppendAllText(csv, string.Join(",", new[] { r.schemaVersion,r.protocolVersion,r.questionnaireCatalogVersion,r.participantId,r.sessionId,r.sequenceId,r.conditionRunId,r.questionnaireLinkageKey,r.conditionPosition.ToString(),r.assignmentPolicyEnumValue.ToString(),r.assignmentPolicy,r.formalConditionEnumValue.ToString(),r.formalConditionCode,r.conditionStatusEnumValue.ToString(),r.conditionStatus,r.taskId,r.taskAssignmentId,r.questionnaireId,r.sectionId,r.itemId,r.itemVersion,r.rawValue,r.hasScoredValue?r.scoredValue.ToString(CultureInfo.InvariantCulture):"",r.reverseScored.ToString(),r.scaleMin.ToString(),r.scaleMax.ToString(),r.missing.ToString(),r.revision.ToString(),r.submittedAtUtc,r.technicalValidityEnumValue.ToString(),r.technicalValidity }.Select(Csv)) + Environment.NewLine, Encoding.UTF8);
+                File.AppendAllText(csv, string.Join(",", new[] { r.schemaVersion,r.protocolVersion,r.questionnaireCatalogVersion,r.participantId,r.sessionId,r.sequenceId,r.conditionRunId,r.questionnaireLinkageKey,r.conditionPosition.ToString(),r.assignmentPolicyEnumValue.ToString(),r.assignmentPolicy,r.formalConditionEnumValue.ToString(),r.formalConditionCode,r.embodimentCondition,r.conditionStatusEnumValue.ToString(),r.conditionStatus,r.taskId,r.taskAssignmentId,r.questionnaireId,r.sectionId,r.itemId,r.itemVersion,r.rawValue,r.responseCapturedAtUtc,r.hasScoredValue?r.scoredValue.ToString(CultureInfo.InvariantCulture):"",r.reverseScored.ToString(),r.scaleMin.ToString(),r.scaleMax.ToString(),r.missing.ToString(),r.revision.ToString(),r.submittedAtUtc,r.questionnaireStatus,r.questionnaireSubmittedAtUtc,r.conditionCompletedAtUtc,r.technicalValidityEnumValue.ToString(),r.technicalValidity }.Select(Csv)) + Environment.NewLine, Encoding.UTF8);
             }
         }
         public static void AppendRanking(string folder, PreferenceRankingResponse response)

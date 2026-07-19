@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "1.0",
+  "stage": 6,
+  "baseline": {
+    "branch": "experiment-v1.1-integration",
+    "commit": "673589ccd8ebf27b6386e34ec78b5dcf5f43d434",
+    "remoteMatchedAtStart": true,
+    "initialExperimentWorktreeClean": true,
+    "excludedLocalArtifacts": ["Client/Packages/manifest.json", "Client/Packages/packages-lock.json", "Client/.agents/skills/"]
+  },
+  "unity": {
+    "version": "6000.3.16f1",
+    "instance": "Client@16ed13d125de1334",
+    "secondEditorStarted": false,
+    "compileErrors": 0,
+    "editMode": {"jobId": "55d2a827913545cc92654d4c79c0581c", "total": 342, "passed": 342, "failed": 0, "status": "passed"},
+    "playMode": {"jobId": "35dcea0a22ce4db69e7c837d13a51afb", "total": 6, "passed": 6, "failed": 0, "status": "passed"},
+    "minimalPlayMode": {"entered": true, "durationSeconds": 5, "newErrors": 0, "status": "passed"},
+    "preflight": {"checksPassed": 64, "checksBlockedOrFailed": 13, "pilotSectionPresent": true, "status": "expected_blockers_present"},
+    "picoClaim": false
+  },
+  "requirements": {
+    "explicitEmbodimentConditions": "passed",
+    "voiceOnlyNoVisual": "passed",
+    "floatingOrbLifecycle": "passed",
+    "humanoidCatalogAndLockedValidation": "passed_with_expected_resource_blocker",
+    "sharedVoiceStyleTextPath": "passed",
+    "embodimentExcludedFromPlannerPrompt": "passed",
+    "feedbackFirstGateReused": "passed_by_stage3_regression",
+    "threeUniquePilotTasks": "passed",
+    "stableThreeByThreeAssignment": "passed_test_protocol_only",
+    "assignmentSaveRestoreVersionCheck": "passed",
+    "technicalInvalidNewRunId": "implemented",
+    "conditionReset": "passed",
+    "stage5PilotQuestionnaireReuse": "passed",
+    "rankingUniqueStrings": "passed",
+    "timingStudyQuestionnaireLinkage": "passed",
+    "stage2To5Regression": "passed"
+  },
+  "lockedPilotBlockers": [
+    {"id": "pilot_feedback_style", "allowedValues": ["explicit", "recast"], "status": "unconfirmed"},
+    {"id": "voice_only_spatial_audio", "allowedValues": ["spatial_fixed_source", "non_spatial_head_locked"], "status": "unconfirmed"},
+    {"id": "pilot_sequence_mapping", "allowedShape": ["a-b-c", "b-c-a", "c-a-b"], "status": "unconfirmed"},
+    {"id": "humanoid_feedback_agent_prefab", "status": "missing_placeholder_only"}
+  ],
+  "postValidationCompile": {
+    "method": "Unity 6000.3 bundled Roslyn with current Bee response files; no second Editor process",
+    "assemblies": ["Assembly-CSharp", "Assembly-CSharp-Editor", "SceneTalkVR.Stage2.PlayModeTests"],
+    "errors": 0,
+    "warnings": "existing obsolete/member-hiding warnings only"
+  },
+  "postValidationNote": "After the recorded full Unity MCP runs, compatible Pilot timing linkage, questionnaire CSV embodiment fields and reset hardening were added. All affected runtime, Editor-test and PlayMode-test assemblies were recompiled with Unity's own current response files and produced zero errors."
+}

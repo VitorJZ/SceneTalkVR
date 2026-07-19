@@ -22,13 +22,15 @@ namespace SceneTalkVR.Tests.Editor
 
         private ExperimentTaskCatalog Catalog => AssetDatabase.LoadAssetAtPath<ExperimentTaskCatalog>(Path);
 
-        [Test] public void FormalCatalog_HasExactlyFourAndRestaurantIsPilot()
+        [Test] public void FormalCatalog_HasExactlyFourAndThreeRestaurantsArePilot()
         {
             var catalog = Catalog;
             Assert.That(catalog,Is.Not.Null);
             Assert.That(catalog.Tasks.Count(t=>t.phase==ExperimentTaskPhase.Formal),Is.EqualTo(4));
             CollectionAssert.AreEquivalent(FormalIds, catalog.GetTasks(ExperimentTaskPhase.Formal).Select(t => t.taskId));
-            Assert.That(catalog.Find("restaurant_reservation").phase,Is.EqualTo(ExperimentTaskPhase.Pilot));
+            CollectionAssert.AreEquivalent(new[] { "pilot_restaurant_walk_in", "pilot_restaurant_ordering", "pilot_restaurant_wrong_dish" },
+                catalog.GetTasks(ExperimentTaskPhase.Pilot).Select(t => t.taskId));
+            Assert.That(catalog.Find("restaurant_reservation"), Is.Null);
         }
 
         [Test] public void Catalog_TaskIdsAreUnique()

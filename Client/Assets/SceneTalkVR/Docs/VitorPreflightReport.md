@@ -1,6 +1,6 @@
 ﻿# Vitor Preflight Report
 
-Generated: 2026-07-17 16:19:58
+Generated: 2026-07-17 23:20:22
 Unity: 6000.3.16f1
 Active Build Target: Android
 Android Build Support Path: `D:/Unity/Hub/Editor/6000.3.16f1/Editor/Data\PlaybackEngines\AndroidPlayer`
@@ -41,6 +41,28 @@ Android Build Support Path: `D:/Unity/Hub/Editor/6000.3.16f1/Editor/Data\Playbac
 - [x] Experiment Task Catalog asset has no unsaved changes
 - [x] ExperimentConditionManager is bound to the Task Catalog asset
 - [ ] Formal Task Catalog is blocked: hotel_check_in: formal avatar preset is unavailable or placeholder; furniture_shopping: formal avatar preset is unavailable or placeholder; gym_membership: formal avatar preset is unavailable or placeholder; tourist_assistance: formal avatar preset is unavailable or placeholder
+- [x] Experiment v1.1 Questionnaire Catalog asset exists
+- [x] Questionnaire Catalog asset has no unsaved changes
+- [x] ExperimentConditionManager is bound to the Questionnaire Catalog asset
+- [x] Questionnaire Catalog 1.1-stage5.1 is valid; Social Comfort follows protocol decision
+- [x] Social Comfort remains excluded because `formal_social_comfort` is unconfirmed
+- [x] AwaitingQuestionnaire resolves to formal_condition_v1
+
+## Pilot Embodiment Readiness
+
+- [x] Pilot Presentation Catalog exists
+- [x] ExperimentConditionManager is bound to the Pilot Presentation Catalog
+- [x] Voice Only, Floating Orb, and Humanoid Agent profiles are unique
+- [x] Voice Only is an explicit no-visual condition, not a fallback
+- [x] Floating Orb has a non-placeholder fixed configuration
+- [ ] Humanoid Agent has a non-placeholder prefab
+- [x] All Pilot embodiments share one voice profile
+- [x] Three Pilot restaurant tasks are complete and unique
+- [ ] Locked Pilot decisions blocked: pilot_feedback_style_unconfirmed; voice_only_spatial_audio_unconfirmed
+- [ ] Pilot a/b/c sequence mapping is confirmed in the protocol asset
+- [x] Stage 5 pilot_condition_v1 resolves
+- [x] Stage 5 pilot_final_v1 resolves
+- [ ] Locked Pilot remains blocked: pilot_feedback_style_unconfirmed; voice_only_spatial_audio_unconfirmed; humanoid_prefab_missing_or_placeholder
 - [x] Experiment protocol version is non-empty
 - [x] Experiment protocol marks Formal Mode as locked
 - [ ] Formal Mode is blocked until protocol decisions are confirmed: unconfirmed protocol decision: condition_letter_mapping; unconfirmed protocol decision: pilot_feedback_style; unconfirmed protocol decision: voice_only_spatial_audio; unconfirmed protocol decision: formal_social_comfort; unconfirmed protocol decision: formal_task_no_replacement

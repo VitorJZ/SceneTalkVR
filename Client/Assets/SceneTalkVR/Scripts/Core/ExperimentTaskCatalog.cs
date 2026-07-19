@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace SceneTalkVR.Core
@@ -142,6 +143,20 @@ namespace SceneTalkVR.Core
 
             error = string.Join("; ", issues);
             return issues.Count == 0;
+        }
+
+        public static bool ValidatePilotTasks(IReadOnlyList<ExperimentTaskDefinition> pilot, out string error)
+        {
+            var issues = new List<string>(); var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (pilot == null || pilot.Count != 3) issues.Add("pilot_catalog_must_contain_three_tasks");
+            foreach (var task in pilot ?? Array.Empty<ExperimentTaskDefinition>())
+            {
+                if (task == null || string.IsNullOrWhiteSpace(task.taskId) || !ids.Add(task.taskId)) issues.Add("pilot_task_id_missing_or_duplicate");
+                if (task?.goals == null || task.goals.Length != 4 || task.goals.Any(x => x == null || string.IsNullOrWhiteSpace(x.text))) issues.Add((task?.taskId ?? "<null>")+":pilot_goals_invalid");
+                if (task != null && (string.IsNullOrWhiteSpace(task.context) || string.IsNullOrWhiteSpace(task.initialQuestion) || string.IsNullOrWhiteSpace(task.roleplayPrompt))) issues.Add(task.taskId+":pilot_text_missing");
+                if (task != null && string.IsNullOrWhiteSpace(task.panoramaResourceKey)) issues.Add(task.taskId+":pilot_panorama_missing");
+            }
+            error=string.Join("; ",issues); return issues.Count==0;
         }
 
         private static void ValidateFormalTask(ExperimentTaskDefinition task, List<string> issues)

@@ -191,11 +191,17 @@ namespace SceneTalkVR.AvatarSystem
             var assistantAgentVoiceId = useDialogueAvatar
                 ? null
                 : ResolveAssistantAgentVoiceId();
+            var activePilotPresenter = !useDialogueAvatar ? PilotEmbodimentPresenter.Active : null;
+            var activePilotProfile = activePilotPresenter?.Profile;
             var timing = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include);
-            var actualActor = useDialogueAvatar ? "Avatar" : "Agent";
-            var actualVoice = string.IsNullOrWhiteSpace(assistantAgentVoiceId)
+            var actualActor = useDialogueAvatar ? "Avatar" : activePilotProfile?.feedbackActor ?? "Agent";
+            var actualVoice = !string.IsNullOrWhiteSpace(activePilotProfile?.voiceProfileKey)
+                ? activePilotProfile.voiceProfileKey
+                : string.IsNullOrWhiteSpace(assistantAgentVoiceId)
                 ? playbackContext.defaultVoiceId
                 : assistantAgentVoiceId;
+            var actualSpeed = activePilotProfile == null ? payload?.avatarRole?.speakingSpeed : activePilotProfile.speakingSpeed.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var actualVolume = activePilotPresenter?.AudioSource == null ? playbackContext.defaultAudioSource == null ? 1f : playbackContext.defaultAudioSource.volume : activePilotPresenter.AudioSource.volume;
             var playbackRequest = new AvatarSpeechPlaybackRequest
             {
                 text = text,
@@ -209,15 +215,15 @@ namespace SceneTalkVR.AvatarSystem
                     ExperimentTimingEventType.CorrectionPlaybackStarted,
                     actualPlaybackActor: actualActor,
                     voiceProfile: actualVoice,
-                    speakingSpeed: payload?.avatarRole?.speakingSpeed,
-                    volume: playbackContext.defaultAudioSource == null ? 1f : playbackContext.defaultAudioSource.volume,
+                    speakingSpeed: actualSpeed,
+                    volume: actualVolume,
                     feedbackText: text),
                 playbackEnded = () => timing?.RecordTimingEvent(
                     ExperimentTimingEventType.CorrectionPlaybackEnded,
                     actualPlaybackActor: actualActor,
                     voiceProfile: actualVoice,
-                    speakingSpeed: payload?.avatarRole?.speakingSpeed,
-                    volume: playbackContext.defaultAudioSource == null ? 1f : playbackContext.defaultAudioSource.volume,
+                    speakingSpeed: actualSpeed,
+                    volume: actualVolume,
                     feedbackText: text)
             };
 
@@ -237,6 +243,20 @@ namespace SceneTalkVR.AvatarSystem
             }
             else
             {
+                var pilotPresenter = activePilotPresenter;
+                if (pilotPresenter != null && pilotPresenter.Profile != null)
+                {
+                    playbackRequest.voiceIdOverride = pilotPresenter.Profile.voiceProfileKey;
+                    playbackRequest.audioSourceOverride = pilotPresenter.AudioSource;
+                    var timingStarted = playbackRequest.playbackStarted;
+                    var timingEnded = playbackRequest.playbackEnded;
+                    playbackRequest.playbackStarted = () => { timingStarted?.Invoke(); pilotPresenter.BeginFeedback(); PilotWorkflowCoordinator.Active?.RecordFeedback(text, true); };
+                    playbackRequest.playbackEnded = () => { pilotPresenter.EndFeedback(); timingEnded?.Invoke(); PilotWorkflowCoordinator.Active?.RecordFeedback(text, false); };
+                    yield return SpeechPlayer.Play(playbackContext, payload, playbackRequest, value => playbackResult = value);
+                    pilotPresenter.EndFeedback();
+                }
+                else
+                {
                 var correctionAgent = ResolveCorrectionAgentPresenter(createCorrectionAgentIfMissing);
                 if (correctionAgent != null)
                 {
@@ -272,6 +292,7 @@ namespace SceneTalkVR.AvatarSystem
                             playbackResult.fallbackLevel,
                             "missing_agent");
                     }
+                }
                 }
             }
 
