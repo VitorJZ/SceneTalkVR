@@ -1,6 +1,6 @@
 ﻿# Vitor Preflight Report
 
-Generated: 2026-07-19 11:45:59
+Generated: 2026-07-19 16:14:17
 Unity: 6000.3.16f1
 Active Build Target: Android
 Android Build Support Path: `D:/Unity/Hub/Editor/6000.3.16f1/Editor/Data\PlaybackEngines\AndroidPlayer`

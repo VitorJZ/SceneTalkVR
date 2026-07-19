@@ -45,6 +45,7 @@ namespace SceneTalkVR.Core
     {
         public int conditionPosition;
         public FormalConditionCode formalConditionCode;
+        public string formalConditionLabel;
         public TaskAssignment task = new TaskAssignment();
         public ConditionRunStatus status = ConditionRunStatus.Assigned;
         public string latestConditionRunId;
@@ -77,6 +78,8 @@ namespace SceneTalkVR.Core
         public AssignmentPolicy policy;
         public AssignmentStatus status;
         public bool developerTestAssignment;
+        public string dataOrigin;
+        public bool collectionEligible;
         public ConditionAssignment[] conditions = Array.Empty<ConditionAssignment>();
     }
 

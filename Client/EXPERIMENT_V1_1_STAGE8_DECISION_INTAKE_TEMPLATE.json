@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "1.0",
+  "targetProtocolVersion": "1.1.0-stage7",
+  "instructions": "Draft template only. Fill every proposedValue and provenance field, set approvalStatus to Approved only after explicit research-team approval, then preview in SceneTalkVR/Experiment/Protocol Decision Import.",
+  "decisions": [
+    {"decisionId":"condition_letter_mapping","proposedValue":"","allowedValues":["one-to-one mapping: a/b/c/d to NE/NR/SE/SR","format: a=NE,b=NR,c=SE,d=SR"],"confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":"","approvalStatus":"Draft"},
+    {"decisionId":"formal_task_no_replacement","proposedValue":"","allowedValues":["strict_without_replacement","with_replacement","manual"],"confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":"","approvalStatus":"Draft"},
+    {"decisionId":"formal_social_comfort","proposedValue":"","allowedValues":["included","excluded"],"confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":"","approvalStatus":"Draft"},
+    {"decisionId":"pilot_feedback_style","proposedValue":"","allowedValues":["explicit","recast"],"confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":"","approvalStatus":"Draft"},
+    {"decisionId":"voice_only_spatial_audio","proposedValue":"","allowedValues":["spatial_fixed_source","non_spatial_head_locked"],"confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":"","approvalStatus":"Draft"},
+    {"decisionId":"pilot_sequence_mapping","proposedValue":"","allowedValues":["one-to-one mapping: a/b/c to voice_only/floating_orb/humanoid_agent","format: a=voice_only,b=floating_orb,c=humanoid_agent"],"confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":"","approvalStatus":"Draft"},
+    {"decisionId":"formal_max_turns","proposedValue":"","allowedValues":["positive integer","unlimited"],"confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":"","approvalStatus":"Draft"},
+    {"decisionId":"formal_max_duration","proposedValue":"","allowedValues":["positive integer","unlimited"],"confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":"Specify approved unit in notes/evidence." ,"approvalStatus":"Draft"},
+    {"decisionId":"pilot_max_turns","proposedValue":"","allowedValues":["positive integer","unlimited"],"confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":"","approvalStatus":"Draft"},
+    {"decisionId":"pilot_max_duration","proposedValue":"","allowedValues":["positive integer","unlimited"],"confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":"Specify approved unit in notes/evidence.","approvalStatus":"Draft"},
+    {"decisionId":"questionnaire_scale_anchors","proposedValue":"","allowedValues":["full bilingual anchor text including '1 =' and '7 ='","example only: 1 = Strongly disagree / 非常不同意; 7 = Strongly agree / 非常同意"],"confirmedBy":"","confirmedAtUtc":"","evidenceReference":"","notes":"","approvalStatus":"Draft"}
+  ]
+}

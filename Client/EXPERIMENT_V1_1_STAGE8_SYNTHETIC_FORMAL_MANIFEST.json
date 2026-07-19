@@ -1,0 +1,52 @@
+﻿{
+    "bundleSchemaVersion": "1.0",
+    "dataOrigin": "synthetic_dry_run",
+    "collectionEligible": false,
+    "sessionMode": "formal",
+    "participantId": "synthetic-stage8",
+    "sessionId": "formal-complete",
+    "gitCommit": "230eb65a2d72106cac4b1cebd50a4517f8eda19a",
+    "protocolVersion": "synthetic-v1.1-stage8-test-only",
+    "taskCatalogVersion": "1.1.0-stage2",
+    "questionnaireCatalogVersion": "1.1-stage5.1",
+    "assignmentVersion": "synthetic-1.0",
+    "createdAtUtc": "2026-07-19T05:29:32.3984674Z",
+    "files": [
+        {
+            "relativePath": "assignment/assignment.json",
+            "sizeBytes": 2133,
+            "sha256": "389b4a225f178510ae10d571ba461b083c2b10f0eebec876ed90c059069dcfb5"
+        },
+        {
+            "relativePath": "integrity/integrity-report.json",
+            "sizeBytes": 797,
+            "sha256": "2a40d3fb4d85eca2c58901969f79f0651d3cf5a57c352d27fc55698713a1f910"
+        },
+        {
+            "relativePath": "interview/interview.jsonl",
+            "sizeBytes": 954,
+            "sha256": "7c8c56ff01b7ef108b568325bcd03e3cd5e3f0516eaca0931e61e65e40c62477"
+        },
+        {
+            "relativePath": "questionnaire/questionnaire.jsonl",
+            "sizeBytes": 11958,
+            "sha256": "e432745b0ac4c9ab21faf9a0b88b2664cf99995a5c4a231bc08a4f7edbec1450"
+        },
+        {
+            "relativePath": "ranking/ranking.jsonl",
+            "sizeBytes": 3863,
+            "sha256": "bfb43216c424f426c8da1a12443ed27490ef4f65c387b94503bf66a9ba7b3938"
+        },
+        {
+            "relativePath": "study/study.jsonl",
+            "sizeBytes": 42424,
+            "sha256": "969740cf01f05f69c3412ea5512082964dce09f47fbe85441903e250f8f30f51"
+        },
+        {
+            "relativePath": "timing/timing.jsonl",
+            "sizeBytes": 70756,
+            "sha256": "e38db8268aec0c7f9e2af0115796cc6b5ebe06143136046268f565b595a6b209"
+        }
+    ],
+    "integrityStatus": "PASS"
+}

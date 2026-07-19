@@ -101,6 +101,7 @@ namespace SceneTalkVR.Core
             if (value == null) { error = "assignment_missing"; return false; }
             if (conditionManager == null) { error = "condition_manager_missing"; return false; }
             if (conditionManager.IsFormalExperiment && value.developerTestAssignment) { error = "formal_mode_rejects_developer_assignment"; return false; }
+            if (conditionManager.IsFormalExperiment && !string.IsNullOrWhiteSpace(value.dataOrigin) && !value.collectionEligible) { error = "formal_mode_rejects_collection_ineligible_assignment"; return false; }
             if (conditionManager.IsFormalExperiment && !conditionManager.ValidateFormalProtocol(out error)) return false;
             if (!ExperimentAssignmentAllocator.IsCompatible(value,
                 conditionManager.ExperimentProtocol?.ProtocolVersion ?? string.Empty,
@@ -132,6 +133,8 @@ namespace SceneTalkVR.Core
             if (!allocator.TryCreateFormal(participantId, sessionId, conditionManager.ExperimentProtocol,
                 conditionManager.TaskCatalog, policy, out var created, out error)) return false;
             created.developerTestAssignment = false;
+            created.dataOrigin = "participant_collection";
+            created.collectionEligible = true;
             assignment = created;
             ExperimentAssignmentAllocator.Save(assignment, path);
             WriteEvent(StudyEventType.AssignmentCreated, actor: "system");

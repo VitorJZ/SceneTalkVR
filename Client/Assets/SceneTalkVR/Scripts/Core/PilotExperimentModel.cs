@@ -31,7 +31,7 @@ namespace SceneTalkVR.Core
     {
         public string pilotProtocolVersion; public string pilotAssignmentVersion; public string taskCatalogVersion;
         public string participantId; public string sessionId; public string sequenceId; public string assignmentSeed;
-        public string createdAtUtc; public bool developerTestAssignment; public PilotFeedbackStyleChoice feedbackStyle; public string feedbackStyleLabel;
+        public string createdAtUtc; public bool developerTestAssignment; public string dataOrigin; public bool collectionEligible; public PilotFeedbackStyleChoice feedbackStyle; public string feedbackStyleLabel;
         public PilotAudioSourcePolicy voiceOnlyAudioPolicy; public string voiceOnlyAudioPolicyLabel; public PilotConditionAssignment[] conditions = Array.Empty<PilotConditionAssignment>();
     }
     [Serializable] public struct PilotRunContext { public string participantId; public string sessionId; public string pilotRunId; public PilotEmbodimentCondition embodimentCondition; public string taskId; public PilotFeedbackStyleChoice feedbackStyle; }
@@ -73,7 +73,7 @@ namespace SceneTalkVR.Core
             if(sequences==null||sequences.Length!=3||sequences.Any(x=>x.conditions==null||x.conditions.Length!=3||x.conditions.Distinct().Count()!=3)){error="pilot_sequences_invalid";return false;}
             if(taskIds==null||taskIds.Length!=3||taskIds.Distinct().Count()!=3){error="pilot_tasks_invalid";return false;}
             var seed=Hash(participantId+"|"+protocolVersion+"|"+Version); var sequence=sequences[(int)(seed%3)]; var offset=(int)((seed/3)%3);
-            assignment=new PilotAssignment{pilotProtocolVersion=protocolVersion,pilotAssignmentVersion=Version,taskCatalogVersion=taskCatalogVersion,participantId=participantId,sessionId=sessionId,sequenceId=sequence.sequenceId,assignmentSeed=seed.ToString(CultureInfo.InvariantCulture),createdAtUtc=DateTime.UtcNow.ToString("o"),developerTestAssignment=developer,feedbackStyle=style,feedbackStyleLabel=PilotProtocolValues.Label(style),voiceOnlyAudioPolicy=audio,voiceOnlyAudioPolicyLabel=PilotProtocolValues.Label(audio),conditions=new PilotConditionAssignment[3]};
+            assignment=new PilotAssignment{pilotProtocolVersion=protocolVersion,pilotAssignmentVersion=Version,taskCatalogVersion=taskCatalogVersion,participantId=participantId,sessionId=sessionId,sequenceId=sequence.sequenceId,assignmentSeed=seed.ToString(CultureInfo.InvariantCulture),createdAtUtc=DateTime.UtcNow.ToString("o"),developerTestAssignment=developer,dataOrigin=developer?"synthetic_dry_run":"participant_collection",collectionEligible=!developer,feedbackStyle=style,feedbackStyleLabel=PilotProtocolValues.Label(style),voiceOnlyAudioPolicy=audio,voiceOnlyAudioPolicyLabel=PilotProtocolValues.Label(audio),conditions=new PilotConditionAssignment[3]};
             for(var i=0;i<3;i++) assignment.conditions[i]=new PilotConditionAssignment{conditionPosition=i,embodimentCondition=sequence.conditions[i],embodimentConditionLabel=PilotProtocolValues.Label(sequence.conditions[i]),task=new PilotTaskAssignment{taskId=taskIds[(i+offset)%3],taskAssignmentId=$"pta-{seed}-{i}"}};
             error="";return true;
         }

@@ -79,6 +79,7 @@ namespace SceneTalkVR.Core
                 {
                     conditionPosition = position,
                     formalConditionCode = sequence.conditions[position],
+                    formalConditionLabel = sequence.conditions[position].ToString(),
                     task = new TaskAssignment
                     {
                         taskId = taskIds[taskIndex],
@@ -100,6 +101,8 @@ namespace SceneTalkVR.Core
                 policy = policy,
                 status = AssignmentStatus.Created,
                 developerTestAssignment = true,
+                dataOrigin = "developer_test",
+                collectionEligible = false,
                 conditions = conditions
             };
             return true;

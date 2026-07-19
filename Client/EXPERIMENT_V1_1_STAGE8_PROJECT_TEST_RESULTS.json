@@ -1,0 +1,1024 @@
+﻿{
+    "schemaVersion": "1.1",
+    "gitCommit": "230eb65a2d72106cac4b1cebd50a4517f8eda19a",
+    "unityVersion": "6000.3.16f1",
+    "protocolVersion": "1.1.0-stage7",
+    "unitySkillsPackageTestsExcluded": true,
+    "testCount": 138,
+    "passed": 138,
+    "failed": 0,
+    "skipped": 0,
+    "durationSeconds": 6.667735799999999,
+    "runs": [
+        {
+            "schemaVersion": "1.0",
+            "runId": "658de759-2172-4ccd-8f5e-1ac665a91164",
+            "testMode": "EditMode",
+            "gitCommit": "230eb65a2d72106cac4b1cebd50a4517f8eda19a",
+            "unityVersion": "6000.3.16f1",
+            "protocolVersion": "1.1.0-stage7",
+            "startedAtUtc": "2026-07-19T05:29:25.8658917Z",
+            "completedAtUtc": "2026-07-19T05:29:31.0023363Z",
+            "testAssemblies": [
+                "Assembly-CSharp-Editor.dll"
+            ],
+            "testCount": 132,
+            "passed": 132,
+            "failed": 0,
+            "skipped": 0,
+            "inconclusive": 0,
+            "durationSeconds": 3.5762529999999996,
+            "unitySkillsPackageTestsExcluded": true,
+            "tests": [
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.AssignedTaskPayload_UsesCatalogDefinition(\"hotel_check_in\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0214578,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.AssignedTaskPayload_UsesCatalogDefinition(\"furniture_shopping\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0007906,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.AssignedTaskPayload_UsesCatalogDefinition(\"gym_membership\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0006267,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.AssignedTaskPayload_UsesCatalogDefinition(\"tourist_assistance\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0006138,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.AvatarResolver_UsesExactTaskKeyAndRejectsUnavailableExactKey",
+                    "status": "Passed",
+                    "durationSeconds": 0.0155616,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.Catalog_TaskIdsAreUnique",
+                    "status": "Passed",
+                    "durationSeconds": 0.0023321,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.DeveloperMode_FourAssignedTasksAreOfflineReady",
+                    "status": "Passed",
+                    "durationSeconds": 0.0815987,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.FormalCatalog_HasExactlyFourAndThreeRestaurantsArePilot",
+                    "status": "Passed",
+                    "durationSeconds": 0.0033824,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.FormalMode_RemotePanoramaAndHolodeckAreHardBlocked",
+                    "status": "Passed",
+                    "durationSeconds": 0.0240026,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.FormalPanoramas_AreLocalAndLoadable",
+                    "status": "Passed",
+                    "durationSeconds": 0.00188,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.FormalTasks_HaveFourGoals(\"hotel_check_in\",4)",
+                    "status": "Passed",
+                    "durationSeconds": 0.0019219,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.FormalTasks_HaveFourGoals(\"furniture_shopping\",4)",
+                    "status": "Passed",
+                    "durationSeconds": 0.0011109,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.FormalTasks_HaveFourGoals(\"gym_membership\",4)",
+                    "status": "Passed",
+                    "durationSeconds": 0.001011,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.FormalTasks_HaveFourGoals(\"tourist_assistance\",4)",
+                    "status": "Passed",
+                    "durationSeconds": 0.0004638,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.FormalTasks_UseFrozenGoals(\"hotel_check_in\",\"Provide the reservation name.|Ask whether breakfast is included.|Ask whether a high-floor room can be arranged.|Ask about the check-out time.\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0011943,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.FormalTasks_UseFrozenGoals(\"furniture_shopping\",\"Describe the desk size needed.|Ask about available materials.|State or ask about the maximum budget.|Ask whether home delivery is available.\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0007968,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.FormalTasks_UseFrozenGoals(\"gym_membership\",\"Explain a fitness goal.|Ask about the monthly membership price.|Ask about a suitable workout plan.|Ask whether a free trial is available.\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0009445,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.FormalTasks_UseFrozenGoals(\"tourist_assistance\",\"Ask how to reach the city museum.|Ask whether a ticket is required.|Ask whether indoor photography is allowed.|Ask for another nearby attraction recommendation.\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0006512,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.FormalTasks_UseFrozenInitialQuestion(\"hotel_check_in\",\"Good afternoon! Welcome to City Hotel. How can I help you today?\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0009036,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.FormalTasks_UseFrozenInitialQuestion(\"furniture_shopping\",\"Hello! Is there anything in particular you're looking for today?\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.000383,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.FormalTasks_UseFrozenInitialQuestion(\"gym_membership\",\"Hi! Welcome to Active Gym. How can I help you today?\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0002985,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.FormalTasks_UseFrozenInitialQuestion(\"tourist_assistance\",\"Hello! Welcome to the tourist information center. How can I help you today?\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0004047,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.FormalValidation_BlocksPendingAvatarPresetsWithoutReportingPanoramaMissing",
+                    "status": "Passed",
+                    "durationSeconds": 0.0026814,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.FormalValidation_FailsWhenLocalPanoramaIsMissing",
+                    "status": "Passed",
+                    "durationSeconds": 0.0020981,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.ExperimentTaskCatalogTests.TouristAssistance_IsCompleteExceptPendingAvatarPreset",
+                    "status": "Passed",
+                    "durationSeconds": 0.0025072,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FeedbackFirstTurnTests.AgentDialogueCorrectionLeakage_IsTechnicalInvalid",
+                    "status": "Passed",
+                    "durationSeconds": 0.0018544,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FeedbackFirstTurnTests.EventTimeline_IsStrictlyMonotonic",
+                    "status": "Passed",
+                    "durationSeconds": 0.0041914,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FeedbackFirstTurnTests.EveryFormalCondition_WithFeedback_IsFeedbackThenDialogue(NE)",
+                    "status": "Passed",
+                    "durationSeconds": 0.002263,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FeedbackFirstTurnTests.EveryFormalCondition_WithFeedback_IsFeedbackThenDialogue(NR)",
+                    "status": "Passed",
+                    "durationSeconds": 0.0003339,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FeedbackFirstTurnTests.EveryFormalCondition_WithFeedback_IsFeedbackThenDialogue(SE)",
+                    "status": "Passed",
+                    "durationSeconds": 0.0003721,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FeedbackFirstTurnTests.EveryFormalCondition_WithFeedback_IsFeedbackThenDialogue(SR)",
+                    "status": "Passed",
+                    "durationSeconds": 0.000306,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FeedbackFirstTurnTests.Failures_CloseGateAndPreserveRealReason(\"correction_planner_timeout\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0004071,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FeedbackFirstTurnTests.Failures_CloseGateAndPreserveRealReason(\"dialogue_timeout\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0001916,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FeedbackFirstTurnTests.Failures_CloseGateAndPreserveRealReason(\"correction_tts_failure\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0001619,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FeedbackFirstTurnTests.Failures_CloseGateAndPreserveRealReason(\"dialogue_tts_failure\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0000701,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FeedbackFirstTurnTests.FeedbackAndDialogue_CannotPlayTwice",
+                    "status": "Passed",
+                    "durationSeconds": 0.0010066,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FeedbackFirstTurnTests.FeedbackEnd_OpensGateExactlyOnce",
+                    "status": "Passed",
+                    "durationSeconds": 0.0003693,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FeedbackFirstTurnTests.NoFeedback_ImmediatelyOpensDialogueGate",
+                    "status": "Passed",
+                    "durationSeconds": 0.0004191,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FeedbackFirstTurnTests.PreparedDialogue_CannotPlayBeforePlanner",
+                    "status": "Passed",
+                    "durationSeconds": 0.000506,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FeedbackFirstTurnTests.ProviderDoesNotEnterFakePlannerInput",
+                    "status": "Passed",
+                    "durationSeconds": 0.0002773,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FeedbackFirstTurnTests.ProviderPair_UsesIdenticalFeedbackTextAndHash(NE,SE)",
+                    "status": "Passed",
+                    "durationSeconds": 0.0007178,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FeedbackFirstTurnTests.ProviderPair_UsesIdenticalFeedbackTextAndHash(NR,SR)",
+                    "status": "Passed",
+                    "durationSeconds": 0.0003397,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FeedbackFirstTurnTests.Reset_ClearsGateQueueAudioAndEvents",
+                    "status": "Passed",
+                    "durationSeconds": 0.0014117,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FeedbackFirstTurnTests.TurnSummary_IsExactlyRecomputableFromRawEvents",
+                    "status": "Passed",
+                    "durationSeconds": 0.0013197,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FormalConditionResolverTests.FormalCode_AlwaysResolvesToOneProviderAndStyle(NE,DialogueAvatar,Explicit)",
+                    "status": "Passed",
+                    "durationSeconds": 0.001243,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FormalConditionResolverTests.FormalCode_AlwaysResolvesToOneProviderAndStyle(NR,DialogueAvatar,Recast)",
+                    "status": "Passed",
+                    "durationSeconds": 0.0003995,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FormalConditionResolverTests.FormalCode_AlwaysResolvesToOneProviderAndStyle(SE,AssistantAgent,Explicit)",
+                    "status": "Passed",
+                    "durationSeconds": 0.0003849,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.FormalConditionResolverTests.FormalCode_AlwaysResolvesToOneProviderAndStyle(SR,AssistantAgent,Recast)",
+                    "status": "Passed",
+                    "durationSeconds": 0.000247,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.Assignment_SaveAndRestore",
+                    "status": "Passed",
+                    "durationSeconds": 0.0248721,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.Candidate_IsNotConfirmed_AndNeedsExperimenter",
+                    "status": "Passed",
+                    "durationSeconds": 0.005059,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.ChangedProtocolOrCatalog_RejectsStoredAssignment",
+                    "status": "Passed",
+                    "durationSeconds": 0.0009752,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.CompletedCondition_CannotRunTwice",
+                    "status": "Passed",
+                    "durationSeconds": 0.0994776,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.CompletionRate_UsesConfirmedOnly",
+                    "status": "Passed",
+                    "durationSeconds": 0.0015987,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.ConditionTaskPairs_AreApproximatelyBalanced",
+                    "status": "Passed",
+                    "durationSeconds": 0.0750054,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.DifferentParticipants_DistributeAcrossSequences",
+                    "status": "Passed",
+                    "durationSeconds": 0.0030435,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.ExperimenterConfirmAndReject_AreAuditableTransitions",
+                    "status": "Passed",
+                    "durationSeconds": 0.0008969,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.FormalAllocator_BlocksUnconfirmedMappingAndTaskDecision",
+                    "status": "Passed",
+                    "durationSeconds": 0.0029846,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.FormalMode_RejectsDeveloperTestAssignment",
+                    "status": "Passed",
+                    "durationSeconds": 0.0010049,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.GoalConfirmAndReject_WriteIndependentStudyEvents",
+                    "status": "Passed",
+                    "durationSeconds": 0.0806554,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.Lifecycle_CreatesFreshGoalsAndAwaitingQuestionnaireBoundary",
+                    "status": "Passed",
+                    "durationSeconds": 0.0694211,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.Lifecycle_LoadsAssignedTask_AndResetRunsBeforeCondition",
+                    "status": "Passed",
+                    "durationSeconds": 0.0413868,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.MaximumDuration_CanEndWithoutAllGoals",
+                    "status": "Passed",
+                    "durationSeconds": 0.0333882,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.MaximumTurns_CanEndWithoutAllGoals",
+                    "status": "Passed",
+                    "durationSeconds": 0.0337023,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.ResetGoals_ClearsPreviousTaskState",
+                    "status": "Passed",
+                    "durationSeconds": 0.0006934,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.SameParticipant_GeneratesStableAssignment",
+                    "status": "Passed",
+                    "durationSeconds": 0.0009577,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.StrictWithoutReplacement_HasEveryTaskOnce",
+                    "status": "Passed",
+                    "durationSeconds": 0.0004939,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.TechnicalInvalidRetry_GetsNewRunIdAndRequiresExplicitFlag",
+                    "status": "Passed",
+                    "durationSeconds": 0.0834299,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.TestProtocol_HasEveryConditionOnce",
+                    "status": "Passed",
+                    "durationSeconds": 0.0018211,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.TwoConditions_RunSequentially_WithFreshRunTaskAndGoals",
+                    "status": "Passed",
+                    "durationSeconds": 0.0999323,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage4AssignmentGoalTests.UndefinedTaskPolicy_IsRejected",
+                    "status": "Passed",
+                    "durationSeconds": 0.0003134,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage5QuestionnaireTests.CatalogContainsFormalPilotFinalAndInterviewDefinitions",
+                    "status": "Passed",
+                    "durationSeconds": 0.0041897,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage5QuestionnaireTests.ConfirmedSocialComfort_TestProtocolEnablesItems",
+                    "status": "Passed",
+                    "durationSeconds": 0.0049477,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage5QuestionnaireTests.FormalQuestionnaire_HasExpectedSectionsAndCounts",
+                    "status": "Passed",
+                    "durationSeconds": 0.0010373,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage5QuestionnaireTests.FormalRanking_RejectsDuplicateRanks_AndKeepsStringLabels",
+                    "status": "Passed",
+                    "durationSeconds": 0.0028382,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage5QuestionnaireTests.InterruptedQuestionnaire_RestoresAnswers",
+                    "status": "Passed",
+                    "durationSeconds": 0.0315558,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage5QuestionnaireTests.ItemIds_AreUniqueAndPromptsAreBilingual",
+                    "status": "Passed",
+                    "durationSeconds": 0.00119,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage5QuestionnaireTests.JsonlAndCsv_ContainHumanReadableCondition",
+                    "status": "Passed",
+                    "durationSeconds": 0.2591307,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage5QuestionnaireTests.Lifecycle_AwaitingToInProgressToCompleted_UsesLinkage",
+                    "status": "Passed",
+                    "durationSeconds": 0.2874648,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage5QuestionnaireTests.Lifecycle_WrongRunOrLinkageCannotComplete",
+                    "status": "Passed",
+                    "durationSeconds": 0.0824121,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage5QuestionnaireTests.LinkageMismatch_RejectsRestore",
+                    "status": "Passed",
+                    "durationSeconds": 0.0279598,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage5QuestionnaireTests.MissingLikertRange_FailsFormalValidation",
+                    "status": "Passed",
+                    "durationSeconds": 0.0031231,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage5QuestionnaireTests.PilotRanking_RejectsDuplicateEmbodiments",
+                    "status": "Passed",
+                    "durationSeconds": 0.000593,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage5QuestionnaireTests.QuestionnaireStudyEvents_AreAppendedWithoutTimingSchemaChanges",
+                    "status": "Passed",
+                    "durationSeconds": 0.4025784,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage5QuestionnaireTests.RequiredItems_BlockSubmission",
+                    "status": "Passed",
+                    "durationSeconds": 0.00168,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage5QuestionnaireTests.ReverseScore_UsesScaleBounds_AndPreservesRaw",
+                    "status": "Passed",
+                    "durationSeconds": 0.0166311,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage5QuestionnaireTests.SubmitCannotRepeat_AndReopenCreatesRevision",
+                    "status": "Passed",
+                    "durationSeconds": 0.2934236,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage5QuestionnaireTests.TechnicalInvalidCondition_CannotStartQuestionnaire",
+                    "status": "Passed",
+                    "durationSeconds": 0.052043,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage5QuestionnaireTests.UnconfirmedSocialComfort_IsExcluded",
+                    "status": "Passed",
+                    "durationSeconds": 0.0007198,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage5QuestionnaireTests.UnsubmittedCondition_RemainsInQuestionnaireState",
+                    "status": "Passed",
+                    "durationSeconds": 0.0728038,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage6PilotEmbodimentTests.Assignment_SaveRestoreAndVersionValidation",
+                    "status": "Passed",
+                    "durationSeconds": 0.0209437,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage6PilotEmbodimentTests.EmbodimentIds_AreUniqueStringLabels",
+                    "status": "Passed",
+                    "durationSeconds": 0.001636,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage6PilotEmbodimentTests.FloatingOrb_CreatesShowsAndHides",
+                    "status": "Passed",
+                    "durationSeconds": 0.018173,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage6PilotEmbodimentTests.Humanoid_UsesSpecifiedPrefab_AndLockedRejectsMissing",
+                    "status": "Passed",
+                    "durationSeconds": 0.0024179,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage6PilotEmbodimentTests.OfficialLockedPilot_RemainsBlockedByUnconfirmedDecisionsAndHumanoid",
+                    "status": "Passed",
+                    "durationSeconds": 0.0052158,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage6PilotEmbodimentTests.PilotQuestionnaireDefinitionsAndRankingLabels_AreStage5CatalogData",
+                    "status": "Passed",
+                    "durationSeconds": 0.0008111,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage6PilotEmbodimentTests.PilotTasks_AreThreeUniqueCompleteRestaurantTasks",
+                    "status": "Passed",
+                    "durationSeconds": 0.0006268,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage6PilotEmbodimentTests.PlannerContext_ContainsStyleButNeverEmbodiment",
+                    "status": "Passed",
+                    "durationSeconds": 0.0003951,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage6PilotEmbodimentTests.PresentationProfiles_ShareVoiceAndControlledParameters",
+                    "status": "Passed",
+                    "durationSeconds": 0.0026098,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage6PilotEmbodimentTests.QuestionnaireSubmission_HasUnambiguousSubmittedAndCompletedSemantics",
+                    "status": "Passed",
+                    "durationSeconds": 0.0426998,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage6PilotEmbodimentTests.SameInput_ProducesSameFeedbackHashAcrossEmbodiments",
+                    "status": "Passed",
+                    "durationSeconds": 0.0007894,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage6PilotEmbodimentTests.TestAllocator_AssignsEachEmbodimentAndTaskOnce_AndIsStable",
+                    "status": "Passed",
+                    "durationSeconds": 0.0023455,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage6PilotEmbodimentTests.TestAllocator_IsApproximatelyBalancedAcrossParticipants",
+                    "status": "Passed",
+                    "durationSeconds": 0.0029734,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage6PilotEmbodimentTests.VoiceOnly_IsExplicitNoVisual_AndAudioPolicySwitches(SpatialFixedSource,1.0f)",
+                    "status": "Passed",
+                    "durationSeconds": 0.0015651,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage6PilotEmbodimentTests.VoiceOnly_IsExplicitNoVisual_AndAudioPolicySwitches(NonSpatialHeadLocked,0.0f)",
+                    "status": "Passed",
+                    "durationSeconds": 0.0004804,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage7ReleaseReadinessTests.ConfirmedDecision_WithoutEvidence_FailsFormalValidation",
+                    "status": "Passed",
+                    "durationSeconds": 0.0013246,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage7ReleaseReadinessTests.DeploymentProfiles_HaveNoSecretFieldsOrQuerySecrets",
+                    "status": "Passed",
+                    "durationSeconds": 0.0008537,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage7ReleaseReadinessTests.FormalAvatar_RequiresExactSemanticApprovedPreset",
+                    "status": "Passed",
+                    "durationSeconds": 0.0006431,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage7ReleaseReadinessTests.FormalMapping_DerivesOnlyTheFourApprovedCyclicSequences",
+                    "status": "Passed",
+                    "durationSeconds": 0.0020889,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage7ReleaseReadinessTests.FormalMapping_RejectsIllegalOrIncompleteValues(\"a=NE,b=NR,c=SE,d=SE\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0005891,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage7ReleaseReadinessTests.FormalMapping_RejectsIllegalOrIncompleteValues(\"a=NE,b=NR,c=SE\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0001046,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage7ReleaseReadinessTests.FormalMapping_RejectsIllegalOrIncompleteValues(\"a=NE,b=NR,c=SE,x=SR\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0000935,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage7ReleaseReadinessTests.IntegrityAuditor_DetectsDialogueBeforeFeedback_AndDoesNotModifyInput",
+                    "status": "Passed",
+                    "durationSeconds": 0.0328288,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage7ReleaseReadinessTests.PicoDeployment_RejectsLoopbackAndMockProviders",
+                    "status": "Passed",
+                    "durationSeconds": 0.0025433,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage7ReleaseReadinessTests.ProtocolVersionChange_InvalidatesExistingAssignment",
+                    "status": "Passed",
+                    "durationSeconds": 0.0003714,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage7ReleaseReadinessTests.VoiceCatalog_RejectsUnconfirmedCentralKeys",
+                    "status": "Passed",
+                    "durationSeconds": 0.0028262,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage8DesktopDryRunTests.Auditor_FailsDialogueBeforeFeedback_AndDoesNotModifyInputs",
+                    "status": "Passed",
+                    "durationSeconds": 0.2183973,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage8DesktopDryRunTests.Auditor_FailsWhenQuestionnaireMissing",
+                    "status": "Passed",
+                    "durationSeconds": 0.2033353,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage8DesktopDryRunTests.BundleChecksums_AreCorrect",
+                    "status": "Passed",
+                    "durationSeconds": 0.2150952,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage8DesktopDryRunTests.CompleteSyntheticFormalBundle_AuditsPass",
+                    "status": "Passed",
+                    "durationSeconds": 0.1792962,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage8DesktopDryRunTests.CompleteSyntheticPilotBundle_AuditsPassAndRetainsRetry",
+                    "status": "Passed",
+                    "durationSeconds": 0.1800559,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage8DesktopDryRunTests.DecisionPreview_DoesNotModifyProtocol",
+                    "status": "Passed",
+                    "durationSeconds": 0.0184264,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage8DesktopDryRunTests.DecisionTemplateSchema_IsCompleteAndValidDraft",
+                    "status": "Passed",
+                    "durationSeconds": 0.000619,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage8DesktopDryRunTests.DecisionTransactionFailure_RestoresWholeProtocol",
+                    "status": "Passed",
+                    "durationSeconds": 0.0106488,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage8DesktopDryRunTests.DecisionWithoutEvidence_IsRejected",
+                    "status": "Passed",
+                    "durationSeconds": 0.0006012,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage8DesktopDryRunTests.IllegalDecisionValue_IsRejected(\"a=NE,b=NR,c=SE,d=SE\",\"condition_letter_mapping\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0003074,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage8DesktopDryRunTests.IllegalDecisionValue_IsRejected(\"a=voice_only,b=floating_orb,c=floating_orb\",\"pilot_sequence_mapping\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.000076,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage8DesktopDryRunTests.IllegalDecisionValue_IsRejected(\"random\",\"formal_task_no_replacement\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0000363,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage8DesktopDryRunTests.IllegalDecisionValue_IsRejected(\"0\",\"formal_max_turns\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0000287,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage8DesktopDryRunTests.IllegalDecisionValue_IsRejected(\"1-7\",\"questionnaire_scale_anchors\")",
+                    "status": "Passed",
+                    "durationSeconds": 0.0000443,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage8DesktopDryRunTests.ProjectRunner_ProducesJsonAndAggregateXmlSchema",
+                    "status": "Passed",
+                    "durationSeconds": 0.0037537,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage8DesktopDryRunTests.ProtocolVersionChange_StillInvalidatesOldAssignment",
+                    "status": "Passed",
+                    "durationSeconds": 0.0008727,
+                    "message": ""
+                },
+                {
+                    "assembly": "Assembly-CSharp-Editor.dll",
+                    "fullName": "SceneTalkVR.Tests.Editor.Stage8DesktopDryRunTests.SyntheticAssignment_CannotEnterFormalCollection",
+                    "status": "Passed",
+                    "durationSeconds": 0.000863,
+                    "message": ""
+                }
+            ]
+        },
+        {
+            "schemaVersion": "1.0",
+            "runId": "55c10379-bcfc-414d-a211-bdd799f3589f",
+            "testMode": "PlayMode",
+            "gitCommit": "230eb65a2d72106cac4b1cebd50a4517f8eda19a",
+            "unityVersion": "6000.3.16f1",
+            "protocolVersion": "1.1.0-stage7",
+            "startedAtUtc": "2026-07-19T08:10:41.3605026Z",
+            "completedAtUtc": "2026-07-19T08:11:04.9409347Z",
+            "testAssemblies": [
+                "SceneTalkVR.Stage2.PlayModeTests.dll"
+            ],
+            "testCount": 6,
+            "passed": 6,
+            "failed": 0,
+            "skipped": 0,
+            "inconclusive": 0,
+            "durationSeconds": 3.0914828,
+            "unitySkillsPackageTestsExcluded": true,
+            "tests": [
+                {
+                    "assembly": "SceneTalkVR.Stage2.PlayModeTests.dll",
+                    "fullName": "SceneTalkVR.Tests.PlayMode.Stage2TaskCatalogPlayModeTests.DeveloperMode_MainMenuAndFourCatalogTasksStartOffline",
+                    "status": "Passed",
+                    "durationSeconds": 2.7572574,
+                    "message": ""
+                },
+                {
+                    "assembly": "SceneTalkVR.Stage2.PlayModeTests.dll",
+                    "fullName": "SceneTalkVR.Tests.PlayMode.Stage3FeedbackFirstPlayModeTests.PreparedDialogue_RemainsBlockedUntilFeedbackCompletes_AndResetClearsGate",
+                    "status": "Passed",
+                    "durationSeconds": 0.0733611,
+                    "message": ""
+                },
+                {
+                    "assembly": "SceneTalkVR.Stage2.PlayModeTests.dll",
+                    "fullName": "SceneTalkVR.Tests.PlayMode.Stage4LifecyclePlayModeTests.SampleScene_HasLifecycleAndReadOnlyGoalPanel",
+                    "status": "Passed",
+                    "durationSeconds": 0.0962076,
+                    "message": ""
+                },
+                {
+                    "assembly": "SceneTalkVR.Stage2.PlayModeTests.dll",
+                    "fullName": "SceneTalkVR.Tests.PlayMode.Stage5QuestionnairePlayModeTests.SampleScene_HasBoundQuestionnaireRuntimeAndCatalog",
+                    "status": "Passed",
+                    "durationSeconds": 0.0391358,
+                    "message": ""
+                },
+                {
+                    "assembly": "SceneTalkVR.Stage2.PlayModeTests.dll",
+                    "fullName": "SceneTalkVR.Tests.PlayMode.Stage6PilotEmbodimentPlayModeTests.SampleScene_HasBoundPilotCatalogAndWorkflow",
+                    "status": "Passed",
+                    "durationSeconds": 0.0753546,
+                    "message": ""
+                },
+                {
+                    "assembly": "SceneTalkVR.Stage2.PlayModeTests.dll",
+                    "fullName": "SceneTalkVR.Tests.PlayMode.Stage6PilotEmbodimentPlayModeTests.VoiceOnly_DoesNotCreateVisibleAgent",
+                    "status": "Passed",
+                    "durationSeconds": 0.0501663,
+                    "message": ""
+                }
+            ]
+        }
+    ]
+}
