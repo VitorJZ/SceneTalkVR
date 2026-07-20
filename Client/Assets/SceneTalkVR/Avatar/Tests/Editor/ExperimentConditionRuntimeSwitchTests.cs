@@ -1,3 +1,4 @@
+using System.Reflection;
 using NUnit.Framework;
 using SceneTalkVR.Core;
 using SceneTalkVR.Demo;
@@ -59,6 +60,11 @@ namespace SceneTalkVR.AvatarSystem.Tests
             Assert.That(manager.CurrentConditionId, Is.EqualTo(expectedConditionId));
             Assert.That(manager.CurrentFeedbackProvider, Is.EqualTo(provider));
             Assert.That(manager.CurrentFeedbackStyle, Is.EqualTo(style));
+            Assert.That(
+                manager.CurrentAssistantEmbodiment,
+                Is.EqualTo(provider == ExperimentConditionManager.AssistantAgentProvider
+                    ? ExperimentConditionManager.OrbAssistantEmbodiment
+                    : ExperimentConditionManager.NoAssistantEmbodiment));
         }
 
         [Test]
@@ -84,6 +90,42 @@ namespace SceneTalkVR.AvatarSystem.Tests
                 manager.CurrentFeedbackProvider,
                 Is.EqualTo(ExperimentConditionManager.AssistantAgentProvider));
             Assert.That(manager.CurrentConditionId, Is.EqualTo("assistant_agent_explicit"));
+        }
+
+        [Test]
+        public void AssistantEmbodimentIsUnavailableForDialogueAndRestoredForAssistant()
+        {
+            Assert.That(
+                manager.TrySetManualFeedbackProvider(ExperimentConditionManager.AssistantAgentProvider),
+                Is.True);
+            Assert.That(
+                manager.TrySetManualAssistantEmbodiment(
+                    ExperimentConditionManager.AudioOnlyAssistantEmbodiment),
+                Is.True);
+            Assert.That(
+                manager.CurrentAssistantEmbodiment,
+                Is.EqualTo(ExperimentConditionManager.AudioOnlyAssistantEmbodiment));
+
+            Assert.That(
+                manager.TrySetManualFeedbackProvider(ExperimentConditionManager.DialogueAvatarProvider),
+                Is.True);
+            Assert.That(
+                manager.CurrentAssistantEmbodiment,
+                Is.EqualTo(ExperimentConditionManager.NoAssistantEmbodiment));
+            Assert.That(
+                manager.ConfiguredAssistantEmbodiment,
+                Is.EqualTo(ExperimentConditionManager.AudioOnlyAssistantEmbodiment));
+            Assert.That(
+                manager.TrySetManualAssistantEmbodiment(
+                    ExperimentConditionManager.HumanoidAssistantEmbodiment),
+                Is.False);
+
+            Assert.That(
+                manager.TrySetManualFeedbackProvider(ExperimentConditionManager.AssistantAgentProvider),
+                Is.True);
+            Assert.That(
+                manager.CurrentAssistantEmbodiment,
+                Is.EqualTo(ExperimentConditionManager.AudioOnlyAssistantEmbodiment));
         }
 
         [TestCase(
@@ -213,6 +255,9 @@ namespace SceneTalkVR.AvatarSystem.Tests
             Assert.That(llm.CurrentCondition.style, Is.EqualTo(expectedStyle));
             Assert.That(correctionPresenter, Is.Not.Null);
             Assert.That(correctionPresenter.CurrentFeedbackProvider, Is.EqualTo(expectedProvider));
+            Assert.That(
+                correctionPresenter.CurrentAssistantEmbodiment,
+                Is.EqualTo(ExperimentConditionManager.OrbAssistantEmbodiment));
 
             var nextTurn = manager.BeginTurn();
             Assert.That(nextTurn.provider, Is.EqualTo(expectedProvider));
@@ -220,7 +265,7 @@ namespace SceneTalkVR.AvatarSystem.Tests
         }
 
         [Test]
-        public void SettingsUiBuildsIndependentSourceAndStyleButtons()
+        public void SettingsUiBuildsIndependentSourceStyleAndAppearanceButtons()
         {
             var canvasObject = new GameObject("Settings Test Canvas", typeof(RectTransform), typeof(Canvas));
             try
@@ -236,17 +281,39 @@ namespace SceneTalkVR.AvatarSystem.Tests
                 var styleButton = canvasObject.transform.Find(
                     "SceneTalkVR Flow UI/SettingsPanel/GeneralSettings/CorrectionStyleChangeButton")
                     ?.GetComponent<Button>();
+                var appearanceButton = canvasObject.transform.Find(
+                    "SceneTalkVR Flow UI/SettingsPanel/GeneralSettings/CorrectionAppearanceChangeButton")
+                    ?.GetComponent<Button>();
+                var appearanceValue = canvasObject.transform.Find(
+                    "SceneTalkVR Flow UI/SettingsPanel/GeneralSettings/CorrectionAppearanceValue")
+                    ?.GetComponent<Text>();
 
                 Assert.That(sourceButton, Is.Not.Null);
                 Assert.That(styleButton, Is.Not.Null);
+                Assert.That(appearanceButton, Is.Not.Null);
+                Assert.That(appearanceValue, Is.Not.Null);
                 Assert.That(sourceButton.interactable, Is.True);
                 Assert.That(styleButton.interactable, Is.True);
+                Assert.That(appearanceButton.interactable, Is.True);
+                Assert.That(appearanceValue.text, Is.EqualTo("Little Orb"));
 
                 var initialProvider = manager.CurrentFeedbackProvider;
                 var initialStyle = manager.CurrentFeedbackStyle;
+                appearanceButton.onClick.Invoke();
+                Assert.That(
+                    manager.CurrentAssistantEmbodiment,
+                    Is.EqualTo(ExperimentConditionManager.HumanoidAssistantEmbodiment));
+
                 sourceButton.onClick.Invoke();
                 Assert.That(manager.CurrentFeedbackProvider, Is.Not.EqualTo(initialProvider));
                 Assert.That(manager.CurrentFeedbackStyle, Is.EqualTo(initialStyle));
+
+                typeof(SceneTalkFlowUiController)
+                    .GetMethod("Refresh", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .Invoke(flowUi, null);
+                Assert.That(appearanceButton.interactable, Is.False);
+                Assert.That(appearanceButton.GetComponentInChildren<Text>().text, Is.EqualTo("N/A"));
+                Assert.That(appearanceValue.text, Is.EqualTo("N/A"));
 
                 styleButton.onClick.Invoke();
                 Assert.That(manager.CurrentFeedbackStyle, Is.Not.EqualTo(initialStyle));
@@ -275,16 +342,22 @@ namespace SceneTalkVR.AvatarSystem.Tests
                 var styleButton = canvasObject.transform.Find(
                     "SceneTalkVR Flow UI/SettingsPanel/GeneralSettings/CorrectionStyleChangeButton")
                     ?.GetComponent<Button>();
+                var appearanceButton = canvasObject.transform.Find(
+                    "SceneTalkVR Flow UI/SettingsPanel/GeneralSettings/CorrectionAppearanceChangeButton")
+                    ?.GetComponent<Button>();
                 var statusText = canvasObject.transform.Find(
                     "SceneTalkVR Flow UI/SettingsPanel/GeneralSettings/CorrectionSettingsStatus")
                     ?.GetComponent<Text>();
 
                 Assert.That(sourceButton, Is.Not.Null);
                 Assert.That(styleButton, Is.Not.Null);
+                Assert.That(appearanceButton, Is.Not.Null);
                 Assert.That(sourceButton.interactable, Is.False);
                 Assert.That(styleButton.interactable, Is.False);
+                Assert.That(appearanceButton.interactable, Is.False);
                 Assert.That(sourceButton.GetComponentInChildren<Text>().text, Is.EqualTo("Locked"));
                 Assert.That(styleButton.GetComponentInChildren<Text>().text, Is.EqualTo("Locked"));
+                Assert.That(appearanceButton.GetComponentInChildren<Text>().text, Is.EqualTo("Locked"));
                 Assert.That(statusText, Is.Not.Null);
                 Assert.That(statusText.text, Is.EqualTo("Locked by condition order."));
             }

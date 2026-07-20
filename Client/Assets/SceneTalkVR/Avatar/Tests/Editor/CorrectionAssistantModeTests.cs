@@ -1,5 +1,6 @@
 using System.Reflection;
 using NUnit.Framework;
+using SceneTalkVR.Core;
 using UnityEditor;
 using UnityEngine;
 
@@ -17,6 +18,100 @@ namespace SceneTalkVR.AvatarSystem.Tests
             Assert.That((int)CorrectionAgentPresenter.VisualMode.PrefabAvatar, Is.EqualTo(1));
             Assert.That((int)CorrectionAgentPresenter.VisualMode.AudioOnly, Is.EqualTo(2));
             Assert.That((int)CorrectionAgentPresenter.VisualMode.HumanoidAvatar, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void RuntimeAppearanceIdsExposeOnlyOfficialExperimentModes()
+        {
+            var host = new GameObject("Assistant Appearance Mapping Test");
+            try
+            {
+                var presenter = host.AddComponent<CorrectionAgentPresenter>();
+
+                Assert.That(
+                    presenter.SetAppearanceId(ExperimentConditionManager.AudioOnlyAssistantEmbodiment),
+                    Is.True);
+                Assert.That(
+                    presenter.CurrentVisualMode,
+                    Is.EqualTo(CorrectionAgentPresenter.VisualMode.AudioOnly));
+
+                Assert.That(
+                    presenter.SetAppearanceId(ExperimentConditionManager.OrbAssistantEmbodiment),
+                    Is.True);
+                Assert.That(
+                    presenter.CurrentVisualMode,
+                    Is.EqualTo(CorrectionAgentPresenter.VisualMode.GeneratedAgent));
+
+                Assert.That(
+                    presenter.SetAppearanceId(ExperimentConditionManager.HumanoidAssistantEmbodiment),
+                    Is.True);
+                Assert.That(
+                    presenter.CurrentVisualMode,
+                    Is.EqualTo(CorrectionAgentPresenter.VisualMode.HumanoidAvatar));
+
+                Assert.That(presenter.SetAppearanceId("bird"), Is.False);
+                Assert.That(
+                    presenter.CurrentVisualMode,
+                    Is.EqualTo(CorrectionAgentPresenter.VisualMode.HumanoidAvatar));
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
+        }
+
+        [Test]
+        public void LittleOrb_RepairsMissingRuntimeMaterialsWhenBindingSavedHierarchy()
+        {
+            var host = new GameObject("Little Orb Material Repair Test");
+            try
+            {
+                var presenter = host.AddComponent<CorrectionAgentPresenter>();
+                Assert.That(
+                    presenter.SetAppearanceId(ExperimentConditionManager.OrbAssistantEmbodiment),
+                    Is.True);
+                presenter.ShowImmediate();
+
+                var visualRoot = host.transform.Find(
+                    "Correction Assistant Agent/Assistant Visuals");
+                Assert.That(visualRoot, Is.Not.Null);
+                var renderers = visualRoot.GetComponentsInChildren<Renderer>(true);
+                Assert.That(renderers, Is.Not.Empty);
+
+                var oldMaterials = new Material[renderers.Length];
+                for (var index = 0; index < renderers.Length; index++)
+                {
+                    oldMaterials[index] = renderers[index].sharedMaterial;
+                    renderers[index].sharedMaterial = null;
+                }
+
+                for (var index = 0; index < oldMaterials.Length; index++)
+                {
+                    if (oldMaterials[index] != null)
+                    {
+                        Object.DestroyImmediate(oldMaterials[index]);
+                    }
+                }
+
+                typeof(CorrectionAgentPresenter)
+                    .GetMethod("BindVisualHierarchy", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .Invoke(presenter, null);
+
+                foreach (var renderer in renderers)
+                {
+                    Assert.That(renderer.sharedMaterial, Is.Not.Null, renderer.gameObject.name);
+                    Assert.That(renderer.sharedMaterial.shader, Is.Not.Null, renderer.gameObject.name);
+                    Assert.That(renderer.sharedMaterial.shader.isSupported, Is.True, renderer.gameObject.name);
+                    Assert.That(
+                        renderer.sharedMaterial.shader.name,
+                        Is.Not.EqualTo("Hidden/InternalErrorShader"),
+                        renderer.gameObject.name);
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
         }
 
         [Test]

@@ -92,6 +92,11 @@ namespace SceneTalkVR.Core
         void SetCorrectionFeedbackProvider(string provider);
     }
 
+    public interface ISceneTalkCorrectionAssistantEmbodimentReceiver
+    {
+        void SetCorrectionAssistantEmbodiment(string embodiment);
+    }
+
     [Serializable]
     public sealed class SpringScenePayload
     {
@@ -130,6 +135,7 @@ namespace SceneTalkVR.Core
         public string scenarioId;
         public string provider;
         public string style;
+        public string assistantEmbodiment;
         public int turnIndex;
         public string[] conditionOrder = Array.Empty<string>();
         public SceneTalkExperimentTask task = new SceneTalkExperimentTask();

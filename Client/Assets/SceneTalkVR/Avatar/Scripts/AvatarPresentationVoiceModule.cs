@@ -8,7 +8,7 @@ using UnityEngine.Serialization;
 
 namespace SceneTalkVR.AvatarSystem
 {
-    public sealed class AvatarPresentationVoiceModule : MonoBehaviour, ISceneTalkStreamingAvatarVoice, ISceneTalkAvatarReplyContext, ISceneTalkAvatarThinkingState, ISceneTalkAvatarSessionReset, ISceneTalkAvatarSessionPrepare, ISceneTalkCorrectionFeedbackProviderReceiver
+    public sealed class AvatarPresentationVoiceModule : MonoBehaviour, ISceneTalkStreamingAvatarVoice, ISceneTalkAvatarReplyContext, ISceneTalkAvatarThinkingState, ISceneTalkAvatarSessionReset, ISceneTalkAvatarSessionPrepare, ISceneTalkCorrectionFeedbackProviderReceiver, ISceneTalkCorrectionAssistantEmbodimentReceiver
     {
         [Header("Avatar Resolution")]
         [SerializeField] private AvatarPresetResolver resolver;
@@ -90,6 +90,12 @@ namespace SceneTalkVR.AvatarSystem
         {
             ResolveCorrectionFeedbackPresenter(createCorrectionFeedbackPresenterIfMissing)
                 ?.SetFeedbackProvider(provider);
+        }
+
+        public void SetCorrectionAssistantEmbodiment(string embodiment)
+        {
+            ResolveCorrectionFeedbackPresenter(createCorrectionFeedbackPresenterIfMissing)
+                ?.SetAssistantEmbodiment(embodiment);
         }
 
         public void SetReplyContext(bool isOpeningReply)

@@ -84,6 +84,8 @@ namespace SceneTalkVR.AvatarSystem
         private AvatarSpeechPlayer SpeechPlayer => speechPlayer ??= new AvatarSpeechPlayer();
 
         public string CurrentFeedbackProvider => NormalizeProvider(currentFeedbackProvider);
+        public string CurrentAssistantEmbodiment => ResolveCorrectionAgentPresenter(false)?.AppearanceId
+            ?? string.Empty;
 
         public void SetExperimentLocked(bool locked)
         {
@@ -115,6 +117,19 @@ namespace SceneTalkVR.AvatarSystem
         {
             currentFeedbackProvider = NormalizeProvider(provider);
             ApplyAssistantVisibility();
+        }
+
+        public void SetAssistantEmbodiment(string embodiment)
+        {
+            var correctionAgent = ResolveCorrectionAgentPresenter(createCorrectionAgentIfMissing);
+            if (correctionAgent == null || correctionAgent.SetAppearanceId(embodiment))
+            {
+                return;
+            }
+
+            Debug.LogWarning(
+                $"[CorrectionFeedbackPresenter] Unsupported correction assistant appearance '{embodiment}'.",
+                this);
         }
 
         public void SetPresentationActive(bool active)

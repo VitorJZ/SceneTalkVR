@@ -21,11 +21,11 @@ MonoBehaviour:
   useHolodeckBackend: 0
   holodeckBackendUrl: 
   holodeckTimeoutSeconds: 300
-  onlyUsePanorama: 1
-  forceFallbackPanorama: 1
+  onlyUsePanorama: 0
+  forceFallbackPanorama: 0
   enableSpatialClipping: 1
   maxSpawnCount: 2
-  directLlmApiUrl: http://192.168.137.1:8788/api/llm/chat/completions
-  directLlmModelName: deepseek-chat
+  directLlmApiUrl: http://127.0.0.1:8788/api/llm/chat/completions
+  directLlmModelName: minimax-m2.7
   panoramaModelName: Tongyi-MAI/Z-Image
   panoramaImageSize: 1024x1024

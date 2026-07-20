@@ -130,6 +130,17 @@ namespace SceneTalkVR.Runtime
             }
         }
 
+        public string CorrectionAssistantEmbodimentSetting
+        {
+            get
+            {
+                var manager = ResolveExperimentConditionManager(false);
+                return manager == null
+                    ? ExperimentConditionManager.OrbAssistantEmbodiment
+                    : manager.ConfiguredAssistantEmbodiment;
+            }
+        }
+
         public bool CanChangeCorrectionSetting
         {
             get
@@ -142,6 +153,12 @@ namespace SceneTalkVR.Runtime
                     && manager.CanUseManualRuntimeCondition;
             }
         }
+
+        public bool CanChangeCorrectionAssistantEmbodimentSetting => CanChangeCorrectionSetting
+            && string.Equals(
+                CorrectionProviderSetting,
+                ExperimentConditionManager.AssistantAgentProvider,
+                StringComparison.OrdinalIgnoreCase);
 
         public string CorrectionSettingLockReason
         {
@@ -473,6 +490,34 @@ namespace SceneTalkVR.Runtime
                 ? ExperimentConditionManager.RecastStyle
                 : ExperimentConditionManager.ExplicitStyle;
             manager.TrySetManualFeedbackStyle(nextStyle);
+        }
+
+        public void ChangeCorrectionAssistantEmbodimentSetting()
+        {
+            if (!CanChangeCorrectionAssistantEmbodimentSetting)
+            {
+                return;
+            }
+
+            var manager = ResolveExperimentConditionManager(false);
+            if (manager == null)
+            {
+                return;
+            }
+
+            var current = manager.ConfiguredAssistantEmbodiment;
+            var next = string.Equals(
+                current,
+                ExperimentConditionManager.AudioOnlyAssistantEmbodiment,
+                StringComparison.OrdinalIgnoreCase)
+                ? ExperimentConditionManager.OrbAssistantEmbodiment
+                : string.Equals(
+                    current,
+                    ExperimentConditionManager.OrbAssistantEmbodiment,
+                    StringComparison.OrdinalIgnoreCase)
+                    ? ExperimentConditionManager.HumanoidAssistantEmbodiment
+                    : ExperimentConditionManager.AudioOnlyAssistantEmbodiment;
+            manager.TrySetManualAssistantEmbodiment(next);
         }
 
         public void StartPractice()
@@ -1591,6 +1636,7 @@ namespace SceneTalkVR.Runtime
 
             manager.RefreshCondition(manager.HasActiveTurn);
             manager.ApplyProviderTo(avatarVoiceModule);
+            manager.ApplyAssistantEmbodimentTo(avatarVoiceModule);
             manager.InjectInto(brainModule);
             PropagateExperimentLockState(manager.IsExperimentLocked);
         }

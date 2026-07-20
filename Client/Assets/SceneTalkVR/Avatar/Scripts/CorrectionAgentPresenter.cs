@@ -1,4 +1,5 @@
 using System.Collections;
+using SceneTalkVR.Core;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -160,12 +161,74 @@ namespace SceneTalkVR.AvatarSystem
 
         public string AppearanceId => visualMode switch
         {
-            VisualMode.GeneratedAgent => "orb",
+            VisualMode.GeneratedAgent => ExperimentConditionManager.OrbAssistantEmbodiment,
             VisualMode.PrefabAvatar => "bird",
-            VisualMode.AudioOnly => "audio_only",
-            VisualMode.HumanoidAvatar => "humanoid",
+            VisualMode.AudioOnly => ExperimentConditionManager.AudioOnlyAssistantEmbodiment,
+            VisualMode.HumanoidAvatar => ExperimentConditionManager.HumanoidAssistantEmbodiment,
             _ => "unknown"
         };
+
+        public bool SetAppearanceId(string appearanceId)
+        {
+            VisualMode nextMode;
+            if (string.Equals(
+                    appearanceId,
+                    ExperimentConditionManager.AudioOnlyAssistantEmbodiment,
+                    System.StringComparison.OrdinalIgnoreCase))
+            {
+                nextMode = VisualMode.AudioOnly;
+            }
+            else if (string.Equals(
+                         appearanceId,
+                         ExperimentConditionManager.OrbAssistantEmbodiment,
+                         System.StringComparison.OrdinalIgnoreCase))
+            {
+                nextMode = VisualMode.GeneratedAgent;
+            }
+            else if (string.Equals(
+                         appearanceId,
+                         ExperimentConditionManager.HumanoidAssistantEmbodiment,
+                         System.StringComparison.OrdinalIgnoreCase))
+            {
+                nextMode = VisualMode.HumanoidAvatar;
+            }
+            else
+            {
+                return false;
+            }
+
+            if (visualMode == nextMode)
+            {
+                EnsureAgent();
+                return true;
+            }
+
+            if (visualMode == VisualMode.HumanoidAvatar)
+            {
+                humanoidAnimationDriver?.EndTalking();
+            }
+            else if (visualMode == VisualMode.PrefabAvatar)
+            {
+                PlayAvatarState(avatarIdleState);
+            }
+
+            visualMode = nextMode;
+            EnsureAgent();
+
+            if (isSpeaking)
+            {
+                if (IsHumanoidActive)
+                {
+                    humanoidAnimationDriver?.BeginTalking();
+                }
+                else
+                {
+                    PlayAvatarState(avatarTalkState, true);
+                }
+            }
+
+            return true;
+        }
 
         private void Awake()
         {
@@ -699,55 +762,7 @@ namespace SceneTalkVR.AvatarSystem
             visualRoot = CreateTransform(VisualRootName, agentRoot);
             bodyRoot = CreateTransform("Body", visualRoot);
 
-            runtimeMaterial = CreateLitMaterial(
-                "CorrectionAssistant_Core_Runtime",
-                ScaleRgb(coreColor, 0.22f),
-                ScaleRgb(emissionColor, 1.45f),
-                false,
-                0.08f,
-                0.82f);
-            shellMaterial = CreateLitMaterial(
-                "CorrectionAssistant_Glass_Runtime",
-                shellColor,
-                ScaleRgb(emissionColor, 0.28f),
-                true,
-                0.05f,
-                0.96f);
-            visorMaterial = CreateLitMaterial(
-                "CorrectionAssistant_Visor_Runtime",
-                visorColor,
-                ScaleRgb(emissionColor, 0.035f),
-                false,
-                0.55f,
-                0.9f);
-            accentMaterial = CreateLitMaterial(
-                "CorrectionAssistant_Accent_Runtime",
-                ScaleRgb(accentColor, 0.58f),
-                ScaleRgb(accentColor, 1.7f),
-                false,
-                0.28f,
-                0.78f);
-            guideMaterial = CreateLitMaterial(
-                "CorrectionAssistant_Guide_Runtime",
-                new Color(0.08f, 0.48f, 0.42f, 1f),
-                new Color(0.08f, 1.05f, 0.82f, 1f),
-                false,
-                0.18f,
-                0.74f);
-            voiceMaterial = CreateLitMaterial(
-                "CorrectionAssistant_Voice_Runtime",
-                new Color(0.72f, 1f, 0.94f, 1f),
-                ScaleRgb(Color.Lerp(emissionColor, Color.white, 0.72f), 2.2f),
-                false,
-                0f,
-                0.65f);
-            pulseMaterial = CreateLitMaterial(
-                "CorrectionAssistant_Pulse_Runtime",
-                new Color(accentColor.r, accentColor.g, accentColor.b, 0.32f),
-                ScaleRgb(accentColor, 1.15f),
-                true,
-                0.1f,
-                0.74f);
+            EnsureVisualMaterials();
 
             var body = CreatePrimitiveChild(
                 "Glow Orb",
@@ -867,6 +882,107 @@ namespace SceneTalkVR.AvatarSystem
             var ringFilter = primaryRing != null ? primaryRing.GetComponent<MeshFilter>() : null;
             ringMesh = ringFilter != null ? ringFilter.sharedMesh : null;
             visualRenderers = visualRoot.GetComponentsInChildren<Renderer>(true);
+            EnsureVisualMaterials();
+        }
+
+        private void EnsureVisualMaterials()
+        {
+            if (!IsMaterialUsable(runtimeMaterial))
+            {
+                runtimeMaterial = CreateLitMaterial(
+                    "CorrectionAssistant_Core_Runtime",
+                    ScaleRgb(coreColor, 0.22f),
+                    ScaleRgb(emissionColor, 1.45f),
+                    false,
+                    0.08f,
+                    0.82f);
+            }
+
+            if (!IsMaterialUsable(shellMaterial))
+            {
+                shellMaterial = CreateLitMaterial(
+                    "CorrectionAssistant_Glass_Runtime",
+                    shellColor,
+                    ScaleRgb(emissionColor, 0.28f),
+                    true,
+                    0.05f,
+                    0.96f);
+            }
+
+            if (!IsMaterialUsable(visorMaterial))
+            {
+                visorMaterial = CreateLitMaterial(
+                    "CorrectionAssistant_Visor_Runtime",
+                    visorColor,
+                    ScaleRgb(emissionColor, 0.035f),
+                    false,
+                    0.55f,
+                    0.9f);
+            }
+
+            if (!IsMaterialUsable(accentMaterial))
+            {
+                accentMaterial = CreateLitMaterial(
+                    "CorrectionAssistant_Accent_Runtime",
+                    ScaleRgb(accentColor, 0.58f),
+                    ScaleRgb(accentColor, 1.7f),
+                    false,
+                    0.28f,
+                    0.78f);
+            }
+
+            if (!IsMaterialUsable(guideMaterial))
+            {
+                guideMaterial = CreateLitMaterial(
+                    "CorrectionAssistant_Guide_Runtime",
+                    new Color(0.08f, 0.48f, 0.42f, 1f),
+                    new Color(0.08f, 1.05f, 0.82f, 1f),
+                    false,
+                    0.18f,
+                    0.74f);
+            }
+
+            if (!IsMaterialUsable(voiceMaterial))
+            {
+                voiceMaterial = CreateLitMaterial(
+                    "CorrectionAssistant_Voice_Runtime",
+                    new Color(0.72f, 1f, 0.94f, 1f),
+                    ScaleRgb(Color.Lerp(emissionColor, Color.white, 0.72f), 2.2f),
+                    false,
+                    0f,
+                    0.65f);
+            }
+
+            if (!IsMaterialUsable(pulseMaterial))
+            {
+                pulseMaterial = CreateLitMaterial(
+                    "CorrectionAssistant_Pulse_Runtime",
+                    new Color(accentColor.r, accentColor.g, accentColor.b, 0.32f),
+                    ScaleRgb(accentColor, 1.15f),
+                    true,
+                    0.1f,
+                    0.74f);
+            }
+
+            ConfigureRenderer(agentRenderer, runtimeMaterial);
+            ConfigureRenderer(shellRenderer, shellMaterial);
+            ConfigureChildRenderer(visualRoot, "Primary Orbit", accentMaterial);
+            ConfigureChildRenderer(visualRoot, "Secondary Orbit", guideMaterial);
+            ConfigureChildRenderer(faceRoot, "Voice Visor", visorMaterial);
+            ConfigureChildRenderer(faceRoot, "Speaking Pulse", pulseMaterial);
+
+            for (var index = 0; index < voiceBars.Length; index++)
+            {
+                ConfigureChildRenderer(faceRoot, $"Voice Bar {index + 1}", voiceMaterial);
+            }
+
+            for (var index = 0; index < satellites.Length; index++)
+            {
+                ConfigureChildRenderer(
+                    satelliteRoot,
+                    $"Guide Node {index + 1}",
+                    index == 0 ? accentMaterial : guideMaterial);
+            }
         }
 
         private IEnumerator FadeTo(float target)
@@ -1274,6 +1390,15 @@ namespace SceneTalkVR.AvatarSystem
             renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
         }
 
+        private static void ConfigureChildRenderer(
+            Transform parent,
+            string childName,
+            Material material)
+        {
+            var child = parent != null ? parent.Find(childName) : null;
+            ConfigureRenderer(child != null ? child.GetComponent<Renderer>() : null, material);
+        }
+
         private static Material CreateLitMaterial(
             string materialName,
             Color baseColor,
@@ -1282,10 +1407,16 @@ namespace SceneTalkVR.AvatarSystem
             float metallic,
             float smoothness)
         {
-            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            var shader = FindFirstSupportedShader(
+                "Universal Render Pipeline/Lit",
+                "Universal Render Pipeline/Unlit",
+                "Standard",
+                "Unlit/Color",
+                "Sprites/Default");
             if (shader == null)
             {
-                shader = Shader.Find("Standard");
+                Debug.LogError("[CorrectionAgentPresenter] No supported shader is available for the Little Orb.");
+                return null;
             }
 
             var material = new Material(shader)
@@ -1311,6 +1442,36 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             return material;
+        }
+
+        private static Shader FindFirstSupportedShader(params string[] shaderNames)
+        {
+            for (var index = 0; index < shaderNames.Length; index++)
+            {
+                var shader = Shader.Find(shaderNames[index]);
+                if (shader != null
+                    && shader.isSupported
+                    && !string.Equals(
+                        shader.name,
+                        "Hidden/InternalErrorShader",
+                        System.StringComparison.Ordinal))
+                {
+                    return shader;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool IsMaterialUsable(Material material)
+        {
+            return material != null
+                && material.shader != null
+                && material.shader.isSupported
+                && !string.Equals(
+                    material.shader.name,
+                    "Hidden/InternalErrorShader",
+                    System.StringComparison.Ordinal);
         }
 
         private static void ConfigureTransparentMaterial(Material material)

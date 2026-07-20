@@ -2,7 +2,6 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Text;
-using SceneTalkVR.AvatarSystem;
 using SceneTalkVR.Runtime;
 using UnityEngine;
 
@@ -15,6 +14,20 @@ namespace SceneTalkVR.Core
         public const string AssistantAgentProvider = "assistant_agent";
         public const string ExplicitStyle = "explicit";
         public const string RecastStyle = "recast";
+        public const string NoAssistantEmbodiment = "none";
+        public const string AudioOnlyAssistantEmbodiment = "audio_only";
+        public const string OrbAssistantEmbodiment = "orb";
+        public const string HumanoidAssistantEmbodiment = "humanoid";
+
+        public enum AssistantEmbodimentPreset
+        {
+            [InspectorName("Voice Only | God Voice")]
+            AudioOnly,
+            [InspectorName("Little Orb")]
+            SmallObject,
+            [InspectorName("Third Person | Humanoid")]
+            ThirdPerson
+        }
 
         public enum ExperimentConditionPreset
         {
@@ -34,6 +47,7 @@ namespace SceneTalkVR.Core
         [Header("Condition")]
         [SerializeField] private bool useConditionOrder;
         [SerializeField] private ExperimentConditionPreset manualCondition = ExperimentConditionPreset.AssistantAgentExplicit;
+        [SerializeField] private AssistantEmbodimentPreset manualAssistantEmbodiment = AssistantEmbodimentPreset.SmallObject;
         [SerializeField] private string[] conditionOrder =
         {
             "dialogue_avatar_explicit",
@@ -86,10 +100,17 @@ namespace SceneTalkVR.Core
         public string CurrentConditionId => CurrentCondition?.conditionId ?? string.Empty;
         public string CurrentFeedbackProvider => CurrentCondition?.provider ?? DialogueAvatarProvider;
         public string CurrentFeedbackStyle => CurrentCondition?.style ?? ExplicitStyle;
+        public string CurrentAssistantEmbodiment => CurrentCondition?.assistantEmbodiment ?? NoAssistantEmbodiment;
+        public string ConfiguredAssistantEmbodiment => GetAssistantEmbodimentId(manualAssistantEmbodiment);
         public bool CanUseManualRuntimeCondition => !formalExperiment
             && !useConditionOrder
             && !HasActiveTurn
             && !HasPendingTurnReview;
+        public bool CanUseManualAssistantEmbodiment => CanUseManualRuntimeCondition
+            && string.Equals(
+                CurrentFeedbackProvider,
+                AssistantAgentProvider,
+                StringComparison.OrdinalIgnoreCase);
         public string ManualRuntimeConditionLockReason
         {
             get
@@ -149,7 +170,7 @@ namespace SceneTalkVR.Core
                 var condition = CurrentCondition;
                 return condition == null
                     ? string.Empty
-                    : $"{condition.conditionId} | {ResolveAssistantEmbodiment(condition)} | {condition.scenarioId} | turn {condition.turnIndex}";
+                    : $"{condition.conditionId} | {condition.assistantEmbodiment} | {condition.scenarioId} | turn {condition.turnIndex}";
             }
         }
 
@@ -251,6 +272,12 @@ namespace SceneTalkVR.Core
                 scenarioId = resolvedScenarioId,
                 provider = provider,
                 style = style,
+                assistantEmbodiment = string.Equals(
+                    provider,
+                    AssistantAgentProvider,
+                    StringComparison.OrdinalIgnoreCase)
+                    ? ConfiguredAssistantEmbodiment
+                    : NoAssistantEmbodiment,
                 turnIndex = includeCurrentTurn ? turnIndex : Mathf.Max(0, turnIndex),
                 conditionOrder = CopyConditionOrder(),
                 task = CloneTask(restoredTaskOverride != null
@@ -299,6 +326,31 @@ namespace SceneTalkVR.Core
 
             var preset = ResolvePreset(CurrentFeedbackProvider, normalizedStyle);
             return SetManualCondition(preset);
+        }
+
+        public bool TrySetManualAssistantEmbodiment(string embodiment)
+        {
+            if (!CanUseManualAssistantEmbodiment
+                || !TryNormalizeAssistantEmbodiment(embodiment, out var normalizedEmbodiment))
+            {
+                return false;
+            }
+
+            var nextPreset = ResolveAssistantEmbodimentPreset(normalizedEmbodiment);
+            var changed = manualAssistantEmbodiment != nextPreset;
+            manualAssistantEmbodiment = nextPreset;
+            RefreshCondition(false);
+
+            if (changed)
+            {
+                Debug.Log(
+                    $"[ExperimentConditionManager] Runtime correction assistant appearance changed: "
+                    + $"assistantEmbodiment={CurrentAssistantEmbodiment}, applies=next_turn",
+                    this);
+                NotifyConditionChanged();
+            }
+
+            return true;
         }
 
         public void AdvanceScenario()
@@ -365,6 +417,23 @@ namespace SceneTalkVR.Core
             if (avatarVoiceModule is ISceneTalkCorrectionFeedbackProviderReceiver providerReceiver)
             {
                 providerReceiver.SetCorrectionFeedbackProvider(condition.provider);
+            }
+        }
+
+        public void ApplyAssistantEmbodimentTo(MonoBehaviour avatarVoiceModule)
+        {
+            if (!string.Equals(
+                    CurrentFeedbackProvider,
+                    AssistantAgentProvider,
+                    StringComparison.OrdinalIgnoreCase)
+                || avatarVoiceModule == null)
+            {
+                return;
+            }
+
+            if (avatarVoiceModule is ISceneTalkCorrectionAssistantEmbodimentReceiver embodimentReceiver)
+            {
+                embodimentReceiver.SetCorrectionAssistantEmbodiment(ConfiguredAssistantEmbodiment);
             }
         }
 
@@ -720,23 +789,8 @@ namespace SceneTalkVR.Core
                 panoramaSource = isFixed ? "local" : (config != null && config.ForceFallbackPanorama ? "fallback" : "generated_once"),
                 experimentProvider = condition.provider,
                 experimentStyle = condition.style,
-                assistantEmbodiment = ResolveAssistantEmbodiment(condition)
+                assistantEmbodiment = condition.assistantEmbodiment
             };
-        }
-
-        private static string ResolveAssistantEmbodiment(CorrectionExperimentCondition condition)
-        {
-            if (condition == null
-                || !string.Equals(
-                    condition.provider,
-                    AssistantAgentProvider,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                return "none";
-            }
-
-            var presenter = FindFirstObjectByType<CorrectionAgentPresenter>(FindObjectsInactive.Include);
-            return presenter != null ? presenter.AppearanceId : "missing";
         }
 
         private void WriteTurnLog(ExperimentTurnLogRecord record)
@@ -993,6 +1047,54 @@ namespace SceneTalkVR.Core
             return false;
         }
 
+        private static bool TryNormalizeAssistantEmbodiment(
+            string embodiment,
+            out string normalizedEmbodiment)
+        {
+            if (string.Equals(embodiment, AudioOnlyAssistantEmbodiment, StringComparison.OrdinalIgnoreCase))
+            {
+                normalizedEmbodiment = AudioOnlyAssistantEmbodiment;
+                return true;
+            }
+
+            if (string.Equals(embodiment, OrbAssistantEmbodiment, StringComparison.OrdinalIgnoreCase))
+            {
+                normalizedEmbodiment = OrbAssistantEmbodiment;
+                return true;
+            }
+
+            if (string.Equals(embodiment, HumanoidAssistantEmbodiment, StringComparison.OrdinalIgnoreCase))
+            {
+                normalizedEmbodiment = HumanoidAssistantEmbodiment;
+                return true;
+            }
+
+            normalizedEmbodiment = string.Empty;
+            return false;
+        }
+
+        private static string GetAssistantEmbodimentId(AssistantEmbodimentPreset preset)
+        {
+            return preset switch
+            {
+                AssistantEmbodimentPreset.AudioOnly => AudioOnlyAssistantEmbodiment,
+                AssistantEmbodimentPreset.ThirdPerson => HumanoidAssistantEmbodiment,
+                _ => OrbAssistantEmbodiment
+            };
+        }
+
+        private static AssistantEmbodimentPreset ResolveAssistantEmbodimentPreset(string embodiment)
+        {
+            if (string.Equals(embodiment, AudioOnlyAssistantEmbodiment, StringComparison.OrdinalIgnoreCase))
+            {
+                return AssistantEmbodimentPreset.AudioOnly;
+            }
+
+            return string.Equals(embodiment, HumanoidAssistantEmbodiment, StringComparison.OrdinalIgnoreCase)
+                ? AssistantEmbodimentPreset.ThirdPerson
+                : AssistantEmbodimentPreset.SmallObject;
+        }
+
         private static string NormalizeConditionId(string conditionId)
         {
             var value = string.IsNullOrWhiteSpace(conditionId)
@@ -1047,6 +1149,7 @@ namespace SceneTalkVR.Core
                 scenarioId = source.scenarioId,
                 provider = source.provider,
                 style = source.style,
+                assistantEmbodiment = source.assistantEmbodiment,
                 turnIndex = source.turnIndex,
                 conditionOrder = CopyStringArray(source.conditionOrder),
                 task = CloneTask(source.task)
