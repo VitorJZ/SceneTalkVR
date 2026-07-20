@@ -193,7 +193,7 @@ namespace SceneTalkVR.Runtime
 
             dialogueListenButton = CreateButton(subtitlePanel.transform, "DialogueListenButton", "Speak", new Vector2(350f, -92f), new Vector2(110f, 40f), new Color(0.12f, 0.52f, 0.38f, 1f));
 
-            taskGoalPanel = CreatePanel(root, "ReadOnlyTaskGoalPanel", new Vector2(-610f, 30f), new Vector2(340f, 360f), new Color(0.03f, 0.04f, 0.06f, 0.84f));
+            taskGoalPanel = CreatePanel(root, "ReadOnlyTaskGoalPanel", new Vector2(-390f, 120f), new Vector2(340f, 360f), new Color(0.03f, 0.04f, 0.06f, 0.84f));
             CreateText(taskGoalPanel.transform, "Title", "Task Goals", new Vector2(0f, 150f), new Vector2(300f, 36f), 22, TextAnchor.MiddleCenter, Color.white);
             taskGoalText = CreateText(taskGoalPanel.transform, "GoalStateText", string.Empty, new Vector2(0f, -5f), new Vector2(300f, 270f), 16, TextAnchor.UpperLeft, new Color(0.86f, 0.92f, 1f, 1f));
             
@@ -367,7 +367,12 @@ namespace SceneTalkVR.Runtime
             var tracker = lifecycle?.GoalTracker;
             var hasGoals = tracker != null && tracker.Goals.Count > 0;
             SetActive(taskGoalPanel, dialogueVisible && goalPanelVisible && hasGoals);
-            if (taskGoalText == null || !hasGoals) return;
+            if (taskGoalText == null) return;
+            if (!hasGoals)
+            {
+                taskGoalText.text = string.Empty;
+                return;
+            }
             var taskName = lifecycle.CurrentConditionAssignment?.task?.taskId ?? "Task";
             var builder = new System.Text.StringBuilder(taskName).AppendLine();
             foreach (var goal in tracker.Goals)

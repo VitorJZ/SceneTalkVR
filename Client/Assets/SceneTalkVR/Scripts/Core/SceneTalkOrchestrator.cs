@@ -226,7 +226,17 @@ namespace SceneTalkVR.Runtime
             var manager = ResolveExperimentConditionManager(true);
             if (manager != null)
             {
-                if (!manager.LoadAssignedTask(taskId, out var assignmentError))
+                var definition = manager.TaskCatalog?.Find(taskId);
+                var lifecycle = manager.LifecycleCoordinator;
+                var prepareDeveloperSession = !manager.IsFormalExperiment
+                    && definition != null
+                    && definition.phase == ExperimentTaskPhase.Formal
+                    && lifecycle != null;
+                string assignmentError;
+                var prepared = prepareDeveloperSession
+                    ? lifecycle.PrepareDeveloperTaskSession(taskId, out assignmentError)
+                    : manager.LoadAssignedTask(taskId, out assignmentError);
+                if (!prepared)
                 {
                     LastError = assignmentError;
                     SetState(SceneTalkState.Error);
@@ -446,8 +456,9 @@ namespace SceneTalkVR.Runtime
         public void ReturnToInitialMenu()
         {
             finishRequested = true;
-            ResolveExperimentConditionManager(false)?.RecordUserAction("exit");
-            var lifecycle = ResolveExperimentConditionManager(false)?.LifecycleCoordinator;
+            var manager = ResolveExperimentConditionManager(false);
+            manager?.RecordUserAction("exit");
+            var lifecycle = manager?.LifecycleCoordinator;
             if (lifecycle?.CurrentConditionAssignment?.status == ConditionRunStatus.Running)
             {
                 lifecycle.Abort("participant_exit");
@@ -475,6 +486,8 @@ namespace SceneTalkVR.Runtime
             {
                 brainReset.ResetSession();
             }
+
+            manager?.ResetConditionSessionBoundary();
 
             SetState(SceneTalkState.Idle);
         }

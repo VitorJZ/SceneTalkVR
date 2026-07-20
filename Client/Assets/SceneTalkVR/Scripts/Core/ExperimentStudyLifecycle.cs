@@ -63,6 +63,9 @@ namespace SceneTalkVR.Core
         public ExperimentAssignment Assignment => assignment;
         public ConditionAssignment CurrentConditionAssignment => currentCondition;
         public GoalProgressTracker GoalTracker => goalTracker;
+        public bool IsDeveloperManualSession => assignment != null
+            && assignment.developerTestAssignment
+            && string.Equals(assignment.dataOrigin, "developer_manual", StringComparison.Ordinal);
         public string ConditionRunId { get; private set; }
         public string QuestionnaireLinkageKey { get; private set; }
         public string CompletionReason { get; private set; }
@@ -180,6 +183,83 @@ namespace SceneTalkVR.Core
             return true;
         }
 
+        public bool PrepareDeveloperTaskSession(string taskId, out string error)
+        {
+            error = string.Empty;
+            if (conditionManager == null) { error = "condition_manager_missing"; return false; }
+            if (conditionManager.IsFormalExperiment) { error = "formal_mode_rejects_developer_manual_session"; return false; }
+            var task = conditionManager.TaskCatalog?.Find(taskId);
+            if (task == null) { error = $"task_catalog_missing:{taskId}"; return false; }
+            if (task.phase != ExperimentTaskPhase.Formal) { error = $"developer_manual_requires_formal_task:{taskId}"; return false; }
+
+            if (IsDeveloperManualSession && currentCondition?.status == ConditionRunStatus.Running)
+                Abort("developer_task_switched");
+            conditionManager.ResetConditionSessionBoundary();
+
+            var token = Guid.NewGuid().ToString("N");
+            var participantId = "developer_manual";
+            var sessionId = $"developer-manual-{DateTime.UtcNow:yyyyMMdd-HHmmss}-{token.Substring(0, 8)}";
+            var conditionCode = conditionManager.CurrentFormalCondition;
+            var taskAssignment = new TaskAssignment
+            {
+                taskId = task.taskId,
+                taskAssignmentId = $"developer-task-{token}"
+            };
+            currentCondition = new ConditionAssignment
+            {
+                conditionPosition = 0,
+                formalConditionCode = conditionCode,
+                formalConditionLabel = conditionCode.ToString(),
+                task = taskAssignment,
+                status = ConditionRunStatus.Preparing,
+                runAttempt = 1
+            };
+            assignment = new ExperimentAssignment
+            {
+                condition = conditionCode,
+                task = new ExperimentTaskReference { taskId = task.taskId, scenarioId = task.scenarioId },
+                sequenceId = "developer-manual",
+                conditionOrderIndex = 0,
+                participantId = participantId,
+                experimentSessionId = sessionId,
+                assignmentSeed = token,
+                assignmentVersion = ExperimentAssignmentAllocator.AssignmentVersion,
+                protocolVersion = conditionManager.ExperimentProtocol?.ProtocolVersion ?? string.Empty,
+                taskCatalogVersion = conditionManager.TaskCatalog?.CatalogVersion ?? string.Empty,
+                createdAtUtc = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture),
+                policy = AssignmentPolicy.Manual,
+                status = AssignmentStatus.Active,
+                developerTestAssignment = true,
+                dataOrigin = "developer_manual",
+                collectionEligible = false,
+                conditions = new[] { currentCondition }
+            };
+            ConditionRunId = $"developer-run-{token}";
+            QuestionnaireLinkageKey = $"developer-link-{token}";
+            currentCondition.latestConditionRunId = ConditionRunId;
+            CompletionReason = string.Empty;
+            TechnicalValidity = ExperimentTechnicalValidity.Valid;
+            WriteEvent(StudyEventType.AssignmentCreated, actor: "developer");
+            WriteEvent(StudyEventType.ConditionPrepared, actor: "developer");
+
+            if (!conditionManager.ApplyFormalAssignment(conditionCode, task.taskId, out error, participantId, sessionId))
+            {
+                currentCondition.status = ConditionRunStatus.TechnicalInvalid;
+                TechnicalValidity = ExperimentTechnicalValidity.TechnicalInvalid;
+                WriteEvent(StudyEventType.ConditionTechnicalInvalid, actor: "developer", reason: error,
+                    validity: ExperimentTechnicalValidity.TechnicalInvalid);
+                return false;
+            }
+
+            goalTracker.ResetGoals(task);
+            WriteEvent(StudyEventType.TaskLoaded, actor: "developer");
+            currentCondition.status = ConditionRunStatus.Running;
+            conditionStartedUtc = DateTime.UtcNow;
+            conditionStartTurn = conditionManager.CurrentTurnIndex;
+            WriteEvent(StudyEventType.ConditionStarted, actor: "developer");
+            return true;
+        }
+
         public bool SubmitGoalCandidate(string goalId, string source, string turnId, string transcript, out string error) =>
             goalTracker.SubmitGoalCandidate(goalId, source, new GoalEvidence { turnId = turnId, transcript = transcript }, out error);
 
@@ -271,6 +351,11 @@ namespace SceneTalkVR.Core
             conditionStartTurn = 0;
             CompletionReason = string.Empty;
             TechnicalValidity = ExperimentTechnicalValidity.Valid;
+            if (!IsDeveloperManualSession) return;
+            assignment = null;
+            currentCondition = null;
+            ConditionRunId = string.Empty;
+            QuestionnaireLinkageKey = string.Empty;
         }
 
         private void OnGoalChanged(GoalProgressRecord goal, string action)
