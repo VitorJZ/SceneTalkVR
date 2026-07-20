@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using SceneTalkVR.Core;
+using SceneTalkVR.History;
 using SceneTalkVR.Voice;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -13,7 +14,7 @@ namespace SceneTalkVR.Runtime.Services
     /// <summary>
     /// Real implementation of LLM service using SJTU Local API (OpenAI compatible).
     /// </summary>
-    public sealed class RealLLMService : MonoBehaviour, ISceneTalkBrain, ISceneTalkStreamingBrain, ILLMService, ISceneTalkSessionReset, ISceneTalkExperimentContextReceiver, ISceneTalkExperimentLockReceiver
+    public sealed class RealLLMService : MonoBehaviour, ISceneTalkBrain, ISceneTalkStreamingBrain, ILLMService, ISceneTalkSessionReset, ISceneTalkExperimentContextReceiver, ISceneTalkExperimentLockReceiver, ISceneTalkConversationContextReceiver
     {
         [Header("API Configuration")]
         [SerializeField] private string apiUrl = "https://models.sjtu.edu.cn/api/v1/chat/completions";
@@ -68,6 +69,9 @@ namespace SceneTalkVR.Runtime.Services
         private SceneTalkOrchestrator cachedOrchestrator;
         private CorrectionExperimentCondition currentCondition;
         public CorrectionExperimentCondition CurrentCondition => currentCondition;
+        public string FeedbackSensitivity => string.IsNullOrWhiteSpace(feedbackSensitivity)
+            ? "moderate"
+            : feedbackSensitivity.Trim().ToLowerInvariant();
 
         private float lastSttConfidence = 1.0f;
         private bool lastSttConfidenceAvailable;
@@ -112,6 +116,72 @@ namespace SceneTalkVR.Runtime.Services
         public void SetExperimentCondition(CorrectionExperimentCondition condition)
         {
             currentCondition = ExperimentConditionManager.CloneCondition(condition);
+        }
+
+        public void RestoreConversationContext(LearningSessionDetail session)
+        {
+            if (session == null)
+            {
+                throw new ArgumentNullException(nameof(session));
+            }
+
+            currentCondition = ExperimentConditionManager.CloneCondition(session.settings?.condition);
+            if (!IsExperimentLocked() && !string.IsNullOrWhiteSpace(session.settings?.feedbackSensitivity))
+            {
+                feedbackSensitivity = NormalizeFeedbackSensitivity(session.settings.feedbackSensitivity);
+            }
+
+            chatHistory.Clear();
+            sessionErrorHistory.Clear();
+
+            var sceneContext = LearningMemoryService.ClonePayload(session.sceneSnapshot);
+            chatHistory.Add(new OpenAiMessage
+            {
+                role = "system",
+                content = BuildRoleplaySystemPrompt(sceneContext)
+            });
+
+            var turns = session.turns ?? Array.Empty<DialogueTurnRecord>();
+            foreach (var turn in turns)
+            {
+                if (turn == null)
+                {
+                    continue;
+                }
+
+                if (!turn.isOpening && !string.IsNullOrWhiteSpace(turn.userText))
+                {
+                    chatHistory.Add(new OpenAiMessage { role = "user", content = turn.userText });
+                }
+
+                if (!string.IsNullOrWhiteSpace(turn.assistantText))
+                {
+                    chatHistory.Add(new OpenAiMessage { role = "assistant", content = turn.assistantText });
+                }
+
+                var feedback = turn.payload?.correctionFeedback;
+                if (feedback != null
+                    && feedback.hasFeedback
+                    && !string.IsNullOrWhiteSpace(feedback.errorType)
+                    && !string.Equals(feedback.errorType, "none", StringComparison.OrdinalIgnoreCase))
+                {
+                    sessionErrorHistory.Add(feedback.errorType);
+                }
+            }
+
+            Debug.Log(
+                $"[RealLLMService] Restored history session {session.summary?.sessionId} with {turns.Length} stored turn(s).",
+                this);
+        }
+
+        private static string NormalizeFeedbackSensitivity(string value)
+        {
+            var normalized = string.IsNullOrWhiteSpace(value)
+                ? "moderate"
+                : value.Trim().ToLowerInvariant();
+            return normalized == "conservative" || normalized == "active"
+                ? normalized
+                : "moderate";
         }
 
         public IEnumerator GenerateSceneAndReply(string userText, Action<SpringScenePayload> onComplete, Action<string> onError)

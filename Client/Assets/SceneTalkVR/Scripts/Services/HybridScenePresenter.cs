@@ -10,7 +10,7 @@ namespace SceneTalkVR.Runtime.Services
     /// <summary>
     /// Hybrid scene presenter that combines Panorama backgrounds and Holodeck 3D layouts.
     /// </summary>
-    public sealed class HybridScenePresenter : MonoBehaviour, ISceneTalkScenePresenter
+    public sealed class HybridScenePresenter : MonoBehaviour, ISceneTalkScenePresenter, ISceneTalkSceneSnapshotProvider
     {
         [Header("Services")]
         [SerializeField] private PanoramaSceneService panoramaService;
@@ -38,6 +38,7 @@ namespace SceneTalkVR.Runtime.Services
         [Header("Asset Filters")]
         [SerializeField] private int maxSpawnCount = 2;
         [SerializeField] private List<string> prefabWhitelist = new List<string> { "cafe_table", "chair", "generic_table", "generic_chair" };
+        private readonly List<LayoutObjectData> lastResolvedLayout = new List<LayoutObjectData>();
 
         public bool OnlyUsePanorama => onlyUsePanorama;
         public bool EnableSpatialClipping => enableSpatialClipping;
@@ -59,13 +60,18 @@ namespace SceneTalkVR.Runtime.Services
             }
 
             ClearScene();
+            lastResolvedLayout.Clear();
+
+            var isHistorySnapshot = payload.scene != null
+                && !string.IsNullOrWhiteSpace(payload.scene.skyboxUrl)
+                && payload.scene.skyboxUrl.StartsWith("history://", StringComparison.OrdinalIgnoreCase);
 
             // 1. Generate Panorama Background
             var panoTask = panoramaService.GenerateSkyboxAsync(payload.environmentType, payload.scene?.skyboxUrl);
             
             // 2. Generate Holodeck 3D Layout (only if onlyUsePanorama is false)
             Task<HolodeckSceneService.HolodeckResponse> holodeckTask = null;
-            if (!onlyUsePanorama)
+            if (!onlyUsePanorama && !isHistorySnapshot)
             {
                 holodeckTask = holodeckService.GenerateLayoutAsync(payload.environmentType);
             }
@@ -84,6 +90,11 @@ namespace SceneTalkVR.Runtime.Services
             else
             {
                 Debug.LogWarning($"[HybridScenePresenter] Panorama failed: {panoTask.Exception?.Message}");
+                if (isHistorySnapshot)
+                {
+                    onError?.Invoke($"Failed to restore the saved panorama: {panoTask.Exception?.GetBaseException().Message}");
+                    yield break;
+                }
             }
 
             // Apply 3D Objects (only if onlyUsePanorama is false)
@@ -100,8 +111,50 @@ namespace SceneTalkVR.Runtime.Services
                     yield break;
                 }
             }
+            else if (!onlyUsePanorama && isHistorySnapshot)
+            {
+                InstantiateSnapshotObjects(payload.scene?.layoutObjects);
+            }
 
             onComplete?.Invoke();
+        }
+
+        public IEnumerator CaptureSceneSnapshot(
+            string sessionId,
+            SpringScenePayload payload,
+            Action<SpringScenePayload> onComplete,
+            Action<string> onError)
+        {
+            if (payload == null)
+            {
+                onError?.Invoke("Cannot capture a null scene payload.");
+                yield break;
+            }
+
+            var snapshot = SceneTalkVR.History.LearningMemoryService.ClonePayload(payload);
+            snapshot.scene ??= new ScenePayload();
+            var sourceUrl = snapshot.scene.skyboxUrl ?? string.Empty;
+            var requiresCachedPanorama = !sourceUrl.StartsWith("demo://", StringComparison.OrdinalIgnoreCase)
+                && !sourceUrl.StartsWith("history://", StringComparison.OrdinalIgnoreCase);
+            if (requiresCachedPanorama)
+            {
+                if (panoramaService == null
+                    || !panoramaService.TrySaveHistoryTexture(sessionId, out var historyUri))
+                {
+                    onError?.Invoke("The generated panorama could not be cached for conversation history.");
+                    yield break;
+                }
+
+                snapshot.scene.skyboxUrl = historyUri;
+            }
+
+            if (lastResolvedLayout.Count > 0)
+            {
+                snapshot.scene.layoutObjects = lastResolvedLayout.ToArray();
+            }
+
+            onComplete?.Invoke(snapshot);
+            yield break;
         }
 
         private void ClearScene()
@@ -151,6 +204,7 @@ namespace SceneTalkVR.Runtime.Services
             {
                 // 1. Map Holodeck Name to PrefabKey Whitelist
                 string mappedKey = MapToPrefabKey(objData.name);
+                string resolvedKey = mappedKey;
                 
                 // Whitelist filter check
                 if (prefabWhitelist != null && prefabWhitelist.Count > 0)
@@ -171,6 +225,7 @@ namespace SceneTalkVR.Runtime.Services
                     else if (mappedKey.Contains("chair") || mappedKey.Contains("sofa")) fallbackKey = "generic_chair";
 
                     prefab = FindPrefab(fallbackKey);
+                    resolvedKey = fallbackKey;
                     
                     if (prefab == null)
                     {
@@ -205,12 +260,59 @@ namespace SceneTalkVR.Runtime.Services
                 instance.name = $"{mappedKey}_{Guid.NewGuid().ToString().Substring(0, 4)}";
                 instance.transform.localScale = Vector3.one * spawnScale;
 
+                lastResolvedLayout.Add(new LayoutObjectData
+                {
+                    prefabKey = resolvedKey,
+                    position = pos,
+                    rotationY = objData.rotation
+                });
+
                 spawnedCount++;
                 if (spawnedCount >= maxSpawnCount)
                 {
                     Debug.Log($"[HybridScenePresenter] Reached max spawn limit of {maxSpawnCount}. Stopping instantiation.");
                     break;
                 }
+            }
+        }
+
+        private void InstantiateSnapshotObjects(LayoutObjectData[] layoutObjects)
+        {
+            if (layoutObjects == null || sceneRoot == null)
+            {
+                return;
+            }
+
+            var spawnedCount = 0;
+            foreach (var item in layoutObjects)
+            {
+                if (item == null || spawnedCount >= maxSpawnCount)
+                {
+                    continue;
+                }
+
+                var prefab = FindPrefab(item.prefabKey);
+                if (prefab == null)
+                {
+                    continue;
+                }
+
+                var position = item.position;
+                if (enableSpatialClipping)
+                {
+                    position.x = Mathf.Clamp(position.x, minX, maxX);
+                    position.z = Mathf.Clamp(position.z, minZ, maxZ);
+                    position.y = 0f;
+                }
+
+                var instance = Instantiate(
+                    prefab,
+                    position,
+                    Quaternion.Euler(0f, item.rotationY, 0f),
+                    sceneRoot);
+                instance.name = $"{item.prefabKey}_history";
+                instance.transform.localScale = Vector3.one * spawnScale;
+                spawnedCount++;
             }
         }
 

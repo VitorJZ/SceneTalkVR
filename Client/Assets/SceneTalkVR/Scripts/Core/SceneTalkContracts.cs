@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using SceneTalkVR.History;
 using UnityEngine;
 
 namespace SceneTalkVR.Core
@@ -57,6 +58,28 @@ namespace SceneTalkVR.Core
     public interface ISceneTalkAvatarSessionReset
     {
         void ClearAvatar();
+    }
+
+    public interface ISceneTalkAvatarSessionPrepare
+    {
+        IEnumerator PrepareSession(
+            SpringScenePayload payload,
+            Action onComplete,
+            Action<string> onError);
+    }
+
+    public interface ISceneTalkConversationContextReceiver
+    {
+        void RestoreConversationContext(LearningSessionDetail session);
+    }
+
+    public interface ISceneTalkSceneSnapshotProvider
+    {
+        IEnumerator CaptureSceneSnapshot(
+            string sessionId,
+            SpringScenePayload payload,
+            Action<SpringScenePayload> onComplete,
+            Action<string> onError);
     }
 
     public interface ISceneTalkExperimentContextReceiver

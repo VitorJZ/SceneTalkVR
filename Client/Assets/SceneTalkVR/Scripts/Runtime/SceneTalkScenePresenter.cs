@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace SceneTalkVR.Runtime
 {
-    public sealed class SceneTalkScenePresenter : MonoBehaviour, ISceneTalkScenePresenter
+    public sealed class SceneTalkScenePresenter : MonoBehaviour, ISceneTalkScenePresenter, ISceneTalkSceneSnapshotProvider
     {
         [Serializable]
         private sealed class PrefabBinding
@@ -33,6 +33,22 @@ namespace SceneTalkVR.Runtime
             SpawnLayoutObjects(payload.scene);
 
             onComplete?.Invoke();
+            yield break;
+        }
+
+        public IEnumerator CaptureSceneSnapshot(
+            string sessionId,
+            SpringScenePayload payload,
+            Action<SpringScenePayload> onComplete,
+            Action<string> onError)
+        {
+            if (payload == null)
+            {
+                onError?.Invoke("Cannot capture a null scene payload.");
+                yield break;
+            }
+
+            onComplete?.Invoke(SceneTalkVR.History.LearningMemoryService.ClonePayload(payload));
             yield break;
         }
 

@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Text;
 using SceneTalkVR.AvatarSystem;
 using SceneTalkVR.Core;
+using SceneTalkVR.History;
 using SceneTalkVR.Runtime;
 using SceneTalkVR.Runtime.Services;
 using SceneTalkVR.Voice;
@@ -194,6 +195,7 @@ namespace SceneTalkVR.EditorTools
                 .ToArray();
             var eventSystems = FindAll<EventSystem>();
             var experimentManagers = FindAll<ExperimentConditionManager>();
+            var learningMemoryServices = FindAll<LearningMemoryService>();
             var correctionFeedbackPresenters = FindAll<CorrectionFeedbackPresenter>();
             var correctionAgentPresenters = FindAll<CorrectionAgentPresenter>();
             AppendCheck(report, orchestrators.Length == 1, $"One SceneTalkOrchestrator in scene (found {orchestrators.Length})");
@@ -201,6 +203,7 @@ namespace SceneTalkVR.EditorTools
             AppendCheck(report, canvases.Length == 1, $"One SceneTalkVR World UI canvas in scene (found {canvases.Length})");
             AppendCheck(report, eventSystems.Length == 1, $"One EventSystem in scene (found {eventSystems.Length})");
             AppendCheck(report, experimentManagers.Length == 1, $"One ExperimentConditionManager in scene (found {experimentManagers.Length})");
+            AppendCheck(report, learningMemoryServices.Length <= 1, $"At most one LearningMemoryService in scene (found {learningMemoryServices.Length}; runtime auto-creates it when absent)");
             AppendCheck(report, correctionFeedbackPresenters.Length == 1, $"One CorrectionFeedbackPresenter in scene (found {correctionFeedbackPresenters.Length})");
             AppendCheck(report, correctionAgentPresenters.Length == 1, $"One CorrectionAgentPresenter in scene (found {correctionAgentPresenters.Length})");
             AppendCheck(report, HasTrackedPoseDriver(Camera.main), "Main Camera uses XR tracked pose on device");
@@ -239,6 +242,7 @@ namespace SceneTalkVR.EditorTools
             AppendPackageCheck(report, "com.unity.xr.interaction.toolkit", "XR Interaction Toolkit");
             AppendPackageCheck(report, "com.unity.xr.openxr", "OpenXR Plugin");
             AppendPackageCheck(report, "com.unity.xr.picoxr", "PICO Unity Integration SDK / PICO XR SDK");
+            AppendPackageCheck(report, "com.gilzoide.sqlite-net", "SQLite-net history storage");
 
             AppendSection(report, "OpenXR");
             AppendCheck(report, HasAnyAndroidOpenXRInteractionProfileEnabled(), "At least one Android OpenXR interaction profile is enabled");

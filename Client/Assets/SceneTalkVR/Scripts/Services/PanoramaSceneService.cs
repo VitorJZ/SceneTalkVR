@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using SceneTalkVR.Core;
@@ -38,6 +39,7 @@ namespace SceneTalkVR.Runtime.Services
         [SerializeField] private Material skySphereMaterial;
 
         private GameObject skySphereInstance;
+        public Texture2D LastAppliedTexture { get; private set; }
 
         public bool ForceUseFallback => forceUseFallback;
 
@@ -66,6 +68,19 @@ namespace SceneTalkVR.Runtime.Services
 
         public async Task<Texture2D> GenerateSkyboxAsync(string environmentDescription, string skyboxUrl = null)
         {
+            if (!string.IsNullOrWhiteSpace(skyboxUrl)
+                && skyboxUrl.StartsWith("history://", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!TryResolveHistoryAssetPath(skyboxUrl, out var historyPath))
+                {
+                    throw new FileNotFoundException($"The saved history panorama is missing: {skyboxUrl}");
+                }
+
+                var historyTexture = await DownloadTexture(new Uri(historyPath).AbsoluteUri);
+                Debug.Log($"[PanoramaSceneService] Loaded history panorama: {historyPath}");
+                return historyTexture;
+            }
+
             if (!string.IsNullOrEmpty(skyboxUrl) && skyboxUrl.StartsWith("demo://"))
             {
                 string resourceName = skyboxUrl.Substring("demo://".Length);
@@ -196,6 +211,8 @@ namespace SceneTalkVR.Runtime.Services
                 return;
             }
 
+            LastAppliedTexture = texture;
+
             if (!useSkySphere && TryApplyRenderSettingsSkybox(texture))
             {
                 DynamicGI.UpdateEnvironment();
@@ -206,6 +223,150 @@ namespace SceneTalkVR.Runtime.Services
             ApplySkySphere(texture);
             DynamicGI.UpdateEnvironment();
             Debug.Log("[PanoramaSceneService] Background applied successfully.");
+        }
+
+        public bool TrySaveHistoryTexture(string sessionId, out string historyUri)
+        {
+            historyUri = string.Empty;
+            if (LastAppliedTexture == null || !IsSafeSessionId(sessionId))
+            {
+                return false;
+            }
+
+            try
+            {
+                var folder = Path.Combine(
+                    Application.persistentDataPath,
+                    "SceneTalkVR",
+                    "History",
+                    "Assets",
+                    sessionId);
+                Directory.CreateDirectory(folder);
+                var path = Path.Combine(folder, "panorama.png");
+                var png = EncodeTextureToPng(LastAppliedTexture);
+                if (png == null || png.Length == 0)
+                {
+                    throw new InvalidOperationException("The panorama encoder returned no data.");
+                }
+
+                File.WriteAllBytes(path, png);
+                historyUri = $"history://{sessionId}/panorama.png";
+                return true;
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"[PanoramaSceneService] Could not cache history panorama: {exception.Message}");
+                TryDeleteIncompleteHistoryAsset(sessionId);
+                return false;
+            }
+        }
+
+        private static void TryDeleteIncompleteHistoryAsset(string sessionId)
+        {
+            try
+            {
+                var folder = Path.Combine(
+                    Application.persistentDataPath,
+                    "SceneTalkVR",
+                    "History",
+                    "Assets",
+                    sessionId);
+                var path = Path.Combine(folder, "panorama.png");
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+
+                if (Directory.Exists(folder) && Directory.GetFileSystemEntries(folder).Length == 0)
+                {
+                    Directory.Delete(folder);
+                }
+            }
+            catch (Exception cleanupException)
+            {
+                Debug.LogWarning(
+                    $"[PanoramaSceneService] Could not remove an incomplete history panorama: {cleanupException.Message}");
+            }
+        }
+
+        private static byte[] EncodeTextureToPng(Texture2D texture)
+        {
+            if (texture.isReadable)
+            {
+                return texture.EncodeToPNG();
+            }
+
+            var previous = RenderTexture.active;
+            var temporary = RenderTexture.GetTemporary(
+                texture.width,
+                texture.height,
+                0,
+                RenderTextureFormat.ARGB32,
+                RenderTextureReadWrite.Default);
+            Texture2D readableCopy = null;
+            try
+            {
+                Graphics.Blit(texture, temporary);
+                RenderTexture.active = temporary;
+                readableCopy = new Texture2D(texture.width, texture.height, TextureFormat.RGBA32, false);
+                readableCopy.ReadPixels(new Rect(0f, 0f, texture.width, texture.height), 0, 0);
+                readableCopy.Apply(false, false);
+                return readableCopy.EncodeToPNG();
+            }
+            finally
+            {
+                RenderTexture.active = previous;
+                RenderTexture.ReleaseTemporary(temporary);
+                if (readableCopy != null)
+                {
+                    Destroy(readableCopy);
+                }
+            }
+        }
+
+        private static bool IsSafeSessionId(string sessionId)
+        {
+            if (string.IsNullOrWhiteSpace(sessionId))
+            {
+                return false;
+            }
+
+            var value = sessionId.Trim();
+            return value != "."
+                && value != ".."
+                && value.IndexOf('/') < 0
+                && value.IndexOf('\\') < 0
+                && value.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
+        }
+
+        private static bool TryResolveHistoryAssetPath(string value, out string path)
+        {
+            path = string.Empty;
+            const string prefix = "history://";
+            if (string.IsNullOrWhiteSpace(value)
+                || !value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var relative = value.Substring(prefix.Length).Replace('\\', '/');
+            var parts = relative.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 2
+                || parts[1] != "panorama.png"
+                || parts[0].IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+                || parts[0].Contains(".."))
+            {
+                return false;
+            }
+
+            path = Path.Combine(
+                Application.persistentDataPath,
+                "SceneTalkVR",
+                "History",
+                "Assets",
+                parts[0],
+                parts[1]);
+            return File.Exists(path);
         }
 
         private bool TryApplyRenderSettingsSkybox(Texture2D texture)

@@ -1,11 +1,15 @@
 using System;
 using System.Collections;
 using SceneTalkVR.Core;
+using SceneTalkVR.History;
 using UnityEngine;
 
 namespace SceneTalkVR.Demo
 {
-    public sealed class DemoBrainModule : MonoBehaviour, ISceneTalkBrain, ISceneTalkExperimentContextReceiver
+    public sealed class DemoBrainModule : MonoBehaviour,
+        ISceneTalkBrain,
+        ISceneTalkExperimentContextReceiver,
+        ISceneTalkConversationContextReceiver
     {
         [SerializeField]
         private float simulatedProcessingSeconds = 1.5f;
@@ -15,6 +19,11 @@ namespace SceneTalkVR.Demo
         public void SetExperimentCondition(CorrectionExperimentCondition condition)
         {
             currentCondition = ExperimentConditionManager.CloneCondition(condition);
+        }
+
+        public void RestoreConversationContext(LearningSessionDetail session)
+        {
+            currentCondition = ExperimentConditionManager.CloneCondition(session?.settings?.condition);
         }
 
         public IEnumerator GenerateSceneAndReply(string userText, Action<SpringScenePayload> onComplete, Action<string> onError)

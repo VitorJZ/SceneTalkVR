@@ -163,6 +163,30 @@ namespace SceneTalkVR.AvatarSystem.Tests
         }
 
         [Test]
+        public void ManualChangeAfterHistoryRestoreClearsTheRestoredConditionOverride()
+        {
+            var restored = new CorrectionExperimentCondition
+            {
+                participantId = "test",
+                sessionId = "restored-session",
+                scenarioId = "restaurant_reservation",
+                conditionId = "assistant_agent_recast",
+                provider = ExperimentConditionManager.AssistantAgentProvider,
+                style = ExperimentConditionManager.RecastStyle,
+                task = manager.CurrentTask
+            };
+
+            Assert.That(manager.RestoreConversation(restored, 2), Is.True);
+            Assert.That(manager.CurrentConditionId, Is.EqualTo("assistant_agent_recast"));
+            Assert.That(
+                manager.TrySetManualFeedbackProvider(ExperimentConditionManager.DialogueAvatarProvider),
+                Is.True);
+            Assert.That(manager.CurrentConditionId, Is.EqualTo("dialogue_avatar_recast"));
+            Assert.That(manager.CurrentFeedbackProvider, Is.EqualTo(ExperimentConditionManager.DialogueAvatarProvider));
+            Assert.That(manager.CurrentFeedbackStyle, Is.EqualTo(ExperimentConditionManager.RecastStyle));
+        }
+
+        [Test]
         public void OrchestratorReinjectsChangedAxesIntoGenerationAndPresentationModules()
         {
             var llm = host.AddComponent<RealLLMService>();

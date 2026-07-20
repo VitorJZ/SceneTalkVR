@@ -1,5 +1,8 @@
 using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 using SceneTalkVR.Core;
+using SceneTalkVR.History;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -19,6 +22,10 @@ namespace SceneTalkVR.Runtime
         private readonly Dictionary<Text, int> baseFontSizes = new Dictionary<Text, int>();
         private GameObject mainMenuPanel;
         private GameObject settingsPanel;
+        private GameObject historyListPanel;
+        private GameObject historyDetailPanel;
+        private GameObject historyDeletePanel;
+        private GameObject historyErrorPanel;
         private GameObject settingsGeneralGroup;
         private GameObject requestPanel;
         private GameObject taskSelectionPanel;
@@ -29,6 +36,7 @@ namespace SceneTalkVR.Runtime
 
         private Button startButton;
         private Button settingsButton;
+        private Button historyButton;
         private Button quitButton;
         private Button fontMinusButton;
         private Button fontPlusButton;
@@ -46,6 +54,19 @@ namespace SceneTalkVR.Runtime
         private Button taskButton2;
         private Button taskButton3;
         private Button taskButton4;
+        private readonly Button[] historyRowButtons = new Button[LearningMemoryService.DefaultPageSize];
+        private readonly string[] historyRowSessionIds = new string[LearningMemoryService.DefaultPageSize];
+        private Button historyPreviousButton;
+        private Button historyNextButton;
+        private Button historyListBackButton;
+        private Button historyContinueButton;
+        private Button historyDeleteButton;
+        private Button historyDetailBackButton;
+        private Button historyPageUpButton;
+        private Button historyPageDownButton;
+        private Button historyDeleteConfirmButton;
+        private Button historyDeleteCancelButton;
+        private Button historyErrorBackButton;
 
         private Text settingsTitleText;
         private Text settingsPageText;
@@ -55,6 +76,15 @@ namespace SceneTalkVR.Runtime
         private Text correctionSourceValueText;
         private Text correctionStyleValueText;
         private Text correctionSettingsStatusText;
+        private Text historyEmptyText;
+        private Text historyPageText;
+        private Text historyDetailSummaryText;
+        private Text historyDetailBodyText;
+        private Text historyDeleteMessageText;
+        private Text historyErrorText;
+        private ScrollRect historyDetailScrollRect;
+        private RectTransform historyDetailContentRect;
+        private string lastRenderedHistorySessionId;
         private Text requestTitleText;
         private Text requestStatusText;
         private Text requestTranscriptText;
@@ -128,11 +158,76 @@ namespace SceneTalkVR.Runtime
             var root = new GameObject(FlowRootName).transform;
             root.SetParent(worldCanvas.transform, false);
 
-            mainMenuPanel = CreatePanel(root, "InitialPanel", new Vector2(0f, 0f), new Vector2(380f, 360f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
-            CreateText(mainMenuPanel.transform, "Title", "SceneTalkVR", new Vector2(0f, 122f), new Vector2(320f, 54f), 34, TextAnchor.MiddleCenter, Color.white);
-            startButton = CreateButton(mainMenuPanel.transform, "StartButton", "Start", new Vector2(0f, 48f), new Vector2(190f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f));
-            settingsButton = CreateButton(mainMenuPanel.transform, "SettingsButton", "Settings", new Vector2(0f, -24f), new Vector2(190f, 54f), new Color(0.24f, 0.36f, 0.42f, 1f));
-            quitButton = CreateButton(mainMenuPanel.transform, "QuitButton", "Quit", new Vector2(0f, -96f), new Vector2(190f, 54f), new Color(0.58f, 0.18f, 0.18f, 1f));
+            mainMenuPanel = CreatePanel(root, "InitialPanel", new Vector2(0f, 0f), new Vector2(380f, 430f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
+            CreateText(mainMenuPanel.transform, "Title", "SceneTalkVR", new Vector2(0f, 160f), new Vector2(320f, 54f), 34, TextAnchor.MiddleCenter, Color.white);
+            startButton = CreateButton(mainMenuPanel.transform, "StartButton", "Start", new Vector2(0f, 86f), new Vector2(190f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f));
+            settingsButton = CreateButton(mainMenuPanel.transform, "SettingsButton", "Settings", new Vector2(0f, 20f), new Vector2(190f, 54f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            historyButton = CreateButton(mainMenuPanel.transform, "HistoryButton", "History", new Vector2(0f, -46f), new Vector2(190f, 54f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            quitButton = CreateButton(mainMenuPanel.transform, "QuitButton", "Quit", new Vector2(0f, -112f), new Vector2(190f, 54f), new Color(0.58f, 0.18f, 0.18f, 1f));
+
+            historyListPanel = CreatePanel(root, "HistoryListPanel", Vector2.zero, new Vector2(820f, 500f), new Color(0.04f, 0.05f, 0.07f, 0.94f));
+            CreateText(historyListPanel.transform, "Title", "Conversation History", new Vector2(0f, 210f), new Vector2(620f, 44f), 30, TextAnchor.MiddleCenter, Color.white);
+            historyEmptyText = CreateText(historyListPanel.transform, "Empty", "No conversation history yet.", new Vector2(0f, 10f), new Vector2(650f, 60f), 22, TextAnchor.MiddleCenter, new Color(0.75f, 0.82f, 0.88f, 1f));
+            for (var i = 0; i < historyRowButtons.Length; i++)
+            {
+                historyRowButtons[i] = CreateButton(
+                    historyListPanel.transform,
+                    $"HistoryRow{i + 1}",
+                    string.Empty,
+                    new Vector2(0f, 142f - i * 68f),
+                    new Vector2(700f, 56f),
+                    new Color(0.14f, 0.28f, 0.4f, 1f));
+                var label = historyRowButtons[i].GetComponentInChildren<Text>();
+                if (label != null)
+                {
+                    label.alignment = TextAnchor.MiddleLeft;
+                    label.resizeTextForBestFit = true;
+                    label.resizeTextMinSize = 13;
+                    label.resizeTextMaxSize = 19;
+                }
+            }
+            historyPreviousButton = CreateButton(historyListPanel.transform, "PreviousButton", "Previous", new Vector2(-250f, -210f), new Vector2(150f, 44f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            historyPageText = CreateText(historyListPanel.transform, "Page", "Page 1 / 1", new Vector2(0f, -210f), new Vector2(200f, 40f), 18, TextAnchor.MiddleCenter, Color.white);
+            historyNextButton = CreateButton(historyListPanel.transform, "NextButton", "Next", new Vector2(250f, -210f), new Vector2(150f, 44f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            historyListBackButton = CreateButton(historyListPanel.transform, "BackButton", "Back", new Vector2(-350f, 210f), new Vector2(100f, 40f), new Color(0.24f, 0.36f, 0.42f, 1f));
+
+            historyDetailPanel = CreatePanel(root, "HistoryDetailPanel", Vector2.zero, new Vector2(820f, 500f), new Color(0.04f, 0.05f, 0.07f, 0.94f));
+            CreateText(historyDetailPanel.transform, "Title", "History Details", new Vector2(0f, 212f), new Vector2(620f, 42f), 29, TextAnchor.MiddleCenter, Color.white);
+            historyDetailSummaryText = CreateText(historyDetailPanel.transform, "Summary", string.Empty, new Vector2(-25f, 137f), new Vector2(690f, 104f), 16, TextAnchor.UpperLeft, new Color(0.82f, 0.9f, 1f, 1f));
+            var historyViewport = CreatePanel(historyDetailPanel.transform, "ConversationViewport", new Vector2(-28f, -38f), new Vector2(690f, 230f), new Color(0f, 0f, 0f, 0.35f));
+            historyViewport.AddComponent<RectMask2D>();
+            historyDetailScrollRect = historyViewport.AddComponent<ScrollRect>();
+            historyDetailScrollRect.horizontal = false;
+            historyDetailScrollRect.vertical = true;
+            historyDetailScrollRect.movementType = ScrollRect.MovementType.Clamped;
+            historyDetailScrollRect.scrollSensitivity = 34f;
+            historyDetailBodyText = CreateText(historyViewport.transform, "ConversationBody", string.Empty, Vector2.zero, new Vector2(660f, 220f), 16, TextAnchor.UpperLeft, Color.white);
+            historyDetailBodyText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            historyDetailBodyText.verticalOverflow = VerticalWrapMode.Overflow;
+            historyDetailContentRect = historyDetailBodyText.rectTransform;
+            historyDetailContentRect.anchorMin = new Vector2(0f, 1f);
+            historyDetailContentRect.anchorMax = new Vector2(1f, 1f);
+            historyDetailContentRect.pivot = new Vector2(0.5f, 1f);
+            historyDetailContentRect.anchoredPosition = Vector2.zero;
+            historyDetailContentRect.sizeDelta = new Vector2(-24f, 220f);
+            historyDetailScrollRect.viewport = historyViewport.GetComponent<RectTransform>();
+            historyDetailScrollRect.content = historyDetailContentRect;
+            historyPageUpButton = CreateButton(historyDetailPanel.transform, "PageUpButton", "Up", new Vector2(355f, 8f), new Vector2(76f, 44f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            historyPageDownButton = CreateButton(historyDetailPanel.transform, "PageDownButton", "Down", new Vector2(355f, -52f), new Vector2(76f, 44f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            historyContinueButton = CreateButton(historyDetailPanel.transform, "ContinueButton", "Continue", new Vector2(-110f, -210f), new Vector2(170f, 46f), new Color(0.12f, 0.52f, 0.38f, 1f));
+            historyDeleteButton = CreateButton(historyDetailPanel.transform, "DeleteButton", "Delete", new Vector2(110f, -210f), new Vector2(170f, 46f), ExitButtonColor);
+            historyDetailBackButton = CreateButton(historyDetailPanel.transform, "BackButton", "Back", new Vector2(-330f, -210f), new Vector2(120f, 46f), new Color(0.24f, 0.36f, 0.42f, 1f));
+
+            historyDeletePanel = CreatePanel(root, "HistoryDeletePanel", Vector2.zero, new Vector2(620f, 290f), new Color(0.04f, 0.05f, 0.07f, 0.97f));
+            CreateText(historyDeletePanel.transform, "Title", "Delete History?", new Vector2(0f, 95f), new Vector2(500f, 46f), 29, TextAnchor.MiddleCenter, Color.white);
+            historyDeleteMessageText = CreateText(historyDeletePanel.transform, "Message", string.Empty, new Vector2(0f, 25f), new Vector2(520f, 76f), 18, TextAnchor.MiddleCenter, new Color(0.84f, 0.88f, 0.92f, 1f));
+            historyDeleteCancelButton = CreateButton(historyDeletePanel.transform, "CancelButton", "Cancel", new Vector2(-115f, -88f), new Vector2(170f, 48f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            historyDeleteConfirmButton = CreateButton(historyDeletePanel.transform, "ConfirmDeleteButton", "Delete", new Vector2(115f, -88f), new Vector2(170f, 48f), ExitButtonColor);
+
+            historyErrorPanel = CreatePanel(root, "HistoryErrorPanel", Vector2.zero, new Vector2(680f, 260f), new Color(0.04f, 0.05f, 0.07f, 0.96f));
+            CreateText(historyErrorPanel.transform, "Title", "History Error", new Vector2(0f, 82f), new Vector2(520f, 44f), 28, TextAnchor.MiddleCenter, Color.white);
+            historyErrorText = CreateText(historyErrorPanel.transform, "Message", string.Empty, new Vector2(0f, -5f), new Vector2(560f, 110f), 18, TextAnchor.MiddleCenter, new Color(1f, 0.55f, 0.42f, 1f));
+            historyErrorBackButton = CreateButton(historyErrorPanel.transform, "BackButton", "Back", new Vector2(0f, -92f), new Vector2(150f, 44f), new Color(0.24f, 0.36f, 0.42f, 1f));
 
             settingsPanel = CreatePanel(root, "SettingsPanel", new Vector2(0f, 0f), new Vector2(820f, 500f), new Color(0.04f, 0.05f, 0.07f, 0.92f));
             settingsTitleText = CreateText(settingsPanel.transform, "Title", "Settings", new Vector2(0f, 210f), new Vector2(480f, 44f), 30, TextAnchor.MiddleCenter, Color.white);
@@ -239,6 +334,12 @@ namespace SceneTalkVR.Runtime
                 settingsButton.onClick.AddListener(OpenSettings);
             }
 
+            if (historyButton != null)
+            {
+                historyButton.onClick.RemoveAllListeners();
+                historyButton.onClick.AddListener(() => orchestrator?.OpenHistory());
+            }
+
             if (quitButton != null)
             {
                 quitButton.onClick.RemoveAllListeners();
@@ -324,6 +425,72 @@ namespace SceneTalkVR.Runtime
                 taskButton4.onClick.AddListener(() => orchestrator?.ConfirmFixedTaskSelection("hotel_check_in"));
             }
 
+            if (historyPreviousButton != null)
+            {
+                historyPreviousButton.onClick.RemoveAllListeners();
+                historyPreviousButton.onClick.AddListener(() => orchestrator?.OpenPreviousHistoryPage());
+            }
+
+            if (historyNextButton != null)
+            {
+                historyNextButton.onClick.RemoveAllListeners();
+                historyNextButton.onClick.AddListener(() => orchestrator?.OpenNextHistoryPage());
+            }
+
+            if (historyListBackButton != null)
+            {
+                historyListBackButton.onClick.RemoveAllListeners();
+                historyListBackButton.onClick.AddListener(() => orchestrator?.BackFromHistory());
+            }
+
+            if (historyContinueButton != null)
+            {
+                historyContinueButton.onClick.RemoveAllListeners();
+                historyContinueButton.onClick.AddListener(() => orchestrator?.ContinueSelectedHistory());
+            }
+
+            if (historyDeleteButton != null)
+            {
+                historyDeleteButton.onClick.RemoveAllListeners();
+                historyDeleteButton.onClick.AddListener(() => orchestrator?.RequestDeleteSelectedHistory());
+            }
+
+            if (historyDetailBackButton != null)
+            {
+                historyDetailBackButton.onClick.RemoveAllListeners();
+                historyDetailBackButton.onClick.AddListener(() => orchestrator?.BackFromHistory());
+            }
+
+            if (historyDeleteCancelButton != null)
+            {
+                historyDeleteCancelButton.onClick.RemoveAllListeners();
+                historyDeleteCancelButton.onClick.AddListener(() => orchestrator?.CancelDeleteSelectedHistory());
+            }
+
+            if (historyDeleteConfirmButton != null)
+            {
+                historyDeleteConfirmButton.onClick.RemoveAllListeners();
+                historyDeleteConfirmButton.onClick.AddListener(() => orchestrator?.ConfirmDeleteSelectedHistory());
+            }
+
+            if (historyErrorBackButton != null)
+            {
+                historyErrorBackButton.onClick.RemoveAllListeners();
+                historyErrorBackButton.onClick.AddListener(() => orchestrator?.BackFromHistory());
+            }
+
+            if (historyPageUpButton != null)
+            {
+                historyPageUpButton.onClick.RemoveAllListeners();
+                historyPageUpButton.onClick.AddListener(() => ScrollHistoryDetails(0.8f));
+            }
+
+            if (historyPageDownButton != null)
+            {
+                historyPageDownButton.onClick.RemoveAllListeners();
+                historyPageDownButton.onClick.AddListener(() => ScrollHistoryDetails(-0.8f));
+            }
+
             if (dialogueListenButton != null)
             {
                 dialogueListenButton.onClick.RemoveAllListeners();
@@ -350,6 +517,10 @@ namespace SceneTalkVR.Runtime
 
             var showMain = state == SceneTalkState.Idle || state == SceneTalkState.Finished;
             var showSettings = state == SceneTalkState.Settings;
+            var showHistoryList = state == SceneTalkState.HistoryList;
+            var showHistoryDetail = state == SceneTalkState.HistoryDetail;
+            var showHistoryDelete = state == SceneTalkState.HistoryDeleteConfirm;
+            var showHistoryError = state == SceneTalkState.HistoryError;
             var showRequest = !dialogueActive
                 && (!isFixedMode || state != SceneTalkState.Listening)
                 && (state == SceneTalkState.Listening
@@ -359,7 +530,11 @@ namespace SceneTalkVR.Runtime
             var showTaskSelection = isFixedMode
                 && !dialogueActive
                 && (state == SceneTalkState.Listening);
-            var showLoading = !dialogueActive && (state == SceneTalkState.Processing || state == SceneTalkState.SceneReady);
+            var showLoading = !dialogueActive
+                && (state == SceneTalkState.Processing
+                    || state == SceneTalkState.SceneReady
+                    || state == SceneTalkState.HistoryLoading
+                    || state == SceneTalkState.HistoryRestoring);
             var showDialogue = dialogueActive
                 || state == SceneTalkState.AvatarSpeaking
                 || state == SceneTalkState.CorrectionFeedbackSpeaking
@@ -367,7 +542,12 @@ namespace SceneTalkVR.Runtime
                 || state == SceneTalkState.TurnReview;
 
             SetActive(mainMenuPanel, showMain);
+            SetActive(historyButton?.gameObject, showMain && orchestrator.IsHistoryAvailable);
             SetActive(settingsPanel, showSettings);
+            SetActive(historyListPanel, showHistoryList);
+            SetActive(historyDetailPanel, showHistoryDetail);
+            SetActive(historyDeletePanel, showHistoryDelete);
+            SetActive(historyErrorPanel, showHistoryError);
             SetActive(requestPanel, showRequest);
             SetActive(taskSelectionPanel, showTaskSelection);
             SetActive(loadingPanel, showLoading);
@@ -375,6 +555,10 @@ namespace SceneTalkVR.Runtime
             SetActive(exitButtonObject, !showMain);
 
             RefreshSettingsPanel(showSettings);
+            RefreshHistoryList(showHistoryList);
+            RefreshHistoryDetail(showHistoryDetail);
+            RefreshHistoryDelete(showHistoryDelete);
+            RefreshHistoryError(showHistoryError);
             RefreshRequestPanel(showRequest);
             RefreshLoadingPanel(showLoading);
             RefreshSubtitlePanel(showDialogue);
@@ -442,6 +626,211 @@ namespace SceneTalkVR.Runtime
             }
         }
 
+        private void RefreshHistoryList(bool isVisible)
+        {
+            if (!isVisible)
+            {
+                return;
+            }
+
+            lastRenderedHistorySessionId = string.Empty;
+
+            var page = orchestrator.CurrentHistoryPage ?? new LearningSessionPage();
+            var items = page.items ?? System.Array.Empty<LearningSessionSummary>();
+            SetActive(historyEmptyText?.gameObject, items.Length == 0);
+
+            for (var i = 0; i < historyRowButtons.Length; i++)
+            {
+                var button = historyRowButtons[i];
+                var hasItem = i < items.Length;
+                SetActive(button?.gameObject, hasItem);
+                if (!hasItem || button == null)
+                {
+                    historyRowSessionIds[i] = string.Empty;
+                    continue;
+                }
+
+                var item = items[i];
+                SetButtonLabel(
+                    button,
+                    $"{item.title}    {FormatHistoryTime(item.updatedAtUnixMs)}\n"
+                    + $"{item.turnCount} turns  |  {item.correctionCount} corrections  |  "
+                    + $"{ResolveCorrectionSourceDisplayName(item.correctionProvider)} / "
+                    + ResolveCorrectionStyleDisplayName(item.correctionStyle));
+
+                if (!string.Equals(historyRowSessionIds[i], item.sessionId, System.StringComparison.Ordinal))
+                {
+                    historyRowSessionIds[i] = item.sessionId;
+                    button.onClick.RemoveAllListeners();
+                    var capturedId = item.sessionId;
+                    button.onClick.AddListener(() => orchestrator?.SelectHistorySession(capturedId));
+                }
+            }
+
+            if (historyPageText != null)
+            {
+                historyPageText.text = $"Page {page.pageIndex + 1} / {page.TotalPages}";
+            }
+
+            SetInteractable(historyPreviousButton, page.pageIndex > 0);
+            SetInteractable(historyNextButton, page.pageIndex + 1 < page.TotalPages);
+        }
+
+        private void RefreshHistoryDetail(bool isVisible)
+        {
+            if (!isVisible)
+            {
+                return;
+            }
+
+            var detail = orchestrator.SelectedHistorySession;
+            if (detail?.summary == null)
+            {
+                return;
+            }
+
+            var scene = detail.sceneSnapshot;
+            var appearance = scene?.avatarRole?.appearance;
+            if (historyDetailSummaryText != null)
+            {
+                historyDetailSummaryText.text =
+                    $"{detail.summary.title}\n"
+                    + $"Created {FormatHistoryTime(detail.summary.createdAtUnixMs)}  |  Updated {FormatHistoryTime(detail.summary.updatedAtUnixMs)}\n"
+                    + $"Scenario: {detail.summary.scenarioId}  |  Environment: {detail.summary.environmentType}\n"
+                    + $"Avatar: {scene?.avatarRole?.role ?? "-"} / {appearance?.genderPresentation ?? "unknown"}  |  "
+                    + $"Correction: {ResolveCorrectionSourceDisplayName(detail.summary.correctionProvider)} / "
+                    + $"{ResolveCorrectionStyleDisplayName(detail.summary.correctionStyle)}  |  "
+                    + $"Sensitivity: {detail.settings?.feedbackSensitivity ?? "moderate"}\n"
+                    + $"Turns: {detail.summary.turnCount}  |  Corrections: {detail.summary.correctionCount}";
+            }
+
+            if (!string.Equals(
+                    lastRenderedHistorySessionId,
+                    detail.summary.sessionId,
+                    System.StringComparison.Ordinal))
+            {
+                lastRenderedHistorySessionId = detail.summary.sessionId;
+                if (historyDetailBodyText != null)
+                {
+                    historyDetailBodyText.text = BuildHistoryDetailText(detail);
+                    var contentHeight = Mathf.Max(220f, historyDetailBodyText.preferredHeight + 24f);
+                    historyDetailContentRect.sizeDelta = new Vector2(-24f, contentHeight);
+                    Canvas.ForceUpdateCanvases();
+                    historyDetailScrollRect.verticalNormalizedPosition = 1f;
+                }
+            }
+
+            var canScroll = historyDetailContentRect != null
+                && historyDetailScrollRect != null
+                && historyDetailContentRect.rect.height > historyDetailScrollRect.viewport.rect.height + 1f;
+            SetInteractable(historyPageUpButton, canScroll);
+            SetInteractable(historyPageDownButton, canScroll);
+        }
+
+        private void RefreshHistoryDelete(bool isVisible)
+        {
+            if (!isVisible || historyDeleteMessageText == null)
+            {
+                return;
+            }
+
+            var title = orchestrator.SelectedHistorySession?.summary?.title ?? "this conversation";
+            historyDeleteMessageText.text =
+                $"Delete \"{title}\" permanently?\nThis removes its database rows and cached scene files.";
+        }
+
+        private void RefreshHistoryError(bool isVisible)
+        {
+            if (isVisible && historyErrorText != null)
+            {
+                historyErrorText.text = orchestrator.HistoryErrorMessage;
+            }
+        }
+
+        private static string BuildHistoryDetailText(LearningSessionDetail detail)
+        {
+            var builder = new StringBuilder();
+            var task = detail.settings?.condition?.task;
+            var avatar = detail.sceneSnapshot?.avatarRole;
+            builder.AppendLine("SETTINGS");
+            builder.AppendLine($"Task context: {ResolveText(task?.context)}");
+            builder.AppendLine($"Goals: {(task?.goals == null || task.goals.Length == 0 ? "-" : string.Join("; ", task.goals))}");
+            builder.AppendLine($"Avatar speech: speed={ResolveText(avatar?.speakingSpeed)}, accent={ResolveText(avatar?.accent)}, attitude={ResolveText(avatar?.attitude)}");
+            builder.AppendLine($"Scene mode: {ResolveText(detail.sceneSnapshot?.scene?.mode)}");
+            builder.AppendLine();
+
+            var turns = detail.turns ?? System.Array.Empty<DialogueTurnRecord>();
+            foreach (var turn in turns.OrderBy(item => item.sequenceIndex))
+            {
+                if (turn == null)
+                {
+                    continue;
+                }
+
+                builder.AppendLine(turn.isOpening ? "OPENING" : $"TURN {turn.sequenceIndex}");
+                if (!turn.isOpening)
+                {
+                    builder.AppendLine($"You: {ResolveText(turn.userText)}");
+                }
+                builder.AppendLine($"Avatar: {ResolveText(turn.assistantText)}");
+
+                var feedback = turn.payload?.correctionFeedback;
+                if (feedback != null && feedback.hasFeedback)
+                {
+                    builder.AppendLine($"Correction ({ResolveText(feedback.errorType)}):");
+                    builder.AppendLine($"  Original: {ResolveText(feedback.originalText)}");
+                    builder.AppendLine($"  Corrected: {ResolveText(feedback.correctedText)}");
+                    var feedbackText = string.IsNullOrWhiteSpace(feedback.recastText)
+                        ? feedback.feedbackText
+                        : feedback.recastText;
+                    builder.AppendLine($"  Feedback: {ResolveText(feedbackText)}");
+                }
+                else if (!turn.isOpening)
+                {
+                    builder.AppendLine("Correction: None");
+                }
+
+                builder.AppendLine();
+            }
+
+            return builder.Length == 0 ? "No dialogue turns were saved." : builder.ToString();
+        }
+
+        private static string ResolveText(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
+        }
+
+        private static string FormatHistoryTime(long unixMs)
+        {
+            if (unixMs <= 0)
+            {
+                return "Unknown time";
+            }
+
+            try
+            {
+                return System.DateTimeOffset.FromUnixTimeMilliseconds(unixMs)
+                    .ToLocalTime()
+                    .ToString("yyyy-MM-dd HH:mm");
+            }
+            catch (System.ArgumentOutOfRangeException)
+            {
+                return "Unknown time";
+            }
+        }
+
+        private void ScrollHistoryDetails(float delta)
+        {
+            if (historyDetailScrollRect == null)
+            {
+                return;
+            }
+
+            historyDetailScrollRect.verticalNormalizedPosition = Mathf.Clamp01(
+                historyDetailScrollRect.verticalNormalizedPosition + delta);
+        }
+
         private void RefreshRequestPanel(bool isVisible)
         {
             if (!isVisible)
@@ -504,9 +893,20 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
-            loadingText.text = orchestrator.CurrentState == SceneTalkState.SceneReady
-                ? "Preparing avatar dialogue..."
-                : "Loading scene and avatar...";
+            if (orchestrator.CurrentState == SceneTalkState.HistoryLoading)
+            {
+                loadingText.text = "Loading conversation history...";
+            }
+            else if (orchestrator.CurrentState == SceneTalkState.HistoryRestoring)
+            {
+                loadingText.text = "Restoring scene, avatar, and conversation context...";
+            }
+            else
+            {
+                loadingText.text = orchestrator.CurrentState == SceneTalkState.SceneReady
+                    ? "Preparing avatar dialogue..."
+                    : "Loading scene and avatar...";
+            }
         }
 
         private void RefreshSubtitlePanel(bool isVisible)
@@ -772,6 +1172,16 @@ namespace SceneTalkVR.Runtime
             if (orchestrator.CurrentState == SceneTalkState.Settings)
             {
                 orchestrator.CloseSettings();
+                return;
+            }
+
+            if (orchestrator.CurrentState == SceneTalkState.HistoryList
+                || orchestrator.CurrentState == SceneTalkState.HistoryDetail
+                || orchestrator.CurrentState == SceneTalkState.HistoryDeleteConfirm
+                || orchestrator.CurrentState == SceneTalkState.HistoryLoading
+                || orchestrator.CurrentState == SceneTalkState.HistoryError)
+            {
+                orchestrator.BackFromHistory();
                 return;
             }
 

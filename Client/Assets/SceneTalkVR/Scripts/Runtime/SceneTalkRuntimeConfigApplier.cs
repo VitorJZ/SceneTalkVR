@@ -27,6 +27,32 @@ namespace SceneTalkVR.Runtime
 
         public SceneTalkRuntimeConfig Config => config;
 
+        public bool TryConfigureHistoryBrainMode(SceneTalkBrainRuntimeMode mode, out string error)
+        {
+            error = string.Empty;
+            if (mode == SceneTalkBrainRuntimeMode.KeepCurrent)
+            {
+                return true;
+            }
+
+            ResolveModules();
+            MonoBehaviour brain = mode switch
+            {
+                SceneTalkBrainRuntimeMode.DemoBrain => demoBrainModule,
+                SceneTalkBrainRuntimeMode.DirectRealLlm => realLlmService,
+                _ => null
+            };
+
+            if (orchestrator == null || brain == null)
+            {
+                error = $"The scene does not contain the module required for Brain mode '{mode}'.";
+                return false;
+            }
+
+            orchestrator.ConfigureModules(brain: brain);
+            return true;
+        }
+
         private void Awake()
         {
             if (applyOnAwake)

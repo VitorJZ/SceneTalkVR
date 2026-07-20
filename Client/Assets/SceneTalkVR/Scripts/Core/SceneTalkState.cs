@@ -4,6 +4,12 @@ namespace SceneTalkVR.Core
     {
         Idle,
         Settings,
+        HistoryLoading,
+        HistoryList,
+        HistoryDetail,
+        HistoryDeleteConfirm,
+        HistoryRestoring,
+        HistoryError,
         Listening,
         Recording,
         Transcribing,

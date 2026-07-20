@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using SceneTalkVR.AvatarSystem;
 using SceneTalkVR.Core;
+using SceneTalkVR.History;
 using SceneTalkVR.Voice;
 using UnityEngine;
 using UnityEngine.Events;
@@ -26,6 +27,9 @@ namespace SceneTalkVR.Runtime
 
         [Header("Experiment")]
         [SerializeField] private ExperimentConditionManager experimentConditionManager;
+
+        [Header("Learning Memory")]
+        [SerializeField] private LearningMemoryService learningMemoryService;
 
         [Header("Optional UI")]
         [SerializeField] private Text stateLabel;
@@ -58,6 +62,34 @@ namespace SceneTalkVR.Runtime
         public bool IsDialogueActive { get; private set; }
         public bool IsSpeechRecording { get; private set; }
         public bool IsAwaitingTurnReviewAction { get; private set; }
+        public LearningSessionPage CurrentHistoryPage { get; private set; }
+        public LearningSessionDetail SelectedHistorySession { get; private set; }
+        public string HistoryErrorMessage { get; private set; }
+        public bool IsHistoryAvailable
+        {
+            get
+            {
+                var manager = ResolveExperimentConditionManager(false);
+                return manager == null || !manager.IsFormalExperiment;
+            }
+        }
+        public SceneTalkBrainRuntimeMode CurrentBrainMode
+        {
+            get
+            {
+                if (brainModule is SceneTalkVR.Runtime.Services.RealLLMService)
+                {
+                    return SceneTalkBrainRuntimeMode.DirectRealLlm;
+                }
+
+                if (brainModule is SceneTalkVR.Demo.DemoBrainModule)
+                {
+                    return SceneTalkBrainRuntimeMode.DemoBrain;
+                }
+
+                return SceneTalkBrainRuntimeMode.KeepCurrent;
+            }
+        }
         public bool ShouldShowExperimentDebug
         {
             get
@@ -140,6 +172,7 @@ namespace SceneTalkVR.Runtime
         private AvatarPresentationVoiceModule subscribedAvatarVoiceModule;
         private ExperimentConditionManager subscribedExperimentConditionManager;
         private SpeechCaptureMode activeSpeechCaptureMode = SpeechCaptureMode.None;
+        private string pendingHistorySessionId;
 
         private ISceneTalkSpeechInput SpeechInput => speechInputModule as ISceneTalkSpeechInput;
         private ISceneTalkManualSpeechInput ManualSpeechInput => speechInputModule as ISceneTalkManualSpeechInput;
@@ -149,6 +182,9 @@ namespace SceneTalkVR.Runtime
         private ISceneTalkAvatarReplyContext AvatarReplyContext => avatarVoiceModule as ISceneTalkAvatarReplyContext;
         private ISceneTalkAvatarThinkingState AvatarThinkingState => avatarVoiceModule as ISceneTalkAvatarThinkingState;
         private ISceneTalkAvatarSessionReset AvatarSessionReset => avatarVoiceModule as ISceneTalkAvatarSessionReset;
+        private ISceneTalkAvatarSessionPrepare AvatarSessionPrepare => avatarVoiceModule as ISceneTalkAvatarSessionPrepare;
+        private ISceneTalkConversationContextReceiver ConversationContextReceiver => brainModule as ISceneTalkConversationContextReceiver;
+        private ISceneTalkSceneSnapshotProvider SceneSnapshotProvider => scenePresenterModule as ISceneTalkSceneSnapshotProvider;
 
         public void ConfigureModules(
             MonoBehaviour speechInput = null,
@@ -185,6 +221,7 @@ namespace SceneTalkVR.Runtime
         private void Awake()
         {
             ResolveExperimentConditionManager(true);
+            ResolveLearningMemoryService(true);
             RefreshUi();
         }
 
@@ -219,6 +256,179 @@ namespace SceneTalkVR.Runtime
             {
                 SetState(SceneTalkState.Idle);
             }
+        }
+
+        public void OpenHistory()
+        {
+            if (!IsHistoryAvailable
+                || (CurrentState != SceneTalkState.Idle && CurrentState != SceneTalkState.Finished)
+                || currentTurn != null
+                || IsSpeechRecording)
+            {
+                return;
+            }
+
+            LoadHistoryPage(0);
+        }
+
+        public void LoadHistoryPage(int pageIndex)
+        {
+            if (!IsHistoryAvailable
+                || (CurrentState != SceneTalkState.Idle
+                    && CurrentState != SceneTalkState.Finished
+                    && CurrentState != SceneTalkState.HistoryList
+                    && CurrentState != SceneTalkState.HistoryDetail
+                    && CurrentState != SceneTalkState.HistoryDeleteConfirm
+                    && CurrentState != SceneTalkState.HistoryError))
+            {
+                return;
+            }
+
+            SetState(SceneTalkState.HistoryLoading);
+            try
+            {
+                var memory = ResolveLearningMemoryService(true);
+                CurrentHistoryPage = memory.GetPage(pageIndex);
+                SelectedHistorySession = null;
+                HistoryErrorMessage = string.Empty;
+                SetState(SceneTalkState.HistoryList);
+            }
+            catch (Exception exception)
+            {
+                EnterHistoryError($"Failed to load history. {exception.Message}");
+            }
+        }
+
+        public void OpenPreviousHistoryPage()
+        {
+            LoadHistoryPage((CurrentHistoryPage?.pageIndex ?? 0) - 1);
+        }
+
+        public void OpenNextHistoryPage()
+        {
+            LoadHistoryPage((CurrentHistoryPage?.pageIndex ?? 0) + 1);
+        }
+
+        public void SelectHistorySession(string sessionId)
+        {
+            if (CurrentState != SceneTalkState.HistoryList || string.IsNullOrWhiteSpace(sessionId))
+            {
+                return;
+            }
+
+            SetState(SceneTalkState.HistoryLoading);
+            try
+            {
+                SelectedHistorySession = ResolveLearningMemoryService(true).GetSession(sessionId);
+                if (SelectedHistorySession == null)
+                {
+                    throw new InvalidOperationException("The selected history record no longer exists.");
+                }
+
+                HistoryErrorMessage = string.Empty;
+                SetState(SceneTalkState.HistoryDetail);
+            }
+            catch (Exception exception)
+            {
+                EnterHistoryError($"Failed to open history. {exception.Message}");
+            }
+        }
+
+        public void BackFromHistory()
+        {
+            if (CurrentState == SceneTalkState.HistoryDeleteConfirm)
+            {
+                SetState(SceneTalkState.HistoryDetail);
+                return;
+            }
+
+            if (CurrentState == SceneTalkState.HistoryDetail)
+            {
+                SelectedHistorySession = null;
+                SetState(SceneTalkState.HistoryList);
+                return;
+            }
+
+            if (CurrentState == SceneTalkState.HistoryError)
+            {
+                HistoryErrorMessage = string.Empty;
+                LastError = string.Empty;
+                if (SelectedHistorySession != null)
+                {
+                    SetState(SceneTalkState.HistoryDetail);
+                }
+                else if (CurrentHistoryPage != null)
+                {
+                    SetState(SceneTalkState.HistoryList);
+                }
+                else
+                {
+                    SetState(SceneTalkState.Idle);
+                }
+
+                return;
+            }
+
+            if (CurrentState == SceneTalkState.HistoryList
+                || CurrentState == SceneTalkState.HistoryLoading)
+            {
+                SelectedHistorySession = null;
+                CurrentHistoryPage = null;
+                HistoryErrorMessage = string.Empty;
+                SetState(SceneTalkState.Idle);
+            }
+        }
+
+        public void RequestDeleteSelectedHistory()
+        {
+            if (CurrentState == SceneTalkState.HistoryDetail && SelectedHistorySession != null)
+            {
+                SetState(SceneTalkState.HistoryDeleteConfirm);
+            }
+        }
+
+        public void CancelDeleteSelectedHistory()
+        {
+            if (CurrentState == SceneTalkState.HistoryDeleteConfirm)
+            {
+                SetState(SceneTalkState.HistoryDetail);
+            }
+        }
+
+        public void ConfirmDeleteSelectedHistory()
+        {
+            if (CurrentState != SceneTalkState.HistoryDeleteConfirm
+                || SelectedHistorySession?.summary == null)
+            {
+                return;
+            }
+
+            var pageIndex = CurrentHistoryPage?.pageIndex ?? 0;
+            SetState(SceneTalkState.HistoryLoading);
+            try
+            {
+                ResolveLearningMemoryService(true).DeleteSession(SelectedHistorySession.summary.sessionId);
+                SelectedHistorySession = null;
+                CurrentHistoryPage = ResolveLearningMemoryService(true).GetPage(pageIndex);
+                SetState(SceneTalkState.HistoryList);
+            }
+            catch (Exception exception)
+            {
+                EnterHistoryError($"Failed to delete history. {exception.Message}");
+            }
+        }
+
+        public void ContinueSelectedHistory()
+        {
+            if (CurrentState != SceneTalkState.HistoryDetail
+                || SelectedHistorySession == null
+                || currentTurn != null
+                || !IsHistoryAvailable)
+            {
+                return;
+            }
+
+            currentTurn = StartCoroutine(RestoreHistorySession(SelectedHistorySession));
         }
 
         public void ChangeCorrectionProviderSetting()
@@ -329,14 +539,17 @@ namespace SceneTalkVR.Runtime
         {
             LastScenePayload = null;
             LastError = string.Empty;
-            
+
             var manager = ResolveExperimentConditionManager(true);
+            pendingHistorySessionId = Guid.NewGuid().ToString("N");
             if (manager != null)
             {
-                manager.SelectTask(taskId);
+                manager.StartConversation(pendingHistorySessionId, taskId);
             }
-
-            EnsureExperimentTurnStarted();
+            if (brainModule is ISceneTalkSessionReset brainReset)
+            {
+                brainReset.ResetSession();
+            }
             SetState(SceneTalkState.Processing);
 
             ApplyExperimentConditionToModules();
@@ -405,6 +618,25 @@ namespace SceneTalkVR.Runtime
             {
                 currentTurn = null;
                 yield break;
+            }
+
+            SpringScenePayload historySnapshot = null;
+            yield return StartNewHistorySession(
+                pendingHistorySessionId,
+                initialPayload,
+                null,
+                value => historySnapshot = value,
+                message => error = message);
+            if (HandleErrorOrFinish(error, "History persistence failed."))
+            {
+                currentTurn = null;
+                yield break;
+            }
+
+            if (historySnapshot != null)
+            {
+                initialPayload = historySnapshot;
+                LastScenePayload = historySnapshot;
             }
 
             IsDialogueActive = true;
@@ -567,6 +799,12 @@ namespace SceneTalkVR.Runtime
             {
                 brainReset.ResetSession();
             }
+
+            ResolveLearningMemoryService(false)?.EndActiveSession();
+            pendingHistorySessionId = string.Empty;
+            SelectedHistorySession = null;
+            CurrentHistoryPage = null;
+            HistoryErrorMessage = string.Empty;
 
             SetState(SceneTalkState.Idle);
         }
@@ -740,6 +978,16 @@ namespace SceneTalkVR.Runtime
         {
             LastScenePayload = null;
             LastError = string.Empty;
+            if (!ResolveLearningMemoryService(true).HasActiveSession)
+            {
+                pendingHistorySessionId = Guid.NewGuid().ToString("N");
+                var manager = ResolveExperimentConditionManager(true);
+                manager?.StartConversation(pendingHistorySessionId, manager.CurrentCondition?.scenarioId);
+                if (brainModule is ISceneTalkSessionReset brainReset)
+                {
+                    brainReset.ResetSession();
+                }
+            }
             EnsureExperimentTurnStarted();
             SetState(SceneTalkState.Processing);
 
@@ -772,6 +1020,25 @@ namespace SceneTalkVR.Runtime
             {
                 currentTurn = null;
                 yield break;
+            }
+
+            SpringScenePayload historySnapshot = null;
+            yield return StartNewHistorySession(
+                pendingHistorySessionId,
+                payload,
+                transcript,
+                value => historySnapshot = value,
+                message => error = message);
+            if (HandleErrorOrFinish(error, "History persistence failed."))
+            {
+                currentTurn = null;
+                yield break;
+            }
+
+            if (historySnapshot != null)
+            {
+                payload = historySnapshot;
+                LastScenePayload = historySnapshot;
             }
 
             IsDialogueActive = true;
@@ -846,6 +1113,19 @@ namespace SceneTalkVR.Runtime
             ApplyExperimentConditionToPayload(payload);
             LastScenePayload = payload;
             RefreshUi();
+            try
+            {
+                if (IsHistoryAvailable)
+                {
+                    ResolveLearningMemoryService(true).AppendTurn(transcript, payload);
+                }
+            }
+            catch (Exception exception)
+            {
+                EnterError($"Failed to save the dialogue turn. {exception.Message}");
+                currentTurn = null;
+                yield break;
+            }
             PrepareCorrectionReview(payload);
             SubscribeAvatarCorrectionPlayback();
             SetState(LastCorrectionHasFeedback
@@ -869,6 +1149,322 @@ namespace SceneTalkVR.Runtime
 
             currentTurn = null;
             EnterTurnReviewState();
+        }
+
+        private IEnumerator StartNewHistorySession(
+            string sessionId,
+            SpringScenePayload payload,
+            string initialUserText,
+            Action<SpringScenePayload> onComplete,
+            Action<string> onError)
+        {
+            if (payload == null)
+            {
+                onError?.Invoke("Cannot save a null scene payload.");
+                yield break;
+            }
+
+            var snapshot = LearningMemoryService.ClonePayload(payload);
+            if (!IsHistoryAvailable)
+            {
+                ResolveLearningMemoryService(false)?.EndActiveSession();
+                pendingHistorySessionId = string.Empty;
+                try
+                {
+                    ConversationContextReceiver?.RestoreConversationContext(
+                        BuildTransientConversationContext(sessionId, snapshot, initialUserText));
+                    onComplete?.Invoke(snapshot);
+                }
+                catch (Exception exception)
+                {
+                    onError?.Invoke(exception.Message);
+                }
+
+                yield break;
+            }
+
+            string captureError = null;
+            if (SceneSnapshotProvider != null)
+            {
+                yield return SceneSnapshotProvider.CaptureSceneSnapshot(
+                    sessionId,
+                    payload,
+                    value => snapshot = value,
+                    message => captureError = message);
+            }
+
+            if (!string.IsNullOrWhiteSpace(captureError))
+            {
+                onError?.Invoke(captureError);
+                yield break;
+            }
+
+            LearningMemoryService memory = null;
+            var sessionCreated = false;
+            try
+            {
+                var settings = BuildHistorySettingsSnapshot(sessionId);
+                memory = ResolveLearningMemoryService(true);
+                memory.BeginSession(
+                    sessionId,
+                    snapshot,
+                    settings,
+                    ResolveHistoryTitle(snapshot),
+                    snapshot.dialogueReply,
+                    initialUserText);
+                sessionCreated = true;
+                var storedSession = memory.GetSession(sessionId);
+                ConversationContextReceiver?.RestoreConversationContext(storedSession);
+                pendingHistorySessionId = string.Empty;
+                onComplete?.Invoke(snapshot);
+            }
+            catch (Exception exception)
+            {
+                if (sessionCreated && memory != null)
+                {
+                    try
+                    {
+                        memory.EndActiveSession();
+                        memory.DeleteSession(sessionId);
+                    }
+                    catch (Exception cleanupException)
+                    {
+                        Debug.LogWarning(
+                            $"[SceneTalkVR] Failed to roll back incomplete history session '{sessionId}': "
+                            + cleanupException.Message,
+                            this);
+                    }
+                }
+
+                onError?.Invoke(exception.Message);
+            }
+        }
+
+        private LearningSessionDetail BuildTransientConversationContext(
+            string sessionId,
+            SpringScenePayload payload,
+            string initialUserText)
+        {
+            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var hasInitialUserTurn = !string.IsNullOrWhiteSpace(initialUserText);
+            return new LearningSessionDetail
+            {
+                summary = new LearningSessionSummary
+                {
+                    sessionId = sessionId ?? string.Empty,
+                    turnCount = hasInitialUserTurn ? 1 : 0
+                },
+                settings = BuildHistorySettingsSnapshot(sessionId),
+                sceneSnapshot = LearningMemoryService.ClonePayload(payload),
+                turns = new[]
+                {
+                    new DialogueTurnRecord
+                    {
+                        sequenceIndex = hasInitialUserTurn ? 1 : 0,
+                        isOpening = !hasInitialUserTurn,
+                        createdAtUnixMs = now,
+                        userText = initialUserText ?? string.Empty,
+                        assistantText = payload?.dialogueReply ?? string.Empty,
+                        payload = LearningMemoryService.ClonePayload(payload)
+                    }
+                }
+            };
+        }
+
+        private IEnumerator RestoreHistorySession(LearningSessionDetail session)
+        {
+            SetState(SceneTalkState.HistoryRestoring);
+            LastError = string.Empty;
+            HistoryErrorMessage = string.Empty;
+            finishRequested = false;
+
+            string error = null;
+            if (!TryRestoreHistoryBrainMode(session.settings?.brainMode, out error))
+            {
+                error ??= "The stored Brain mode could not be restored.";
+            }
+
+            var manager = ResolveExperimentConditionManager(true);
+            var restoredCondition = ExperimentConditionManager.CloneCondition(session.settings?.condition);
+            if (string.IsNullOrWhiteSpace(error) && restoredCondition == null)
+            {
+                error = "The stored correction condition is missing.";
+            }
+            else if (string.IsNullOrWhiteSpace(error))
+            {
+                restoredCondition.sessionId = session.summary.sessionId;
+                if (!manager.RestoreConversation(restoredCondition, session.summary.turnCount))
+                {
+                    error = "History cannot be resumed while formal experiment mode is active.";
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(error))
+            {
+                ApplyExperimentConditionToModules();
+                try
+                {
+                    ConversationContextReceiver?.RestoreConversationContext(session);
+                }
+                catch (Exception exception)
+                {
+                    error = $"Failed to restore the LLM context. {exception.Message}";
+                }
+            }
+
+            AvatarSessionReset?.ClearAvatar();
+            ClearPresentedSceneIfSupported();
+            if (string.IsNullOrWhiteSpace(error))
+            {
+                if (ScenePresenter == null)
+                {
+                    error = "Scene presenter is unavailable.";
+                }
+                else
+                {
+                    yield return ScenePresenter.PresentScene(
+                        session.sceneSnapshot,
+                        () => { },
+                        message => error = message);
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(error))
+            {
+                if (AvatarSessionPrepare == null)
+                {
+                    error = "Avatar module does not support silent history restoration.";
+                }
+                else
+                {
+                    yield return AvatarSessionPrepare.PrepareSession(
+                        session.sceneSnapshot,
+                        () => { },
+                        message => error = message);
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                ResolveLearningMemoryService(false)?.EndActiveSession();
+                currentTurn = null;
+                EnterHistoryError($"Failed to continue history. {error}");
+                yield break;
+            }
+
+            ResolveLearningMemoryService(true).Activate(session);
+            var turns = session.turns ?? Array.Empty<DialogueTurnRecord>();
+            var lastTurn = turns.Length == 0 ? null : turns[turns.Length - 1];
+            var displayPayload = LearningMemoryService.ClonePayload(session.sceneSnapshot);
+            if (lastTurn != null)
+            {
+                LastTranscript = lastTurn.isOpening ? string.Empty : lastTurn.userText;
+                displayPayload.dialogueReply = lastTurn.assistantText;
+                var lastPayload = LearningMemoryService.ClonePayload(lastTurn.payload);
+                displayPayload.dialogueContinuation = lastPayload.dialogueContinuation;
+                displayPayload.correctionFeedback = lastPayload.correctionFeedback;
+            }
+            else
+            {
+                LastTranscript = string.Empty;
+            }
+
+            LastScenePayload = displayPayload;
+            IsDialogueActive = true;
+            IsSpeechRecording = false;
+            activeSpeechCaptureMode = SpeechCaptureMode.None;
+            AvatarReplyContext?.SetReplyContext(false);
+            PrepareCorrectionReview(displayPayload);
+            SelectedHistorySession = null;
+            CurrentHistoryPage = null;
+            currentTurn = null;
+            SetState(SceneTalkState.TurnReview);
+        }
+
+        private ConversationSettingsSnapshot BuildHistorySettingsSnapshot(string sessionId)
+        {
+            var condition = ExperimentConditionManager.CloneCondition(
+                ResolveExperimentConditionManager(true).CurrentCondition);
+            if (condition != null)
+            {
+                condition.sessionId = sessionId;
+            }
+
+            var realLlm = Brain as SceneTalkVR.Runtime.Services.RealLLMService;
+            return new ConversationSettingsSnapshot
+            {
+                brainMode = CurrentBrainMode.ToString(),
+                feedbackSensitivity = realLlm == null ? "moderate" : realLlm.FeedbackSensitivity,
+                condition = condition
+            };
+        }
+
+        private bool TryRestoreHistoryBrainMode(string storedMode, out string error)
+        {
+            error = string.Empty;
+            if (string.IsNullOrWhiteSpace(storedMode))
+            {
+                return true;
+            }
+
+            if (!Enum.TryParse(storedMode, true, out SceneTalkBrainRuntimeMode expectedMode))
+            {
+                error = $"Stored Brain mode '{storedMode}' is not supported.";
+                return false;
+            }
+
+            if (expectedMode == SceneTalkBrainRuntimeMode.KeepCurrent
+                || expectedMode == CurrentBrainMode)
+            {
+                return true;
+            }
+
+            var applier = FindFirstObjectByType<SceneTalkRuntimeConfigApplier>(FindObjectsInactive.Include);
+            if (applier == null)
+            {
+                error = $"Brain mode '{expectedMode}' is unavailable because the runtime config applier is missing.";
+                return false;
+            }
+
+            if (!applier.TryConfigureHistoryBrainMode(expectedMode, out error))
+            {
+                return false;
+            }
+
+            if (CurrentBrainMode != expectedMode)
+            {
+                error = $"Brain mode '{expectedMode}' could not be activated.";
+                return false;
+            }
+
+            return true;
+        }
+
+        private static string ResolveHistoryTitle(SpringScenePayload payload)
+        {
+            var raw = string.IsNullOrWhiteSpace(payload?.taskType)
+                ? payload?.environmentType
+                : payload.taskType;
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return "Conversation";
+            }
+
+            var words = raw.Replace('_', ' ').Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            for (var i = 0; i < words.Length; i++)
+            {
+                words[i] = char.ToUpperInvariant(words[i][0]) + words[i].Substring(1);
+            }
+
+            return string.Join(" ", words);
+        }
+
+        private void EnterHistoryError(string message)
+        {
+            HistoryErrorMessage = message ?? "History operation failed.";
+            LastError = HistoryErrorMessage;
+            SetState(SceneTalkState.HistoryError);
+            Debug.LogError($"[SceneTalkVR] {HistoryErrorMessage}", this);
         }
 
         private bool ValidateSpeechModule()
@@ -1125,6 +1721,26 @@ namespace SceneTalkVR.Runtime
             }
 
             return experimentConditionManager;
+        }
+
+        private LearningMemoryService ResolveLearningMemoryService(bool createIfMissing)
+        {
+            if (learningMemoryService == null)
+            {
+                learningMemoryService = GetComponent<LearningMemoryService>();
+            }
+
+            if (learningMemoryService == null)
+            {
+                learningMemoryService = FindFirstObjectByType<LearningMemoryService>(FindObjectsInactive.Include);
+            }
+
+            if (learningMemoryService == null && createIfMissing)
+            {
+                learningMemoryService = gameObject.AddComponent<LearningMemoryService>();
+            }
+
+            return learningMemoryService;
         }
 
         private void SubscribeExperimentConditionChanges()

@@ -8,7 +8,7 @@ using UnityEngine.Serialization;
 
 namespace SceneTalkVR.AvatarSystem
 {
-    public sealed class AvatarPresentationVoiceModule : MonoBehaviour, ISceneTalkStreamingAvatarVoice, ISceneTalkAvatarReplyContext, ISceneTalkAvatarThinkingState, ISceneTalkAvatarSessionReset, ISceneTalkCorrectionFeedbackProviderReceiver
+    public sealed class AvatarPresentationVoiceModule : MonoBehaviour, ISceneTalkStreamingAvatarVoice, ISceneTalkAvatarReplyContext, ISceneTalkAvatarThinkingState, ISceneTalkAvatarSessionReset, ISceneTalkAvatarSessionPrepare, ISceneTalkCorrectionFeedbackProviderReceiver
     {
         [Header("Avatar Resolution")]
         [SerializeField] private AvatarPresetResolver resolver;
@@ -304,6 +304,42 @@ namespace SceneTalkVR.AvatarSystem
                     onError?.Invoke(replyResult.error);
                     yield break;
                 }
+            }
+
+            onComplete?.Invoke();
+        }
+
+        public IEnumerator PrepareSession(
+            SpringScenePayload payload,
+            Action onComplete,
+            Action<string> onError)
+        {
+            if (payload == null)
+            {
+                onError?.Invoke("Avatar session payload is null.");
+                yield break;
+            }
+
+            var correctionPresenter = ResolveCorrectionFeedbackPresenter(
+                createCorrectionFeedbackPresenterIfMissing);
+            if (correctionPresenter != null)
+            {
+                var provider = payload.correctionFeedback?.provider;
+                if (!string.IsNullOrWhiteSpace(provider))
+                {
+                    correctionPresenter.SetFeedbackProvider(provider);
+                }
+
+                correctionPresenter.SetPresentationActive(true);
+            }
+
+            var avatarError = string.Empty;
+            yield return EnsureAvatar(payload, message => avatarError = message);
+            isAvatarLoadingFinished = true;
+            if (!string.IsNullOrWhiteSpace(avatarError) && !allowVoiceFallbackOnAvatarFailure)
+            {
+                onError?.Invoke(avatarError);
+                yield break;
             }
 
             onComplete?.Invoke();

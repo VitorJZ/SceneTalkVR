@@ -61,6 +61,8 @@ namespace SceneTalkVR.Core
         private bool recordingActive;
         private int turnIndex;
         private int queuedRetryCount;
+        private SceneTalkExperimentTask restoredTaskOverride;
+        private string restoredConditionIdOverride;
 
         public CorrectionExperimentCondition CurrentCondition
         {
@@ -183,6 +185,43 @@ namespace SceneTalkVR.Core
             return CloneCondition(CurrentCondition);
         }
 
+        public void StartConversation(string conversationSessionId, string taskId)
+        {
+            ResetConversationRuntimeState();
+            sessionId = string.IsNullOrWhiteSpace(conversationSessionId)
+                ? $"session_{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}"
+                : conversationSessionId.Trim();
+            restoredTaskOverride = null;
+            restoredConditionIdOverride = string.Empty;
+            SetScenario(taskId);
+            RefreshCondition(false);
+            NotifyConditionChanged();
+        }
+
+        public bool RestoreConversation(CorrectionExperimentCondition condition, int completedTurnCount)
+        {
+            if (formalExperiment || condition == null || string.IsNullOrWhiteSpace(condition.sessionId))
+            {
+                return false;
+            }
+
+            ResetConversationRuntimeState();
+            sessionId = condition.sessionId.Trim();
+            participantId = string.IsNullOrWhiteSpace(condition.participantId)
+                ? participantId
+                : condition.participantId.Trim();
+            turnIndex = Mathf.Max(0, completedTurnCount);
+            manualCondition = ResolvePreset(condition.provider, condition.style);
+            restoredTaskOverride = CloneTask(condition.task);
+            restoredConditionIdOverride = string.IsNullOrWhiteSpace(condition.conditionId)
+                ? string.Empty
+                : NormalizeConditionId(condition.conditionId);
+            SetScenario(condition.scenarioId);
+            RefreshCondition(false);
+            NotifyConditionChanged();
+            return true;
+        }
+
         public CorrectionExperimentCondition EnsureActiveTurn()
         {
             if (activeTurnLog == null)
@@ -214,7 +253,10 @@ namespace SceneTalkVR.Core
                 style = style,
                 turnIndex = includeCurrentTurn ? turnIndex : Mathf.Max(0, turnIndex),
                 conditionOrder = CopyConditionOrder(),
-                task = CloneTask(FindTask(resolvedScenarioId))
+                task = CloneTask(restoredTaskOverride != null
+                    && string.Equals(restoredTaskOverride.scenarioId, resolvedScenarioId, StringComparison.OrdinalIgnoreCase)
+                    ? restoredTaskOverride
+                    : FindTask(resolvedScenarioId))
             };
 
             return CloneCondition(currentCondition);
@@ -224,6 +266,7 @@ namespace SceneTalkVR.Core
         {
             if (useConditionOrder)
             {
+                restoredConditionIdOverride = string.Empty;
                 var order = GetEffectiveConditionOrder();
                 conditionOrderIndex = order.Length == 0 ? 0 : (conditionOrderIndex + 1) % order.Length;
                 RefreshCondition(false);
@@ -266,6 +309,7 @@ namespace SceneTalkVR.Core
                 return;
             }
 
+            restoredTaskOverride = null;
             scenarioIndex = (scenarioIndex + 1) % taskDefinitions.Length;
             scenarioId = taskDefinitions[scenarioIndex].scenarioId;
             RefreshCondition(false);
@@ -274,6 +318,14 @@ namespace SceneTalkVR.Core
 
         public void SelectTask(string taskId)
         {
+            restoredTaskOverride = null;
+            SetScenario(taskId);
+            RefreshCondition(false);
+            NotifyConditionChanged();
+        }
+
+        private void SetScenario(string taskId)
+        {
             EnsureDefaultTaskDefinitions();
             for (int i = 0; i < taskDefinitions.Length; i++)
             {
@@ -281,11 +333,25 @@ namespace SceneTalkVR.Core
                 {
                     scenarioIndex = i;
                     scenarioId = taskDefinitions[i].scenarioId;
-                    break;
+                    return;
                 }
             }
-            RefreshCondition(false);
-            NotifyConditionChanged();
+
+            if (!string.IsNullOrWhiteSpace(taskId))
+            {
+                scenarioId = taskId.Trim();
+            }
+        }
+
+        private void ResetConversationRuntimeState()
+        {
+            FlushActiveTurn("skip");
+            FlushPendingTurn("continue");
+            recordingActive = false;
+            queuedRetryCount = 0;
+            turnIndex = 0;
+            activeTurnLog = null;
+            pendingTurnLog = null;
         }
 
         public void ApplyProviderTo(MonoBehaviour avatarVoiceModule)
@@ -743,6 +809,11 @@ namespace SceneTalkVR.Core
 
         private string ResolveCurrentConditionId()
         {
+            if (!string.IsNullOrWhiteSpace(restoredConditionIdOverride))
+            {
+                return restoredConditionIdOverride;
+            }
+
             if (!useConditionOrder)
             {
                 return GetConditionId(manualCondition);
@@ -844,9 +915,14 @@ namespace SceneTalkVR.Core
 
         private bool SetManualCondition(ExperimentConditionPreset preset)
         {
-            var changed = manualCondition != preset;
+            var previousConditionId = ResolveCurrentConditionId();
             manualCondition = preset;
+            restoredConditionIdOverride = string.Empty;
             RefreshCondition(false);
+            var changed = !string.Equals(
+                previousConditionId,
+                CurrentConditionId,
+                StringComparison.OrdinalIgnoreCase);
 
             if (changed)
             {

@@ -3,6 +3,7 @@ using SceneTalkVR.AvatarSystem;
 using SceneTalkVR.Runtime;
 using SceneTalkVR.Voice;
 using SceneTalkVR.Core;
+using SceneTalkVR.History;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -180,6 +181,9 @@ namespace SceneTalkVR.EditorTools
 
             var experimentConditionManager = root.GetComponent<ExperimentConditionManager>();
             if (experimentConditionManager == null) experimentConditionManager = root.AddComponent<ExperimentConditionManager>();
+
+            var learningMemory = root.GetComponent<LearningMemoryService>();
+            if (learningMemory == null) learningMemory = root.AddComponent<LearningMemoryService>();
 
             var runtimeConfig = EnsureRuntimeConfig();
             MonoBehaviour brainToUse = runtimeConfig.BrainMode == SceneTalkBrainRuntimeMode.DirectRealLlm

@@ -1,6 +1,6 @@
 ﻿# Vitor Preflight Report
 
-Generated: 2026-07-13 10:35:10
+Generated: 2026-07-20 15:36:55
 Unity: 6000.3.16f1
 Active Build Target: Android
 Android Build Support Path: `E:/ProgramFile/UnityEditor/6000.3.16f1/Editor/Data\PlaybackEngines\AndroidPlayer`
@@ -19,6 +19,7 @@ Android Build Support Path: `E:/ProgramFile/UnityEditor/6000.3.16f1/Editor/Data\
 - [x] One SceneTalkVR World UI canvas in scene (found 1)
 - [x] One EventSystem in scene (found 1)
 - [x] One ExperimentConditionManager in scene (found 1)
+- [x] At most one LearningMemoryService in scene (found 1; runtime auto-creates it when absent)
 - [x] One CorrectionFeedbackPresenter in scene (found 1)
 - [x] One CorrectionAgentPresenter in scene (found 1)
 - [x] Main Camera uses XR tracked pose on device
@@ -44,6 +45,7 @@ Android Build Support Path: `E:/ProgramFile/UnityEditor/6000.3.16f1/Editor/Data\
 - [x] XR Interaction Toolkit installed `3.5.0`
 - [x] OpenXR Plugin installed `1.16.1`
 - [x] PICO Unity Integration SDK / PICO XR SDK installed `3.4.0`
+- [x] SQLite-net history storage installed `1.3.2`
 
 ## OpenXR
 
@@ -55,6 +57,7 @@ Android Build Support Path: `E:/ProgramFile/UnityEditor/6000.3.16f1/Editor/Data\
 - [x] `PICO_OPENXR_SDK` define is set for Android
 - [x] Android XR loader uses OpenXR
 - [x] Android XR initializes and runs on startup
+- [x] Required PICO features are registered in Android OpenXR settings
 - [x] PICO XR Support feature is enabled for Android OpenXR
 - [x] PICO OpenXR Features extension is enabled
 - [x] PICO 4 controller profile is enabled for Android OpenXR
