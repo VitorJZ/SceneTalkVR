@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1.0",
+  "rules": [
+    {"ruleId":"checksum_failure","severity":"FAIL","scope":"session","description":"A bundle checksum does not match.","defaultAction":"exclude_session"},
+    {"ruleId":"integrity_fail","severity":"FAIL","scope":"session","description":"Bundle integrity status is FAIL.","defaultAction":"exclude_session"},
+    {"ruleId":"assignment_missing","severity":"FAIL","scope":"session","description":"Assignment snapshot is missing.","defaultAction":"exclude_session"},
+    {"ruleId":"protocol_version_mismatch","severity":"FAIL","scope":"session","description":"Protocol version is not allowed by analysis configuration.","defaultAction":"exclude_session"},
+    {"ruleId":"collection_ineligible","severity":"FAIL","scope":"session","description":"Session is not eligible for collection analysis.","defaultAction":"exclude_session"},
+    {"ruleId":"developer_test_assignment","severity":"FAIL","scope":"session","description":"Assignment is a developer test assignment.","defaultAction":"exclude_session"},
+    {"ruleId":"condition_not_completed","severity":"FAIL","scope":"condition","description":"Condition did not reach Completed.","defaultAction":"exclude_condition"},
+    {"ruleId":"technical_invalid_condition","severity":"WARNING","scope":"condition","description":"Condition was technically invalid.","defaultAction":"retain_and_flag"},
+    {"ruleId":"questionnaire_missing","severity":"FAIL","scope":"condition","description":"Condition questionnaire is missing.","defaultAction":"exclude_condition"},
+    {"ruleId":"required_item_missing","severity":"FAIL","scope":"condition","description":"A required questionnaire item is missing.","defaultAction":"exclude_condition"},
+    {"ruleId":"ranking_invalid","severity":"FAIL","scope":"session","description":"Final ranking is incomplete or duplicated.","defaultAction":"exclude_ranking"},
+    {"ruleId":"feedback_first_violation","severity":"FAIL","scope":"turn","description":"Dialogue began before feedback ended.","defaultAction":"exclude_turn"},
+    {"ruleId":"timing_non_monotonic","severity":"FAIL","scope":"turn","description":"Monotonic event time regressed.","defaultAction":"exclude_turn"},
+    {"ruleId":"summary_recompute_mismatch","severity":"FAIL","scope":"turn","description":"Compatibility summary differs from raw events.","defaultAction":"exclude_turn"}
+  ]
+}
