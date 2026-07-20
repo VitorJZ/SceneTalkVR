@@ -48,6 +48,7 @@ namespace SceneTalkVR.Core
         private bool interviewSaved;
         private bool resetInProgress;
         private string lastBundlePath;
+        private bool lifecycleSubscribed;
 
         public ExperimentRuntimeContext RuntimeContext { get; private set; }
         public bool IsActive => RuntimeContext != null && RuntimeContext.IsRehearsal;
@@ -64,7 +65,8 @@ namespace SceneTalkVR.Core
         public string ParticipantId => RuntimeContext?.participantId ?? string.Empty;
         public string SessionId => RuntimeContext?.sessionId ?? string.Empty;
         public string CurrentRunId => IsFormal ? formalLifecycle?.ConditionRunId ?? string.Empty : pilotWorkflow?.PilotRunId ?? string.Empty;
-        public string CurrentTaskId => IsFormal ? formalLifecycle?.CurrentConditionAssignment?.task?.taskId ?? string.Empty : pilotWorkflow?.Current?.task?.taskId ?? string.Empty;
+        public string CurrentTaskId => currentPosition < 0 ? string.Empty : IsFormal ? formalLifecycle?.CurrentConditionAssignment?.task?.taskId ?? string.Empty : pilotWorkflow?.Current?.task?.taskId ?? string.Empty;
+        public bool AwaitingParticipantConditionChoice => IsFormal && currentPosition < 0 && FormalAssignment?.status != AssignmentStatus.Completed;
         public string LastBundlePath => lastBundlePath ?? string.Empty;
         public bool RankingSubmitted => rankingSubmitted;
         public bool InterviewSaved => interviewSaved;
@@ -72,14 +74,14 @@ namespace SceneTalkVR.Core
         public string CurrentDataFolder => string.IsNullOrWhiteSpace(ParticipantId) || string.IsNullOrWhiteSpace(SessionId)
             ? RehearsalRoot : Path.Combine(RehearsalRoot, Safe(ParticipantId) + "_" + Safe(SessionId), "raw");
 
-        private void Awake() { Active = this; ResolveDependencies(); }
-        private void OnDestroy() { if (Active == this) Active = null; }
+        private void Awake() { Active = this; ResolveDependencies(); SubscribeLifecycle(); }
+        private void OnDestroy() { UnsubscribeLifecycle(); if (Active == this) Active = null; }
 
         public void Configure(ExperimentV11RehearsalProtocol rehearsalProtocol, ExperimentV11RehearsalResourceCatalog rehearsalResources,
             ExperimentVoiceProfileCatalog voices, ExperimentDeploymentCatalog deployments)
         {
             protocol = rehearsalProtocol; resources = rehearsalResources; voiceCatalog = voices; deploymentCatalog = deployments;
-            ResolveDependencies(); ApplyProtocolLimits(); RefreshUi();
+            ResolveDependencies(); SubscribeLifecycle(); ApplyProtocolLimits(); RefreshUi();
         }
 
         public bool CreateFormalSession(string participantId, string sessionId, out string error) =>
@@ -153,6 +155,39 @@ namespace SceneTalkVR.Core
                 orchestrator.LoadAssignedTask(items[next].task.taskId);
             }
             PersistAssignments(); WriteOperator("PrepareCurrentCondition"); RefreshUi(); return true;
+        }
+
+        public bool SelectFormalCondition(FormalConditionCode code, out string error)
+        {
+            error = string.Empty;
+            if (!IsFormal) { error = "formal_rehearsal_session_required"; return false; }
+            if (currentPosition >= 0 && formalLifecycle?.CurrentConditionAssignment != null
+                && (formalLifecycle.CurrentConditionAssignment.status == ConditionRunStatus.Preparing
+                    || formalLifecycle.CurrentConditionAssignment.status == ConditionRunStatus.Running
+                    || formalLifecycle.CurrentConditionAssignment.status == ConditionRunStatus.AwaitingQuestionnaire
+                    || formalLifecycle.CurrentConditionAssignment.status == ConditionRunStatus.QuestionnaireInProgress))
+            { error = "formal_condition_selection_in_progress"; return false; }
+            var items = FormalAssignment?.conditions;
+            var position = items == null ? -1 : Array.FindIndex(items, x => x.formalConditionCode == code);
+            if (position < 0) { error = "formal_condition_not_assigned"; return false; }
+            var selected = items[position];
+            if (selected.status == ConditionRunStatus.Completed || selected.status == ConditionRunStatus.QuestionnaireSubmitted)
+            { error = "formal_condition_already_completed"; return false; }
+            if (selected.status != ConditionRunStatus.Assigned && selected.status != ConditionRunStatus.TechnicalInvalid)
+            { error = "formal_condition_not_selectable:" + selected.status; return false; }
+            var retry = selected.status == ConditionRunStatus.TechnicalInvalid;
+            currentPosition = position;
+            if (!formalLifecycle.PrepareCondition(position, retry, out error)) { currentPosition = -1; return false; }
+            var order = FormalAssignment.participantSelectionOrder?.ToList() ?? new System.Collections.Generic.List<FormalConditionCode>();
+            if (!order.Contains(code)) order.Add(code);
+            FormalAssignment.participantSelectionOrder = order.ToArray();
+            selected.participantSelectionPosition = order.IndexOf(code);
+            selected.selectedAtUtc = DateTime.UtcNow.ToString("o");
+            formalLifecycle.RecordStudyEvent(StudyEventType.FormalConditionSelected, "participant", "participant_chosen=true");
+            PersistAssignments(); WriteOperator(retry ? "ParticipantRetriedFormalCondition" : "ParticipantSelectedFormalCondition",
+                detail: $"code={code};selectionPosition={selected.participantSelectionPosition};retry={retry}");
+            RefreshUi();
+            return true;
         }
 
         public bool IsTaskPrepared(string taskId) => IsActive && string.Equals(CurrentTaskId, taskId, StringComparison.OrdinalIgnoreCase)
@@ -331,6 +366,42 @@ namespace SceneTalkVR.Core
             pilotWorkflow ??= GetComponent<PilotWorkflowCoordinator>() ?? FindFirstObjectByType<PilotWorkflowCoordinator>();
             questionnaire ??= GetComponent<QuestionnaireRuntimeController>() ?? FindFirstObjectByType<QuestionnaireRuntimeController>();
             orchestrator ??= GetComponent<SceneTalkOrchestrator>() ?? FindFirstObjectByType<SceneTalkOrchestrator>();
+        }
+
+        private void SubscribeLifecycle()
+        {
+            if (lifecycleSubscribed || formalLifecycle == null) return;
+            formalLifecycle.QuestionnaireRequested += OnQuestionnaireRequested;
+            formalLifecycle.QuestionnaireSubmitted += OnQuestionnaireSubmitted;
+            lifecycleSubscribed = true;
+        }
+
+        private void UnsubscribeLifecycle()
+        {
+            if (!lifecycleSubscribed || formalLifecycle == null) return;
+            formalLifecycle.QuestionnaireRequested -= OnQuestionnaireRequested;
+            formalLifecycle.QuestionnaireSubmitted -= OnQuestionnaireSubmitted;
+            lifecycleSubscribed = false;
+        }
+
+        private void OnQuestionnaireRequested()
+        {
+            if (!IsFormal) return;
+            if (!questionnaire.StartCurrentConditionQuestionnaire(out var error))
+                Debug.LogError("[Rehearsal] Automatic questionnaire start failed: " + error, this);
+            else WriteOperator("AutomaticQuestionnaireOpened");
+            RefreshUi();
+        }
+
+        private void OnQuestionnaireSubmitted()
+        {
+            if (!IsFormal) return;
+            PersistAssignments();
+            currentPosition = -1;
+            WriteOperator("ReturnToFormalModeSelection");
+            if (FormalAssignment?.status == AssignmentStatus.Completed)
+                OpenFinalRanking(out _);
+            RefreshUi();
         }
 
         private void ApplyProtocolLimits()

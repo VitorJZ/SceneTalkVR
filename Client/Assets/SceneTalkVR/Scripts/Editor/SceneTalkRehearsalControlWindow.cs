@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using SceneTalkVR.Core;
 using UnityEditor;
 using UnityEngine;
@@ -38,7 +39,7 @@ namespace SceneTalkVR.EditorTools
             sessionId = EditorGUILayout.TextField("Session ID", sessionId);
             var coordinator = RehearsalSessionCoordinator.Active;
             EditorGUILayout.LabelField("Qualification", "Rehearsal");
-            EditorGUILayout.LabelField("Protocol version", coordinator?.Protocol?.ProtocolVersion ?? "1.1-rehearsal-1");
+            EditorGUILayout.LabelField("Protocol version", coordinator?.Protocol?.ProtocolVersion ?? "1.1-rehearsal-2");
             EditorGUILayout.LabelField("Voice profile", "rehearsal_feedback_voice / rehearsal_dialogue_voice");
             EditorGUILayout.LabelField("Deployment", "rehearsal_editor (127.0.0.1:8787)");
             if (GUILayout.Button("Create Session")) StartOrEnterPlay("create");
@@ -81,6 +82,22 @@ namespace SceneTalkVR.EditorTools
             EditorGUILayout.LabelField("Run ID", x?.CurrentRunId ?? "-");
             EditorGUILayout.LabelField("Data path", x?.CurrentDataFolder ?? RehearsalSessionCoordinator.RehearsalRoot);
             EditorGUILayout.LabelField("Bundle", x?.LastBundlePath ?? "not exported");
+            if (x?.IsFormal == true && x.FormalAssignment?.conditions != null)
+            {
+                EditorGUILayout.Space();
+                EditorGUILayout.LabelField("Participant-choice assignment", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField("Selection order", x.FormalAssignment.participantSelectionOrder == null
+                    ? "-" : string.Join(" → ", x.FormalAssignment.participantSelectionOrder.Select(v => v.ToString())));
+                foreach (var item in x.FormalAssignment.conditions)
+                {
+                    var evidence = x.FormalAssignment == null || x.CurrentPosition != item.conditionPosition
+                        ? string.Empty : string.Join(", ", x.GetComponent<ExperimentLifecycleCoordinator>().GoalTracker.Goals
+                            .Where(g => !string.IsNullOrWhiteSpace(g.candidateEvidence)).Select(g => g.goalId + ": " + g.candidateEvidence));
+                    EditorGUILayout.LabelField($"{item.formalConditionCode} → {item.task.taskId}",
+                        $"{item.status}; selected #{(item.participantSelectionPosition < 0 ? "-" : (item.participantSelectionPosition + 1).ToString())}");
+                    if (!string.IsNullOrWhiteSpace(evidence)) EditorGUILayout.HelpBox(evidence, MessageType.None);
+                }
+            }
         }
 
         private void StartOrEnterPlay(string action)

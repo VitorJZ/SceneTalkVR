@@ -32,6 +32,7 @@ namespace SceneTalkVR.Runtime
         private GameObject demoStatusPanel;
         private GameObject demoRankingPanel;
         private GameObject rehearsalWaitingPanel;
+        private GameObject formalModeSelectionPanel;
 
         private Button startButton;
         private Button settingsButton;
@@ -48,6 +49,9 @@ namespace SceneTalkVR.Runtime
 
         private readonly List<Button> taskButtons = new List<Button>();
         private readonly List<ExperimentTaskDefinition> taskButtonDefinitions = new List<ExperimentTaskDefinition>();
+        private readonly Dictionary<FormalConditionCode, Button> formalModeButtons = new Dictionary<FormalConditionCode, Button>();
+        private readonly Dictionary<FormalConditionCode, Text> formalModeStatusTexts = new Dictionary<FormalConditionCode, Text>();
+        private GoalProgressTracker subscribedGoalTracker;
 
         private Text settingsTitleText;
         private Text settingsPageText;
@@ -70,6 +74,7 @@ namespace SceneTalkVR.Runtime
         private Text demoStatusText;
         private Text demoRankingText;
         private bool goalPanelVisible = true;
+        private bool rehearsalFinalRankingVisible;
         private RectTransform subtitlePanelRect;
         private RectTransform subtitleTextContainerRect;
 
@@ -143,6 +148,11 @@ namespace SceneTalkVR.Runtime
             rehearsalWaitingPanel = CreatePanel(root, "RehearsalWaitingPanel", Vector2.zero, new Vector2(620f, 260f), new Color(0.04f, 0.05f, 0.07f, 0.94f));
             CreateText(rehearsalWaitingPanel.transform, "Title", "Welcome to SceneTalkVR", new Vector2(0f, 62f), new Vector2(560f, 52f), 30, TextAnchor.MiddleCenter, Color.white);
             CreateText(rehearsalWaitingPanel.transform, "Instruction", "Please wait while the experimenter prepares your next task.", new Vector2(0f, -20f), new Vector2(540f, 90f), 21, TextAnchor.MiddleCenter, new Color(.82f, .9f, 1f, 1f));
+
+            formalModeSelectionPanel = CreatePanel(root, "FormalModeSelectionPanel", Vector2.zero, new Vector2(900f, 520f), new Color(0.04f, 0.05f, 0.07f, 0.96f));
+            CreateText(formalModeSelectionPanel.transform, "Title", "Choose a Feedback Mode", new Vector2(0f, 220f), new Vector2(800f, 44f), 28, TextAnchor.MiddleCenter, Color.white);
+            CreateText(formalModeSelectionPanel.transform, "Instruction", "Choose any available mode. Your task has already been assigned.", new Vector2(0f, 182f), new Vector2(800f, 30f), 17, TextAnchor.MiddleCenter, new Color(.78f, .86f, 1f, 1f));
+            BuildFormalModeButtons();
 
             mainMenuPanel = CreatePanel(root, "InitialPanel", new Vector2(0f, 0f), new Vector2(380f, 360f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
             CreateText(mainMenuPanel.transform, "Title", "SceneTalkVR", new Vector2(0f, 122f), new Vector2(320f, 54f), 34, TextAnchor.MiddleCenter, Color.white);
@@ -331,6 +341,44 @@ namespace SceneTalkVR.Runtime
             }
         }
 
+        private void BuildFormalModeButtons()
+        {
+            formalModeButtons.Clear(); formalModeStatusTexts.Clear();
+            var codes = new[] { FormalConditionCode.NE, FormalConditionCode.NR, FormalConditionCode.SE, FormalConditionCode.SR };
+            for (var i = 0; i < codes.Length; i++)
+            {
+                var code = codes[i]; var column = i % 2; var row = i / 2;
+                var x = column == 0 ? -215f : 215f; var y = 92f - row * 180f;
+                var captured = code;
+                var button = CreateButton(formalModeSelectionPanel.transform, code + "ModeButton", FriendlyConditionLabel(code),
+                    new Vector2(x, y), new Vector2(390f, 70f), new Color(0.16f, 0.38f, 0.68f, 1f));
+                button.onClick.AddListener(() => SelectFormalMode(captured));
+                formalModeButtons[code] = button;
+                formalModeStatusTexts[code] = CreateText(formalModeSelectionPanel.transform, code + "Status", "Available",
+                    new Vector2(x, y - 52f), new Vector2(360f, 26f), 15, TextAnchor.MiddleCenter, new Color(.75f, .9f, .75f, 1f));
+            }
+        }
+
+        private static string FriendlyConditionLabel(FormalConditionCode code) => code switch
+        {
+            FormalConditionCode.NE => "Direct feedback — conversation partner",
+            FormalConditionCode.NR => "Rephrased feedback — conversation partner",
+            FormalConditionCode.SE => "Direct feedback — support agent",
+            FormalConditionCode.SR => "Rephrased feedback — support agent",
+            _ => code.ToString()
+        };
+
+        private void SelectFormalMode(FormalConditionCode code)
+        {
+            var rehearsal = RehearsalSessionCoordinator.Active;
+            var error = rehearsal == null ? "rehearsal_session_missing" : string.Empty;
+            if (rehearsal == null || !rehearsal.SelectFormalCondition(code, out error))
+            {
+                if (!string.IsNullOrWhiteSpace(error)) Debug.LogWarning("[Rehearsal] Formal mode selection blocked: " + error, this);
+            }
+            Refresh();
+        }
+
         private void Refresh()
         {
             if (orchestrator == null)
@@ -342,7 +390,10 @@ namespace SceneTalkVR.Runtime
             var dialogueActive = orchestrator.IsDialogueActive;
             var rehearsal = RehearsalSessionCoordinator.Active;
             var rehearsalActive = rehearsal != null && rehearsal.IsActive;
+            if (!rehearsalActive) rehearsalFinalRankingVisible = false;
+            var showFinalRanking = rehearsalActive && rehearsalFinalRankingVisible;
             var rehearsalWaiting = rehearsalActive && string.IsNullOrWhiteSpace(rehearsal.CurrentTaskId);
+            var showFormalModeSelection = !showFinalRanking && rehearsalActive && rehearsal.IsFormal && rehearsal.AwaitingParticipantConditionChoice;
             bool isFixedMode = orchestrator.RuntimeConfig != null && orchestrator.RuntimeConfig.UseFixedExperimentMode;
 
             var showMain = !rehearsalActive && (state == SceneTalkState.Idle || state == SceneTalkState.Finished);
@@ -357,14 +408,15 @@ namespace SceneTalkVR.Runtime
                 && !dialogueActive
                 && (state == SceneTalkState.Listening);
             var showLoading = !dialogueActive && (state == SceneTalkState.Processing || state == SceneTalkState.SceneReady);
-            var showDialogue = dialogueActive
+            var showDialogue = !showFormalModeSelection && !showFinalRanking && (dialogueActive
                 || state == SceneTalkState.AvatarSpeaking
                 || state == SceneTalkState.CorrectionFeedbackSpeaking
                 || state == SceneTalkState.DialogueSpeaking
-                || state == SceneTalkState.TurnReview;
+                || state == SceneTalkState.TurnReview);
 
             SetActive(mainMenuPanel, showMain);
-            SetActive(rehearsalWaitingPanel, rehearsalWaiting);
+            SetActive(rehearsalWaitingPanel, rehearsalWaiting && !showFormalModeSelection && !showFinalRanking);
+            SetActive(formalModeSelectionPanel, showFormalModeSelection);
             SetActive(settingsPanel, showSettings);
             SetActive(requestPanel, showRequest);
             SetActive(taskSelectionPanel, showTaskSelection);
@@ -378,6 +430,7 @@ namespace SceneTalkVR.Runtime
             RefreshLoadingPanel(showLoading);
             RefreshSubtitlePanel(showDialogue);
             RefreshDemoOverlay();
+            RefreshFormalModeSelection(showFormalModeSelection);
         }
 
         public void RefreshExternalState() => Refresh();
@@ -400,6 +453,7 @@ namespace SceneTalkVR.Runtime
                 ? "Please rank the three feedback forms.\n\nVoice Only\nFloating Orb\nHumanoid Agent"
                 : "Please rank the four feedback conditions.\n\nNE\nNR\nSE\nSR";
             demoRankingPanel.name = "ParticipantFinalRankingPanel";
+            rehearsalFinalRankingVisible = true;
             demoRankingPanel.SetActive(true);
             demoRankingPanel.transform.SetAsLastSibling();
         }
@@ -444,19 +498,63 @@ namespace SceneTalkVR.Runtime
             var usePilotRehearsal = RehearsalSessionCoordinator.Active != null && RehearsalSessionCoordinator.Active.IsPilot;
             var usePilotDemo = EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsPilotDemo;
             var tracker = usePilotRehearsal || usePilotDemo ? pilot?.Goals : lifecycle?.GoalTracker;
+            BindGoalTracker(tracker);
             var hasGoals = tracker != null && tracker.Goals.Count > 0;
             SetActive(taskGoalPanel, dialogueVisible && goalPanelVisible && hasGoals);
-            if (taskGoalText == null) return;
-            if (!hasGoals)
-            {
-                taskGoalText.text = string.Empty;
-                return;
-            }
-            var taskName = usePilotRehearsal || usePilotDemo ? pilot?.Current?.task?.taskId ?? "Task" : lifecycle.CurrentConditionAssignment?.task?.taskId ?? "Task";
+            if (!hasGoals && taskGoalText != null) taskGoalText.text = string.Empty;
+        }
+
+        private void BindGoalTracker(GoalProgressTracker tracker)
+        {
+            if (ReferenceEquals(subscribedGoalTracker, tracker)) return;
+            UnsubscribeGoalTracker();
+            subscribedGoalTracker = tracker;
+            if (subscribedGoalTracker == null) return;
+            subscribedGoalTracker.OnGoalProgressChanged += OnGoalProgressChanged;
+            subscribedGoalTracker.OnGoalCollectionReset += OnGoalProgressChanged;
+            RenderGoalPanel(subscribedGoalTracker);
+        }
+
+        private void UnsubscribeGoalTracker()
+        {
+            if (subscribedGoalTracker == null) return;
+            subscribedGoalTracker.OnGoalProgressChanged -= OnGoalProgressChanged;
+            subscribedGoalTracker.OnGoalCollectionReset -= OnGoalProgressChanged;
+            subscribedGoalTracker = null;
+        }
+
+        private void OnGoalProgressChanged(GoalProgressChangedEvent value)
+        {
+            if (subscribedGoalTracker == null || value == null) return;
+            var activeRun = subscribedGoalTracker.Context.conditionRunId ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(value.conditionRunId) && !string.Equals(value.conditionRunId, activeRun, System.StringComparison.Ordinal)) return;
+            RenderGoalPanel(subscribedGoalTracker);
+        }
+
+        private void RenderGoalPanel(GoalProgressTracker tracker)
+        {
+            if (taskGoalText == null || tracker == null || tracker.Goals.Count == 0) { if (taskGoalText != null) taskGoalText.text = string.Empty; return; }
+            var taskName = string.IsNullOrWhiteSpace(tracker.Context.taskId) ? "Task" : tracker.Context.taskId;
             var builder = new System.Text.StringBuilder(taskName).AppendLine();
             foreach (var goal in tracker.Goals)
-                builder.Append('[').Append(goal.state).Append("] ").AppendLine(goal.goalText);
+                builder.Append(goal.state == GoalProgressState.Confirmed ? "[✓] " : goal.state == GoalProgressState.Candidate ? "[…] " : "[ ] ").AppendLine(goal.goalText);
+            builder.AppendLine().Append(tracker.ConfirmedCount).Append(" / ").Append(tracker.Goals.Count).Append(" completed");
             taskGoalText.text = builder.ToString();
+        }
+
+        private void RefreshFormalModeSelection(bool visible)
+        {
+            if (!visible) return;
+            var assignment = RehearsalSessionCoordinator.Active?.FormalAssignment;
+            foreach (var pair in formalModeButtons)
+            {
+                var item = assignment?.conditions?.FirstOrDefault(x => x.formalConditionCode == pair.Key);
+                var status = item == null ? "Unavailable" : item.status == ConditionRunStatus.Completed ? "Completed"
+                    : item.status == ConditionRunStatus.TechnicalInvalid ? "Retry available"
+                    : item.status == ConditionRunStatus.Assigned ? "Available" : "In progress";
+                pair.Value.interactable = item != null && (item.status == ConditionRunStatus.Assigned || item.status == ConditionRunStatus.TechnicalInvalid);
+                if (formalModeStatusTexts.TryGetValue(pair.Key, out var label)) label.text = status;
+            }
         }
 
         private void RefreshSettingsPanel(bool isVisible)
@@ -791,11 +889,8 @@ namespace SceneTalkVR.Runtime
 
         private void Unsubscribe()
         {
-            if (orchestrator == null || !isSubscribed)
-            {
-                return;
-            }
-
+            UnsubscribeGoalTracker();
+            if (orchestrator == null || !isSubscribed) return;
             orchestrator.stateChanged.RemoveListener(OnStateChanged);
             isSubscribed = false;
         }

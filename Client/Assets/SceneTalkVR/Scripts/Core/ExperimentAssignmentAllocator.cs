@@ -11,6 +11,7 @@ namespace SceneTalkVR.Core
     public sealed class ExperimentAssignmentAllocator
     {
         public const string AssignmentVersion = "1.0";
+        public const string ParticipantChoiceAssignmentVersion = "2.0";
 
         public bool TryCreateFormal(
             string participantId,
@@ -69,11 +70,62 @@ namespace SceneTalkVR.Core
             if (protocol == null) { error = "rehearsal_protocol_missing"; return false; }
             if (!protocol.Validate(out error)) return false;
             if (catalog == null) { error = "task_catalog_missing"; return false; }
-            return TryCreate(participantId, sessionId, protocol.ProtocolVersion, catalog.CatalogVersion,
-                protocol.FormalSequences, catalog.GetTasks(ExperimentTaskPhase.Formal).Select(x => x.taskId).ToArray(),
-                protocol.FormalAssignmentPolicy, ExperimentFlowMode.Formal, ExperimentRunQualification.Rehearsal,
-                "rehearsal", false, protocol.ProtocolSnapshotId, resourceSnapshotId,
+            if (protocol.FormalConditionOrderPolicy != FormalConditionOrderPolicy.ParticipantChoice)
+            { error = "rehearsal_condition_order_policy_invalid"; return false; }
+            return TryCreateParticipantChoice(participantId, sessionId, protocol, catalog, resourceSnapshotId,
                 out assignment, out error);
+        }
+
+        private bool TryCreateParticipantChoice(string participantId, string sessionId,
+            ExperimentV11RehearsalProtocol protocol, ExperimentTaskCatalog catalog, string resourceSnapshotId,
+            out ExperimentAssignment assignment, out string error)
+        {
+            assignment = null;
+            var taskIds = catalog.GetTasks(ExperimentTaskPhase.Formal).Select(x => x.taskId).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+            if (taskIds.Length != 4 || taskIds.Distinct(StringComparer.OrdinalIgnoreCase).Count() != 4)
+            { error = "participant_choice_requires_four_unique_formal_tasks"; return false; }
+            var seedText = $"{participantId.Trim()}|{protocol.ProtocolVersion}|{ParticipantChoiceAssignmentVersion}|random_bijection_without_replacement";
+            var seed = StableHash(seedText);
+            var shuffled = taskIds.ToArray();
+            var randomState = seed;
+            for (var i = shuffled.Length - 1; i > 0; i--)
+            {
+                randomState = unchecked(randomState * 1664525u + 1013904223u);
+                var j = (int)(randomState % (uint)(i + 1));
+                (shuffled[i], shuffled[j]) = (shuffled[j], shuffled[i]);
+            }
+            var codes = new[] { FormalConditionCode.NE, FormalConditionCode.NR, FormalConditionCode.SE, FormalConditionCode.SR };
+            var conditions = new ConditionAssignment[codes.Length];
+            for (var i = 0; i < codes.Length; i++)
+                conditions[i] = new ConditionAssignment
+                {
+                    conditionPosition = i,
+                    formalConditionCode = codes[i],
+                    formalConditionLabel = codes[i].ToString(),
+                    task = new TaskAssignment { taskId = shuffled[i], taskAssignmentId = $"ta-{seed:x8}-{codes[i]}" },
+                    status = ConditionRunStatus.Assigned,
+                    participantSelectionPosition = -1
+                };
+            assignment = new ExperimentAssignment
+            {
+                participantId = participantId.Trim(), experimentSessionId = sessionId.Trim(),
+                sequenceId = "participant-choice", assignmentSeed = seed.ToString("x8"),
+                assignmentVersion = ParticipantChoiceAssignmentVersion, protocolVersion = protocol.ProtocolVersion,
+                taskCatalogVersion = catalog.CatalogVersion, createdAtUtc = DateTime.UtcNow.ToString("o"),
+                policy = AssignmentPolicy.StrictWithoutReplacement, status = AssignmentStatus.Created,
+                developerTestAssignment = false, dataOrigin = "rehearsal", collectionEligible = false,
+                flowMode = ExperimentFlowMode.Formal, runQualification = ExperimentRunQualification.Rehearsal,
+                protocolSnapshotId = protocol.ProtocolSnapshotId, resourceSnapshotId = resourceSnapshotId,
+                formalConditionOrderPolicy = "participant_choice",
+                taskAssignmentPolicy = "random_bijection_without_replacement",
+                goalConfirmationPolicy = "automatic_validated_detection",
+                questionnaireReturnPolicy = "return_to_mode_selection",
+                assignmentAlgorithmVersion = ParticipantChoiceAssignmentVersion,
+                randomSeedHash = seed.ToString("x8"),
+                participantSelectionOrder = Array.Empty<FormalConditionCode>(), conditions = conditions
+            };
+            error = string.Empty;
+            return true;
         }
 
         private bool TryCreate(string participantId, string sessionId, string protocolVersion, string catalogVersion,
@@ -139,7 +191,9 @@ namespace SceneTalkVR.Core
         public static bool IsCompatible(ExperimentAssignment assignment, string protocolVersion, string catalogVersion, out string reason)
         {
             if (assignment == null) { reason = "assignment_missing"; return false; }
-            if (!string.Equals(assignment.assignmentVersion, AssignmentVersion, StringComparison.Ordinal)) { reason = "assignment_version_changed"; return false; }
+            var expectedAssignmentVersion = string.Equals(protocolVersion, "1.1-rehearsal-2", StringComparison.Ordinal)
+                ? ParticipantChoiceAssignmentVersion : AssignmentVersion;
+            if (!string.Equals(assignment.assignmentVersion, expectedAssignmentVersion, StringComparison.Ordinal)) { reason = "assignment_version_changed"; return false; }
             if (!string.Equals(assignment.protocolVersion, protocolVersion, StringComparison.Ordinal)) { reason = "protocol_version_changed"; return false; }
             if (!string.Equals(assignment.taskCatalogVersion, catalogVersion, StringComparison.Ordinal)) { reason = "task_catalog_version_changed"; return false; }
             reason = string.Empty;
@@ -161,6 +215,11 @@ namespace SceneTalkVR.Core
             }
             if (assignment.policy == AssignmentPolicy.StrictWithoutReplacement && tasks.Count != 4)
             { error = "strict_without_replacement_task_duplicate"; return false; }
+            if (assignment.assignmentVersion == ParticipantChoiceAssignmentVersion
+                && (assignment.formalConditionOrderPolicy != "participant_choice"
+                    || assignment.taskAssignmentPolicy != "random_bijection_without_replacement"
+                    || assignment.goalConfirmationPolicy != "automatic_validated_detection"))
+            { error = "participant_choice_assignment_metadata_invalid"; return false; }
             error = string.Empty;
             return true;
         }

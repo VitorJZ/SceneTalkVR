@@ -472,6 +472,23 @@ namespace SceneTalkVR.Runtime
             ReturnToInitialMenu();
         }
 
+        public void PauseForQuestionnaireBoundary()
+        {
+            finishRequested = true;
+            CancelActiveSpeechCapture();
+            if (currentTurn != null)
+            {
+                StopCoroutine(currentTurn);
+                currentTurn = null;
+            }
+            IsSpeechRecording = false;
+            IsDialogueActive = false;
+            activeSpeechCaptureMode = SpeechCaptureMode.None;
+            IsAwaitingTurnReviewAction = false;
+            ClearCorrectionReviewState();
+            SetState(SceneTalkState.TurnReview);
+        }
+
         public void ReturnToInitialMenu()
         {
             finishRequested = true;
@@ -810,6 +827,8 @@ namespace SceneTalkVR.Runtime
             }
 
             currentTurn = null;
+            var dialogueGoalManager = ResolveExperimentConditionManager(false);
+            ValidatedRehearsalGoalDetector.Evaluate(dialogueGoalManager?.LifecycleCoordinator, dialogueGoalManager?.CurrentTurnId, transcript);
             EnterTurnReviewState();
         }
 
@@ -1039,7 +1058,7 @@ namespace SceneTalkVR.Runtime
             var lifecycle = ResolveExperimentConditionManager(false)?.LifecycleCoordinator;
             if (lifecycle != null && lifecycle.ShouldEndForLimit(out var limitReason))
             {
-                lifecycle.CompleteTask(limitReason, "system");
+                lifecycle.NotifyTaskLimitReached(limitReason);
             }
             IsAwaitingTurnReviewAction = false;
             if (string.IsNullOrWhiteSpace(LastCorrectionStatus))

@@ -39,6 +39,12 @@ namespace SceneTalkVR.Core
                 resourceSnapshotId = resources.ResourceSnapshotId,
                 taskCatalogVersion = isFormal ? formal.taskCatalogVersion : pilot.taskCatalogVersion,
                 questionnaireCatalogVersion = "1.1-stage5.1", assignmentVersion = isFormal ? formal.assignmentVersion : pilot.pilotAssignmentVersion,
+                formalConditionOrderPolicy = isFormal ? formal.formalConditionOrderPolicy : string.Empty,
+                taskAssignmentPolicy = isFormal ? formal.taskAssignmentPolicy : string.Empty,
+                goalConfirmationPolicy = isFormal ? formal.goalConfirmationPolicy : string.Empty,
+                questionnaireReturnPolicy = isFormal ? formal.questionnaireReturnPolicy : string.Empty,
+                assignmentAlgorithmVersion = isFormal ? formal.assignmentAlgorithmVersion : string.Empty,
+                randomSeedHash = isFormal ? formal.randomSeedHash : string.Empty,
                 createdAtUtc = DateTime.UtcNow.ToString("o")
             };
             if (!SessionBundleExporter.Export(source, bundle, manifest, out error)) return false;

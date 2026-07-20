@@ -71,6 +71,8 @@ namespace SceneTalkVR.Core
     }
 
     public enum AssignmentPolicy { Undefined, StrictWithoutReplacement, WithReplacement, Manual }
+    public enum FormalConditionOrderPolicy { Undefined, CounterbalancedForcedOrder, ParticipantChoice }
+    public enum QuestionnaireReturnPolicy { Undefined, ReturnToModeSelection, FinalRankingAfterLastCondition }
     public enum AssignmentStatus { Created, Active, Completed, Incompatible, Aborted }
     public enum ConditionRunStatus
     {
@@ -102,6 +104,8 @@ namespace SceneTalkVR.Core
         public ConditionRunStatus status = ConditionRunStatus.Assigned;
         public string latestConditionRunId;
         public int runAttempt;
+        public int participantSelectionPosition = -1;
+        public string selectedAtUtc;
     }
 
     [Serializable]
@@ -139,6 +143,13 @@ namespace SceneTalkVR.Core
         public ExperimentRunQualification runQualification;
         public string protocolSnapshotId;
         public string resourceSnapshotId;
+        public string formalConditionOrderPolicy;
+        public string taskAssignmentPolicy;
+        public string goalConfirmationPolicy;
+        public string questionnaireReturnPolicy;
+        public string assignmentAlgorithmVersion;
+        public string randomSeedHash;
+        public FormalConditionCode[] participantSelectionOrder = Array.Empty<FormalConditionCode>();
         public ConditionAssignment[] conditions = Array.Empty<ConditionAssignment>();
     }
 

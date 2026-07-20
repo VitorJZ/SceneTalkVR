@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "protocolVersion": "1.1-rehearsal-2",
+  "protocolSnapshotId": "v1.1-rehearsal-2-protocol",
+  "qualification": "Rehearsal",
+  "approvedForCollection": false,
+  "formalConditionOrderPolicy": "participant_choice",
+  "formalTaskAssignmentPolicy": "random_bijection_without_replacement",
+  "goalConfirmationPolicy": "automatic_validated_detection",
+  "questionnaireReturnPolicy": "return_to_mode_selection",
+  "assignmentAlgorithmVersion": "2.0",
+  "legacyCompatibility": "1.1-rehearsal-1 assignments are rejected, not reinterpreted",
+  "approvedDecisions": {
+    "condition_letter_mapping": "a=NE,b=NR,c=SE,d=SR",
+    "formal_task_no_replacement": "strict_without_replacement",
+    "formal_social_comfort": "excluded",
+    "pilot_feedback_style": "explicit",
+    "voice_only_spatial_audio": "non_spatial_head_locked",
+    "pilot_sequence_mapping": "a=voice_only,b=floating_orb,c=humanoid_agent",
+    "formal_max_turns": "6",
+    "formal_max_duration": "10 minutes",
+    "pilot_max_turns": "5",
+    "pilot_max_duration": "8 minutes",
+    "questionnaire_scale_anchors": "1 = Strongly disagree / 非常不同意; 7 = Strongly agree / 非常同意"
+  }
+}

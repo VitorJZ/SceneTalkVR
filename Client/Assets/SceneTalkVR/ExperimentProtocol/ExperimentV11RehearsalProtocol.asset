@@ -12,13 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cde733ea644b14e498c86789825b44b9, type: 3}
   m_Name: ExperimentV11RehearsalProtocol
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentV11RehearsalProtocol
-  protocolVersion: 1.1-rehearsal-1
+  protocolVersion: 1.1-rehearsal-2
   protocolPurpose: 0
   approvedForRehearsal: 1
   approvedForCollection: 0
   approvalAuthority: Project Lead Approval
-  evidenceReference: scenetalkvr-rehearsal-baseline-v1
-  protocolSnapshotId: v1.1-rehearsal-1-protocol
+  evidenceReference: scenetalkvr-rehearsal-participant-choice-v2
+  protocolSnapshotId: v1.1-rehearsal-2-protocol
   decisions:
   - decisionId: condition_letter_mapping
     confirmedValue: a=NE,b=NR,c=SE,d=SR

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1.0",
+  "assignmentVersion": "2.0",
+  "protocolVersion": "1.1-rehearsal-2",
+  "algorithm": "stable_hash_plus_fisher_yates",
+  "seedInput": "participantId|protocolVersion|assignmentVersion|random_bijection_without_replacement",
+  "conditionCodes": ["NE", "NR", "SE", "SR"],
+  "taskIds": ["furniture_shopping", "gym_membership", "hotel_check_in", "tourist_assistance"],
+  "taskMappingCardinality": "4x4 bijection",
+  "executionOrder": "participant_choice",
+  "resumePolicy": "persist and reuse mapping and selection order",
+  "retryPolicy": "same condition and task; new conditionRunId",
+  "example": {
+    "participantId": "P-STABLE",
+    "seedHash": "e432ad65",
+    "mapping": {
+      "NE": "gym_membership",
+      "NR": "tourist_assistance",
+      "SE": "hotel_check_in",
+      "SR": "furniture_shopping"
+    }
+  }
+}

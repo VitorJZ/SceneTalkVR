@@ -27,5 +27,11 @@ def parse_assignments(manifest: dict[str, Any], assignment: dict[str, Any]) -> l
             "runAttempt": item.get("runAttempt", 0), "conditionRunId": "" if pilot else item.get("latestConditionRunId", ""),
             "pilotRunId": item.get("latestPilotRunId", "") if pilot else "", "conditionStatus": str(item.get("status", "")),
             "technicalValidity": "TechnicalInvalid" if str(item.get("status")) == "7" else "Valid",
+            "formalConditionOrderPolicy": assignment.get("formalConditionOrderPolicy", ""),
+            "taskAssignmentPolicy": assignment.get("taskAssignmentPolicy", ""),
+            "goalConfirmationPolicy": assignment.get("goalConfirmationPolicy", ""),
+            "questionnaireReturnPolicy": assignment.get("questionnaireReturnPolicy", ""),
+            "participantSelectionPosition": item.get("participantSelectionPosition", -1),
+            "selectedAtUtc": item.get("selectedAtUtc", ""),
         })
     return rows

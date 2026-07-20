@@ -26,10 +26,10 @@ namespace SceneTalkVR.Tests.Editor
             deployments = Load<ExperimentDeploymentCatalog>(RehearsalAssetBuilder.DeploymentPath);
         }
 
-        [Test] public void T01_ProtocolVersion() => Assert.That(protocol.ProtocolVersion, Is.EqualTo("1.1-rehearsal-1"));
+        [Test] public void T01_ProtocolVersion() => Assert.That(protocol.ProtocolVersion, Is.EqualTo("1.1-rehearsal-2"));
         [Test] public void T02_ProtocolPurpose() => Assert.That(protocol.ProtocolPurpose, Is.EqualTo(RehearsalProtocolPurpose.OperationalRehearsal));
         [Test] public void T03_ApprovedOnlyForRehearsal() { Assert.That(protocol.ApprovedForRehearsal, Is.True); Assert.That(protocol.ApprovedForCollection, Is.False); }
-        [Test] public void T04_ApprovalProvenance() { Assert.That(protocol.ApprovalAuthority, Is.EqualTo("Project Lead Approval")); Assert.That(protocol.EvidenceReference, Is.EqualTo("scenetalkvr-rehearsal-baseline-v1")); }
+        [Test] public void T04_ApprovalProvenance() { Assert.That(protocol.ApprovalAuthority, Is.EqualTo("Project Lead Approval")); Assert.That(protocol.EvidenceReference, Is.EqualTo("scenetalkvr-rehearsal-participant-choice-v2")); }
         [Test] public void T05_ElevenDecisions() { Assert.That(protocol.Decisions.Count, Is.EqualTo(11)); Assert.That(protocol.Validate(out var error), Is.True, error); }
         [TestCase("condition_letter_mapping","a=NE,b=NR,c=SE,d=SR")]
         [TestCase("formal_task_no_replacement","strict_without_replacement")]

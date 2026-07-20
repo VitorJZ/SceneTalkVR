@@ -1,0 +1,14 @@
+{
+  "schemaVersion":"1.0",
+  "generatedAtUtc":"2026-07-20T15:40:56Z",
+  "result":"FAIL",
+  "generatorCapability":"BLOCKED_GENERATOR_NOT_CAPABLE",
+  "importContractApplied":true,
+  "items":[
+    {"key":"SceneTalkVR/Textures/hotel-lobby-360","size":"1024x1024","aspect":1.0,"resourceLoad":true,"catalogReferenced":true,"importerValid":true,"provenanceValid":false,"seamMeanDifference":0.055383,"errors":["requires_true_2_to_1_minimum_2048x1024","native_equirectangular_provenance_missing"]},
+    {"key":"SceneTalkVR/Textures/furniture-store-360","size":"1024x1024","aspect":1.0,"resourceLoad":true,"catalogReferenced":true,"importerValid":true,"provenanceValid":false,"seamMeanDifference":0.080309,"errors":["requires_true_2_to_1_minimum_2048x1024","native_equirectangular_provenance_missing"]},
+    {"key":"SceneTalkVR/Textures/gym-360","size":"1024x1024","aspect":1.0,"resourceLoad":true,"catalogReferenced":true,"importerValid":true,"provenanceValid":false,"seamMeanDifference":0.072452,"errors":["requires_true_2_to_1_minimum_2048x1024","native_equirectangular_provenance_missing"]},
+    {"key":"SceneTalkVR/Textures/tourist-information-360","size":"2048x1024","aspect":2.0,"resourceLoad":true,"catalogReferenced":true,"importerValid":true,"provenanceValid":false,"seamMeanDifference":0.090539,"errors":["native_equirectangular_provenance_missing"]},
+    {"key":"SceneTalkVR/Textures/restaurant-360","size":"1024x1024","aspect":1.0,"resourceLoad":true,"catalogReferenced":true,"importerValid":true,"provenanceValid":false,"seamMeanDifference":0.106526,"errors":["requires_true_2_to_1_minimum_2048x1024","native_equirectangular_provenance_missing"]}
+  ]
+}
