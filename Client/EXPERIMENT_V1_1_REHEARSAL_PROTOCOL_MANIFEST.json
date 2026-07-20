@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.0",
+  "protocolVersion": "1.1-rehearsal-1",
+  "protocolPurpose": "OperationalRehearsal",
+  "approvedForRehearsal": true,
+  "approvedForCollection": false,
+  "approvalAuthority": "Project Lead Approval",
+  "evidenceReference": "scenetalkvr-rehearsal-baseline-v1",
+  "protocolSnapshotId": "v1.1-rehearsal-1-protocol",
+  "formal": {
+    "conditionMapping": { "a": "NE", "b": "NR", "c": "SE", "d": "SR" },
+    "sequences": ["a-b-c-d", "b-c-d-a", "c-d-a-b", "d-a-b-c"],
+    "assignmentPolicy": "StrictWithoutReplacement",
+    "maxTurns": 6,
+    "maxDurationMinutes": 10,
+    "socialComfort": "excluded"
+  },
+  "pilot": {
+    "conditionMapping": { "a": "voice_only", "b": "floating_orb", "c": "humanoid_agent" },
+    "sequences": ["a-b-c", "b-c-a", "c-a-b"],
+    "feedbackStyle": "Explicit",
+    "voiceOnlyAudioPolicy": "NonSpatialHeadLocked",
+    "maxTurns": 5,
+    "maxDurationMinutes": 8
+  },
+  "questionnaireScaleAnchors": {
+    "1": "Strongly disagree / 非常不同意",
+    "7": "Strongly agree / 非常同意"
+  }
+}

@@ -10,7 +10,7 @@ namespace SceneTalkVR.Core
     [Serializable]
     public sealed class PilotEventRecord
     {
-        public string schemaVersion="1.0";public string timestampUtc;public string eventType;public string pilotProtocolVersion;public string pilotAssignmentVersion;public string pilotRunId;public string participantId;public string sessionId;public string sequenceId;public int conditionPosition;public string embodimentCondition;public string pilotFeedbackStyle;public string taskId;public string taskAssignmentId;public string feedbackTextHash;public string actualPlaybackActor;public string visualEntityType;public string visualPrefabKey;public string voiceProfileKey;public string audioSourcePolicy;public float spatialBlend;public Vector3 sourcePosition;public string feedbackPlaybackStartedAt;public string feedbackPlaybackEndedAt;public long userEndToFeedbackAudioMs=-1;public long feedbackToDialogueGapMs=-1;public string technicalValidity;public string failureStage;public string failureReason;public string questionnaireLinkageKey;public string runtimeMode;public string dataOrigin;public bool collectionEligible;public bool developerTestAssignment;public bool demoMode;public string demoProtocolVersion;public bool autoFilledForDemo;
+        public string schemaVersion="1.1";public string timestampUtc;public string eventType;public string pilotProtocolVersion;public string pilotAssignmentVersion;public string pilotRunId;public string participantId;public string sessionId;public string sequenceId;public int conditionPosition;public string embodimentCondition;public string pilotFeedbackStyle;public string taskId;public string taskAssignmentId;public string feedbackTextHash;public string actualPlaybackActor;public string visualEntityType;public string visualPrefabKey;public string voiceProfileKey;public string audioSourcePolicy;public float spatialBlend;public Vector3 sourcePosition;public string feedbackPlaybackStartedAt;public string feedbackPlaybackEndedAt;public long userEndToFeedbackAudioMs=-1;public long feedbackToDialogueGapMs=-1;public string technicalValidity;public string failureStage;public string failureReason;public string questionnaireLinkageKey;public string runtimeMode;public string dataOrigin;public bool collectionEligible;public bool developerTestAssignment;public bool demoMode;public string demoProtocolVersion;public bool autoFilledForDemo;public string flowMode;public string runQualification;public string protocolSnapshotId;public string resourceSnapshotId;
     }
 
     [DisallowMultipleComponent]
@@ -20,23 +20,34 @@ namespace SceneTalkVR.Core
         [SerializeField] private ExperimentConditionManager conditionManager; [SerializeField] private PilotEmbodimentPresenter presenter;
         private readonly GoalProgressTracker goals=new GoalProgressTracker(); private readonly QuestionnaireSessionService questionnaire=new QuestionnaireSessionService();
         private PilotAssignment assignment;private PilotConditionAssignment current;
+        private int maxTurns; private float maxDurationMinutes; private DateTime conditionStartedUtc; private int conditionStartTurn;
         private long userSpeechEndedMs=-1,feedbackStartedMs=-1,feedbackEndedMs=-1,dialogueStartedMs=-1; private string feedbackStartedAt="",feedbackEndedAt="";
         public PilotAssignment Assignment=>assignment;public PilotConditionAssignment Current=>current;public GoalProgressTracker Goals=>goals;public QuestionnaireSessionService Questionnaire=>questionnaire;
         public bool HasActivePilotRun => assignment != null && current != null && !string.IsNullOrWhiteSpace(PilotRunId);
         public string PilotRunId{get;private set;}public string QuestionnaireLinkageKey{get;private set;}public PilotEmbodimentCondition CurrentEmbodiment=>current?.embodimentCondition??PilotEmbodimentCondition.VoiceOnly;
+        public int MaximumTurns=>maxTurns; public float MaximumDurationMinutes=>maxDurationMinutes;
+        public bool ShouldEndCurrentTask(out string reason)
+        {
+            if(current==null||current.status!=PilotRunStatus.Running){reason="";return false;}
+            var turns=conditionManager==null?0:Mathf.Max(0,conditionManager.CurrentTurnIndex-conditionStartTurn);
+            if(maxTurns>0&&turns>=maxTurns){reason="max_turns";return true;}
+            if(maxDurationMinutes>0f&&conditionStartedUtc!=default&&(DateTime.UtcNow-conditionStartedUtc).TotalMinutes>=maxDurationMinutes){reason="max_duration";return true;}
+            reason="";return false;
+        }
         private void Awake(){if(conditionManager==null)conditionManager=GetComponent<ExperimentConditionManager>();if(presenter==null)presenter=GetComponent<PilotEmbodimentPresenter>()??gameObject.AddComponent<PilotEmbodimentPresenter>();Active=this;}
         private void OnDestroy(){if(Active==this)Active=null;}
         public void Configure(ExperimentConditionManager manager,PilotEmbodimentPresenter target=null){conditionManager=manager;if(target!=null)presenter=target;else if(presenter==null)presenter=GetComponent<PilotEmbodimentPresenter>()??gameObject.AddComponent<PilotEmbodimentPresenter>();Active=this;}
-        public bool LoadAssignment(PilotAssignment value,out string error){if(value==null){error="pilot_assignment_missing";return false;}if(conditionManager==null){error="condition_manager_missing";return false;}if(value.demoMode&&(value.runtimeMode!=ExperimentRuntimeMode.EditorDemoPilot||value.dataOrigin!="editor_demo"||value.collectionEligible||!value.developerTestAssignment)){error="editor_demo_pilot_isolation_invalid";return false;}var expected=value.demoMode?value.pilotProtocolVersion:conditionManager.ExperimentProtocol?.ProtocolVersion??value.pilotProtocolVersion;if(!PilotAssignmentAllocator.IsCompatible(value,expected,conditionManager.TaskCatalog?.CatalogVersion??value.taskCatalogVersion,out error))return false;assignment=value;Write("PilotAssignmentLoaded");return true;}
+        public void ConfigureRunLimits(int turns,float durationMinutes){maxTurns=Mathf.Max(0,turns);maxDurationMinutes=Mathf.Max(0f,durationMinutes);}
+        public bool LoadAssignment(PilotAssignment value,out string error){if(value==null){error="pilot_assignment_missing";return false;}if(conditionManager==null){error="condition_manager_missing";return false;}var rehearsal=value.runQualification==ExperimentRunQualification.Rehearsal;if(!ExperimentRuntimeContext.IsAllowed(value.flowMode,value.runQualification)){error="runtime_context_combination_invalid";return false;}if(rehearsal&&(value.flowMode!=ExperimentFlowMode.Pilot||value.dataOrigin!="rehearsal"||value.collectionEligible||value.developerTestAssignment||value.demoMode)){error="pilot_rehearsal_isolation_invalid";return false;}if(value.demoMode&&(value.runtimeMode!=ExperimentRuntimeMode.EditorDemoPilot||value.dataOrigin!="editor_demo"||value.collectionEligible||!value.developerTestAssignment)){error="editor_demo_pilot_isolation_invalid";return false;}var expected=rehearsal||value.demoMode?value.pilotProtocolVersion:conditionManager.ExperimentProtocol?.ProtocolVersion??value.pilotProtocolVersion;if(!PilotAssignmentAllocator.IsCompatible(value,expected,conditionManager.TaskCatalog?.CatalogVersion??value.taskCatalogVersion,out error))return false;assignment=value;Write("PilotAssignmentLoaded");return true;}
         public bool CreateLocked(string participant,string session,out string error){var allocator=new PilotAssignmentAllocator();if(!allocator.TryCreateLocked(participant,session,conditionManager.ExperimentProtocol,conditionManager.TaskCatalog,conditionManager.PilotPresentationCatalog,out var value,out error))return false;return LoadAssignment(value,out error);}
         public bool Prepare(int position,bool retry,out string error)
         {
             error="";if(assignment?.conditions==null||position<0||position>=assignment.conditions.Length){error="pilot_condition_missing";return false;}var next=assignment.conditions[position];if(next.status==PilotRunStatus.Completed){error="pilot_condition_completed";return false;}if(next.status==PilotRunStatus.TechnicalInvalid&&!retry){error="pilot_retry_requires_authorization";return false;}
             conditionManager.ResetConditionSessionBoundary();presenter.ResetSession();questionnaire.Reset();goals.ResetGoals(null);userSpeechEndedMs=feedbackStartedMs=feedbackEndedMs=dialogueStartedMs=-1;feedbackStartedAt=feedbackEndedAt="";current=next;current.runAttempt++;PilotRunId=$"pr-{assignment.assignmentSeed}-{position}-{current.runAttempt}-{Guid.NewGuid():N}";QuestionnaireLinkageKey=$"pql-{PilotRunId}";current.latestPilotRunId=PilotRunId;current.status=PilotRunStatus.Preparing;
-            var profile=assignment.demoMode&&EditorDemoSessionCoordinator.Active!=null?EditorDemoSessionCoordinator.Active.ResolvePilotProfile(current.embodimentCondition):conditionManager.PilotPresentationCatalog?.Find(current.embodimentCondition);if(profile==null){error="pilot_profile_missing";return Invalid("Presentation",error);}
+            var profile=assignment.runQualification==ExperimentRunQualification.Rehearsal&&RehearsalSessionCoordinator.Active!=null?RehearsalSessionCoordinator.Active.ResolvePilotProfile(current.embodimentCondition):assignment.demoMode&&EditorDemoSessionCoordinator.Active!=null?EditorDemoSessionCoordinator.Active.ResolvePilotProfile(current.embodimentCondition):conditionManager.PilotPresentationCatalog?.Find(current.embodimentCondition);if(profile==null){error="pilot_profile_missing";return Invalid("Presentation",error);}
             var locked=!assignment.developerTestAssignment;if(!presenter.Configure(profile,assignment.voiceOnlyAudioPolicy,locked,out error))return Invalid("Presentation",error);
             if(!conditionManager.ApplyPilotAssignment(assignment.feedbackStyle,current.task.taskId,assignment.participantId,assignment.sessionId,out error))return Invalid("Task",error);
-            goals.ResetGoals(conditionManager.TaskCatalog.Find(current.task.taskId));current.status=PilotRunStatus.Running;Write("PilotConditionStarted");return true;
+            goals.ResetGoals(conditionManager.TaskCatalog.Find(current.task.taskId));conditionStartedUtc=DateTime.UtcNow;conditionStartTurn=conditionManager.CurrentTurnIndex;current.status=PilotRunStatus.Running;Write("PilotConditionStarted");return true;
         }
         public void CompleteTask(){if(current==null||current.status!=PilotRunStatus.Running)return;current.status=PilotRunStatus.TaskCompleted;Write("PilotTaskCompleted");current.status=PilotRunStatus.AwaitingPilotQuestionnaire;Write("PilotAwaitingQuestionnaire");}
         public bool BeginQuestionnaire(out string error)
@@ -71,7 +82,7 @@ namespace SceneTalkVR.Core
         public void ResetSession()
         {
             presenter?.ResetSession(); questionnaire.Reset(); goals.ResetGoals(null);
-            current=null; PilotRunId=""; QuestionnaireLinkageKey="";
+            current=null; PilotRunId=""; QuestionnaireLinkageKey=""; conditionStartedUtc=default; conditionStartTurn=0;
             userSpeechEndedMs=feedbackStartedMs=feedbackEndedMs=dialogueStartedMs=-1; feedbackStartedAt=feedbackEndedAt="";
         }
         public void ClearAssignmentForRuntimeMode(){ResetSession();assignment=null;}
@@ -91,7 +102,9 @@ namespace SceneTalkVR.Core
         private void Write(string type,string stage="",string reason="",ExperimentTechnicalValidity validity=ExperimentTechnicalValidity.Valid,string feedbackHash="")
         {
             if (assignment == null) return;
-            var p = current == null ? null : assignment.demoMode && EditorDemoSessionCoordinator.Active != null
+            var p = current == null ? null : assignment.runQualification == ExperimentRunQualification.Rehearsal && RehearsalSessionCoordinator.Active != null
+                ? RehearsalSessionCoordinator.Active.ResolvePilotProfile(current.embodimentCondition)
+                : assignment.demoMode && EditorDemoSessionCoordinator.Active != null
                 ? EditorDemoSessionCoordinator.Active.ResolvePilotProfile(current.embodimentCondition)
                 : conditionManager.PilotPresentationCatalog?.Find(current.embodimentCondition);
             var r = new PilotEventRecord
@@ -115,9 +128,13 @@ namespace SceneTalkVR.Core
                 dataOrigin = assignment.dataOrigin, collectionEligible = assignment.collectionEligible,
                 developerTestAssignment = assignment.developerTestAssignment, demoMode = assignment.demoMode,
                 demoProtocolVersion = assignment.demoProtocolVersion,
+                flowMode = assignment.flowMode.ToString(), runQualification = assignment.runQualification.ToString(),
+                protocolSnapshotId = assignment.protocolSnapshotId, resourceSnapshotId = assignment.resourceSnapshotId,
                 autoFilledForDemo = assignment.demoMode && reason.IndexOf("autoFilledForDemo=true", StringComparison.Ordinal) >= 0
             };
-            var folder = assignment.demoMode && EditorDemoSessionCoordinator.Active != null
+            var folder = assignment.runQualification == ExperimentRunQualification.Rehearsal && RehearsalSessionCoordinator.Active != null
+                ? RehearsalSessionCoordinator.Active.CurrentDataFolder
+                : assignment.demoMode && EditorDemoSessionCoordinator.Active != null
                 ? EditorDemoSessionCoordinator.Active.CurrentDataFolder
                 : Path.Combine(Application.persistentDataPath, "SceneTalkVR", "ExperimentLogs");
             Directory.CreateDirectory(folder);

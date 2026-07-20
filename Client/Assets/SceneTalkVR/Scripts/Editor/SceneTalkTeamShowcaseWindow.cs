@@ -1,6 +1,7 @@
 using SceneTalkVR.Core;
 using UnityEditor;
 using UnityEngine;
+#pragma warning disable 0618 // Legacy window remains read-only for resuming historical Editor Demo sessions.
 
 namespace SceneTalkVR.EditorTools
 {
@@ -13,7 +14,8 @@ namespace SceneTalkVR.EditorTools
         private Vector2 scroll;
 
         [MenuItem("SceneTalkVR/Demo/Team Showcase Control")]
-        public static void Open() => GetWindow<SceneTalkTeamShowcaseWindow>("Team Showcase Control");
+        [System.Obsolete("Editor Demo is deprecated. Use Rehearsal Control.")]
+        public static void Open() { Debug.LogWarning("[SceneTalkVR] Team Showcase Control is deprecated; opening Rehearsal Control."); SceneTalkRehearsalControlWindow.Open(); }
 
         private void OnEnable() { EditorApplication.playModeStateChanged += OnPlayMode; }
         private void OnDisable() { EditorApplication.playModeStateChanged -= OnPlayMode; }
@@ -154,3 +156,4 @@ namespace SceneTalkVR.EditorTools
         }
     }
 }
+#pragma warning restore 0618

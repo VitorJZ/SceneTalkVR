@@ -10,6 +10,8 @@ namespace SceneTalkVR.Core
     public enum FeedbackStyle { Explicit, Recast }
     public enum EmbodimentCondition { VoiceOnly, FloatingOrb, HumanoidAgent }
     public enum ExperimentTechnicalValidity { Valid, Retry, FallbackUsed, TechnicalInvalid }
+    public enum ExperimentFlowMode { DeveloperManual, Formal, Pilot, Synthetic }
+    public enum ExperimentRunQualification { Development, Rehearsal, Collection }
     public enum ExperimentRuntimeMode
     {
         DeveloperManual,
@@ -18,6 +20,47 @@ namespace SceneTalkVR.Core
         SyntheticDryRun,
         LockedFormalCollection,
         LockedPilotCollection
+    }
+
+    [Serializable]
+    public sealed class ExperimentRuntimeContext
+    {
+        public ExperimentFlowMode flowMode;
+        public ExperimentRunQualification qualification;
+        public string participantId;
+        public string sessionId;
+        public string protocolSnapshotId;
+        public string resourceSnapshotId;
+        public string dataOrigin;
+        public bool collectionEligible;
+
+        public bool IsValidCombination => IsAllowed(flowMode, qualification);
+        public bool IsRehearsal => qualification == ExperimentRunQualification.Rehearsal;
+        public bool IsCollection => qualification == ExperimentRunQualification.Collection;
+
+        public static bool IsAllowed(ExperimentFlowMode flow, ExperimentRunQualification value) =>
+            flow == ExperimentFlowMode.DeveloperManual && value == ExperimentRunQualification.Development
+            || flow == ExperimentFlowMode.Formal && (value == ExperimentRunQualification.Rehearsal || value == ExperimentRunQualification.Collection)
+            || flow == ExperimentFlowMode.Pilot && (value == ExperimentRunQualification.Rehearsal || value == ExperimentRunQualification.Collection)
+            || flow == ExperimentFlowMode.Synthetic && value == ExperimentRunQualification.Development;
+
+        public static ExperimentRuntimeContext CreateRehearsal(ExperimentFlowMode flow, string participantId,
+            string sessionId, string protocolSnapshotId, string resourceSnapshotId)
+        {
+            if (flow != ExperimentFlowMode.Formal && flow != ExperimentFlowMode.Pilot)
+                throw new ArgumentOutOfRangeException(nameof(flow), "Rehearsal requires Formal or Pilot flow.");
+            return new ExperimentRuntimeContext
+            {
+                flowMode = flow,
+                qualification = ExperimentRunQualification.Rehearsal,
+                participantId = participantId?.Trim() ?? string.Empty,
+                sessionId = sessionId?.Trim() ?? string.Empty,
+                protocolSnapshotId = protocolSnapshotId?.Trim() ?? string.Empty,
+                resourceSnapshotId = resourceSnapshotId?.Trim() ?? string.Empty,
+                dataOrigin = "rehearsal",
+                collectionEligible = false
+            };
+        }
     }
 
     [Serializable]
@@ -92,6 +135,10 @@ namespace SceneTalkVR.Core
         public ExperimentRuntimeMode runtimeMode;
         public bool demoMode;
         public string demoProtocolVersion;
+        public ExperimentFlowMode flowMode;
+        public ExperimentRunQualification runQualification;
+        public string protocolSnapshotId;
+        public string resourceSnapshotId;
         public ConditionAssignment[] conditions = Array.Empty<ConditionAssignment>();
     }
 

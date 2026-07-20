@@ -32,6 +32,7 @@ namespace SceneTalkVR.Core
     {
         public string bundleSchemaVersion="1.0"; public string dataOrigin; public bool collectionEligible; public string sessionMode;
         public bool developerTestAssignment; public bool demoMode; public string demoProtocolVersion; public string officialProtocolVersion; public string runtimeMode;
+        public string flowMode; public string runQualification; public string protocolSnapshotId; public string resourceSnapshotId;
         public string participantId; public string sessionId; public string gitCommit; public string protocolVersion; public string taskCatalogVersion; public string questionnaireCatalogVersion; public string assignmentVersion;
         public string createdAtUtc; public SessionBundleFileRecord[] files=Array.Empty<SessionBundleFileRecord>(); public string integrityStatus="PENDING";
     }

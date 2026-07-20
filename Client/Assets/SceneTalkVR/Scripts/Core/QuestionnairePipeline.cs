@@ -264,7 +264,9 @@ namespace SceneTalkVR.Core
 
         public string DraftPath => ActiveSession == null ? string.Empty : Path.Combine(DefaultFolder,
             $"{Safe(ActiveSession.participantId)}_{Safe(ActiveSession.sessionId)}_{Safe(ActiveSession.questionnaireLinkageKey)}_questionnaire_draft.json");
-        public static string DefaultFolder => EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsDemoMode
+        public static string DefaultFolder => RehearsalSessionCoordinator.Active != null && RehearsalSessionCoordinator.Active.IsActive
+            ? RehearsalSessionCoordinator.Active.CurrentDataFolder
+            : EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsDemoMode
             ? EditorDemoSessionCoordinator.Active.CurrentDataFolder
             : Path.Combine(Application.persistentDataPath, "SceneTalkVR", "ExperimentLogs");
 

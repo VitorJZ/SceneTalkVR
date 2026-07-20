@@ -31,6 +31,7 @@ namespace SceneTalkVR.Runtime
         private GameObject demoBanner;
         private GameObject demoStatusPanel;
         private GameObject demoRankingPanel;
+        private GameObject rehearsalWaitingPanel;
 
         private Button startButton;
         private Button settingsButton;
@@ -138,6 +139,10 @@ namespace SceneTalkVR.Runtime
             demoRankingPanel = CreatePanel(root, "EditorDemoRankingPreview", Vector2.zero, new Vector2(520f, 330f), new Color(0.03f, 0.04f, 0.07f, 0.94f));
             demoRankingText = CreateText(demoRankingPanel.transform, "EditorDemoRankingText", string.Empty, Vector2.zero, new Vector2(480f, 290f), 22, TextAnchor.MiddleCenter, Color.white);
             demoRankingPanel.SetActive(false);
+
+            rehearsalWaitingPanel = CreatePanel(root, "RehearsalWaitingPanel", Vector2.zero, new Vector2(620f, 260f), new Color(0.04f, 0.05f, 0.07f, 0.94f));
+            CreateText(rehearsalWaitingPanel.transform, "Title", "Welcome to SceneTalkVR", new Vector2(0f, 62f), new Vector2(560f, 52f), 30, TextAnchor.MiddleCenter, Color.white);
+            CreateText(rehearsalWaitingPanel.transform, "Instruction", "Please wait while the experimenter prepares your next task.", new Vector2(0f, -20f), new Vector2(540f, 90f), 21, TextAnchor.MiddleCenter, new Color(.82f, .9f, 1f, 1f));
 
             mainMenuPanel = CreatePanel(root, "InitialPanel", new Vector2(0f, 0f), new Vector2(380f, 360f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
             CreateText(mainMenuPanel.transform, "Title", "SceneTalkVR", new Vector2(0f, 122f), new Vector2(320f, 54f), 34, TextAnchor.MiddleCenter, Color.white);
@@ -335,9 +340,12 @@ namespace SceneTalkVR.Runtime
 
             var state = orchestrator.CurrentState;
             var dialogueActive = orchestrator.IsDialogueActive;
+            var rehearsal = RehearsalSessionCoordinator.Active;
+            var rehearsalActive = rehearsal != null && rehearsal.IsActive;
+            var rehearsalWaiting = rehearsalActive && string.IsNullOrWhiteSpace(rehearsal.CurrentTaskId);
             bool isFixedMode = orchestrator.RuntimeConfig != null && orchestrator.RuntimeConfig.UseFixedExperimentMode;
 
-            var showMain = state == SceneTalkState.Idle || state == SceneTalkState.Finished;
+            var showMain = !rehearsalActive && (state == SceneTalkState.Idle || state == SceneTalkState.Finished);
             var showSettings = state == SceneTalkState.Settings;
             var showRequest = !dialogueActive
                 && (!isFixedMode || state != SceneTalkState.Listening)
@@ -345,7 +353,7 @@ namespace SceneTalkVR.Runtime
                     || state == SceneTalkState.Recording
                     || state == SceneTalkState.Transcribing
                     || state == SceneTalkState.Error);
-            var showTaskSelection = isFixedMode
+            var showTaskSelection = !rehearsalActive && isFixedMode
                 && !dialogueActive
                 && (state == SceneTalkState.Listening);
             var showLoading = !dialogueActive && (state == SceneTalkState.Processing || state == SceneTalkState.SceneReady);
@@ -356,13 +364,14 @@ namespace SceneTalkVR.Runtime
                 || state == SceneTalkState.TurnReview;
 
             SetActive(mainMenuPanel, showMain);
+            SetActive(rehearsalWaitingPanel, rehearsalWaiting);
             SetActive(settingsPanel, showSettings);
             SetActive(requestPanel, showRequest);
             SetActive(taskSelectionPanel, showTaskSelection);
             SetActive(loadingPanel, showLoading);
             SetActive(subtitlePanel, showDialogue);
             RefreshGoalPanel(showDialogue);
-            SetActive(exitButtonObject, !showMain);
+            SetActive(exitButtonObject, !showMain && !rehearsalActive);
 
             RefreshSettingsPanel(showSettings);
             RefreshRequestPanel(showRequest);
@@ -384,8 +393,24 @@ namespace SceneTalkVR.Runtime
             if (demoBanner != null) demoBanner.transform.SetAsLastSibling();
         }
 
+        public void ShowRehearsalRanking(bool pilot)
+        {
+            if (demoRankingPanel == null || demoRankingText == null) return;
+            demoRankingText.text = pilot
+                ? "Please rank the three feedback forms.\n\nVoice Only\nFloating Orb\nHumanoid Agent"
+                : "Please rank the four feedback conditions.\n\nNE\nNR\nSE\nSR";
+            demoRankingPanel.name = "ParticipantFinalRankingPanel";
+            demoRankingPanel.SetActive(true);
+            demoRankingPanel.transform.SetAsLastSibling();
+        }
+
         private void RefreshDemoOverlay()
         {
+            if (RehearsalSessionCoordinator.Active != null && RehearsalSessionCoordinator.Active.IsActive)
+            {
+                SetActive(demoBanner, false); SetActive(demoStatusPanel, false);
+                return;
+            }
             var demo = EditorDemoSessionCoordinator.Active;
             var visible = demo != null && demo.IsDemoMode;
             SetActive(demoBanner, visible); SetActive(demoStatusPanel, visible);
@@ -416,8 +441,9 @@ namespace SceneTalkVR.Runtime
         {
             var lifecycle = FindFirstObjectByType<ExperimentLifecycleCoordinator>(FindObjectsInactive.Include);
             var pilot = PilotWorkflowCoordinator.Active;
+            var usePilotRehearsal = RehearsalSessionCoordinator.Active != null && RehearsalSessionCoordinator.Active.IsPilot;
             var usePilotDemo = EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsPilotDemo;
-            var tracker = usePilotDemo ? pilot?.Goals : lifecycle?.GoalTracker;
+            var tracker = usePilotRehearsal || usePilotDemo ? pilot?.Goals : lifecycle?.GoalTracker;
             var hasGoals = tracker != null && tracker.Goals.Count > 0;
             SetActive(taskGoalPanel, dialogueVisible && goalPanelVisible && hasGoals);
             if (taskGoalText == null) return;
@@ -426,7 +452,7 @@ namespace SceneTalkVR.Runtime
                 taskGoalText.text = string.Empty;
                 return;
             }
-            var taskName = usePilotDemo ? pilot?.Current?.task?.taskId ?? "Task" : lifecycle.CurrentConditionAssignment?.task?.taskId ?? "Task";
+            var taskName = usePilotRehearsal || usePilotDemo ? pilot?.Current?.task?.taskId ?? "Task" : lifecycle.CurrentConditionAssignment?.task?.taskId ?? "Task";
             var builder = new System.Text.StringBuilder(taskName).AppendLine();
             foreach (var goal in tracker.Goals)
                 builder.Append('[').Append(goal.state).Append("] ").AppendLine(goal.goalText);
@@ -569,7 +595,7 @@ namespace SceneTalkVR.Runtime
 
             if (experimentDebugText != null)
             {
-                var showDebug = orchestrator.ShouldShowExperimentDebug;
+                var showDebug = orchestrator.ShouldShowExperimentDebug && !(RehearsalSessionCoordinator.Active?.IsActive ?? false);
                 SetActive(experimentDebugText.gameObject, showDebug);
                 experimentDebugText.text = showDebug ? orchestrator.ExperimentDebugLabel : string.Empty;
             }

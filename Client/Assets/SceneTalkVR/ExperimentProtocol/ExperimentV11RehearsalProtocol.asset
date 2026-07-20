@@ -1,0 +1,100 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cde733ea644b14e498c86789825b44b9, type: 3}
+  m_Name: ExperimentV11RehearsalProtocol
+  m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentV11RehearsalProtocol
+  protocolVersion: 1.1-rehearsal-1
+  protocolPurpose: 0
+  approvedForRehearsal: 1
+  approvedForCollection: 0
+  approvalAuthority: Project Lead Approval
+  evidenceReference: scenetalkvr-rehearsal-baseline-v1
+  protocolSnapshotId: v1.1-rehearsal-1-protocol
+  decisions:
+  - decisionId: condition_letter_mapping
+    confirmedValue: a=NE,b=NR,c=SE,d=SR
+    status: 0
+    confirmedBy: Project Lead
+    confirmedAtUtc: 2026-07-20T00:00:00Z
+    evidenceReference: scenetalkvr-rehearsal-baseline-v1
+    notes: Approved operational fallback; may be revised after team review
+  - decisionId: formal_task_no_replacement
+    confirmedValue: strict_without_replacement
+    status: 0
+    confirmedBy: Project Lead
+    confirmedAtUtc: 2026-07-20T00:00:00Z
+    evidenceReference: scenetalkvr-rehearsal-baseline-v1
+    notes: Approved operational fallback; may be revised after team review
+  - decisionId: formal_social_comfort
+    confirmedValue: excluded
+    status: 0
+    confirmedBy: Project Lead
+    confirmedAtUtc: 2026-07-20T00:00:00Z
+    evidenceReference: scenetalkvr-rehearsal-baseline-v1
+    notes: Approved operational fallback; may be revised after team review
+  - decisionId: pilot_feedback_style
+    confirmedValue: explicit
+    status: 0
+    confirmedBy: Project Lead
+    confirmedAtUtc: 2026-07-20T00:00:00Z
+    evidenceReference: scenetalkvr-rehearsal-baseline-v1
+    notes: Approved operational fallback; may be revised after team review
+  - decisionId: voice_only_spatial_audio
+    confirmedValue: non_spatial_head_locked
+    status: 0
+    confirmedBy: Project Lead
+    confirmedAtUtc: 2026-07-20T00:00:00Z
+    evidenceReference: scenetalkvr-rehearsal-baseline-v1
+    notes: Approved operational fallback; may be revised after team review
+  - decisionId: pilot_sequence_mapping
+    confirmedValue: a=voice_only,b=floating_orb,c=humanoid_agent
+    status: 0
+    confirmedBy: Project Lead
+    confirmedAtUtc: 2026-07-20T00:00:00Z
+    evidenceReference: scenetalkvr-rehearsal-baseline-v1
+    notes: Approved operational fallback; may be revised after team review
+  - decisionId: formal_max_turns
+    confirmedValue: 6
+    status: 0
+    confirmedBy: Project Lead
+    confirmedAtUtc: 2026-07-20T00:00:00Z
+    evidenceReference: scenetalkvr-rehearsal-baseline-v1
+    notes: Approved operational fallback; may be revised after team review
+  - decisionId: formal_max_duration
+    confirmedValue: 10 minutes
+    status: 0
+    confirmedBy: Project Lead
+    confirmedAtUtc: 2026-07-20T00:00:00Z
+    evidenceReference: scenetalkvr-rehearsal-baseline-v1
+    notes: Approved operational fallback; may be revised after team review
+  - decisionId: pilot_max_turns
+    confirmedValue: 5
+    status: 0
+    confirmedBy: Project Lead
+    confirmedAtUtc: 2026-07-20T00:00:00Z
+    evidenceReference: scenetalkvr-rehearsal-baseline-v1
+    notes: Approved operational fallback; may be revised after team review
+  - decisionId: pilot_max_duration
+    confirmedValue: 8 minutes
+    status: 0
+    confirmedBy: Project Lead
+    confirmedAtUtc: 2026-07-20T00:00:00Z
+    evidenceReference: scenetalkvr-rehearsal-baseline-v1
+    notes: Approved operational fallback; may be revised after team review
+  - decisionId: questionnaire_scale_anchors
+    confirmedValue: "1 = Strongly disagree / \u975E\u5E38\u4E0D\u540C\u610F; 7 =
+      Strongly agree / \u975E\u5E38\u540C\u610F"
+    status: 0
+    confirmedBy: Project Lead
+    confirmedAtUtc: 2026-07-20T00:00:00Z
+    evidenceReference: scenetalkvr-rehearsal-baseline-v1
+    notes: Approved operational fallback; may be revised after team review

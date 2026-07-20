@@ -33,6 +33,7 @@ namespace SceneTalkVR.Core
         public string participantId; public string sessionId; public string sequenceId; public string assignmentSeed;
         public string createdAtUtc; public bool developerTestAssignment; public string dataOrigin; public bool collectionEligible; public PilotFeedbackStyleChoice feedbackStyle; public string feedbackStyleLabel;
         public ExperimentRuntimeMode runtimeMode; public bool demoMode; public string demoProtocolVersion;
+        public ExperimentFlowMode flowMode; public ExperimentRunQualification runQualification; public string protocolSnapshotId; public string resourceSnapshotId;
         public PilotAudioSourcePolicy voiceOnlyAudioPolicy; public string voiceOnlyAudioPolicyLabel; public PilotConditionAssignment[] conditions = Array.Empty<PilotConditionAssignment>();
     }
     [Serializable] public struct PilotRunContext { public string participantId; public string sessionId; public string pilotRunId; public PilotEmbodimentCondition embodimentCondition; public string taskId; public PilotFeedbackStyleChoice feedbackStyle; }
@@ -69,12 +70,25 @@ namespace SceneTalkVR.Core
         }
         public bool TryCreateForTesting(string participantId,string sessionId,string protocolVersion,string taskCatalogVersion,PilotSequenceDefinition[] sequences,string[] taskIds,PilotFeedbackStyleChoice style,PilotAudioSourcePolicy audio,bool developer,out PilotAssignment assignment,out string error)
         {
+            return TryCreate(participantId,sessionId,protocolVersion,taskCatalogVersion,sequences,taskIds,style,audio,
+                ExperimentFlowMode.Synthetic,ExperimentRunQualification.Development,developer?"synthetic_dry_run":"participant_collection",developer,string.Empty,string.Empty,out assignment,out error);
+        }
+        public bool TryCreateRehearsal(string participantId,string sessionId,ExperimentV11RehearsalProtocol protocol,ExperimentTaskCatalog tasks,string resourceSnapshotId,out PilotAssignment assignment,out string error)
+        {
+            assignment=null;if(protocol==null){error="rehearsal_protocol_missing";return false;}if(!protocol.Validate(out error))return false;if(tasks==null){error="task_catalog_missing";return false;}
+            var taskIds=tasks.GetTasks(ExperimentTaskPhase.Pilot).Select(x=>x.taskId).ToArray();
+            return TryCreate(participantId,sessionId,protocol.ProtocolVersion,tasks.CatalogVersion,protocol.PilotSequences,taskIds,
+                protocol.PilotFeedbackStyle,protocol.VoiceOnlyAudioPolicy,ExperimentFlowMode.Pilot,ExperimentRunQualification.Rehearsal,
+                "rehearsal",false,protocol.ProtocolSnapshotId,resourceSnapshotId,out assignment,out error);
+        }
+        private bool TryCreate(string participantId,string sessionId,string protocolVersion,string taskCatalogVersion,PilotSequenceDefinition[] sequences,string[] taskIds,PilotFeedbackStyleChoice style,PilotAudioSourcePolicy audio,ExperimentFlowMode flowMode,ExperimentRunQualification qualification,string dataOrigin,bool developer,string protocolSnapshotId,string resourceSnapshotId,out PilotAssignment assignment,out string error)
+        {
             assignment=null; if(string.IsNullOrWhiteSpace(participantId)){error="participant_missing";return false;}
             if(style==PilotFeedbackStyleChoice.Undefined){error="pilot_feedback_style_unconfirmed";return false;} if(audio==PilotAudioSourcePolicy.Undefined){error="voice_only_spatial_audio_unconfirmed";return false;}
             if(sequences==null||sequences.Length!=3||sequences.Any(x=>x.conditions==null||x.conditions.Length!=3||x.conditions.Distinct().Count()!=3)){error="pilot_sequences_invalid";return false;}
             if(taskIds==null||taskIds.Length!=3||taskIds.Distinct().Count()!=3){error="pilot_tasks_invalid";return false;}
             var seed=Hash(participantId+"|"+protocolVersion+"|"+Version); var sequence=sequences[(int)(seed%3)]; var offset=(int)((seed/3)%3);
-            assignment=new PilotAssignment{pilotProtocolVersion=protocolVersion,pilotAssignmentVersion=Version,taskCatalogVersion=taskCatalogVersion,participantId=participantId,sessionId=sessionId,sequenceId=sequence.sequenceId,assignmentSeed=seed.ToString(CultureInfo.InvariantCulture),createdAtUtc=DateTime.UtcNow.ToString("o"),developerTestAssignment=developer,dataOrigin=developer?"synthetic_dry_run":"participant_collection",collectionEligible=!developer,feedbackStyle=style,feedbackStyleLabel=PilotProtocolValues.Label(style),voiceOnlyAudioPolicy=audio,voiceOnlyAudioPolicyLabel=PilotProtocolValues.Label(audio),conditions=new PilotConditionAssignment[3]};
+            assignment=new PilotAssignment{pilotProtocolVersion=protocolVersion,pilotAssignmentVersion=Version,taskCatalogVersion=taskCatalogVersion,participantId=participantId,sessionId=sessionId,sequenceId=sequence.sequenceId,assignmentSeed=seed.ToString(CultureInfo.InvariantCulture),createdAtUtc=DateTime.UtcNow.ToString("o"),developerTestAssignment=developer,dataOrigin=dataOrigin,collectionEligible=qualification==ExperimentRunQualification.Collection,flowMode=flowMode,runQualification=qualification,protocolSnapshotId=protocolSnapshotId,resourceSnapshotId=resourceSnapshotId,feedbackStyle=style,feedbackStyleLabel=PilotProtocolValues.Label(style),voiceOnlyAudioPolicy=audio,voiceOnlyAudioPolicyLabel=PilotProtocolValues.Label(audio),conditions=new PilotConditionAssignment[3]};
             for(var i=0;i<3;i++) assignment.conditions[i]=new PilotConditionAssignment{conditionPosition=i,embodimentCondition=sequence.conditions[i],embodimentConditionLabel=PilotProtocolValues.Label(sequence.conditions[i]),task=new PilotTaskAssignment{taskId=taskIds[(i+offset)%3],taskAssignmentId=$"pta-{seed}-{i}"}};
             error="";return true;
         }

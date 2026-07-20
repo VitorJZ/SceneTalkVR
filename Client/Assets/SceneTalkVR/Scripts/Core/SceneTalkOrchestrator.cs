@@ -228,18 +228,21 @@ namespace SceneTalkVR.Runtime
             {
                 var definition = manager.TaskCatalog?.Find(taskId);
                 var lifecycle = manager.LifecycleCoordinator;
+                var rehearsalPrepared = RehearsalSessionCoordinator.Active != null
+                    && RehearsalSessionCoordinator.Active.IsTaskPrepared(taskId);
                 var demoPrepared = EditorDemoSessionCoordinator.Active != null
                     && EditorDemoSessionCoordinator.Active.IsTaskPrepared(taskId);
                 var prepareDeveloperSession = !manager.IsFormalExperiment
+                    && !rehearsalPrepared
                     && !demoPrepared
                     && definition != null
                     && definition.phase == ExperimentTaskPhase.Formal
                     && lifecycle != null;
                 var assignmentError = string.Empty;
-                var prepared = demoPrepared || (prepareDeveloperSession
+                var prepared = rehearsalPrepared || demoPrepared || (prepareDeveloperSession
                     ? lifecycle.PrepareDeveloperTaskSession(taskId, out assignmentError)
                     : manager.LoadAssignedTask(taskId, out assignmentError));
-                if (demoPrepared) assignmentError = string.Empty;
+                if (rehearsalPrepared || demoPrepared) assignmentError = string.Empty;
                 if (!prepared)
                 {
                     LastError = assignmentError;
@@ -311,6 +314,12 @@ namespace SceneTalkVR.Runtime
             {
                 var demoAvatarKey = EditorDemoSessionCoordinator.Active.ResolveFormalAvatarKey(taskId);
                 if (!string.IsNullOrWhiteSpace(demoAvatarKey)) initialPayload.avatarRole.presetKey = demoAvatarKey;
+            }
+            if (RehearsalSessionCoordinator.Active != null && RehearsalSessionCoordinator.Active.IsFormal)
+            {
+                var rehearsalAvatarKey = RehearsalSessionCoordinator.Active.ResolveFormalAvatarKey(taskId);
+                if (!string.IsNullOrWhiteSpace(rehearsalAvatarKey)) initialPayload.avatarRole.presetKey = rehearsalAvatarKey;
+                initialPayload.avatarRole.voiceProfileKey = "rehearsal_dialogue_voice";
             }
 
             ApplyExperimentConditionToPayload(initialPayload);

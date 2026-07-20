@@ -289,8 +289,9 @@ namespace SceneTalkVR.Core
             if (formalExperiment) { Debug.LogWarning("[Experiment] Formal Mode rejects scene/task changes.", this); return; }
             if (taskCatalog != null)
             {
+                var rehearsalPilot = RehearsalSessionCoordinator.Active != null && RehearsalSessionCoordinator.Active.IsPilot;
                 var editorPilotDemo = EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsPilotDemo;
-                var phase = editorPilotDemo || experimentProtocol != null && experimentProtocol.ExperimentPhase == ExperimentPhase.Pilot
+                var phase = rehearsalPilot || editorPilotDemo || experimentProtocol != null && experimentProtocol.ExperimentPhase == ExperimentPhase.Pilot
                     ? ExperimentTaskPhase.Pilot
                     : ExperimentTaskPhase.Formal;
                 var tasks = taskCatalog.GetTasks(phase);
@@ -749,10 +750,11 @@ namespace SceneTalkVR.Core
             var studyAssignment = lifecycle?.Assignment;
             var conditionAssignment = lifecycle?.CurrentConditionAssignment;
             var editorDemo = EditorDemoSessionCoordinator.Active;
+            var rehearsal = RehearsalSessionCoordinator.Active;
 
             return new ExperimentTurnLogRecord
             {
-                protocolVersion = editorDemo != null && editorDemo.IsDemoMode ? editorDemo.DemoProtocol.DemoProtocolVersion : experimentProtocol == null ? string.Empty : experimentProtocol.ProtocolVersion,
+                protocolVersion = rehearsal != null && rehearsal.IsActive ? rehearsal.Protocol.ProtocolVersion : editorDemo != null && editorDemo.IsDemoMode ? editorDemo.DemoProtocol.DemoProtocolVersion : experimentProtocol == null ? string.Empty : experimentProtocol.ProtocolVersion,
                 buildVersion = experimentBuildInfo == null ? (experimentProtocol == null ? string.Empty : experimentProtocol.BuildVersion) : experimentBuildInfo.BuildVersion,
                 gitCommit = experimentBuildInfo == null ? string.Empty : experimentBuildInfo.GitCommit,
                 activeBranch = experimentBuildInfo == null ? string.Empty : experimentBuildInfo.ActiveBranch,
@@ -808,7 +810,9 @@ namespace SceneTalkVR.Core
                 avatarPresetKey = editorDemo != null && editorDemo.IsFormalDemo ? editorDemo.ResolveFormalAvatarKey(condition.task?.taskId) : condition.task != null ? condition.task.avatarPresetKey : string.Empty,
                 resolvedAvatarPresetKey = string.Empty,
                 avatarFallbackLevel = condition.task != null && condition.task.developerPlaceholderAvatar ? "developer_placeholder_pending" : string.Empty,
-                voiceProfileKey = condition.task != null ? condition.task.voiceProfileKey : string.Empty,
+                voiceProfileKey = rehearsal != null && rehearsal.IsActive
+                    ? "rehearsal_dialogue_voice"
+                    : condition.task != null ? condition.task.voiceProfileKey : string.Empty,
                 whetherImageGenerationCalled = !isFixed,
                 experimentProvider = condition.provider,
                 experimentStyle = condition.style,
@@ -823,11 +827,15 @@ namespace SceneTalkVR.Core
                 turnsToCompletion = lifecycle?.TurnsToCompletion ?? 0,
                 completionReason = lifecycle?.CompletionReason ?? string.Empty,
                 runtimeMode = editorDemo != null && editorDemo.IsDemoMode ? editorDemo.RuntimeMode.ToString() : formalExperiment ? ExperimentRuntimeMode.LockedFormalCollection.ToString() : ExperimentRuntimeMode.DeveloperManual.ToString(),
-                dataOrigin = editorDemo != null && editorDemo.IsDemoMode ? "editor_demo" : studyAssignment?.dataOrigin ?? string.Empty,
-                collectionEligible = editorDemo != null && editorDemo.IsDemoMode ? false : studyAssignment?.collectionEligible ?? false,
-                developerTestAssignment = editorDemo != null && editorDemo.IsDemoMode || (studyAssignment?.developerTestAssignment ?? false),
+                dataOrigin = rehearsal != null && rehearsal.IsActive ? "rehearsal" : editorDemo != null && editorDemo.IsDemoMode ? "editor_demo" : studyAssignment?.dataOrigin ?? string.Empty,
+                collectionEligible = rehearsal != null && rehearsal.IsActive ? false : editorDemo != null && editorDemo.IsDemoMode ? false : studyAssignment?.collectionEligible ?? false,
+                developerTestAssignment = rehearsal != null && rehearsal.IsActive ? false : editorDemo != null && editorDemo.IsDemoMode || (studyAssignment?.developerTestAssignment ?? false),
                 demoMode = editorDemo != null && editorDemo.IsDemoMode,
-                demoProtocolVersion = editorDemo?.DemoProtocol?.DemoProtocolVersion ?? string.Empty
+                demoProtocolVersion = editorDemo?.DemoProtocol?.DemoProtocolVersion ?? string.Empty,
+                flowMode = rehearsal?.RuntimeContext?.flowMode.ToString() ?? studyAssignment?.flowMode.ToString() ?? string.Empty,
+                runQualification = rehearsal?.RuntimeContext?.qualification.ToString() ?? studyAssignment?.runQualification.ToString() ?? string.Empty,
+                protocolSnapshotId = rehearsal?.RuntimeContext?.protocolSnapshotId ?? studyAssignment?.protocolSnapshotId ?? string.Empty,
+                resourceSnapshotId = rehearsal?.RuntimeContext?.resourceSnapshotId ?? studyAssignment?.resourceSnapshotId ?? string.Empty
             };
         }
 
@@ -876,6 +884,8 @@ namespace SceneTalkVR.Core
 
         private string ResolveLogFolder()
         {
+            if (RehearsalSessionCoordinator.Active != null && RehearsalSessionCoordinator.Active.IsActive)
+                return RehearsalSessionCoordinator.Active.CurrentDataFolder;
             if (EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsDemoMode)
                 return EditorDemoSessionCoordinator.Active.CurrentDataFolder;
             var safeFolderName = string.IsNullOrWhiteSpace(logFolderName)
@@ -923,8 +933,9 @@ namespace SceneTalkVR.Core
         {
             if (taskCatalog != null)
             {
+                var rehearsalPilot = RehearsalSessionCoordinator.Active != null && RehearsalSessionCoordinator.Active.IsPilot;
                 var editorPilotDemo = EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsPilotDemo;
-                var phase = editorPilotDemo || experimentProtocol != null && experimentProtocol.ExperimentPhase == ExperimentPhase.Pilot
+                var phase = rehearsalPilot || editorPilotDemo || experimentProtocol != null && experimentProtocol.ExperimentPhase == ExperimentPhase.Pilot
                     ? ExperimentTaskPhase.Pilot
                     : ExperimentTaskPhase.Formal;
                 var requested = string.IsNullOrWhiteSpace(scenarioId) ? null : taskCatalog.Find(scenarioId.Trim());
@@ -1548,6 +1559,10 @@ namespace SceneTalkVR.Core
             public bool developerTestAssignment;
             public bool demoMode;
             public string demoProtocolVersion;
+            public string flowMode;
+            public string runQualification;
+            public string protocolSnapshotId;
+            public string resourceSnapshotId;
 
             public const string CsvHeader =
                 "protocolVersion,buildVersion,gitCommit,activeBranch,experimentPhase,formalModeLocked,participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc,transcript,dialogueReply,feedbackText,originalText,correctedText,rationaleTag,sttConfidence,sttProvider,sttFallbackLevel,sttSuppressionReason,conditionOrderPosition,validationWarnings,selectedTaskId,taskCatalogVersion,taskId,taskPhase,taskName,taskContext,taskGoals,initialQuestion,sceneMode,whetherHolodeckCalled,whetherImageGenerationCalled,panoramaResourceKey,panoramaSource,avatarPresetKey,resolvedAvatarPresetKey,avatarFallbackLevel,voiceProfileKey,experimentProvider,experimentStyle,dialogueContinuation,recastText,correctionRequestStartTime,dialogueRequestStartTime,firstTokenTime,firstSentenceTime,ttsReadyTime,correctionPlayStartTime,correctionPlayEndTime,dialoguePlayStartTime,dialoguePlayEndTime,playbackOrder,userEndToFeedbackAudioMs,userEndToDialogueAudioMs,feedbackToDialogueGapMs,correctionVoiceId,actualPlaybackSubject,timeoutReason,fallbackReason,failureReason,sequenceId,conditionRunId,taskAssignmentId,assignmentVersion,questionnaireLinkageKey,completedGoalCount,totalGoalCount,taskCompletionRate,turnsToCompletion,completionReason";

@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace SceneTalkVR.Core
 {
-    public enum ExperimentDeploymentProfileId { DevelopmentEditor, PicoLab, PicoPortable, MockOffline, EditorDemo }
+    public enum ExperimentDeploymentProfileId { DevelopmentEditor, PicoLab, PicoPortable, MockOffline, EditorDemo, RehearsalEditor }
 
     [Serializable]
     public sealed class ExperimentDeploymentProfile
@@ -20,6 +20,8 @@ namespace SceneTalkVR.Core
         public bool approvedForCollection;
         public bool approvedForEditorDemo;
         public bool loopbackAllowedForEditorDemo;
+        public bool approvedForRehearsal;
+        public bool loopbackAllowedForRehearsal;
         public bool collectionAllowed;
         public string evidenceReference;
 
@@ -48,6 +50,17 @@ namespace SceneTalkVR.Core
             if ((id == ExperimentDeploymentProfileId.PicoLab || id == ExperimentDeploymentProfileId.PicoPortable) && IsLoopback(profile.voiceGatewayBaseUrl)) issues.Add("pico_endpoint_loopback_forbidden");
             if (ContainsMock(profile.sttProvider) || ContainsMock(profile.ttsProvider)) issues.Add("mock_provider_forbidden_for_collection");
             if (ContainsSecretMaterial(profile.voiceGatewayBaseUrl)) issues.Add("deployment_endpoint_contains_secret_material");
+            error = string.Join("; ", issues); return issues.Count == 0;
+        }
+
+        public bool ValidateForRehearsal(out string error)
+        {
+            if (!TryGet(ExperimentDeploymentProfileId.RehearsalEditor, out var profile)) { error = "rehearsal_deployment_missing"; return false; }
+            var issues = new List<string>();
+            if (!profile.approvedForRehearsal || profile.approvedForCollection || profile.collectionAllowed) issues.Add("rehearsal_deployment_qualification_invalid");
+            if (!profile.loopbackAllowedForRehearsal || !IsLoopback(profile.voiceGatewayBaseUrl)) issues.Add("rehearsal_editor_loopback_invalid");
+            if (profile.requestTimeoutSeconds <= 0 || string.IsNullOrWhiteSpace(profile.sttProvider) || string.IsNullOrWhiteSpace(profile.ttsProvider)) issues.Add("rehearsal_live_pipeline_invalid");
+            if (ContainsMock(profile.sttProvider) || ContainsMock(profile.ttsProvider)) issues.Add("rehearsal_mock_provider_forbidden");
             error = string.Join("; ", issues); return issues.Count == 0;
         }
 

@@ -51,6 +51,10 @@ namespace SceneTalkVR.Core
         public bool demoMode;
         public string demoProtocolVersion;
         public bool autoFilledForDemo;
+        public string flowMode;
+        public string runQualification;
+        public string protocolSnapshotId;
+        public string resourceSnapshotId;
     }
 
     [DisallowMultipleComponent]
@@ -79,6 +83,8 @@ namespace SceneTalkVR.Core
         public ExperimentTechnicalValidity TechnicalValidity { get; private set; } = ExperimentTechnicalValidity.Valid;
         public long ConditionDurationMs => conditionStartedUtc == default ? 0 : (long)(DateTime.UtcNow - conditionStartedUtc).TotalMilliseconds;
         public int TurnsToCompletion => conditionManager == null ? 0 : Mathf.Max(0, conditionManager.CurrentTurnIndex - conditionStartTurn);
+        public int MaximumTurns => maxTurns;
+        public float MaximumDurationMinutes => maxDurationMinutes;
 
         private void Awake()
         {
@@ -99,6 +105,12 @@ namespace SceneTalkVR.Core
             EnsureGoalSubscription();
         }
 
+        public void ConfigureRunLimits(int turns, float durationMinutes)
+        {
+            maxTurns = Mathf.Max(0, turns);
+            maxDurationMinutes = Mathf.Max(0f, durationMinutes);
+        }
+
         private void EnsureGoalSubscription()
         {
             if (goalEventsSubscribed) return;
@@ -110,13 +122,17 @@ namespace SceneTalkVR.Core
         {
             if (value == null) { error = "assignment_missing"; return false; }
             if (conditionManager == null) { error = "condition_manager_missing"; return false; }
-            if (conditionManager.IsFormalExperiment && value.developerTestAssignment) { error = "formal_mode_rejects_developer_assignment"; return false; }
-            if (conditionManager.IsFormalExperiment && !string.IsNullOrWhiteSpace(value.dataOrigin) && !value.collectionEligible) { error = "formal_mode_rejects_collection_ineligible_assignment"; return false; }
-            if (conditionManager.IsFormalExperiment && !conditionManager.ValidateFormalProtocol(out error)) return false;
+            var rehearsal = value.runQualification == ExperimentRunQualification.Rehearsal;
+            if (!ExperimentRuntimeContext.IsAllowed(value.flowMode, value.runQualification)) { error = "runtime_context_combination_invalid"; return false; }
+            if (rehearsal && (value.flowMode != ExperimentFlowMode.Formal || value.developerTestAssignment || value.collectionEligible || value.dataOrigin != "rehearsal"))
+            { error = "formal_rehearsal_isolation_invalid"; return false; }
+            if (conditionManager.IsFormalExperiment && !rehearsal && value.developerTestAssignment) { error = "formal_mode_rejects_developer_assignment"; return false; }
+            if (conditionManager.IsFormalExperiment && !rehearsal && !string.IsNullOrWhiteSpace(value.dataOrigin) && !value.collectionEligible) { error = "formal_mode_rejects_collection_ineligible_assignment"; return false; }
+            if (conditionManager.IsFormalExperiment && !rehearsal && !conditionManager.ValidateFormalProtocol(out error)) return false;
             if (value.demoMode && (value.runtimeMode != ExperimentRuntimeMode.EditorDemoFormal || value.dataOrigin != "editor_demo"
                 || value.collectionEligible || !value.developerTestAssignment))
             { error = "editor_demo_assignment_isolation_invalid"; return false; }
-            var expectedProtocolVersion = value.demoMode ? value.protocolVersion : conditionManager.ExperimentProtocol?.ProtocolVersion ?? string.Empty;
+            var expectedProtocolVersion = rehearsal || value.demoMode ? value.protocolVersion : conditionManager.ExperimentProtocol?.ProtocolVersion ?? string.Empty;
             if (!ExperimentAssignmentAllocator.IsCompatible(value,
                 expectedProtocolVersion,
                 conditionManager.TaskCatalog?.CatalogVersion ?? string.Empty, out error))
@@ -409,11 +425,15 @@ namespace SceneTalkVR.Core
                 runtimeMode = assignment.runtimeMode.ToString(), dataOrigin = assignment.dataOrigin ?? string.Empty,
                 collectionEligible = assignment.collectionEligible, developerTestAssignment = assignment.developerTestAssignment,
                 demoMode = assignment.demoMode, demoProtocolVersion = assignment.demoProtocolVersion ?? string.Empty,
-                autoFilledForDemo = assignment.demoMode && (reason ?? string.Empty).IndexOf("autoFilledForDemo=true", StringComparison.Ordinal) >= 0
+                autoFilledForDemo = assignment.demoMode && (reason ?? string.Empty).IndexOf("autoFilledForDemo=true", StringComparison.Ordinal) >= 0,
+                flowMode = assignment.flowMode.ToString(), runQualification = assignment.runQualification.ToString(),
+                protocolSnapshotId = assignment.protocolSnapshotId ?? string.Empty, resourceSnapshotId = assignment.resourceSnapshotId ?? string.Empty
             };
             try
             {
-                var folder = assignment.demoMode && EditorDemoSessionCoordinator.Active != null
+                var folder = assignment.runQualification == ExperimentRunQualification.Rehearsal && RehearsalSessionCoordinator.Active != null
+                    ? RehearsalSessionCoordinator.Active.CurrentDataFolder
+                    : assignment.demoMode && EditorDemoSessionCoordinator.Active != null
                     ? EditorDemoSessionCoordinator.Active.CurrentDataFolder
                     : Path.Combine(Application.persistentDataPath, "SceneTalkVR", "ExperimentLogs");
                 Directory.CreateDirectory(folder);

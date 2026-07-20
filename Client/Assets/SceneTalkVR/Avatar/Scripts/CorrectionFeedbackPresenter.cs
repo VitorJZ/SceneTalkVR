@@ -188,14 +188,18 @@ namespace SceneTalkVR.AvatarSystem
                 provider,
                 DialogueAvatarProvider,
                 StringComparison.OrdinalIgnoreCase);
-            var assistantAgentVoiceId = useDialogueAvatar
-                ? null
+            var rehearsal = RehearsalSessionCoordinator.Active;
+            var rehearsalFeedbackVoiceId = rehearsal != null && rehearsal.IsActive
+                ? rehearsal.ResolveVoiceId("rehearsal_feedback_voice") : string.Empty;
+            var assistantAgentVoiceId = useDialogueAvatar ? null
+                : !string.IsNullOrWhiteSpace(rehearsalFeedbackVoiceId) ? rehearsalFeedbackVoiceId
                 : ResolveAssistantAgentVoiceId();
             var activePilotPresenter = !useDialogueAvatar ? PilotEmbodimentPresenter.Active : null;
             var activePilotProfile = activePilotPresenter?.Profile;
             var timing = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include);
             var actualActor = useDialogueAvatar ? "Avatar" : activePilotProfile?.feedbackActor ?? "Agent";
-            var actualVoice = !string.IsNullOrWhiteSpace(activePilotProfile?.voiceProfileKey)
+            var actualVoice = rehearsal != null && rehearsal.IsActive ? "rehearsal_feedback_voice"
+                : !string.IsNullOrWhiteSpace(activePilotProfile?.voiceProfileKey)
                 ? activePilotProfile.voiceProfileKey
                 : string.IsNullOrWhiteSpace(assistantAgentVoiceId)
                 ? playbackContext.defaultVoiceId
@@ -208,7 +212,7 @@ namespace SceneTalkVR.AvatarSystem
                 logLabel = useDialogueAvatar
                     ? "Correction feedback"
                     : "Assistant correction feedback",
-                voiceIdOverride = assistantAgentVoiceId,
+                voiceIdOverride = !string.IsNullOrWhiteSpace(rehearsalFeedbackVoiceId) ? rehearsalFeedbackVoiceId : assistantAgentVoiceId,
                 preparationStarted = () => timing?.RecordTimingEvent(ExperimentTimingEventType.CorrectionTtsStarted, feedbackText: text),
                 preparationReady = () => timing?.RecordTimingEvent(ExperimentTimingEventType.CorrectionTtsReady, feedbackText: text),
                 playbackStarted = () => timing?.RecordTimingEvent(
@@ -246,7 +250,8 @@ namespace SceneTalkVR.AvatarSystem
                 var pilotPresenter = activePilotPresenter;
                 if (pilotPresenter != null && pilotPresenter.Profile != null)
                 {
-                    playbackRequest.voiceIdOverride = pilotPresenter.Profile.voiceProfileKey;
+                    playbackRequest.voiceIdOverride = !string.IsNullOrWhiteSpace(rehearsalFeedbackVoiceId)
+                        ? rehearsalFeedbackVoiceId : pilotPresenter.Profile.voiceProfileKey;
                     playbackRequest.audioSourceOverride = pilotPresenter.AudioSource;
                     var timingStarted = playbackRequest.playbackStarted;
                     var timingEnded = playbackRequest.playbackEnded;

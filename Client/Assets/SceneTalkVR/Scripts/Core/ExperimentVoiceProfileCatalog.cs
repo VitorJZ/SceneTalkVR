@@ -21,6 +21,7 @@ namespace SceneTalkVR.Core
         public VoiceSubtitlePolicy subtitlePolicy;
         public bool approvedForCollection;
         public bool approvedForEditorDemo;
+        public bool approvedForRehearsal;
         public bool offlineDemoVoice;
         public string approvedBy;
         public string evidenceReference;
@@ -66,6 +67,20 @@ namespace SceneTalkVR.Core
                     issues.Add($"voice_profile_not_collection_ready:{key}");
             }
             error = string.Join("; ", issues.Distinct()); return issues.Count == 0;
+        }
+
+        public bool ValidateForRehearsal(out string error)
+        {
+            var required = new[] { "rehearsal_dialogue_voice", "rehearsal_feedback_voice" };
+            var issues = new List<string>();
+            foreach (var key in required)
+            {
+                if (!TryGet(key, out var item)) { issues.Add("rehearsal_voice_missing:" + key); continue; }
+                if (!item.approvedForRehearsal || item.approvedForCollection || item.provider != "tencent" || item.voiceId != "101050"
+                    || item.language != "en-US" || item.sampleRate != 24000 || item.speakingSpeed <= 0f || item.volume <= 0f)
+                    issues.Add("rehearsal_voice_invalid:" + key);
+            }
+            error = string.Join("; ", issues); return issues.Count == 0;
         }
 
 #if UNITY_EDITOR

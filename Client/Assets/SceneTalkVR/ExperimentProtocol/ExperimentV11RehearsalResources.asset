@@ -1,0 +1,74 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 480ca3fce167a2f439bdf4d2993b3cec, type: 3}
+  m_Name: ExperimentV11RehearsalResources
+  m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentV11RehearsalResourceCatalog
+  resourceSnapshotId: v1.1-rehearsal-1-resources
+  formalAvatarMappings:
+  - taskId: hotel_check_in
+    taskRole: hotel receptionist / front desk clerk
+    avatarPresetKey: barista_humanoid_v1
+    approvedForRehearsal: 1
+    approvedForCollection: 0
+  - taskId: furniture_shopping
+    taskRole: furniture salesperson
+    avatarPresetKey: teacher_humanoid_v1
+    approvedForRehearsal: 1
+    approvedForCollection: 0
+  - taskId: gym_membership
+    taskRole: gym membership consultant / trainer
+    avatarPresetKey: barista_male_humanoid_v1
+    approvedForRehearsal: 1
+    approvedForCollection: 0
+  - taskId: tourist_assistance
+    taskRole: tourist information officer
+    avatarPresetKey: teacher_female_humanoid_v1
+    approvedForRehearsal: 1
+    approvedForCollection: 0
+  pilotHumanoidPrefab: {fileID: 996461390545780520, guid: f996e4fd27273468099629141107f6ed, type: 3}
+  pilotHumanoidPresetKey: teacher_female_humanoid_v1
+  panoramas:
+  - taskId: hotel_check_in
+    panoramaResourceKey: SceneTalkVR/Textures/hotel-lobby-360
+    approvedForRehearsal: 1
+    replaceableAsset: 1
+    knownRisk: Current local rehearsal panorama; visual quality does not block rehearsal.
+  - taskId: furniture_shopping
+    panoramaResourceKey: SceneTalkVR/Textures/furniture-store-360
+    approvedForRehearsal: 1
+    replaceableAsset: 1
+    knownRisk: Current local rehearsal panorama; visual quality does not block rehearsal.
+  - taskId: gym_membership
+    panoramaResourceKey: SceneTalkVR/Textures/gym-360
+    approvedForRehearsal: 1
+    replaceableAsset: 1
+    knownRisk: Current local rehearsal panorama; visual quality does not block rehearsal.
+  - taskId: tourist_assistance
+    panoramaResourceKey: SceneTalkVR/Textures/tourist-information-360
+    approvedForRehearsal: 1
+    replaceableAsset: 1
+    knownRisk: Current local 2:1 panorama; replaceable before collection.
+  - taskId: pilot_restaurant_walk_in
+    panoramaResourceKey: SceneTalkVR/Textures/restaurant-360
+    approvedForRehearsal: 1
+    replaceableAsset: 1
+    knownRisk: Current local rehearsal panorama; visual quality does not block rehearsal.
+  - taskId: pilot_restaurant_ordering
+    panoramaResourceKey: SceneTalkVR/Textures/restaurant-360
+    approvedForRehearsal: 1
+    replaceableAsset: 1
+    knownRisk: Current local rehearsal panorama; visual quality does not block rehearsal.
+  - taskId: pilot_restaurant_wrong_dish
+    panoramaResourceKey: SceneTalkVR/Textures/restaurant-360
+    approvedForRehearsal: 1
+    replaceableAsset: 1
+    knownRisk: Current local rehearsal panorama; visual quality does not block rehearsal.

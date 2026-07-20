@@ -87,43 +87,18 @@ namespace SceneTalkVR.Core
             ResolveSceneDependencies(); RefreshUi();
         }
 
+        [Obsolete("Legacy Editor Demo creation is disabled. Use RehearsalSessionCoordinator.CreateFormalSession.")]
         public bool StartFormalDemo(string participantId, out string error)
         {
-            if (!ValidateCommon(out error)) return false;
-            ResetDemoSession();
-            RuntimeMode = ExperimentRuntimeMode.EditorDemoFormal;
-            var participant = Prefix(participantId, "DEMO-FORMAL-", "001");
-            var session = "DEMO-FORMAL-SESSION-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
-            var tasks = conditionManager.TaskCatalog.GetTasks(ExperimentTaskPhase.Formal).Select(x => x.taskId).ToArray();
-            var allocator = new ExperimentAssignmentAllocator();
-            if (!allocator.TryCreateForTesting(participant, session, demoProtocol.DemoProtocolVersion,
-                conditionManager.TaskCatalog.CatalogVersion, demoProtocol.FormalSequences, tasks,
-                AssignmentPolicy.StrictWithoutReplacement, out var assignment, out error)) return FailStart(error);
-            assignment.runtimeMode = RuntimeMode; assignment.demoMode = true; assignment.demoProtocolVersion = demoProtocol.DemoProtocolVersion;
-            assignment.dataOrigin = "editor_demo"; assignment.collectionEligible = false; assignment.developerTestAssignment = true;
-            if (!lifecycle.LoadAssignment(assignment, out error)) return FailStart(error);
-            formalPosition = -1; rankingSubmitted = false; interviewSaved = false;
-            PersistAssignments(); WriteOperator("StartFormalDemo"); RefreshUi(); return true;
+            error = "legacy_editor_demo_creation_disabled_create_rehearsal_session";
+            return false;
         }
 
+        [Obsolete("Legacy Editor Demo creation is disabled. Use RehearsalSessionCoordinator.CreatePilotSession.")]
         public bool StartPilotDemo(string participantId, out string error)
         {
-            if (!ValidateCommon(out error)) return false;
-            ResetDemoSession();
-            RuntimeMode = ExperimentRuntimeMode.EditorDemoPilot;
-            var participant = Prefix(participantId, "DEMO-PILOT-", "001");
-            var session = "DEMO-PILOT-SESSION-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
-            var tasks = conditionManager.TaskCatalog.GetTasks(ExperimentTaskPhase.Pilot).Select(x => x.taskId).ToArray();
-            var allocator = new PilotAssignmentAllocator();
-            if (!allocator.TryCreateForTesting(participant, session, demoProtocol.DemoProtocolVersion,
-                conditionManager.TaskCatalog.CatalogVersion, demoProtocol.PilotSequences, tasks,
-                PilotFeedbackStyleChoice.Explicit, PilotAudioSourcePolicy.NonSpatialHeadLocked, true,
-                out var assignment, out error)) return FailStart(error);
-            assignment.runtimeMode = RuntimeMode; assignment.demoMode = true; assignment.demoProtocolVersion = demoProtocol.DemoProtocolVersion;
-            assignment.dataOrigin = "editor_demo"; assignment.collectionEligible = false; assignment.developerTestAssignment = true;
-            if (!pilot.LoadAssignment(assignment, out error)) return FailStart(error);
-            pilotPosition = -1; rankingSubmitted = false; interviewSaved = false;
-            PersistAssignments(); WriteOperator("StartPilotDemo"); RefreshUi(); return true;
+            error = "legacy_editor_demo_creation_disabled_create_rehearsal_session";
+            return false;
         }
 
         public bool ResumeLatest(bool formal, out string error)

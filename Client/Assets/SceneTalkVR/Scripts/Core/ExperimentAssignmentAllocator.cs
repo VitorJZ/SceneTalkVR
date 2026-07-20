@@ -57,6 +57,30 @@ namespace SceneTalkVR.Core
             out ExperimentAssignment assignment,
             out string error)
         {
+            return TryCreate(participantId, sessionId, protocolVersion, catalogVersion, sequences, taskIds, policy,
+                ExperimentFlowMode.Synthetic, ExperimentRunQualification.Development, "synthetic_dry_run", true,
+                string.Empty, string.Empty, out assignment, out error);
+        }
+
+        public bool TryCreateRehearsal(string participantId, string sessionId, ExperimentV11RehearsalProtocol protocol,
+            ExperimentTaskCatalog catalog, string resourceSnapshotId, out ExperimentAssignment assignment, out string error)
+        {
+            assignment = null;
+            if (protocol == null) { error = "rehearsal_protocol_missing"; return false; }
+            if (!protocol.Validate(out error)) return false;
+            if (catalog == null) { error = "task_catalog_missing"; return false; }
+            return TryCreate(participantId, sessionId, protocol.ProtocolVersion, catalog.CatalogVersion,
+                protocol.FormalSequences, catalog.GetTasks(ExperimentTaskPhase.Formal).Select(x => x.taskId).ToArray(),
+                protocol.FormalAssignmentPolicy, ExperimentFlowMode.Formal, ExperimentRunQualification.Rehearsal,
+                "rehearsal", false, protocol.ProtocolSnapshotId, resourceSnapshotId,
+                out assignment, out error);
+        }
+
+        private bool TryCreate(string participantId, string sessionId, string protocolVersion, string catalogVersion,
+            AssignmentSequence[] sequences, string[] taskIds, AssignmentPolicy policy, ExperimentFlowMode flowMode,
+            ExperimentRunQualification qualification, string dataOrigin, bool developerTestAssignment,
+            string protocolSnapshotId, string resourceSnapshotId, out ExperimentAssignment assignment, out string error)
+        {
             assignment = null;
             error = string.Empty;
             if (string.IsNullOrWhiteSpace(participantId) || string.IsNullOrWhiteSpace(sessionId)) { error = "participant/session missing"; return false; }
@@ -100,9 +124,13 @@ namespace SceneTalkVR.Core
                 createdAtUtc = DateTime.UtcNow.ToString("o"),
                 policy = policy,
                 status = AssignmentStatus.Created,
-                developerTestAssignment = true,
-                dataOrigin = "developer_test",
+                developerTestAssignment = developerTestAssignment,
+                dataOrigin = dataOrigin,
                 collectionEligible = false,
+                flowMode = flowMode,
+                runQualification = qualification,
+                protocolSnapshotId = protocolSnapshotId,
+                resourceSnapshotId = resourceSnapshotId,
                 conditions = conditions
             };
             return true;
