@@ -41,11 +41,12 @@ namespace SceneTalkVR.Runtime
         {
             get
             {
-                var applier = FindObjectOfType<SceneTalkRuntimeConfigApplier>();
+                var applier = FindFirstObjectByType<SceneTalkRuntimeConfigApplier>();
                 return applier != null ? applier.Config : null;
             }
         }
         public string LastTranscript { get; private set; }
+        public float LastSpeechCaptureEndTime { get; private set; }
         public SpringScenePayload LastScenePayload { get; private set; }
         public string LastError { get; private set; }
         public string LastCorrectionStatus { get; private set; }
@@ -75,9 +76,69 @@ namespace SceneTalkVR.Runtime
             }
         }
 
+        public string CorrectionProviderSetting
+        {
+            get
+            {
+                var manager = ResolveExperimentConditionManager(false);
+                return manager == null
+                    ? ExperimentConditionManager.DialogueAvatarProvider
+                    : manager.CurrentFeedbackProvider;
+            }
+        }
+
+        public string CorrectionStyleSetting
+        {
+            get
+            {
+                var manager = ResolveExperimentConditionManager(false);
+                return manager == null
+                    ? ExperimentConditionManager.ExplicitStyle
+                    : manager.CurrentFeedbackStyle;
+            }
+        }
+
+        public bool CanChangeCorrectionSetting
+        {
+            get
+            {
+                var manager = ResolveExperimentConditionManager(false);
+                return CurrentState == SceneTalkState.Settings
+                    && currentTurn == null
+                    && !IsSpeechRecording
+                    && manager != null
+                    && manager.CanUseManualRuntimeCondition;
+            }
+        }
+
+        public string CorrectionSettingLockReason
+        {
+            get
+            {
+                var manager = ResolveExperimentConditionManager(false);
+                if (manager == null)
+                {
+                    return "Correction condition manager is unavailable.";
+                }
+
+                if (CurrentState != SceneTalkState.Settings)
+                {
+                    return "Open Settings to change the correction condition.";
+                }
+
+                if (currentTurn != null || IsSpeechRecording)
+                {
+                    return "Available after the current turn.";
+                }
+
+                return manager.ManualRuntimeConditionLockReason;
+            }
+        }
+
         private Coroutine currentTurn;
         private bool finishRequested;
         private AvatarPresentationVoiceModule subscribedAvatarVoiceModule;
+        private ExperimentConditionManager subscribedExperimentConditionManager;
         private SpeechCaptureMode activeSpeechCaptureMode = SpeechCaptureMode.None;
 
         private ISceneTalkSpeechInput SpeechInput => speechInputModule as ISceneTalkSpeechInput;
@@ -116,6 +177,7 @@ namespace SceneTalkVR.Runtime
                 SubscribeAvatarCorrectionPlayback();
             }
 
+            SubscribeExperimentConditionChanges();
             ApplyExperimentConditionToModules();
             RefreshUi();
         }
@@ -129,16 +191,20 @@ namespace SceneTalkVR.Runtime
         private void OnEnable()
         {
             SubscribeAvatarCorrectionPlayback();
+            SubscribeExperimentConditionChanges();
         }
 
         private void OnDisable()
         {
             UnsubscribeAvatarCorrectionPlayback();
+            UnsubscribeExperimentConditionChanges();
         }
 
         public void OpenSettings()
         {
-            if (currentTurn != null || IsSpeechRecording)
+            if ((CurrentState != SceneTalkState.Idle && CurrentState != SceneTalkState.Finished)
+                || currentTurn != null
+                || IsSpeechRecording)
             {
                 return;
             }
@@ -153,6 +219,50 @@ namespace SceneTalkVR.Runtime
             {
                 SetState(SceneTalkState.Idle);
             }
+        }
+
+        public void ChangeCorrectionProviderSetting()
+        {
+            if (!CanChangeCorrectionSetting)
+            {
+                return;
+            }
+
+            var manager = ResolveExperimentConditionManager(false);
+            if (manager == null)
+            {
+                return;
+            }
+
+            var nextProvider = string.Equals(
+                manager.CurrentFeedbackProvider,
+                ExperimentConditionManager.DialogueAvatarProvider,
+                StringComparison.OrdinalIgnoreCase)
+                ? ExperimentConditionManager.AssistantAgentProvider
+                : ExperimentConditionManager.DialogueAvatarProvider;
+            manager.TrySetManualFeedbackProvider(nextProvider);
+        }
+
+        public void ChangeCorrectionStyleSetting()
+        {
+            if (!CanChangeCorrectionSetting)
+            {
+                return;
+            }
+
+            var manager = ResolveExperimentConditionManager(false);
+            if (manager == null)
+            {
+                return;
+            }
+
+            var nextStyle = string.Equals(
+                manager.CurrentFeedbackStyle,
+                ExperimentConditionManager.ExplicitStyle,
+                StringComparison.OrdinalIgnoreCase)
+                ? ExperimentConditionManager.RecastStyle
+                : ExperimentConditionManager.ExplicitStyle;
+            manager.TrySetManualFeedbackStyle(nextStyle);
         }
 
         public void StartPractice()
@@ -592,6 +702,7 @@ namespace SceneTalkVR.Runtime
         {
             IsSpeechRecording = false;
             activeSpeechCaptureMode = SpeechCaptureMode.None;
+            LastSpeechCaptureEndTime = Time.realtimeSinceStartup;
         }
 
         private IEnumerator RunRequestSpeechCaptureTurn()
@@ -676,6 +787,8 @@ namespace SceneTalkVR.Runtime
                 () => { },
                 message => error = message);
 
+            RecordTurnMetrics(payload);
+
             if (HandleErrorOrFinish(error, "Avatar voice playback failed."))
             {
                 currentTurn = null;
@@ -745,6 +858,8 @@ namespace SceneTalkVR.Runtime
                 payload,
                 () => { },
                 message => error = message);
+
+            RecordTurnMetrics(payload);
 
             if (HandleErrorOrFinish(error, "Avatar voice playback failed."))
             {
@@ -1012,6 +1127,48 @@ namespace SceneTalkVR.Runtime
             return experimentConditionManager;
         }
 
+        private void SubscribeExperimentConditionChanges()
+        {
+            var manager = ResolveExperimentConditionManager(false);
+            if (manager == subscribedExperimentConditionManager)
+            {
+                return;
+            }
+
+            UnsubscribeExperimentConditionChanges();
+            subscribedExperimentConditionManager = manager;
+            if (subscribedExperimentConditionManager != null)
+            {
+                subscribedExperimentConditionManager.ExperimentConditionChanged += OnExperimentConditionChanged;
+            }
+        }
+
+        private void UnsubscribeExperimentConditionChanges()
+        {
+            if (subscribedExperimentConditionManager != null)
+            {
+                subscribedExperimentConditionManager.ExperimentConditionChanged -= OnExperimentConditionChanged;
+                subscribedExperimentConditionManager = null;
+            }
+        }
+
+        private void OnExperimentConditionChanged()
+        {
+            var manager = ResolveExperimentConditionManager(false);
+            if (manager == null
+                || currentTurn != null
+                || IsSpeechRecording
+                || manager.HasActiveTurn
+                || manager.HasPendingTurnReview)
+            {
+                RefreshUi();
+                return;
+            }
+
+            ApplyExperimentConditionToModules();
+            RefreshUi();
+        }
+
         private void ClearCorrectionReviewState()
         {
             LastCorrectionStatus = string.Empty;
@@ -1143,7 +1300,6 @@ namespace SceneTalkVR.Runtime
                 var basePayload = LastScenePayload;
                 streamingVoice.PrepareStreaming(basePayload);
 
-                bool isDone = false;
                 SpringScenePayload finalPayload = null;
                 string brainError = null;
 
@@ -1160,11 +1316,9 @@ namespace SceneTalkVR.Runtime
                     },
                     payload => {
                         finalPayload = payload;
-                        isDone = true;
                     },
                     err => {
                         brainError = err;
-                        isDone = true;
                     }
                 );
 
@@ -1185,6 +1339,95 @@ namespace SceneTalkVR.Runtime
                     onCompleteCallback,
                     onErrorCallback
                 );
+            }
+        }
+
+        private void RecordTurnMetrics(SpringScenePayload payload)
+        {
+            var expManager = ResolveExperimentConditionManager(false);
+            if (expManager != null && payload != null)
+            {
+                var realLLM = Brain as SceneTalkVR.Runtime.Services.RealLLMService;
+                var voiceModule = AvatarVoice as SceneTalkVR.AvatarSystem.AvatarPresentationVoiceModule;
+
+                string dialogueContinuation = payload.dialogueReply;
+                string recastText = (payload.correctionFeedback != null) ? payload.correctionFeedback.recastText : string.Empty;
+                
+                string correctionRequestStartTime = System.DateTime.UtcNow.ToString("o");
+                string dialogueRequestStartTime = System.DateTime.UtcNow.ToString("o");
+
+                string firstTokenTime = (realLLM != null && realLLM.LastFirstTokenLatencyMs >= 0) 
+                    ? realLLM.LastFirstTokenLatencyMs.ToString("F2") : "n/a";
+                string firstSentenceTime = (realLLM != null && realLLM.LastFirstSentenceLatencyMs >= 0)
+                    ? realLLM.LastFirstSentenceLatencyMs.ToString("F2") : "n/a";
+                string ttsReadyTime = (voiceModule != null && voiceModule.LastTtsReadyLatencyMs >= 0)
+                    ? voiceModule.LastTtsReadyLatencyMs.ToString("F2") : "n/a";
+
+                string correctionPlayStartTime = (voiceModule != null && voiceModule.LastCorrectionPlayStart >= 0)
+                    ? voiceModule.LastCorrectionPlayStart.ToString("F2") : "n/a";
+                string correctionPlayEndTime = (voiceModule != null && voiceModule.LastCorrectionPlayEnd >= 0)
+                    ? voiceModule.LastCorrectionPlayEnd.ToString("F2") : "n/a";
+                string dialoguePlayStartTime = (voiceModule != null && voiceModule.LastDialoguePlayStart >= 0)
+                    ? voiceModule.LastDialoguePlayStart.ToString("F2") : "n/a";
+                string dialoguePlayEndTime = (voiceModule != null && voiceModule.LastDialoguePlayEnd >= 0)
+                    ? voiceModule.LastDialoguePlayEnd.ToString("F2") : "n/a";
+
+                bool hasCorrection = payload.correctionFeedback != null && payload.correctionFeedback.hasFeedback;
+                string playbackOrder = hasCorrection ? "Correction -> Dialogue" : "Dialogue Only";
+
+                float userEndToFeedbackAudioMs = 0f;
+                float userEndToDialogueAudioMs = 0f;
+                float feedbackToDialogueGapMs = 0f;
+
+                if (voiceModule != null)
+                {
+                    if (voiceModule.LastCorrectionPlayStart >= 0)
+                    {
+                        userEndToFeedbackAudioMs = (voiceModule.LastCorrectionPlayStart - LastSpeechCaptureEndTime) * 1000f;
+                    }
+                    if (voiceModule.LastDialoguePlayStart >= 0)
+                    {
+                        userEndToDialogueAudioMs = (voiceModule.LastDialoguePlayStart - LastSpeechCaptureEndTime) * 1000f;
+                    }
+                    if (voiceModule.LastDialoguePlayStart >= 0 && voiceModule.LastCorrectionPlayEnd >= 0)
+                    {
+                        feedbackToDialogueGapMs = (voiceModule.LastDialoguePlayStart - voiceModule.LastCorrectionPlayEnd) * 1000f;
+                    }
+                }
+
+                string correctionVoiceId = string.Empty;
+                string actualPlaybackSubject = "Avatar";
+                if (hasCorrection && payload.correctionFeedback != null)
+                {
+                    actualPlaybackSubject = (payload.correctionFeedback.provider == "assistant_agent") ? "Agent" : "Avatar";
+                    correctionVoiceId = (payload.correctionFeedback.provider == "assistant_agent") ? "WeJames" : "TencentVoice";
+                }
+
+                string timeoutReason = "none";
+                string fallbackReason = "none";
+                string failureReason = "none";
+
+                expManager.RecordDetailMetrics(
+                    dialogueContinuation,
+                    recastText,
+                    correctionRequestStartTime,
+                    dialogueRequestStartTime,
+                    firstTokenTime,
+                    firstSentenceTime,
+                    ttsReadyTime,
+                    correctionPlayStartTime,
+                    correctionPlayEndTime,
+                    dialoguePlayStartTime,
+                    dialoguePlayEndTime,
+                    playbackOrder,
+                    userEndToFeedbackAudioMs,
+                    userEndToDialogueAudioMs,
+                    feedbackToDialogueGapMs,
+                    correctionVoiceId,
+                    actualPlaybackSubject,
+                    timeoutReason,
+                    fallbackReason,
+                    failureReason);
             }
         }
     }

@@ -81,6 +81,35 @@ namespace SceneTalkVR.Core
         public bool HasPendingTurnReview => pendingTurnLog != null;
         public bool IsExperimentLocked => formalExperiment;
         public string LockedFeedbackSensitivity => IsExperimentLocked ? "moderate" : "moderate";
+        public string CurrentConditionId => CurrentCondition?.conditionId ?? string.Empty;
+        public string CurrentFeedbackProvider => CurrentCondition?.provider ?? DialogueAvatarProvider;
+        public string CurrentFeedbackStyle => CurrentCondition?.style ?? ExplicitStyle;
+        public bool CanUseManualRuntimeCondition => !formalExperiment
+            && !useConditionOrder
+            && !HasActiveTurn
+            && !HasPendingTurnReview;
+        public string ManualRuntimeConditionLockReason
+        {
+            get
+            {
+                if (formalExperiment)
+                {
+                    return "Locked by formal experiment.";
+                }
+
+                if (useConditionOrder)
+                {
+                    return "Locked by condition order.";
+                }
+
+                if (HasActiveTurn || HasPendingTurnReview)
+                {
+                    return "Available after the current turn.";
+                }
+
+                return string.Empty;
+            }
+        }
 
         public event Action ExperimentConditionChanged;
 
@@ -197,15 +226,36 @@ namespace SceneTalkVR.Core
             {
                 var order = GetEffectiveConditionOrder();
                 conditionOrderIndex = order.Length == 0 ? 0 : (conditionOrderIndex + 1) % order.Length;
-            }
-            else
-            {
-                manualCondition = (ExperimentConditionPreset)(((int)manualCondition + 1)
-                    % Enum.GetValues(typeof(ExperimentConditionPreset)).Length);
+                RefreshCondition(false);
+                NotifyConditionChanged();
+                return;
             }
 
-            RefreshCondition(false);
-            NotifyConditionChanged();
+            var nextCondition = (ExperimentConditionPreset)(((int)manualCondition + 1)
+                % Enum.GetValues(typeof(ExperimentConditionPreset)).Length);
+            SetManualCondition(nextCondition);
+        }
+
+        public bool TrySetManualFeedbackProvider(string provider)
+        {
+            if (!CanUseManualRuntimeCondition || !TryNormalizeProvider(provider, out var normalizedProvider))
+            {
+                return false;
+            }
+
+            var preset = ResolvePreset(normalizedProvider, CurrentFeedbackStyle);
+            return SetManualCondition(preset);
+        }
+
+        public bool TrySetManualFeedbackStyle(string style)
+        {
+            if (!CanUseManualRuntimeCondition || !TryNormalizeStyle(style, out var normalizedStyle))
+            {
+                return false;
+            }
+
+            var preset = ResolvePreset(CurrentFeedbackProvider, normalizedStyle);
+            return SetManualCondition(preset);
         }
 
         public void AdvanceScenario()
@@ -316,9 +366,11 @@ namespace SceneTalkVR.Core
             if (payload != null)
             {
                 log.dialogueReply = NullToEmpty(payload.dialogueReply);
+                log.dialogueContinuation = NullToEmpty(payload.dialogueContinuation);
                 if (feedback != null)
                 {
                     log.feedbackText = NullToEmpty(feedback.feedbackText);
+                    log.recastText = NullToEmpty(feedback.recastText);
                     log.originalText = NullToEmpty(feedback.originalText);
                     log.correctedText = NullToEmpty(feedback.correctedText);
                     log.rationaleTag = NullToEmpty(feedback.rationaleTag);
@@ -403,6 +455,53 @@ namespace SceneTalkVR.Core
             {
                 log.moduleFallback = AppendToken(log.moduleFallback, moduleFallback);
             }
+        }
+
+        public void RecordDetailMetrics(
+            string dialogueContinuation,
+            string recastText,
+            string correctionRequestStartTime,
+            string dialogueRequestStartTime,
+            string firstTokenTime,
+            string firstSentenceTime,
+            string ttsReadyTime,
+            string correctionPlayStartTime,
+            string correctionPlayEndTime,
+            string dialoguePlayStartTime,
+            string dialoguePlayEndTime,
+            string playbackOrder,
+            float userEndToFeedbackAudioMs,
+            float userEndToDialogueAudioMs,
+            float feedbackToDialogueGapMs,
+            string correctionVoiceId,
+            string actualPlaybackSubject,
+            string timeoutReason,
+            string fallbackReason,
+            string failureReason)
+        {
+            var log = ResolveWritableTurnLog();
+            if (log == null) return;
+
+            log.dialogueContinuation = dialogueContinuation;
+            log.recastText = recastText;
+            log.correctionRequestStartTime = correctionRequestStartTime;
+            log.dialogueRequestStartTime = dialogueRequestStartTime;
+            log.firstTokenTime = firstTokenTime;
+            log.firstSentenceTime = firstSentenceTime;
+            log.ttsReadyTime = ttsReadyTime;
+            log.correctionPlayStartTime = correctionPlayStartTime;
+            log.correctionPlayEndTime = correctionPlayEndTime;
+            log.dialoguePlayStartTime = dialoguePlayStartTime;
+            log.dialoguePlayEndTime = dialoguePlayEndTime;
+            log.playbackOrder = playbackOrder;
+            log.userEndToFeedbackAudioMs = userEndToFeedbackAudioMs;
+            log.userEndToDialogueAudioMs = userEndToDialogueAudioMs;
+            log.feedbackToDialogueGapMs = feedbackToDialogueGapMs;
+            log.correctionVoiceId = correctionVoiceId;
+            log.actualPlaybackSubject = actualPlaybackSubject;
+            log.timeoutReason = timeoutReason;
+            log.fallbackReason = fallbackReason;
+            log.failureReason = failureReason;
         }
 
         public void CompleteActiveTurn()
@@ -505,7 +604,7 @@ namespace SceneTalkVR.Core
             var retryCount = queuedRetryCount;
             queuedRetryCount = 0;
 
-            var config = FindObjectOfType<SceneTalkRuntimeConfigApplier>()?.Config;
+            var config = FindFirstObjectByType<SceneTalkRuntimeConfigApplier>()?.Config;
             bool isFixed = config != null ? config.UseFixedExperimentMode : true;
 
             return new ExperimentTurnLogRecord
@@ -741,6 +840,81 @@ namespace SceneTalkVR.Core
                 ExperimentConditionPreset.AssistantAgentRecast => "assistant_agent_recast",
                 _ => "dialogue_avatar_explicit"
             };
+        }
+
+        private bool SetManualCondition(ExperimentConditionPreset preset)
+        {
+            var changed = manualCondition != preset;
+            manualCondition = preset;
+            RefreshCondition(false);
+
+            if (changed)
+            {
+                Debug.Log(
+                    $"[ExperimentConditionManager] Runtime correction condition changed: "
+                    + $"conditionId={CurrentConditionId}, provider={CurrentFeedbackProvider}, "
+                    + $"style={CurrentFeedbackStyle}, applies=next_turn",
+                    this);
+                NotifyConditionChanged();
+            }
+
+            return true;
+        }
+
+        private static ExperimentConditionPreset ResolvePreset(string provider, string style)
+        {
+            var useAssistant = string.Equals(
+                provider,
+                AssistantAgentProvider,
+                StringComparison.OrdinalIgnoreCase);
+            var useRecast = string.Equals(style, RecastStyle, StringComparison.OrdinalIgnoreCase);
+
+            if (useAssistant)
+            {
+                return useRecast
+                    ? ExperimentConditionPreset.AssistantAgentRecast
+                    : ExperimentConditionPreset.AssistantAgentExplicit;
+            }
+
+            return useRecast
+                ? ExperimentConditionPreset.DialogueAvatarRecast
+                : ExperimentConditionPreset.DialogueAvatarExplicit;
+        }
+
+        private static bool TryNormalizeProvider(string provider, out string normalizedProvider)
+        {
+            if (string.Equals(provider, DialogueAvatarProvider, StringComparison.OrdinalIgnoreCase))
+            {
+                normalizedProvider = DialogueAvatarProvider;
+                return true;
+            }
+
+            if (string.Equals(provider, AssistantAgentProvider, StringComparison.OrdinalIgnoreCase))
+            {
+                normalizedProvider = AssistantAgentProvider;
+                return true;
+            }
+
+            normalizedProvider = string.Empty;
+            return false;
+        }
+
+        private static bool TryNormalizeStyle(string style, out string normalizedStyle)
+        {
+            if (string.Equals(style, ExplicitStyle, StringComparison.OrdinalIgnoreCase))
+            {
+                normalizedStyle = ExplicitStyle;
+                return true;
+            }
+
+            if (string.Equals(style, RecastStyle, StringComparison.OrdinalIgnoreCase))
+            {
+                normalizedStyle = RecastStyle;
+                return true;
+            }
+
+            normalizedStyle = string.Empty;
+            return false;
         }
 
         private static string NormalizeConditionId(string conditionId)
@@ -1060,8 +1234,30 @@ namespace SceneTalkVR.Core
             public string experimentStyle;
             public string assistantEmbodiment;
 
+            // New design requirements fields
+            public string dialogueContinuation;
+            public string recastText;
+            public string correctionRequestStartTime;
+            public string dialogueRequestStartTime;
+            public string firstTokenTime;
+            public string firstSentenceTime;
+            public string ttsReadyTime;
+            public string correctionPlayStartTime;
+            public string correctionPlayEndTime;
+            public string dialoguePlayStartTime;
+            public string dialoguePlayEndTime;
+            public string playbackOrder;
+            public float userEndToFeedbackAudioMs;
+            public float userEndToDialogueAudioMs;
+            public float feedbackToDialogueGapMs;
+            public string correctionVoiceId;
+            public string actualPlaybackSubject;
+            public string timeoutReason;
+            public string fallbackReason;
+            public string failureReason;
+
             public const string CsvHeader =
-                "participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc,transcript,dialogueReply,feedbackText,originalText,correctedText,rationaleTag,sttConfidence,sttProvider,sttFallbackLevel,sttSuppressionReason,conditionOrderPosition,validationWarnings,selectedTaskId,taskName,taskContext,taskGoals,initialQuestion,sceneMode,whetherHolodeckCalled,panoramaSource,experimentProvider,experimentStyle,assistantEmbodiment";
+                "participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc,transcript,dialogueReply,feedbackText,originalText,correctedText,rationaleTag,sttConfidence,sttProvider,sttFallbackLevel,sttSuppressionReason,conditionOrderPosition,validationWarnings,selectedTaskId,taskName,taskContext,taskGoals,initialQuestion,sceneMode,whetherHolodeckCalled,panoramaSource,experimentProvider,experimentStyle,dialogueContinuation,recastText,correctionRequestStartTime,dialogueRequestStartTime,firstTokenTime,firstSentenceTime,ttsReadyTime,correctionPlayStartTime,correctionPlayEndTime,dialoguePlayStartTime,dialoguePlayEndTime,playbackOrder,userEndToFeedbackAudioMs,userEndToDialogueAudioMs,feedbackToDialogueGapMs,correctionVoiceId,actualPlaybackSubject,timeoutReason,fallbackReason,failureReason,assistantEmbodiment";
 
             public string ToCsvLine()
             {
@@ -1108,6 +1304,26 @@ namespace SceneTalkVR.Core
                     Csv(panoramaSource),
                     Csv(experimentProvider),
                     Csv(experimentStyle),
+                    Csv(dialogueContinuation),
+                    Csv(recastText),
+                    Csv(correctionRequestStartTime),
+                    Csv(dialogueRequestStartTime),
+                    Csv(firstTokenTime),
+                    Csv(firstSentenceTime),
+                    Csv(ttsReadyTime),
+                    Csv(correctionPlayStartTime),
+                    Csv(correctionPlayEndTime),
+                    Csv(dialoguePlayStartTime),
+                    Csv(dialoguePlayEndTime),
+                    Csv(playbackOrder),
+                    userEndToFeedbackAudioMs.ToString("F2", CultureInfo.InvariantCulture),
+                    userEndToDialogueAudioMs.ToString("F2", CultureInfo.InvariantCulture),
+                    feedbackToDialogueGapMs.ToString("F2", CultureInfo.InvariantCulture),
+                    Csv(correctionVoiceId),
+                    Csv(actualPlaybackSubject),
+                    Csv(timeoutReason),
+                    Csv(fallbackReason),
+                    Csv(failureReason),
                     Csv(assistantEmbodiment));
             }
 

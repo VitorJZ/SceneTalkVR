@@ -134,7 +134,7 @@ namespace SceneTalkVR.Runtime
 
         private void Update()
         {
-            if (interactionCamera != null)
+            if (ShouldControlCameraFieldOfView(interactionCamera))
             {
                 interactionCamera.fieldOfView = cameraFieldOfView;
             }
@@ -147,6 +147,14 @@ namespace SceneTalkVR.Runtime
             if (enableControllerShortcuts)
             {
                 HandleControllerShortcuts();
+            }
+        }
+
+        private void LateUpdate()
+        {
+            if (useHeadsetRelativeCanvas)
+            {
+                KeepWorldCanvasFacingHeadset();
             }
         }
 
@@ -170,7 +178,29 @@ namespace SceneTalkVR.Runtime
             worldCanvas.transform.position = interactionCamera.transform.position
                 + forward * headsetCanvasDistance
                 + Vector3.up * headsetCanvasVerticalOffset;
-            worldCanvas.transform.rotation = Quaternion.LookRotation(forward, Vector3.up);
+            KeepWorldCanvasFacingHeadset();
+        }
+
+        internal bool KeepWorldCanvasFacingHeadset()
+        {
+            interactionCamera = ResolveCamera(interactionCamera);
+            worldCanvas = ResolveCanvas(worldCanvas);
+
+            if (interactionCamera == null || worldCanvas == null)
+            {
+                return false;
+            }
+
+            var direction = Vector3.ProjectOnPlane(
+                worldCanvas.transform.position - interactionCamera.transform.position,
+                Vector3.up);
+            if (direction.sqrMagnitude < 0.0001f)
+            {
+                return false;
+            }
+
+            worldCanvas.transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+            return true;
         }
 
         public void QuitApplication()
@@ -270,7 +300,10 @@ namespace SceneTalkVR.Runtime
                 cameraToConfigure.transform.rotation = Quaternion.identity;
             }
 
-            cameraToConfigure.fieldOfView = cameraFieldOfView;
+            if (ShouldControlCameraFieldOfView(cameraToConfigure))
+            {
+                cameraToConfigure.fieldOfView = cameraFieldOfView;
+            }
             cameraToConfigure.nearClipPlane = 0.01f;
             cameraToConfigure.farClipPlane = 100f;
 
@@ -1092,36 +1125,14 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
-            var rawPosition = position;
-            var rawRotation = rotation;
             var trackingSpace = ResolveTrackingSpaceTransform();
             if (trackingSpace == null)
             {
                 return;
             }
 
-            var transformedPosition = trackingSpace.TransformPoint(rawPosition);
-            var transformedRotation = trackingSpace.rotation * rawRotation;
-
-            if (interactionCamera == null)
-            {
-                position = transformedPosition;
-                rotation = transformedRotation;
-                return;
-            }
-
-            var headsetPosition = interactionCamera.transform.position;
-            var rawDistanceToHeadset = Vector3.Distance(rawPosition, headsetPosition);
-            var transformedDistanceToHeadset = Vector3.Distance(transformedPosition, headsetPosition);
-            if (transformedDistanceToHeadset < rawDistanceToHeadset)
-            {
-                position = transformedPosition;
-                rotation = transformedRotation;
-                return;
-            }
-
-            position = rawPosition;
-            rotation = rawRotation;
+            position = trackingSpace.TransformPoint(position);
+            rotation = trackingSpace.rotation * rotation;
         }
 
         private Transform ResolveTrackingSpaceTransform()
@@ -1386,6 +1397,13 @@ namespace SceneTalkVR.Runtime
             }
 
             return false;
+        }
+
+        internal static bool ShouldControlCameraFieldOfView(Camera cameraToCheck)
+        {
+            return cameraToCheck != null
+                && !cameraToCheck.stereoEnabled
+                && !IsTrackedCamera(cameraToCheck);
         }
 
         private static void EnsureTrackedPoseDriver(Camera cameraToConfigure)
