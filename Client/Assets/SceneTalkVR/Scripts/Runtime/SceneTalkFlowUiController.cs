@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using SceneTalkVR.Core;
 using UnityEngine;
 using UnityEngine.UI;
@@ -27,6 +28,9 @@ namespace SceneTalkVR.Runtime
         private GameObject subtitleTextContainer;
         private GameObject exitButtonObject;
         private GameObject taskGoalPanel;
+        private GameObject demoBanner;
+        private GameObject demoStatusPanel;
+        private GameObject demoRankingPanel;
 
         private Button startButton;
         private Button settingsButton;
@@ -61,6 +65,9 @@ namespace SceneTalkVR.Runtime
         private Text playerSubtitleText;
         private Text avatarSubtitleText;
         private Text taskGoalText;
+        private Text demoBannerText;
+        private Text demoStatusText;
+        private Text demoRankingText;
         private bool goalPanelVisible = true;
         private RectTransform subtitlePanelRect;
         private RectTransform subtitleTextContainerRect;
@@ -123,6 +130,14 @@ namespace SceneTalkVR.Runtime
 
             var root = new GameObject(FlowRootName).transform;
             root.SetParent(worldCanvas.transform, false);
+
+            demoBanner = CreatePanel(root, "EditorDemoBanner", new Vector2(0f, 278f), new Vector2(700f, 34f), new Color(0.65f, 0.12f, 0.08f, 0.92f));
+            demoBannerText = CreateText(demoBanner.transform, "EditorDemoBannerText", "EDITOR DEMONSTRATION — NOT PARTICIPANT DATA", Vector2.zero, new Vector2(680f, 30f), 18, TextAnchor.MiddleCenter, Color.white);
+            demoStatusPanel = CreatePanel(root, "EditorDemoStatusPanel", new Vector2(382f, 72f), new Vector2(270f, 190f), new Color(0.05f, 0.06f, 0.08f, 0.82f));
+            demoStatusText = CreateText(demoStatusPanel.transform, "EditorDemoStatusText", string.Empty, Vector2.zero, new Vector2(246f, 170f), 14, TextAnchor.UpperLeft, new Color(1f, .86f, .42f, 1f));
+            demoRankingPanel = CreatePanel(root, "EditorDemoRankingPreview", Vector2.zero, new Vector2(520f, 330f), new Color(0.03f, 0.04f, 0.07f, 0.94f));
+            demoRankingText = CreateText(demoRankingPanel.transform, "EditorDemoRankingText", string.Empty, Vector2.zero, new Vector2(480f, 290f), 22, TextAnchor.MiddleCenter, Color.white);
+            demoRankingPanel.SetActive(false);
 
             mainMenuPanel = CreatePanel(root, "InitialPanel", new Vector2(0f, 0f), new Vector2(380f, 360f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
             CreateText(mainMenuPanel.transform, "Title", "SceneTalkVR", new Vector2(0f, 122f), new Vector2(320f, 54f), 34, TextAnchor.MiddleCenter, Color.white);
@@ -353,6 +368,42 @@ namespace SceneTalkVR.Runtime
             RefreshRequestPanel(showRequest);
             RefreshLoadingPanel(showLoading);
             RefreshSubtitlePanel(showDialogue);
+            RefreshDemoOverlay();
+        }
+
+        public void RefreshExternalState() => Refresh();
+
+        public void ShowDemoRankingPreview(bool pilot)
+        {
+            if (demoRankingPanel == null || demoRankingText == null) return;
+            demoRankingText.text = pilot
+                ? "PILOT FINAL RANKING / 预实验最终排序\n\n1  Voice Only\n2  Floating Orb\n3  Humanoid Agent\n\nDEMO OPERATOR PREVIEW\nautoFilledForDemo only"
+                : "FORMAL FINAL RANKING / 正式条件最终排序\n\n1  NE\n2  NR\n3  SE\n4  SR\n\nDEMO OPERATOR PREVIEW\nautoFilledForDemo only";
+            demoRankingPanel.SetActive(true);
+            demoRankingPanel.transform.SetAsLastSibling();
+            if (demoBanner != null) demoBanner.transform.SetAsLastSibling();
+        }
+
+        private void RefreshDemoOverlay()
+        {
+            var demo = EditorDemoSessionCoordinator.Active;
+            var visible = demo != null && demo.IsDemoMode;
+            SetActive(demoBanner, visible); SetActive(demoStatusPanel, visible);
+            if (!visible)
+            {
+                SetActive(demoRankingPanel, false);
+                return;
+            }
+            if (demoStatusText == null) return;
+            var formalCondition = demo.CurrentPosition >= 0 && demo.FormalAssignment?.conditions != null && demo.CurrentPosition < demo.FormalAssignment.conditions.Length ? demo.FormalAssignment.conditions[demo.CurrentPosition] : null;
+            var pilotCondition = demo.CurrentPosition >= 0 && demo.PilotAssignment?.conditions != null && demo.CurrentPosition < demo.PilotAssignment.conditions.Length ? demo.PilotAssignment.conditions[demo.CurrentPosition] : null;
+            var condition = demo.IsFormalDemo ? formalCondition?.formalConditionCode.ToString() : pilotCondition?.embodimentConditionLabel;
+            var avatar = demo.IsFormalDemo ? demo.ResolveFormalAvatarKey(demo.CurrentTaskId) : demo.ResolvePilotProfile(pilotCondition?.embodimentCondition ?? PilotEmbodimentCondition.VoiceOnly)?.visualPrefabKey;
+            demoStatusText.text = $"Mode: {(demo.IsFormalDemo ? "Editor Demo Formal" : "Editor Demo Pilot")}\n"
+                + $"Condition: {condition ?? "not prepared"}\nTask: {demo.CurrentTaskId}\n"
+                + $"Sequence position: {Mathf.Max(0, demo.CurrentPosition + 1)}/{demo.TotalConditions}\n"
+                + $"Avatar: DEMO AVATAR ({avatar})\nVoice: Editor Demo\nCollection eligible: No\n"
+                + "Editor Demo Resource — Not Collection Approved";
         }
 
         public void SetGoalPanelVisible(bool visible)
@@ -364,7 +415,9 @@ namespace SceneTalkVR.Runtime
         private void RefreshGoalPanel(bool dialogueVisible)
         {
             var lifecycle = FindFirstObjectByType<ExperimentLifecycleCoordinator>(FindObjectsInactive.Include);
-            var tracker = lifecycle?.GoalTracker;
+            var pilot = PilotWorkflowCoordinator.Active;
+            var usePilotDemo = EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsPilotDemo;
+            var tracker = usePilotDemo ? pilot?.Goals : lifecycle?.GoalTracker;
             var hasGoals = tracker != null && tracker.Goals.Count > 0;
             SetActive(taskGoalPanel, dialogueVisible && goalPanelVisible && hasGoals);
             if (taskGoalText == null) return;
@@ -373,7 +426,7 @@ namespace SceneTalkVR.Runtime
                 taskGoalText.text = string.Empty;
                 return;
             }
-            var taskName = lifecycle.CurrentConditionAssignment?.task?.taskId ?? "Task";
+            var taskName = usePilotDemo ? pilot?.Current?.task?.taskId ?? "Task" : lifecycle.CurrentConditionAssignment?.task?.taskId ?? "Task";
             var builder = new System.Text.StringBuilder(taskName).AppendLine();
             foreach (var goal in tracker.Goals)
                 builder.Append('[').Append(goal.state).Append("] ").AppendLine(goal.goalText);

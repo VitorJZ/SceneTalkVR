@@ -228,14 +228,18 @@ namespace SceneTalkVR.Runtime
             {
                 var definition = manager.TaskCatalog?.Find(taskId);
                 var lifecycle = manager.LifecycleCoordinator;
+                var demoPrepared = EditorDemoSessionCoordinator.Active != null
+                    && EditorDemoSessionCoordinator.Active.IsTaskPrepared(taskId);
                 var prepareDeveloperSession = !manager.IsFormalExperiment
+                    && !demoPrepared
                     && definition != null
                     && definition.phase == ExperimentTaskPhase.Formal
                     && lifecycle != null;
-                string assignmentError;
-                var prepared = prepareDeveloperSession
+                var assignmentError = string.Empty;
+                var prepared = demoPrepared || (prepareDeveloperSession
                     ? lifecycle.PrepareDeveloperTaskSession(taskId, out assignmentError)
-                    : manager.LoadAssignedTask(taskId, out assignmentError);
+                    : manager.LoadAssignedTask(taskId, out assignmentError));
+                if (demoPrepared) assignmentError = string.Empty;
                 if (!prepared)
                 {
                     LastError = assignmentError;
@@ -302,6 +306,12 @@ namespace SceneTalkVR.Runtime
                     layoutObjects = task.fallbackLayoutObjects ?? Array.Empty<LayoutObjectData>()
                 }
             };
+
+            if (EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsFormalDemo)
+            {
+                var demoAvatarKey = EditorDemoSessionCoordinator.Active.ResolveFormalAvatarKey(taskId);
+                if (!string.IsNullOrWhiteSpace(demoAvatarKey)) initialPayload.avatarRole.presetKey = demoAvatarKey;
+            }
 
             ApplyExperimentConditionToPayload(initialPayload);
             LastScenePayload = initialPayload;

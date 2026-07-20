@@ -88,6 +88,23 @@ def test_31_cli_exit_codes(tmp_path):
     root=make_bundle(tmp_path/"b","formal");assert main(["validate-bundle",str(root)])==0;assert main(["validate-bundle",str(tmp_path/"missing")])==2
 def test_32_formal_mapping_human_readable(): assert FORMAL["NE"]==("Non-Split / Dialogue Avatar","Explicit") and FORMAL["SR"]==("Split / Assistant Agent","Recast")
 
+def test_33_editor_demo_requires_explicit_opt_in(tmp_path):
+    root=make_bundle(tmp_path/"demo","formal")
+    assignment=json.loads((root/"assignment/assignment.json").read_text());assignment.update({"dataOrigin":"editor_demo","collectionEligible":False,"developerTestAssignment":True,"demoMode":True})
+    write_json(root/"assignment/assignment.json",assignment)
+    manifest=json.loads((root/"manifest.json").read_text());manifest.update({"dataOrigin":"editor_demo","collectionEligible":False,"developerTestAssignment":True,"demoMode":True,"sessionMode":"editor_demo_formal"})
+    write_json(root/"manifest.json",manifest);write_checksums(root)
+    with pytest.raises(AnalysisError,match="includeDemoForTesting"): analyze_bundle(root,tmp_path/"out")
+
+def test_34_editor_demo_explicit_test_mode_is_never_primary(tmp_path):
+    root=make_bundle(tmp_path/"demo","formal")
+    assignment=json.loads((root/"assignment/assignment.json").read_text());assignment.update({"dataOrigin":"editor_demo","collectionEligible":False,"developerTestAssignment":True,"demoMode":True})
+    write_json(root/"assignment/assignment.json",assignment)
+    manifest=json.loads((root/"manifest.json").read_text());manifest.update({"dataOrigin":"editor_demo","collectionEligible":False,"developerTestAssignment":True,"demoMode":True,"sessionMode":"editor_demo_formal"})
+    write_json(root/"manifest.json",manifest);write_checksums(root)
+    cfg=config_file(tmp_path,False);value=json.loads(cfg.read_text());value["includeDemoForTesting"]=True;write_json(cfg,value)
+    result=analyze_bundle(root,tmp_path/"out",cfg);assert result["dataOrigin"]=="editor_demo";assert not result["primaryAnalysisGenerated"]
+
 
 def config_file(root: Path, include: bool, collection: bool=False) -> Path:
     path=root/("collection-config.json" if collection else "synthetic-config.json")

@@ -1,6 +1,7 @@
 {
   "analysisVersion": "1.0",
   "includeSyntheticForTesting": false,
+  "includeDemoForTesting": false,
   "requireCollectionEligible": true,
   "requireIntegrityPass": true,
   "primaryAttemptPolicy": "UNCONFIRMED",

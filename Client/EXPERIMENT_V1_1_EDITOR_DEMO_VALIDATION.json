@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "1.0",
+  "validatedAtUtc": "2026-07-20T11:51:08Z",
+  "branch": "experiment-v1.1-integration",
+  "baseCommit": "9b5b04b22479d9042c478b1c44ca8f094afa2997",
+  "unityVersion": "6000.3.16f1",
+  "compile": {"status":"PASS","errors":0},
+  "consoleFinal": {"status":"PASS","errors":0},
+  "editMode": {"status":"PASS","passed":400,"total":400,"jobId":"2fa59ef3"},
+  "playMode": {"status":"PASS","passed":22,"total":22,"jobId":"b1511f01","note":"Test Runner used a temporary no-domain-reload QA guard; original Editor setting was restored."},
+  "pythonPytest": {"status":"PASS","passed":38,"total":38,"python":"Client/Analysis/.venv/Scripts/python.exe"},
+  "minimalPlayMode": {"status":"PASS","durationSeconds":10,"jobId":"913bd79a","projectErrors":0,"note":"UnitySkills emitted and then cleared its own thread-abort shutdown artifact; runtime observation completed successfully."},
+  "preflight": {
+    "editorDemoFormal":{"status":"DEMO_WARNING","blockers":0,"warningReasons":["three non-standard 1:1 panoramas","demo avatar semantic placeholders"]},
+    "editorDemoPilot":{"status":"DEMO_WARNING","blockers":0,"warningReasons":["demo humanoid placeholder"]},
+    "collection":{"status":"BLOCKED","officialUnconfirmedDecisions":11}
+  },
+  "actualRuns": {
+    "formal":{"status":"PASS","participantId":"DEMO-FORMAL-VALIDATION","sessionId":"DEMO-FORMAL-SESSION-20260720-112420","conditions":4,"tasks":4,"questionnaires":4,"ranking":true,"interview":true,"bundleIntegrity":"PASS"},
+    "pilot":{"status":"PASS","participantId":"DEMO-PILOT-VALIDATION","sessionId":"DEMO-PILOT-SESSION-20260720-112152","conditions":3,"tasks":3,"questionnaires":3,"ranking":true,"voiceOnlyVisual":false,"orbLifecycle":"PASS","humanoidVisible":true,"humanoidOrbLeak":false,"bundleIntegrity":"PASS"}
+  },
+  "bundleAnalysis": {
+    "defaultConfigRejectsDemo":true,
+    "explicitIncludeDemoForTesting":true,
+    "primaryAnalysisGenerated":false,
+    "formalSourceHashBefore":"ecf0a87047a1b90135de5c76a58a54959d92f444c30da9b2155f1a2c1a82fa5b",
+    "formalSourceHashAfter":"ecf0a87047a1b90135de5c76a58a54959d92f444c30da9b2155f1a2c1a82fa5b",
+    "pilotSourceHashBefore":"5d97534738b1b479712cfb6852c07983601c5b83aae865603c2425a57edc2793",
+    "pilotSourceHashAfter":"5d97534738b1b479712cfb6852c07983601c5b83aae865603c2425a57edc2793"
+  },
+  "safety": {"participantCollectionReady":false,"releaseCandidateEligible":false,"officialProtocolDecisionsRemainUnconfirmed":11,"picoClaimed":false}
+}

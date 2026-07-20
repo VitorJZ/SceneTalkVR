@@ -10,6 +10,15 @@ namespace SceneTalkVR.Core
     public enum FeedbackStyle { Explicit, Recast }
     public enum EmbodimentCondition { VoiceOnly, FloatingOrb, HumanoidAgent }
     public enum ExperimentTechnicalValidity { Valid, Retry, FallbackUsed, TechnicalInvalid }
+    public enum ExperimentRuntimeMode
+    {
+        DeveloperManual,
+        EditorDemoFormal,
+        EditorDemoPilot,
+        SyntheticDryRun,
+        LockedFormalCollection,
+        LockedPilotCollection
+    }
 
     [Serializable]
     public struct ExperimentTaskReference
@@ -80,6 +89,9 @@ namespace SceneTalkVR.Core
         public bool developerTestAssignment;
         public string dataOrigin;
         public bool collectionEligible;
+        public ExperimentRuntimeMode runtimeMode;
+        public bool demoMode;
+        public string demoProtocolVersion;
         public ConditionAssignment[] conditions = Array.Empty<ConditionAssignment>();
     }
 

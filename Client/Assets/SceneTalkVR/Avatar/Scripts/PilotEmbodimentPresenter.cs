@@ -37,6 +37,8 @@ namespace SceneTalkVR.AvatarSystem
         public void BeginFeedback()
         {
             if(profile==null)return;
+            if(profile.visualMode!=PilotVisualMode.FloatingOrb)
+                GetComponent<CorrectionAgentPresenter>()?.HideImmediate();
             if(orb!=null){orb.ShowImmediate();orb.BeginSpeaking();}
             if(humanoid!=null){humanoid.SetActive(true);SetHumanoidSpeaking(true);}
         }
@@ -45,7 +47,9 @@ namespace SceneTalkVR.AvatarSystem
         {
             EndFeedback(); if(audioSource!=null){audioSource.Stop();audioSource.clip=null;}
             if(humanoid!=null){if(Application.isPlaying)Destroy(humanoid);else DestroyImmediate(humanoid);humanoid=null;}
-            if(orb!=null)orb.HideImmediate(); if(Active==this)Active=null; profile=null;
+            if(orb!=null)orb.HideImmediate();
+            GetComponent<CorrectionAgentPresenter>()?.HideImmediate();
+            orb=null; if(Active==this)Active=null; profile=null;
         }
         private void EnsureAudio(PilotAudioSourcePolicy policy)
         {

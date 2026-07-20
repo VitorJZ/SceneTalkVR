@@ -33,14 +33,17 @@ def analyze_bundle(path: str | Path, output: str | Path, config_path: str | Path
     bundle=SessionBundle.read(path,True);config,config_hash=load_config(config_path);before=dict(bundle.source_hashes)
     exclusions=session_exclusions(bundle.manifest,bundle.assignment,config)
     synthetic=bundle.manifest.get("dataOrigin") in {"synthetic_dry_run","synthetic_matrix","developer_placeholder_matrix"}
+    demo=bundle.manifest.get("dataOrigin")=="editor_demo"
     if synthetic and not config.get("includeSyntheticForTesting",False):
         raise AnalysisError("synthetic_input_requires_includeSyntheticForTesting")
+    if demo and not config.get("includeDemoForTesting",False):
+        raise AnalysisError("editor_demo_input_requires_includeDemoForTesting")
     assignments=parse_assignments(bundle.manifest,bundle.assignment)
     turns,timing_qc=parse_turns(bundle.timing,int(config.get("timingToleranceMs",0)));exclusions.extend(timing_qc)
     goals=parse_goals(bundle.study);attempts=parse_attempts(bundle.study);conditions=condition_summaries(bundle.study,turns,goals,attempts)
     items,scores,questionnaire_qc=parse_questionnaire(bundle.questionnaire);exclusions.extend(questionnaire_qc)
     rankings=parse_rankings(bundle.ranking);interviews=parse_interviews(bundle.interview,bool(config.get("includeInterviewTextInAggregate",False)))
-    collection=bool(bundle.manifest.get("collectionEligible",False)) and not synthetic
+    collection=bool(bundle.manifest.get("collectionEligible",False)) and not synthetic and not demo
     primary_blocked=collection and config.get("primaryAttemptPolicy")=="UNCONFIRMED"
     if primary_blocked: exclusions.append(_session_exclusion(bundle,"primary_attempt_policy_unconfirmed","Primary analysis is blocked until an attempt-selection policy is approved."))
     included=not exclusions and not primary_blocked
@@ -52,7 +55,7 @@ def analyze_bundle(path: str | Path, output: str | Path, config_path: str | Path
     after=SessionBundle.read(path,True).source_hashes
     if before!=after: raise AnalysisError("source_bundle_modified")
     content_hash=_content_hash(tables)
-    manifest={"analysisSchemaVersion":"1.0","analysisVersion":config.get("analysisVersion",__version__),"analysisCodeVersion":__version__,"sourceBundle":str(bundle.root),"sourceManifestHash":bundle.manifest_hash,"sourceFileHashes":before,"analysisConfigHash":config_hash,"generatedAtUtc":__import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat(),"dataOrigin":bundle.manifest.get("dataOrigin",""),"collectionEligible":bundle.manifest.get("collectionEligible",False),"developerTestAssignment":bundle.assignment.get("developerTestAssignment",False),"containsFreeText":bool(config.get("includeTranscriptText",False) or config.get("includeInterviewTextInAggregate",False)),"restrictedAccess":bool(config.get("includeTranscriptText",False) or config.get("includeInterviewTextInAggregate",False)),"primaryAnalysisGenerated":included and not primary_blocked,"primaryAttemptPolicy":config.get("primaryAttemptPolicy"),"outputContentHashExcludingRuntimeMetadata":content_hash,"tables":{key:len(value) for key,value in tables.items()},"qc":qc}
+    manifest={"analysisSchemaVersion":"1.0","analysisVersion":config.get("analysisVersion",__version__),"analysisCodeVersion":__version__,"sourceBundle":str(bundle.root),"sourceManifestHash":bundle.manifest_hash,"sourceFileHashes":before,"analysisConfigHash":config_hash,"generatedAtUtc":__import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat(),"dataOrigin":bundle.manifest.get("dataOrigin",""),"collectionEligible":bundle.manifest.get("collectionEligible",False),"developerTestAssignment":bundle.assignment.get("developerTestAssignment",False),"containsFreeText":bool(config.get("includeTranscriptText",False) or config.get("includeInterviewTextInAggregate",False)),"restrictedAccess":bool(config.get("includeTranscriptText",False) or config.get("includeInterviewTextInAggregate",False)),"primaryAnalysisGenerated":included and not primary_blocked and not demo,"primaryAttemptPolicy":config.get("primaryAttemptPolicy"),"outputContentHashExcludingRuntimeMetadata":content_hash,"tables":{key:len(value) for key,value in tables.items()},"qc":qc}
     write_json(root/"analysis_manifest.json",manifest)
     return manifest
 

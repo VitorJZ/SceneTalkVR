@@ -91,6 +91,13 @@ namespace SceneTalkVR.Core
         public QuestionnaireScoreResult[] sectionScores = Array.Empty<QuestionnaireScoreResult>();
         public float completionRate;
         public bool hasMissing;
+        public string runtimeMode;
+        public string dataOrigin;
+        public bool collectionEligible;
+        public bool developerTestAssignment;
+        public bool demoMode;
+        public string demoProtocolVersion;
+        public bool autoFilledForDemo;
     }
 
     [Serializable]
@@ -171,7 +178,7 @@ namespace SceneTalkVR.Core
             ActiveSession.questionnaireId = definition.questionnaireId;
             ActiveSession.questionnaireVersion = definition.questionnaireVersion;
             ActiveSession.questionnaireCatalogVersion = catalog.CatalogVersion;
-            ActiveSession.protocolVersion = protocol?.ProtocolVersion ?? context.protocolVersion;
+            ActiveSession.protocolVersion = context.demoMode ? context.protocolVersion : protocol?.ProtocolVersion ?? context.protocolVersion;
             ActiveSession.startedAtUtc = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
             ActiveSession.completionStatus = QuestionnaireCompletionStatus.InProgress;
             ActiveSession.responses ??= Array.Empty<QuestionnaireResponse>();
@@ -257,7 +264,9 @@ namespace SceneTalkVR.Core
 
         public string DraftPath => ActiveSession == null ? string.Empty : Path.Combine(DefaultFolder,
             $"{Safe(ActiveSession.participantId)}_{Safe(ActiveSession.sessionId)}_{Safe(ActiveSession.questionnaireLinkageKey)}_questionnaire_draft.json");
-        public static string DefaultFolder => Path.Combine(Application.persistentDataPath, "SceneTalkVR", "ExperimentLogs");
+        public static string DefaultFolder => EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsDemoMode
+            ? EditorDemoSessionCoordinator.Active.CurrentDataFolder
+            : Path.Combine(Application.persistentDataPath, "SceneTalkVR", "ExperimentLogs");
 
         private QuestionnaireResponse CreateResponse(QuestionnaireItem item) => new QuestionnaireResponse
         {

@@ -289,7 +289,8 @@ namespace SceneTalkVR.Core
             if (formalExperiment) { Debug.LogWarning("[Experiment] Formal Mode rejects scene/task changes.", this); return; }
             if (taskCatalog != null)
             {
-                var phase = experimentProtocol != null && experimentProtocol.ExperimentPhase == ExperimentPhase.Pilot
+                var editorPilotDemo = EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsPilotDemo;
+                var phase = editorPilotDemo || experimentProtocol != null && experimentProtocol.ExperimentPhase == ExperimentPhase.Pilot
                     ? ExperimentTaskPhase.Pilot
                     : ExperimentTaskPhase.Formal;
                 var tasks = taskCatalog.GetTasks(phase);
@@ -747,10 +748,11 @@ namespace SceneTalkVR.Core
             var lifecycle = LifecycleCoordinator;
             var studyAssignment = lifecycle?.Assignment;
             var conditionAssignment = lifecycle?.CurrentConditionAssignment;
+            var editorDemo = EditorDemoSessionCoordinator.Active;
 
             return new ExperimentTurnLogRecord
             {
-                protocolVersion = experimentProtocol == null ? string.Empty : experimentProtocol.ProtocolVersion,
+                protocolVersion = editorDemo != null && editorDemo.IsDemoMode ? editorDemo.DemoProtocol.DemoProtocolVersion : experimentProtocol == null ? string.Empty : experimentProtocol.ProtocolVersion,
                 buildVersion = experimentBuildInfo == null ? (experimentProtocol == null ? string.Empty : experimentProtocol.BuildVersion) : experimentBuildInfo.BuildVersion,
                 gitCommit = experimentBuildInfo == null ? string.Empty : experimentBuildInfo.GitCommit,
                 activeBranch = experimentBuildInfo == null ? string.Empty : experimentBuildInfo.ActiveBranch,
@@ -803,7 +805,7 @@ namespace SceneTalkVR.Core
                 whetherHolodeckCalled = isFixed ? false : (config != null && config.UseHolodeckBackend),
                 panoramaSource = isFixed ? "local" : (config != null && config.ForceFallbackPanorama ? "fallback" : "generated_once"),
                 panoramaResourceKey = condition.task != null ? condition.task.panoramaResourceKey : string.Empty,
-                avatarPresetKey = condition.task != null ? condition.task.avatarPresetKey : string.Empty,
+                avatarPresetKey = editorDemo != null && editorDemo.IsFormalDemo ? editorDemo.ResolveFormalAvatarKey(condition.task?.taskId) : condition.task != null ? condition.task.avatarPresetKey : string.Empty,
                 resolvedAvatarPresetKey = string.Empty,
                 avatarFallbackLevel = condition.task != null && condition.task.developerPlaceholderAvatar ? "developer_placeholder_pending" : string.Empty,
                 voiceProfileKey = condition.task != null ? condition.task.voiceProfileKey : string.Empty,
@@ -819,7 +821,13 @@ namespace SceneTalkVR.Core
                 totalGoalCount = lifecycle?.GoalTracker?.Goals?.Count ?? 0,
                 taskCompletionRate = lifecycle?.GoalTracker?.GetCompletionRate() ?? 0f,
                 turnsToCompletion = lifecycle?.TurnsToCompletion ?? 0,
-                completionReason = lifecycle?.CompletionReason ?? string.Empty
+                completionReason = lifecycle?.CompletionReason ?? string.Empty,
+                runtimeMode = editorDemo != null && editorDemo.IsDemoMode ? editorDemo.RuntimeMode.ToString() : formalExperiment ? ExperimentRuntimeMode.LockedFormalCollection.ToString() : ExperimentRuntimeMode.DeveloperManual.ToString(),
+                dataOrigin = editorDemo != null && editorDemo.IsDemoMode ? "editor_demo" : studyAssignment?.dataOrigin ?? string.Empty,
+                collectionEligible = editorDemo != null && editorDemo.IsDemoMode ? false : studyAssignment?.collectionEligible ?? false,
+                developerTestAssignment = editorDemo != null && editorDemo.IsDemoMode || (studyAssignment?.developerTestAssignment ?? false),
+                demoMode = editorDemo != null && editorDemo.IsDemoMode,
+                demoProtocolVersion = editorDemo?.DemoProtocol?.DemoProtocolVersion ?? string.Empty
             };
         }
 
@@ -868,6 +876,8 @@ namespace SceneTalkVR.Core
 
         private string ResolveLogFolder()
         {
+            if (EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsDemoMode)
+                return EditorDemoSessionCoordinator.Active.CurrentDataFolder;
             var safeFolderName = string.IsNullOrWhiteSpace(logFolderName)
                 ? "SceneTalkVR/ExperimentLogs"
                 : logFolderName.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
@@ -913,7 +923,8 @@ namespace SceneTalkVR.Core
         {
             if (taskCatalog != null)
             {
-                var phase = experimentProtocol != null && experimentProtocol.ExperimentPhase == ExperimentPhase.Pilot
+                var editorPilotDemo = EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsPilotDemo;
+                var phase = editorPilotDemo || experimentProtocol != null && experimentProtocol.ExperimentPhase == ExperimentPhase.Pilot
                     ? ExperimentTaskPhase.Pilot
                     : ExperimentTaskPhase.Formal;
                 var requested = string.IsNullOrWhiteSpace(scenarioId) ? null : taskCatalog.Find(scenarioId.Trim());
@@ -1531,6 +1542,12 @@ namespace SceneTalkVR.Core
             public float taskCompletionRate;
             public int turnsToCompletion;
             public string completionReason;
+            public string runtimeMode;
+            public string dataOrigin;
+            public bool collectionEligible;
+            public bool developerTestAssignment;
+            public bool demoMode;
+            public string demoProtocolVersion;
 
             public const string CsvHeader =
                 "protocolVersion,buildVersion,gitCommit,activeBranch,experimentPhase,formalModeLocked,participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc,transcript,dialogueReply,feedbackText,originalText,correctedText,rationaleTag,sttConfidence,sttProvider,sttFallbackLevel,sttSuppressionReason,conditionOrderPosition,validationWarnings,selectedTaskId,taskCatalogVersion,taskId,taskPhase,taskName,taskContext,taskGoals,initialQuestion,sceneMode,whetherHolodeckCalled,whetherImageGenerationCalled,panoramaResourceKey,panoramaSource,avatarPresetKey,resolvedAvatarPresetKey,avatarFallbackLevel,voiceProfileKey,experimentProvider,experimentStyle,dialogueContinuation,recastText,correctionRequestStartTime,dialogueRequestStartTime,firstTokenTime,firstSentenceTime,ttsReadyTime,correctionPlayStartTime,correctionPlayEndTime,dialoguePlayStartTime,dialoguePlayEndTime,playbackOrder,userEndToFeedbackAudioMs,userEndToDialogueAudioMs,feedbackToDialogueGapMs,correctionVoiceId,actualPlaybackSubject,timeoutReason,fallbackReason,failureReason,sequenceId,conditionRunId,taskAssignmentId,assignmentVersion,questionnaireLinkageKey,completedGoalCount,totalGoalCount,taskCompletionRate,turnsToCompletion,completionReason";

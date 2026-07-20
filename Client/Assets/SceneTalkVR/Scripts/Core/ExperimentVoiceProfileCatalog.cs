@@ -20,6 +20,8 @@ namespace SceneTalkVR.Core
         public int sampleRate = 24000;
         public VoiceSubtitlePolicy subtitlePolicy;
         public bool approvedForCollection;
+        public bool approvedForEditorDemo;
+        public bool offlineDemoVoice;
         public string approvedBy;
         public string evidenceReference;
         public string assetVersion;

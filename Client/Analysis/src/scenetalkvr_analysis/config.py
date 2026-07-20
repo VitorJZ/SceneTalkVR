@@ -9,6 +9,7 @@ from typing import Any
 DEFAULT_CONFIG: dict[str, Any] = {
     "analysisVersion": "1.0",
     "includeSyntheticForTesting": False,
+    "includeDemoForTesting": False,
     "requireCollectionEligible": True,
     "requireIntegrityPass": True,
     "primaryAttemptPolicy": "UNCONFIRMED",

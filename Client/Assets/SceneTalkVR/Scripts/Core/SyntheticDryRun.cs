@@ -15,6 +15,7 @@ namespace SceneTalkVR.Core
     public sealed class SyntheticDryRunEvent
     {
         public string schemaVersion="1.0"; public string dataOrigin="synthetic_dry_run"; public bool collectionEligible;
+        public bool developerTestAssignment; public bool demoMode; public string runtimeMode; public string demoProtocolVersion;
         public string participantId; public string sessionId; public string protocolVersion; public string taskCatalogVersion; public string questionnaireCatalogVersion; public string assignmentVersion;
         public string eventType; public string conditionRunId; public string questionnaireLinkageKey; public string taskAssignmentId; public string conditionLabel; public string taskId; public string turnId;
         public string technicalValidity="Valid"; public long monotonicElapsedMs; public bool hasFeedback; public string feedbackTextHash; public string goalId; public int revision;
@@ -30,6 +31,7 @@ namespace SceneTalkVR.Core
     public sealed class SessionBundleManifest
     {
         public string bundleSchemaVersion="1.0"; public string dataOrigin; public bool collectionEligible; public string sessionMode;
+        public bool developerTestAssignment; public bool demoMode; public string demoProtocolVersion; public string officialProtocolVersion; public string runtimeMode;
         public string participantId; public string sessionId; public string gitCommit; public string protocolVersion; public string taskCatalogVersion; public string questionnaireCatalogVersion; public string assignmentVersion;
         public string createdAtUtc; public SessionBundleFileRecord[] files=Array.Empty<SessionBundleFileRecord>(); public string integrityStatus="PENDING";
     }

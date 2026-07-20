@@ -48,7 +48,10 @@ namespace SceneTalkVR.Runtime
                 conditionPosition = condition.conditionPosition, assignmentPolicy = assignment.policy, formalCondition = condition.formalConditionCode,
                 conditionStatus = ConditionRunStatus.QuestionnaireInProgress,
                 taskId = condition.task.taskId, taskAssignmentId = condition.task.taskAssignmentId,
-                technicalValidity = lifecycle.TechnicalValidity, protocolVersion = assignment.protocolVersion
+                technicalValidity = lifecycle.TechnicalValidity, protocolVersion = assignment.protocolVersion,
+                runtimeMode = assignment.runtimeMode.ToString(), dataOrigin = assignment.dataOrigin,
+                collectionEligible = assignment.collectionEligible, developerTestAssignment = assignment.developerTestAssignment,
+                demoMode = assignment.demoMode, demoProtocolVersion = assignment.demoProtocolVersion
             };
             if (!service.Begin(definition, context, out error)) return false;
             if (!lifecycle.BeginQuestionnaire(context.conditionRunId, context.questionnaireLinkageKey, out error)) return false;

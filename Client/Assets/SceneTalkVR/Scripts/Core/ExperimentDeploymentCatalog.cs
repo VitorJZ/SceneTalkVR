@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace SceneTalkVR.Core
 {
-    public enum ExperimentDeploymentProfileId { DevelopmentEditor, PicoLab, PicoPortable, MockOffline }
+    public enum ExperimentDeploymentProfileId { DevelopmentEditor, PicoLab, PicoPortable, MockOffline, EditorDemo }
 
     [Serializable]
     public sealed class ExperimentDeploymentProfile
@@ -18,6 +18,9 @@ namespace SceneTalkVR.Core
         public string microphonePolicy;
         public bool networkRequired;
         public bool approvedForCollection;
+        public bool approvedForEditorDemo;
+        public bool loopbackAllowedForEditorDemo;
+        public bool collectionAllowed;
         public string evidenceReference;
 
         public string EndpointHost

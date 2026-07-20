@@ -44,6 +44,13 @@ namespace SceneTalkVR.Core
         public int turnsToCompletion;
         public long conditionDurationMs;
         public string completionReason;
+        public string runtimeMode;
+        public string dataOrigin;
+        public bool collectionEligible;
+        public bool developerTestAssignment;
+        public bool demoMode;
+        public string demoProtocolVersion;
+        public bool autoFilledForDemo;
     }
 
     [DisallowMultipleComponent]
@@ -106,8 +113,12 @@ namespace SceneTalkVR.Core
             if (conditionManager.IsFormalExperiment && value.developerTestAssignment) { error = "formal_mode_rejects_developer_assignment"; return false; }
             if (conditionManager.IsFormalExperiment && !string.IsNullOrWhiteSpace(value.dataOrigin) && !value.collectionEligible) { error = "formal_mode_rejects_collection_ineligible_assignment"; return false; }
             if (conditionManager.IsFormalExperiment && !conditionManager.ValidateFormalProtocol(out error)) return false;
+            if (value.demoMode && (value.runtimeMode != ExperimentRuntimeMode.EditorDemoFormal || value.dataOrigin != "editor_demo"
+                || value.collectionEligible || !value.developerTestAssignment))
+            { error = "editor_demo_assignment_isolation_invalid"; return false; }
+            var expectedProtocolVersion = value.demoMode ? value.protocolVersion : conditionManager.ExperimentProtocol?.ProtocolVersion ?? string.Empty;
             if (!ExperimentAssignmentAllocator.IsCompatible(value,
-                conditionManager.ExperimentProtocol?.ProtocolVersion ?? string.Empty,
+                expectedProtocolVersion,
                 conditionManager.TaskCatalog?.CatalogVersion ?? string.Empty, out error))
             {
                 value.status = AssignmentStatus.Incompatible;
@@ -358,6 +369,14 @@ namespace SceneTalkVR.Core
             QuestionnaireLinkageKey = string.Empty;
         }
 
+        public void ClearAssignmentForRuntimeMode()
+        {
+            goalTracker.ResetGoals(null);
+            assignment = null; currentCondition = null; ConditionRunId = string.Empty; QuestionnaireLinkageKey = string.Empty;
+            conditionStartedUtc = default; conditionStartTurn = 0; CompletionReason = string.Empty;
+            TechnicalValidity = ExperimentTechnicalValidity.Valid;
+        }
+
         private void OnGoalChanged(GoalProgressRecord goal, string action)
         {
             var type = action == "confirmed" ? StudyEventType.GoalConfirmed : action == "rejected" ? StudyEventType.GoalRejected : StudyEventType.GoalCandidateSubmitted;
@@ -386,11 +405,17 @@ namespace SceneTalkVR.Core
                 reason = reason ?? string.Empty, technicalValidity = validity.ToString(),
                 completedGoalCount = goalTracker.ConfirmedCount, totalGoalCount = goalTracker.Goals.Count,
                 taskCompletionRate = goalTracker.GetCompletionRate(), turnsToCompletion = TurnsToCompletion,
-                conditionDurationMs = ConditionDurationMs, completionReason = CompletionReason ?? string.Empty
+                conditionDurationMs = ConditionDurationMs, completionReason = CompletionReason ?? string.Empty,
+                runtimeMode = assignment.runtimeMode.ToString(), dataOrigin = assignment.dataOrigin ?? string.Empty,
+                collectionEligible = assignment.collectionEligible, developerTestAssignment = assignment.developerTestAssignment,
+                demoMode = assignment.demoMode, demoProtocolVersion = assignment.demoProtocolVersion ?? string.Empty,
+                autoFilledForDemo = assignment.demoMode && (reason ?? string.Empty).IndexOf("autoFilledForDemo=true", StringComparison.Ordinal) >= 0
             };
             try
             {
-                var folder = Path.Combine(Application.persistentDataPath, "SceneTalkVR", "ExperimentLogs");
+                var folder = assignment.demoMode && EditorDemoSessionCoordinator.Active != null
+                    ? EditorDemoSessionCoordinator.Active.CurrentDataFolder
+                    : Path.Combine(Application.persistentDataPath, "SceneTalkVR", "ExperimentLogs");
                 Directory.CreateDirectory(folder);
                 File.AppendAllText(Path.Combine(folder, $"{assignment.participantId}_{assignment.experimentSessionId}_study_events_v1.jsonl"),
                     JsonUtility.ToJson(record) + Environment.NewLine, Encoding.UTF8);

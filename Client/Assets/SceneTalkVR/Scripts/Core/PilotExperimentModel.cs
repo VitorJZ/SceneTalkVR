@@ -32,6 +32,7 @@ namespace SceneTalkVR.Core
         public string pilotProtocolVersion; public string pilotAssignmentVersion; public string taskCatalogVersion;
         public string participantId; public string sessionId; public string sequenceId; public string assignmentSeed;
         public string createdAtUtc; public bool developerTestAssignment; public string dataOrigin; public bool collectionEligible; public PilotFeedbackStyleChoice feedbackStyle; public string feedbackStyleLabel;
+        public ExperimentRuntimeMode runtimeMode; public bool demoMode; public string demoProtocolVersion;
         public PilotAudioSourcePolicy voiceOnlyAudioPolicy; public string voiceOnlyAudioPolicyLabel; public PilotConditionAssignment[] conditions = Array.Empty<PilotConditionAssignment>();
     }
     [Serializable] public struct PilotRunContext { public string participantId; public string sessionId; public string pilotRunId; public PilotEmbodimentCondition embodimentCondition; public string taskId; public PilotFeedbackStyleChoice feedbackStyle; }
