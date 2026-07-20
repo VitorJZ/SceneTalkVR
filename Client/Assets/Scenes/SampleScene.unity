@@ -6685,6 +6685,21 @@ MonoBehaviour:
   avatarScale: 0.4
   avatarIdleState: Idle_A
   avatarTalkState: Bounce
+  humanoidPrefab: {fileID: 3416932052202403674, guid: 4201c6e8a3eb7467db7bb432fccdef58, type: 3}
+  humanoidPlacementAnchor: {fileID: 658217322}
+  humanoidLookTarget: {fileID: 0}
+  humanoidAnchorOffset: {x: 1.15, y: 0, z: 0.12}
+  humanoidGroundY: 0
+  humanoidScale: 1
+  humanoidReferenceHeightMeters: 1.68
+  humanoidVisualForwardYawOffset: 180
+  humanoidLookAtWeight: 0.85
+  humanoidLookAtBodyWeight: 0.04
+  humanoidLookAtHeadWeight: 0.65
+  humanoidLookAtEyesWeight: 0.12
+  humanoidLookAtClampWeight: 0.72
+  audioOnlySpatialBlend: 0
+  embodiedSpatialBlend: 1
   agentRoot: {fileID: 1043193852}
   agentRenderer: {fileID: 607761088}
   agentLight: {fileID: 1043193851}

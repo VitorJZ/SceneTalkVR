@@ -9,13 +9,21 @@ namespace SceneTalkVR.AvatarSystem
     {
         private const string VisualRootName = "Assistant Visuals";
         private const string AvatarVisualName = "Assistant Avatar";
+        private const string HumanoidVisualName = "Assistant Humanoid";
+        private const string VoiceAnchorName = "Assistant Voice";
         private const int VoiceBarCount = 5;
         private const int SatelliteCount = 3;
 
         public enum VisualMode
         {
-            GeneratedAgent,
-            PrefabAvatar
+            [InspectorName("Generated Agent | Orb")]
+            GeneratedAgent = 0,
+            [InspectorName("Prefab Avatar | Bird")]
+            PrefabAvatar = 1,
+            [InspectorName("Audio Only")]
+            AudioOnly = 2,
+            [InspectorName("Humanoid Avatar")]
+            HumanoidAvatar = 3
         }
 
         [Header("Assistant Visual")]
@@ -26,6 +34,29 @@ namespace SceneTalkVR.AvatarSystem
         [SerializeField, Min(0.01f)] private float avatarScale = 0.4f;
         [SerializeField] private string avatarIdleState = "Idle_A";
         [SerializeField] private string avatarTalkState = "Bounce";
+
+        [Header("Humanoid Assistant")]
+        [SerializeField] private GameObject humanoidPrefab;
+        [SerializeField, Tooltip("Usually the dialogue AvatarRoot. The assistant is placed beside this anchor from the user's viewpoint.")]
+        private Transform humanoidPlacementAnchor;
+        [SerializeField, Tooltip("Optional head/camera target. Falls back to the shared look target or Main Camera.")]
+        private Transform humanoidLookTarget;
+        [SerializeField, Tooltip("Positive X is spacing to the user's right, Y is ground offset, and Z is distance behind the dialogue avatar.")]
+        private Vector3 humanoidAnchorOffset = new Vector3(1.15f, 0f, 0.12f);
+        [SerializeField] private float humanoidGroundY;
+        [SerializeField, Min(0.01f)] private float humanoidScale = 1f;
+        [SerializeField, Min(0.01f), Tooltip("Visual height of the assistant prefab before runtime matching.")]
+        private float humanoidReferenceHeightMeters = 1.68f;
+        [SerializeField] private float humanoidVisualForwardYawOffset = 180f;
+        [SerializeField, Range(0f, 1f)] private float humanoidLookAtWeight = 0.85f;
+        [SerializeField, Range(0f, 1f)] private float humanoidLookAtBodyWeight = 0.04f;
+        [SerializeField, Range(0f, 1f)] private float humanoidLookAtHeadWeight = 0.65f;
+        [SerializeField, Range(0f, 1f)] private float humanoidLookAtEyesWeight = 0.12f;
+        [SerializeField, Range(0f, 1f)] private float humanoidLookAtClampWeight = 0.72f;
+
+        [Header("Assistant Audio")]
+        [SerializeField, Range(0f, 1f)] private float audioOnlySpatialBlend;
+        [SerializeField, Range(0f, 1f)] private float embodiedSpatialBlend = 1f;
 
         [Header("Generated Agent")]
         [SerializeField] private Transform agentRoot;
@@ -93,6 +124,11 @@ namespace SceneTalkVR.AvatarSystem
         private Renderer[] visualRenderers;
         private Transform avatarVisual;
         private Animator avatarAnimator;
+        private Transform humanoidVisual;
+        private Animator humanoidAnimator;
+        private AvatarAnimationDriver humanoidAnimationDriver;
+        private AvatarUserFacingController humanoidFacingController;
+        private Transform voiceAnchor;
         private Transform lookTarget;
         private Coroutine visibilityRoutine;
         private Vector3 baseLocalPosition;
@@ -101,6 +137,8 @@ namespace SceneTalkVR.AvatarSystem
         private float targetVisibility;
         private float speakingEnergy;
         private float orbitAngle;
+        private float matchedHumanoidHeightRatio = 1f;
+        private float matchedAvatarHeight;
         private bool isSpeaking;
 
         public AudioSource AudioSource
@@ -117,6 +155,17 @@ namespace SceneTalkVR.AvatarSystem
             && visibleAmount > 0.001f;
 
         public bool TargetVisible => targetVisibility > 0.5f;
+
+        public VisualMode CurrentVisualMode => visualMode;
+
+        public string AppearanceId => visualMode switch
+        {
+            VisualMode.GeneratedAgent => "orb",
+            VisualMode.PrefabAvatar => "bird",
+            VisualMode.AudioOnly => "audio_only",
+            VisualMode.HumanoidAvatar => "humanoid",
+            _ => "unknown"
+        };
 
         private void Awake()
         {
@@ -140,7 +189,9 @@ namespace SceneTalkVR.AvatarSystem
             var time = Time.time;
             var deltaTime = Time.deltaTime;
             EnsureAvatarVisual();
+            EnsureHumanoidVisual();
             ApplyVisualMode();
+            UpdateHumanoidPlacement();
             UpdateSpeakingEnergy(deltaTime);
             UpdateRootMotion(time);
             UpdateOrbitMotion(time, deltaTime);
@@ -229,7 +280,14 @@ namespace SceneTalkVR.AvatarSystem
         {
             EnsureAgent();
             isSpeaking = true;
-            PlayAvatarState(avatarTalkState);
+            if (IsHumanoidActive)
+            {
+                humanoidAnimationDriver?.BeginTalking();
+            }
+            else
+            {
+                PlayAvatarState(avatarTalkState);
+            }
         }
 
         public void EndSpeaking()
@@ -240,6 +298,11 @@ namespace SceneTalkVR.AvatarSystem
         private void StopSpeaking()
         {
             isSpeaking = false;
+            if (humanoidAnimationDriver != null)
+            {
+                humanoidAnimationDriver.EndTalking();
+            }
+
             PlayAvatarState(avatarIdleState);
             if (audioSource != null)
             {
@@ -277,6 +340,7 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             EnsureAvatarVisual();
+            EnsureHumanoidVisual();
             ApplyVisualMode();
 
             if (agentLight == null)
@@ -289,16 +353,8 @@ namespace SceneTalkVR.AvatarSystem
             agentLight.color = Color.Lerp(emissionColor, accentColor, 0.12f);
             agentLight.range = lightRange;
 
-            if (audioSource == null)
-            {
-                audioSource = agentRoot.gameObject.AddComponent<AudioSource>();
-                audioSource.playOnAwake = false;
-                audioSource.spatialBlend = 1f;
-                audioSource.rolloffMode = AudioRolloffMode.Linear;
-                audioSource.minDistance = 0.2f;
-                audioSource.maxDistance = 4f;
-                audioSource.dopplerLevel = 0f;
-            }
+            EnsureVoiceSource();
+            ConfigureVoiceSourceForMode();
 
             if (lookTarget == null && Camera.main != null)
             {
@@ -315,13 +371,24 @@ namespace SceneTalkVR.AvatarSystem
             ApplyVisibility(visibleAmount);
         }
 
+        private bool IsGeneratedActive => visualMode == VisualMode.GeneratedAgent;
+
+        private bool IsAudioOnly => visualMode == VisualMode.AudioOnly;
+
         private bool IsAvatarActive => visualMode == VisualMode.PrefabAvatar
             && avatarPrefab != null
             && avatarVisual != null;
 
+        private bool IsHumanoidActive => visualMode == VisualMode.HumanoidAvatar
+            && humanoidPrefab != null
+            && humanoidVisual != null;
+
         private void EnsureAvatarVisual()
         {
-            if (avatarPrefab == null || agentRoot == null || avatarVisual != null)
+            if (visualMode != VisualMode.PrefabAvatar
+                || avatarPrefab == null
+                || agentRoot == null
+                || avatarVisual != null)
             {
                 return;
             }
@@ -341,27 +408,268 @@ namespace SceneTalkVR.AvatarSystem
             PlayAvatarState(isSpeaking ? avatarTalkState : avatarIdleState, true);
         }
 
+        private void EnsureHumanoidVisual()
+        {
+            if (visualMode != VisualMode.HumanoidAvatar
+                || humanoidPrefab == null
+                || agentRoot == null
+                || humanoidVisual != null)
+            {
+                return;
+            }
+
+            var instance = Instantiate(humanoidPrefab, agentRoot, false);
+            instance.name = HumanoidVisualName;
+            humanoidVisual = instance.transform;
+            humanoidVisual.localPosition = Vector3.zero;
+            humanoidVisual.localRotation = Quaternion.identity;
+            humanoidVisual.localScale = Vector3.one;
+            humanoidAnimator = instance.GetComponentInChildren<Animator>();
+            if (humanoidAnimator != null)
+            {
+                humanoidAnimator.applyRootMotion = false;
+                var driverHost = instance;
+                humanoidAnimationDriver = driverHost.GetComponent<AvatarAnimationDriver>();
+                if (humanoidAnimationDriver == null)
+                {
+                    humanoidAnimationDriver = driverHost.AddComponent<AvatarAnimationDriver>();
+                }
+
+                humanoidAnimationDriver.BindAnimator(humanoidAnimator);
+                humanoidAnimationDriver.PlayIdle();
+
+                var facingHost = humanoidAnimator.gameObject;
+                humanoidFacingController = facingHost.GetComponent<AvatarUserFacingController>();
+                if (humanoidFacingController == null)
+                {
+                    humanoidFacingController = facingHost.AddComponent<AvatarUserFacingController>();
+                }
+
+                UpdateHumanoidPlacement();
+                humanoidFacingController.Configure(
+                    humanoidAnimator,
+                    humanoidVisual,
+                    ResolveHumanoidLookTarget(),
+                    true,
+                    humanoidVisualForwardYawOffset,
+                    true,
+                    humanoidLookAtWeight,
+                    humanoidLookAtBodyWeight,
+                    humanoidLookAtHeadWeight,
+                    humanoidLookAtEyesWeight,
+                    humanoidLookAtClampWeight);
+            }
+
+            foreach (var humanoidCollider in instance.GetComponentsInChildren<Collider>(true))
+            {
+                humanoidCollider.enabled = false;
+            }
+
+            ConfigureVoiceSourceForMode();
+        }
+
         private void ApplyVisualMode()
         {
+            var useGenerated = IsGeneratedActive;
             var useAvatar = IsAvatarActive;
-            baseLocalScale = Vector3.one * (useAvatar
-                ? 1f
-                : sphereDiameter * visualScaleMultiplier);
+            var useHumanoid = IsHumanoidActive;
+            var isVisible = visibleAmount > 0.001f || targetVisibility > 0.001f;
+            baseLocalScale = Vector3.one * (useHumanoid
+                ? ResolveHumanoidScale()
+                : useAvatar
+                    ? 1f
+                    : sphereDiameter * visualScaleMultiplier);
 
-            if (visualRoot != null && visualRoot.gameObject.activeSelf == useAvatar)
+            if (visualRoot != null && visualRoot.gameObject.activeSelf != useGenerated)
             {
-                visualRoot.gameObject.SetActive(!useAvatar);
+                visualRoot.gameObject.SetActive(useGenerated);
             }
 
-            if (avatarVisual != null && avatarVisual.gameObject.activeSelf != useAvatar)
+            if (avatarVisual != null && avatarVisual.gameObject.activeSelf != useAvatar && isVisible)
             {
-                avatarVisual.gameObject.SetActive(useAvatar);
+                avatarVisual.gameObject.SetActive(useAvatar && isVisible);
             }
+
+            if (humanoidVisual != null && humanoidVisual.gameObject.activeSelf != useHumanoid && isVisible)
+            {
+                humanoidVisual.gameObject.SetActive(useHumanoid && isVisible);
+            }
+
+            ConfigureVoiceSourceForMode();
+        }
+
+        private void EnsureVoiceSource()
+        {
+            if (agentRoot == null)
+            {
+                return;
+            }
+
+            if (voiceAnchor == null)
+            {
+                voiceAnchor = agentRoot.Find(VoiceAnchorName);
+                if (voiceAnchor == null)
+                {
+                    voiceAnchor = CreateTransform(VoiceAnchorName, agentRoot);
+                }
+            }
+
+            var anchoredSource = voiceAnchor.GetComponent<AudioSource>();
+            if (anchoredSource == null)
+            {
+                anchoredSource = voiceAnchor.gameObject.AddComponent<AudioSource>();
+            }
+
+            if (audioSource != null && audioSource != anchoredSource)
+            {
+                anchoredSource.volume = audioSource.volume;
+                anchoredSource.pitch = audioSource.pitch;
+                anchoredSource.outputAudioMixerGroup = audioSource.outputAudioMixerGroup;
+                audioSource.Stop();
+                audioSource.enabled = false;
+            }
+
+            audioSource = anchoredSource;
+            audioSource.enabled = true;
+            audioSource.playOnAwake = false;
+            audioSource.rolloffMode = AudioRolloffMode.Linear;
+            audioSource.minDistance = 0.2f;
+            audioSource.maxDistance = 4f;
+            audioSource.dopplerLevel = 0f;
+        }
+
+        private void ConfigureVoiceSourceForMode()
+        {
+            if (audioSource == null || voiceAnchor == null)
+            {
+                return;
+            }
+
+            var desiredParent = agentRoot;
+            if (IsHumanoidActive && humanoidAnimator != null && humanoidAnimator.isHuman)
+            {
+                try
+                {
+                    desiredParent = humanoidAnimator.GetBoneTransform(HumanBodyBones.Head) ?? agentRoot;
+                }
+                catch (System.InvalidOperationException)
+                {
+                    desiredParent = agentRoot;
+                }
+            }
+
+            if (voiceAnchor.parent != desiredParent)
+            {
+                voiceAnchor.SetParent(desiredParent, false);
+            }
+
+            voiceAnchor.localPosition = Vector3.zero;
+            voiceAnchor.localRotation = Quaternion.identity;
+            voiceAnchor.localScale = Vector3.one;
+            audioSource.spatialBlend = IsAudioOnly ? audioOnlySpatialBlend : embodiedSpatialBlend;
+        }
+
+        private void UpdateHumanoidPlacement()
+        {
+            if (!IsHumanoidActive || agentRoot == null)
+            {
+                return;
+            }
+
+            var anchor = humanoidPlacementAnchor != null ? humanoidPlacementAnchor : transform;
+            var anchorPosition = anchor.position;
+            var look = ResolveHumanoidLookTarget();
+            var towardUser = look != null ? look.position - anchorPosition : -anchor.forward;
+            towardUser.y = 0f;
+            if (towardUser.sqrMagnitude < 0.0001f)
+            {
+                towardUser = -anchor.forward;
+            }
+
+            towardUser.Normalize();
+            var lateral = Vector3.Cross(towardUser, Vector3.up).normalized;
+            var awayFromUser = -towardUser;
+            var position = anchorPosition
+                + lateral * humanoidAnchorOffset.x
+                + Vector3.up * humanoidAnchorOffset.y
+                + awayFromUser * humanoidAnchorOffset.z;
+            position.y = humanoidGroundY + humanoidAnchorOffset.y;
+            agentRoot.position = position;
+        }
+
+        private float ResolveHumanoidScale()
+        {
+            if (humanoidPlacementAnchor == null
+                || humanoidReferenceHeightMeters <= 0.001f
+                || !TryGetVisibleBounds(humanoidPlacementAnchor, out var avatarBounds)
+                || avatarBounds.size.y <= 0.001f)
+            {
+                return humanoidScale;
+            }
+
+            var avatarHeight = avatarBounds.size.y;
+            var rematchThreshold = Mathf.Max(0.05f, matchedAvatarHeight * 0.05f);
+            if (matchedAvatarHeight <= 0.001f
+                || Mathf.Abs(avatarHeight - matchedAvatarHeight) > rematchThreshold)
+            {
+                matchedAvatarHeight = avatarHeight;
+                matchedHumanoidHeightRatio = avatarHeight / humanoidReferenceHeightMeters;
+            }
+
+            return humanoidScale * matchedHumanoidHeightRatio;
+        }
+
+        private static bool TryGetVisibleBounds(Transform root, out Bounds bounds)
+        {
+            var renderers = root.GetComponentsInChildren<Renderer>(true);
+            bounds = default;
+            var initialized = false;
+            for (var i = 0; i < renderers.Length; i++)
+            {
+                var renderer = renderers[i];
+                if (renderer == null
+                    || !renderer.enabled
+                    || !renderer.gameObject.activeInHierarchy)
+                {
+                    continue;
+                }
+
+                if (!initialized)
+                {
+                    bounds = renderer.bounds;
+                    initialized = true;
+                }
+                else
+                {
+                    bounds.Encapsulate(renderer.bounds);
+                }
+            }
+
+            return initialized;
+        }
+
+        private Transform ResolveHumanoidLookTarget()
+        {
+            if (humanoidLookTarget != null)
+            {
+                return humanoidLookTarget;
+            }
+
+            if (lookTarget != null)
+            {
+                return lookTarget;
+            }
+
+            return Camera.main != null ? Camera.main.transform : null;
         }
 
         private void PlayAvatarState(string stateName, bool immediate = false)
         {
-            if (avatarAnimator == null || string.IsNullOrWhiteSpace(stateName))
+            if (avatarAnimator == null
+                || !avatarAnimator.isActiveAndEnabled
+                || !avatarAnimator.gameObject.activeInHierarchy
+                || avatarAnimator.runtimeAnimatorController == null
+                || string.IsNullOrWhiteSpace(stateName))
             {
                 return;
             }
@@ -616,7 +924,11 @@ namespace SceneTalkVR.AvatarSystem
 
         private void UpdateRootMotion(float time)
         {
-            if (IsAvatarActive)
+            if (IsHumanoidActive)
+            {
+                UpdateHumanoidPlacement();
+            }
+            else if (IsAvatarActive)
             {
                 agentRoot.localPosition = baseLocalPosition;
             }
@@ -633,10 +945,14 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             var visibilityScale = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(visibleAmount));
-            var breathing = 1f + Mathf.Sin(time * idleFloatSpeed * 0.72f) * 0.018f;
-            var voicePulse = speakingEnergy
-                * (speakingPulseScale * 0.55f
-                    + Mathf.Sin(time * speakingPulseSpeed * 0.58f) * speakingPulseScale * 0.2f);
+            var breathing = IsHumanoidActive
+                ? 1f
+                : 1f + Mathf.Sin(time * idleFloatSpeed * 0.72f) * 0.018f;
+            var voicePulse = IsHumanoidActive
+                ? 0f
+                : speakingEnergy
+                    * (speakingPulseScale * 0.55f
+                        + Mathf.Sin(time * speakingPulseSpeed * 0.58f) * speakingPulseScale * 0.2f);
             agentRoot.localScale = baseLocalScale
                 * Mathf.Max(0.001f, visibilityScale * (breathing + voicePulse));
 
@@ -711,7 +1027,7 @@ namespace SceneTalkVR.AvatarSystem
 
         private void UpdateFaceDirection(float deltaTime)
         {
-            if (!faceMainCamera)
+            if (!faceMainCamera || IsHumanoidActive)
             {
                 return;
             }
@@ -789,13 +1105,45 @@ namespace SceneTalkVR.AvatarSystem
         private void ApplyVisibility(float amount)
         {
             var isVisible = amount > 0.001f || targetVisibility > 0.001f;
+            var becameVisible = false;
             if (agentRoot != null)
             {
                 var wasActive = agentRoot.gameObject.activeSelf;
                 agentRoot.gameObject.SetActive(isVisible);
-                var visibilityScale = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(amount));
+                becameVisible = isVisible && !wasActive;
+                var visibilityScale = IsHumanoidActive
+                    ? isVisible ? 1f : 0.001f
+                    : Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(amount));
                 agentRoot.localScale = baseLocalScale * Mathf.Max(0.001f, visibilityScale);
-                if (isVisible && !wasActive)
+            }
+
+            if (visualRoot != null)
+            {
+                visualRoot.gameObject.SetActive(isVisible && IsGeneratedActive);
+            }
+
+            if (avatarVisual != null)
+            {
+                avatarVisual.gameObject.SetActive(isVisible && IsAvatarActive);
+            }
+
+            if (humanoidVisual != null)
+            {
+                humanoidVisual.gameObject.SetActive(isVisible && IsHumanoidActive);
+            }
+
+            if (isVisible && IsHumanoidActive)
+            {
+                UpdateHumanoidPlacement();
+            }
+
+            if (becameVisible)
+            {
+                if (IsHumanoidActive)
+                {
+                    humanoidAnimationDriver?.PlayIdle();
+                }
+                else
                 {
                     PlayAvatarState(isSpeaking ? avatarTalkState : avatarIdleState, true);
                 }
@@ -819,7 +1167,7 @@ namespace SceneTalkVR.AvatarSystem
 
             if (agentLight != null)
             {
-                agentLight.enabled = isVisible && !IsAvatarActive;
+                agentLight.enabled = isVisible && IsGeneratedActive;
                 agentLight.intensity = lightIntensity * Mathf.Clamp01(amount);
             }
 
