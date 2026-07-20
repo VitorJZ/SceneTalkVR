@@ -294,7 +294,7 @@ namespace SceneTalkVR.EditorTools
             EnsureFolder(AvatarRoot, "Catalogs");
         }
 
-        private static void EnsureFolder(string parent, string name)
+        internal static void EnsureFolder(string parent, string name)
         {
             var fullPath = parent + "/" + name;
             if (!AssetDatabase.IsValidFolder(fullPath))
@@ -303,7 +303,7 @@ namespace SceneTalkVR.EditorTools
             }
         }
 
-        private static void ConfigureHumanoidImporter(string modelPath)
+        internal static void ConfigureHumanoidImporter(string modelPath)
         {
             ConfigureHumanoidImporter(modelPath, importAnimation: true);
         }
@@ -505,7 +505,7 @@ namespace SceneTalkVR.EditorTools
             return changed;
         }
 
-        private static AnimationClip CreateOrUpdateNativeIdleClip(string modelPath, string assetPath)
+        internal static AnimationClip CreateOrUpdateNativeIdleClip(string modelPath, string assetPath)
         {
             var source = LoadExactClip(modelPath, "__preview__CharacterArmature|Idle_Neutral");
             if (source == null)
@@ -754,7 +754,7 @@ namespace SceneTalkVR.EditorTools
             controller.AddLayer("Base Layer");
         }
 
-        private static AnimatorOverrideController CreateOrUpdateCharacterOverrideController(
+        internal static AnimatorOverrideController CreateOrUpdateCharacterOverrideController(
             string assetPath,
             RuntimeAnimatorController baseController,
             string characterModelPath,
@@ -1090,7 +1090,7 @@ namespace SceneTalkVR.EditorTools
                 || actualName.EndsWith("|" + expectedSuffix, System.StringComparison.Ordinal);
         }
 
-        private static GameObject CreateHumanoidPrefab(
+        internal static GameObject CreateHumanoidPrefab(
             GameObject sourceModel,
             string prefabRootName,
             string modelInstanceName,

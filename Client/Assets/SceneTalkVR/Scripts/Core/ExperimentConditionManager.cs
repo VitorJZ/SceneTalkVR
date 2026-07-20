@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using SceneTalkVR.AvatarSystem;
 using SceneTalkVR.Runtime;
 using UnityEngine;
 
@@ -117,7 +118,7 @@ namespace SceneTalkVR.Core
                 var condition = CurrentCondition;
                 return condition == null
                     ? string.Empty
-                    : $"{condition.conditionId} | {condition.scenarioId} | turn {condition.turnIndex}";
+                    : $"{condition.conditionId} | {ResolveAssistantEmbodiment(condition)} | {condition.scenarioId} | turn {condition.turnIndex}";
             }
         }
 
@@ -553,8 +554,24 @@ namespace SceneTalkVR.Core
                 whetherHolodeckCalled = isFixed ? false : (config != null && config.UseHolodeckBackend),
                 panoramaSource = isFixed ? "local" : (config != null && config.ForceFallbackPanorama ? "fallback" : "generated_once"),
                 experimentProvider = condition.provider,
-                experimentStyle = condition.style
+                experimentStyle = condition.style,
+                assistantEmbodiment = ResolveAssistantEmbodiment(condition)
             };
+        }
+
+        private static string ResolveAssistantEmbodiment(CorrectionExperimentCondition condition)
+        {
+            if (condition == null
+                || !string.Equals(
+                    condition.provider,
+                    AssistantAgentProvider,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return "none";
+            }
+
+            var presenter = FindFirstObjectByType<CorrectionAgentPresenter>(FindObjectsInactive.Include);
+            return presenter != null ? presenter.AppearanceId : "missing";
         }
 
         private void WriteTurnLog(ExperimentTurnLogRecord record)
@@ -1041,9 +1058,10 @@ namespace SceneTalkVR.Core
             public string panoramaSource;
             public string experimentProvider;
             public string experimentStyle;
+            public string assistantEmbodiment;
 
             public const string CsvHeader =
-                "participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc,transcript,dialogueReply,feedbackText,originalText,correctedText,rationaleTag,sttConfidence,sttProvider,sttFallbackLevel,sttSuppressionReason,conditionOrderPosition,validationWarnings,selectedTaskId,taskName,taskContext,taskGoals,initialQuestion,sceneMode,whetherHolodeckCalled,panoramaSource,experimentProvider,experimentStyle";
+                "participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc,transcript,dialogueReply,feedbackText,originalText,correctedText,rationaleTag,sttConfidence,sttProvider,sttFallbackLevel,sttSuppressionReason,conditionOrderPosition,validationWarnings,selectedTaskId,taskName,taskContext,taskGoals,initialQuestion,sceneMode,whetherHolodeckCalled,panoramaSource,experimentProvider,experimentStyle,assistantEmbodiment";
 
             public string ToCsvLine()
             {
@@ -1089,7 +1107,8 @@ namespace SceneTalkVR.Core
                     whetherHolodeckCalled ? "true" : "false",
                     Csv(panoramaSource),
                     Csv(experimentProvider),
-                    Csv(experimentStyle));
+                    Csv(experimentStyle),
+                    Csv(assistantEmbodiment));
             }
 
             private static string Csv(string value)
