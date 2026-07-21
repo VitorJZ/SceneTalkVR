@@ -4,6 +4,7 @@ using SceneTalkVR.Core;
 using SceneTalkVR.Demo;
 using SceneTalkVR.Runtime;
 using SceneTalkVR.Runtime.Services;
+using TMPro;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
@@ -286,7 +287,7 @@ namespace SceneTalkVR.AvatarSystem.Tests
                     ?.GetComponent<Button>();
                 var appearanceValue = canvasObject.transform.Find(
                     "SceneTalkVR Flow UI/SettingsPanel/GeneralSettings/CorrectionAppearanceValue")
-                    ?.GetComponent<Text>();
+                    ?.GetComponent<TMP_Text>();
 
                 Assert.That(sourceButton, Is.Not.Null);
                 Assert.That(styleButton, Is.Not.Null);
@@ -312,7 +313,7 @@ namespace SceneTalkVR.AvatarSystem.Tests
                     .GetMethod("Refresh", BindingFlags.Instance | BindingFlags.NonPublic)
                     .Invoke(flowUi, null);
                 Assert.That(appearanceButton.interactable, Is.False);
-                Assert.That(appearanceButton.GetComponentInChildren<Text>().text, Is.EqualTo("N/A"));
+                Assert.That(appearanceButton.GetComponentInChildren<TMP_Text>().text, Is.EqualTo("N/A"));
                 Assert.That(appearanceValue.text, Is.EqualTo("N/A"));
 
                 styleButton.onClick.Invoke();
@@ -347,7 +348,7 @@ namespace SceneTalkVR.AvatarSystem.Tests
                     ?.GetComponent<Button>();
                 var statusText = canvasObject.transform.Find(
                     "SceneTalkVR Flow UI/SettingsPanel/GeneralSettings/CorrectionSettingsStatus")
-                    ?.GetComponent<Text>();
+                    ?.GetComponent<TMP_Text>();
 
                 Assert.That(sourceButton, Is.Not.Null);
                 Assert.That(styleButton, Is.Not.Null);
@@ -355,9 +356,9 @@ namespace SceneTalkVR.AvatarSystem.Tests
                 Assert.That(sourceButton.interactable, Is.False);
                 Assert.That(styleButton.interactable, Is.False);
                 Assert.That(appearanceButton.interactable, Is.False);
-                Assert.That(sourceButton.GetComponentInChildren<Text>().text, Is.EqualTo("Locked"));
-                Assert.That(styleButton.GetComponentInChildren<Text>().text, Is.EqualTo("Locked"));
-                Assert.That(appearanceButton.GetComponentInChildren<Text>().text, Is.EqualTo("Locked"));
+                Assert.That(sourceButton.GetComponentInChildren<TMP_Text>().text, Is.EqualTo("Locked"));
+                Assert.That(styleButton.GetComponentInChildren<TMP_Text>().text, Is.EqualTo("Locked"));
+                Assert.That(appearanceButton.GetComponentInChildren<TMP_Text>().text, Is.EqualTo("Locked"));
                 Assert.That(statusText, Is.Not.Null);
                 Assert.That(statusText.text, Is.EqualTo("Locked by condition order."));
             }

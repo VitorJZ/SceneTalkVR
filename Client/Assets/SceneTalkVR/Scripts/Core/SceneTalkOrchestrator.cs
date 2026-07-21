@@ -4,9 +4,9 @@ using SceneTalkVR.AvatarSystem;
 using SceneTalkVR.Core;
 using SceneTalkVR.History;
 using SceneTalkVR.Voice;
+using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
-using UnityEngine.UI;
 
 namespace SceneTalkVR.Runtime
 {
@@ -32,10 +32,10 @@ namespace SceneTalkVR.Runtime
         [SerializeField] private LearningMemoryService learningMemoryService;
 
         [Header("Optional UI")]
-        [SerializeField] private Text stateLabel;
-        [SerializeField] private Text transcriptLabel;
-        [SerializeField] private Text replyLabel;
-        [SerializeField] private Text errorLabel;
+        [SerializeField] private TMP_Text stateLabel;
+        [SerializeField] private TMP_Text transcriptLabel;
+        [SerializeField] private TMP_Text replyLabel;
+        [SerializeField] private TMP_Text errorLabel;
 
         [Header("Events")]
         public UnityEvent<SceneTalkState> stateChanged = new UnityEvent<SceneTalkState>();

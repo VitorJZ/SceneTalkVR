@@ -3,6 +3,7 @@ using System.Linq;
 using System.Text;
 using SceneTalkVR.Core;
 using SceneTalkVR.History;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -19,7 +20,7 @@ namespace SceneTalkVR.Runtime
         [SerializeField] private SceneTalkInteractionBootstrap interactionBootstrap;
         [SerializeField] private Canvas worldCanvas;
 
-        private readonly Dictionary<Text, int> baseFontSizes = new Dictionary<Text, int>();
+        private readonly Dictionary<TMP_Text, float> baseFontSizes = new Dictionary<TMP_Text, float>();
         private GameObject mainMenuPanel;
         private GameObject settingsPanel;
         private GameObject historyListPanel;
@@ -69,35 +70,35 @@ namespace SceneTalkVR.Runtime
         private Button historyDeleteCancelButton;
         private Button historyErrorBackButton;
 
-        private Text settingsTitleText;
-        private Text settingsPageText;
-        private Text fontValueText;
-        private Text uiValueText;
-        private Text subtitleValueText;
-        private Text correctionSourceValueText;
-        private Text correctionAppearanceValueText;
-        private Text correctionStyleValueText;
-        private Text correctionSettingsStatusText;
-        private Text historyEmptyText;
-        private Text historyPageText;
-        private Text historyDetailSummaryText;
-        private Text historyDetailBodyText;
-        private Text historyDeleteMessageText;
-        private Text historyErrorText;
+        private TMP_Text settingsTitleText;
+        private TMP_Text settingsPageText;
+        private TMP_Text fontValueText;
+        private TMP_Text uiValueText;
+        private TMP_Text subtitleValueText;
+        private TMP_Text correctionSourceValueText;
+        private TMP_Text correctionAppearanceValueText;
+        private TMP_Text correctionStyleValueText;
+        private TMP_Text correctionSettingsStatusText;
+        private TMP_Text historyEmptyText;
+        private TMP_Text historyPageText;
+        private TMP_Text historyDetailSummaryText;
+        private TMP_Text historyDetailBodyText;
+        private TMP_Text historyDeleteMessageText;
+        private TMP_Text historyErrorText;
         private ScrollRect historyDetailScrollRect;
         private RectTransform historyDetailContentRect;
         private string lastRenderedHistorySessionId;
-        private Text requestTitleText;
-        private Text requestStatusText;
-        private Text requestTranscriptText;
-        private Text requestErrorText;
-        private Text loadingText;
-        private Text experimentDebugText;
-        private Text dialogueStatusText;
-        private Text correctionStatusText;
-        private Text correctionFeedbackText;
-        private Text playerSubtitleText;
-        private Text avatarSubtitleText;
+        private TMP_Text requestTitleText;
+        private TMP_Text requestStatusText;
+        private TMP_Text requestTranscriptText;
+        private TMP_Text requestErrorText;
+        private TMP_Text loadingText;
+        private TMP_Text experimentDebugText;
+        private TMP_Text dialogueStatusText;
+        private TMP_Text correctionStatusText;
+        private TMP_Text correctionFeedbackText;
+        private TMP_Text playerSubtitleText;
+        private TMP_Text avatarSubtitleText;
         private RectTransform subtitlePanelRect;
         private RectTransform subtitleTextContainerRect;
 
@@ -179,13 +180,13 @@ namespace SceneTalkVR.Runtime
                     new Vector2(0f, 142f - i * 68f),
                     new Vector2(700f, 56f),
                     new Color(0.14f, 0.28f, 0.4f, 1f));
-                var label = historyRowButtons[i].GetComponentInChildren<Text>();
+                var label = historyRowButtons[i].GetComponentInChildren<TMP_Text>();
                 if (label != null)
                 {
-                    label.alignment = TextAnchor.MiddleLeft;
-                    label.resizeTextForBestFit = true;
-                    label.resizeTextMinSize = 13;
-                    label.resizeTextMaxSize = 19;
+                    label.alignment = TextAlignmentOptions.Left;
+                    label.enableAutoSizing = true;
+                    label.fontSizeMin = 13f;
+                    label.fontSizeMax = 19f;
                 }
             }
             historyPreviousButton = CreateButton(historyListPanel.transform, "PreviousButton", "Previous", new Vector2(-250f, -210f), new Vector2(150f, 44f), new Color(0.24f, 0.36f, 0.42f, 1f));
@@ -204,8 +205,8 @@ namespace SceneTalkVR.Runtime
             historyDetailScrollRect.movementType = ScrollRect.MovementType.Clamped;
             historyDetailScrollRect.scrollSensitivity = 34f;
             historyDetailBodyText = CreateText(historyViewport.transform, "ConversationBody", string.Empty, Vector2.zero, new Vector2(660f, 220f), 16, TextAnchor.UpperLeft, Color.white);
-            historyDetailBodyText.horizontalOverflow = HorizontalWrapMode.Wrap;
-            historyDetailBodyText.verticalOverflow = VerticalWrapMode.Overflow;
+            historyDetailBodyText.textWrappingMode = TextWrappingModes.Normal;
+            historyDetailBodyText.overflowMode = TextOverflowModes.Overflow;
             historyDetailContentRect = historyDetailBodyText.rectTransform;
             historyDetailContentRect.anchorMin = new Vector2(0f, 1f);
             historyDetailContentRect.anchorMax = new Vector2(1f, 1f);
@@ -1228,7 +1229,7 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
-            foreach (var text in root.GetComponentsInChildren<Text>(true))
+            foreach (var text in root.GetComponentsInChildren<TMP_Text>(true))
             {
                 if (text != null && !baseFontSizes.ContainsKey(text))
                 {
@@ -1248,12 +1249,12 @@ namespace SceneTalkVR.Runtime
             {
                 if (pair.Key != null)
                 {
-                    var scaledSize = Mathf.Max(1, Mathf.RoundToInt(pair.Value * settings.fontScale));
+                    var scaledSize = Mathf.Max(1f, pair.Value * settings.fontScale);
                     pair.Key.fontSize = scaledSize;
-                    if (pair.Key.resizeTextForBestFit)
+                    if (pair.Key.enableAutoSizing)
                     {
-                        pair.Key.resizeTextMaxSize = scaledSize;
-                        pair.Key.resizeTextMinSize = Mathf.Max(10, Mathf.RoundToInt(scaledSize * 0.72f));
+                        pair.Key.fontSizeMax = scaledSize;
+                        pair.Key.fontSizeMin = Mathf.Max(10f, scaledSize * 0.72f);
                     }
                 }
             }
@@ -1303,7 +1304,7 @@ namespace SceneTalkVR.Runtime
             return panel;
         }
 
-        private static Text CreateText(
+        private static TMP_Text CreateText(
             Transform parent,
             string name,
             string text,
@@ -1317,24 +1318,23 @@ namespace SceneTalkVR.Runtime
             var textObject = new GameObject(name);
             textObject.transform.SetParent(parent, false);
 
-            var label = textObject.AddComponent<Text>();
+            var label = textObject.AddComponent<TextMeshProUGUI>();
             label.text = text;
-            label.font = ResolveRuntimeFont();
             label.fontSize = fontSize;
-            label.alignment = alignment;
+            label.alignment = ToTmpAlignment(alignment);
             label.color = color;
-            label.horizontalOverflow = HorizontalWrapMode.Wrap;
-            
+            label.textWrappingMode = TextWrappingModes.Normal;
+
             if (autoFitHeight)
             {
-                label.verticalOverflow = VerticalWrapMode.Overflow;
+                label.overflowMode = TextOverflowModes.Overflow;
                 var fitter = textObject.AddComponent<ContentSizeFitter>();
                 fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
                 fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
             }
             else
             {
-                label.verticalOverflow = VerticalWrapMode.Truncate;
+                label.overflowMode = TextOverflowModes.Truncate;
             }
 
             var rectTransform = label.GetComponent<RectTransform>();
@@ -1343,7 +1343,7 @@ namespace SceneTalkVR.Runtime
             return label;
         }
 
-        private static void ConfigureDialogueText(Text label)
+        private static void ConfigureDialogueText(TMP_Text label)
         {
             if (label == null)
             {
@@ -1351,9 +1351,9 @@ namespace SceneTalkVR.Runtime
             }
 
             label.lineSpacing = 0.92f;
-            label.resizeTextForBestFit = true;
-            label.resizeTextMaxSize = label.fontSize;
-            label.resizeTextMinSize = Mathf.Max(10, Mathf.RoundToInt(label.fontSize * 0.72f));
+            label.enableAutoSizing = true;
+            label.fontSizeMax = label.fontSize;
+            label.fontSizeMin = Mathf.Max(10f, label.fontSize * 0.72f);
         }
 
         private static Button CreateButton(
@@ -1380,10 +1380,21 @@ namespace SceneTalkVR.Runtime
             return button;
         }
 
-        private static Font ResolveRuntimeFont()
+        private static TextAlignmentOptions ToTmpAlignment(TextAnchor alignment)
         {
-            var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            return font != null ? font : Resources.GetBuiltinResource<Font>("Arial.ttf");
+            return alignment switch
+            {
+                TextAnchor.UpperLeft => TextAlignmentOptions.TopLeft,
+                TextAnchor.UpperCenter => TextAlignmentOptions.Top,
+                TextAnchor.UpperRight => TextAlignmentOptions.TopRight,
+                TextAnchor.MiddleLeft => TextAlignmentOptions.Left,
+                TextAnchor.MiddleCenter => TextAlignmentOptions.Center,
+                TextAnchor.MiddleRight => TextAlignmentOptions.Right,
+                TextAnchor.LowerLeft => TextAlignmentOptions.BottomLeft,
+                TextAnchor.LowerCenter => TextAlignmentOptions.Bottom,
+                TextAnchor.LowerRight => TextAlignmentOptions.BottomRight,
+                _ => TextAlignmentOptions.Center
+            };
         }
 
         private static void SetActive(GameObject target, bool active)
@@ -1409,7 +1420,7 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
-            var text = button.GetComponentInChildren<Text>(true);
+            var text = button.GetComponentInChildren<TMP_Text>(true);
             if (text != null)
             {
                 text.text = label;

@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using SceneTalkVR.Core;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -461,11 +462,10 @@ namespace SceneTalkVR.Runtime
             var labelObject = new GameObject("Label");
             labelObject.transform.SetParent(buttonObject.transform, false);
 
-            var label = labelObject.AddComponent<Text>();
+            var label = labelObject.AddComponent<TextMeshProUGUI>();
             label.text = "Quit";
-            label.font = ResolveRuntimeFont();
             label.fontSize = 20;
-            label.alignment = TextAnchor.MiddleCenter;
+            label.alignment = TextAlignmentOptions.Center;
             label.color = Color.white;
             label.raycastTarget = false;
 
@@ -484,12 +484,6 @@ namespace SceneTalkVR.Runtime
 
             var panel = worldCanvas.transform.Find("Panel");
             return panel != null ? panel : worldCanvas.transform;
-        }
-
-        private static Font ResolveRuntimeFont()
-        {
-            var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            return font != null ? font : Resources.GetBuiltinResource<Font>("Arial.ttf");
         }
 
         private void EnsureEventSystem()
