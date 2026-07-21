@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.Animations;
@@ -351,6 +352,43 @@ namespace SceneTalkVR.AvatarSystem.Tests
 
                 Assert.That(driver.EndTalking(), Is.True);
                 Assert.That(animator.GetBool("IsTalking"), Is.False);
+            }
+            finally
+            {
+                Object.DestroyImmediate(instance);
+            }
+        }
+
+        [Test]
+        public void ReplyPreparation_ThinksOnlyForFollowUpReplies()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/SceneTalkVR/Avatar/Prefabs/Humanoid/teacher_humanoid_v1.prefab");
+            Assert.That(prefab, Is.Not.Null);
+
+            var instance = Object.Instantiate(prefab);
+            try
+            {
+                var animator = instance.GetComponentInChildren<Animator>();
+                var presenter = instance.AddComponent<AvatarPresentationVoiceModule>();
+                var serializedPresenter = new SerializedObject(presenter);
+                serializedPresenter.FindProperty("fallbackAnimator").objectReferenceValue = animator;
+                serializedPresenter.ApplyModifiedPropertiesWithoutUndo();
+                var setPreparationThinking = typeof(AvatarPresentationVoiceModule).GetMethod(
+                    "SetReplyPreparationThinking",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That(setPreparationThinking, Is.Not.Null);
+
+                animator.SetBool("IsThinking", true);
+                presenter.SetReplyContext(true);
+                setPreparationThinking.Invoke(presenter, null);
+                Assert.That(animator.GetBool("IsThinking"), Is.False,
+                    "A predefined opening reply should start without a thinking animation.");
+
+                presenter.SetReplyContext(false);
+                setPreparationThinking.Invoke(presenter, null);
+                Assert.That(animator.GetBool("IsThinking"), Is.True,
+                    "A follow-up reply should retain the thinking animation while it is prepared.");
             }
             finally
             {

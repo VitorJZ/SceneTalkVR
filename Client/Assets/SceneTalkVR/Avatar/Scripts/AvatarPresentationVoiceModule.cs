@@ -111,6 +111,9 @@ namespace SceneTalkVR.AvatarSystem
 
         public void ClearAvatar()
         {
+            StopAllCoroutines();
+            ResetStreamingPlaybackState();
+
             if (audioSource != null)
             {
                 audioSource.Stop();
@@ -284,7 +287,7 @@ namespace SceneTalkVR.AvatarSystem
             else
             {
                 // Non-streaming fallback: Play the dialogueReply directly
-                SetThinking(true);
+                SetReplyPreparationThinking();
                 yield return null;
 
                 Debug.Log($"[SceneTalkVR] Non-streaming avatar reply: {payload.dialogueReply}", this);
@@ -705,6 +708,11 @@ namespace SceneTalkVR.AvatarSystem
             ResolveAnimationDriver()?.EndTalking();
         }
 
+        private void SetReplyPreparationThinking()
+        {
+            SetThinking(!isOpeningReply);
+        }
+
         private AvatarAnimationDriver ResolveAnimationDriver()
         {
             if (animationDriver == null)
@@ -741,22 +749,8 @@ namespace SceneTalkVR.AvatarSystem
 
         public void PrepareStreaming(SpringScenePayload basePayload)
         {
+            ResetStreamingPlaybackState();
             streamingBasePayload = basePayload;
-            streamingSentenceQueue.Clear();
-            streamingPreparedQueue.Clear();
-            isStreamingFinished = false;
-            isStreamingPlaying = false;
-            isDialogueGateOpen = false;
-            isPreparingStream = false;
-            wasAnySentenceEnqueued = false;
-            streamingError = null;
-            isAvatarLoadingFinished = false;
-
-            LastTtsReadyLatencyMs = -1f;
-            LastCorrectionPlayStart = -1f;
-            LastCorrectionPlayEnd = -1f;
-            LastDialoguePlayStart = -1f;
-            LastDialoguePlayEnd = -1f;
 
             if (basePayload != null)
             {
@@ -780,6 +774,30 @@ namespace SceneTalkVR.AvatarSystem
                     StartCoroutine(EnsureAvatarCoroutine(basePayload));
                 }
             }
+        }
+
+        private void ResetStreamingPlaybackState()
+        {
+            streamingSentenceQueue.Clear();
+            while (streamingPreparedQueue.Count > 0)
+            {
+                streamingPreparedQueue.Dequeue()?.Release();
+            }
+
+            isStreamingFinished = false;
+            isStreamingPlaying = false;
+            streamingError = null;
+            streamingBasePayload = null;
+            isDialogueGateOpen = false;
+            isPreparingStream = false;
+            wasAnySentenceEnqueued = false;
+            isAvatarLoadingFinished = false;
+
+            LastTtsReadyLatencyMs = -1f;
+            LastCorrectionPlayStart = -1f;
+            LastCorrectionPlayEnd = -1f;
+            LastDialoguePlayStart = -1f;
+            LastDialoguePlayEnd = -1f;
         }
 
         public void EnqueueSentence(string sentence)
@@ -861,7 +879,7 @@ namespace SceneTalkVR.AvatarSystem
         private IEnumerator PlayStreamingQueueCoroutine()
         {
             isStreamingPlaying = true;
-            SetThinking(true);
+            SetReplyPreparationThinking();
 
             while (!isStreamingFinished || streamingPreparedQueue.Count > 0 || streamingSentenceQueue.Count > 0 || !isDialogueGateOpen)
             {

@@ -1,4 +1,6 @@
+using System.Reflection;
 using NUnit.Framework;
+using SceneTalkVR.Core;
 using UnityEditor;
 using UnityEngine;
 
@@ -47,6 +49,69 @@ namespace SceneTalkVR.AvatarSystem.Tests
                 Object.DestroyImmediate(placementAnchor);
                 Object.DestroyImmediate(user);
             }
+        }
+
+        [Test]
+        public void ClearAvatar_ResetsStreamingStateForNextOpeningReply()
+        {
+            var host = new GameObject("Avatar Streaming Reset Tests");
+
+            try
+            {
+                var presenter = host.AddComponent<AvatarPresentationVoiceModule>();
+                var previousPayload = new SpringScenePayload
+                {
+                    dialogueReply = "Previous streamed reply."
+                };
+
+                presenter.PrepareStreaming(previousPayload);
+                presenter.SignalStreamingComplete();
+                presenter.OpenDialogueGate();
+                EnqueuePrivateValue(presenter, "streamingSentenceQueue", "stale sentence");
+                SetPrivateField(presenter, "isAvatarLoadingFinished", true);
+
+                presenter.ClearAvatar();
+
+                Assert.That(GetPrivateField<bool>(presenter, "isStreamingFinished"), Is.False);
+                Assert.That(GetPrivateField<bool>(presenter, "isStreamingPlaying"), Is.False);
+                Assert.That(GetPrivateField<bool>(presenter, "isDialogueGateOpen"), Is.False);
+                Assert.That(GetPrivateField<bool>(presenter, "isPreparingStream"), Is.False);
+                Assert.That(GetPrivateField<bool>(presenter, "wasAnySentenceEnqueued"), Is.False);
+                Assert.That(GetPrivateField<bool>(presenter, "isAvatarLoadingFinished"), Is.False);
+                Assert.That(GetPrivateField<object>(presenter, "streamingBasePayload"), Is.Null);
+                Assert.That(GetPrivateCollectionCount(presenter, "streamingSentenceQueue"), Is.Zero);
+                Assert.That(GetPrivateCollectionCount(presenter, "streamingPreparedQueue"), Is.Zero);
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
+        }
+
+        private static T GetPrivateField<T>(object target, string fieldName)
+        {
+            var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null);
+            return (T)field.GetValue(target);
+        }
+
+        private static void SetPrivateField(object target, string fieldName, object value)
+        {
+            var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null);
+            field.SetValue(target, value);
+        }
+
+        private static void EnqueuePrivateValue(object target, string fieldName, object value)
+        {
+            var queue = GetPrivateField<object>(target, fieldName);
+            queue.GetType().GetMethod("Enqueue")?.Invoke(queue, new[] { value });
+        }
+
+        private static int GetPrivateCollectionCount(object target, string fieldName)
+        {
+            var collection = GetPrivateField<object>(target, fieldName);
+            return (int)collection.GetType().GetProperty("Count")?.GetValue(collection);
         }
     }
 }

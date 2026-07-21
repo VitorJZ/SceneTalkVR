@@ -1138,6 +1138,7 @@ namespace SceneTalkVR.Runtime
             LastTranscript = transcript;
             RefreshUi();
             SetState(SceneTalkState.Processing);
+            AvatarReplyContext?.SetReplyContext(false);
             AvatarThinkingState?.SetThinking(true);
 
             SpringScenePayload payload = null;
@@ -1178,7 +1179,6 @@ namespace SceneTalkVR.Runtime
                 : SceneTalkState.DialogueSpeaking);
 
             error = null;
-            AvatarReplyContext?.SetReplyContext(false);
             yield return AvatarVoice.PresentReply(
                 payload,
                 () => { },
