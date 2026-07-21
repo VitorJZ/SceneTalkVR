@@ -23,6 +23,7 @@ namespace SceneTalkVR.Runtime
         }
         public void ResetForCanvasRebuild(){setup=instructions=introduction=transition=questionnaire=ranking=completion=null;participantInput=sessionInput=reasonInput=null;setupError=introductionText=questionnaireError=rankingError=null;answerButtons.Clear();rankButtons.Clear();ranks.Clear();questionnaireLinkage="";builtTaskPosition=-2;}
         public void OpenSetup(){EnsureCoordinator();coordinator.OpenSetup();Refresh();}
+        public void OpenAutomaticParticipantFlow(){EnsureCoordinator();if(coordinator==null)return;if(!coordinator.OpenOrCreateAutomaticParticipantSession(out var error))Debug.LogError("[PilotCollection] "+error,this);Refresh();}
         private void Awake(){EnsureCoordinator();}
         private void Update(){Refresh();}
         private void EnsureCoordinator()

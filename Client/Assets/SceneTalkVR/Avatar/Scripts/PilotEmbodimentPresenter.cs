@@ -26,10 +26,10 @@ namespace SceneTalkVR.AvatarSystem
             if(value.embodimentCondition==PilotEmbodimentCondition.HumanoidAgent && lockedPilot && (value.visualPrefab==null||value.developerPlaceholder)){error="humanoid_prefab_missing_or_placeholder";return false;}
             if(value.embodimentCondition==PilotEmbodimentCondition.FloatingOrb && lockedPilot && value.developerPlaceholder){error="orb_placeholder_forbidden";return false;}
             EnsureAudio(value.embodimentCondition==PilotEmbodimentCondition.VoiceOnly?voiceOnlyPolicy:value.audioSourcePolicy);
-            if(value.visualMode==PilotVisualMode.FloatingOrb) { orb=gameObject.GetComponent<CorrectionAgentPresenter>()??gameObject.AddComponent<CorrectionAgentPresenter>(); orb.HideImmediate(); }
+            if(value.visualMode==PilotVisualMode.FloatingOrb) { orb=gameObject.GetComponent<CorrectionAgentPresenter>()??gameObject.AddComponent<CorrectionAgentPresenter>(); orb.ShowImmediate(); orb.EndSpeaking(); }
             else if(value.visualMode==PilotVisualMode.Humanoid && value.visualPrefab!=null)
             {
-                humanoid=Instantiate(value.visualPrefab,transform,false);humanoid.name="Pilot Humanoid Feedback Agent";humanoid.transform.localPosition=value.sourcePosition;humanoid.transform.localRotation=Quaternion.Euler(value.spawnRotation);humanoid.transform.localScale=value.scale;humanoidAnimator=humanoid.GetComponentInChildren<Animator>();if(humanoidAnimator!=null&&value.animatorController!=null)humanoidAnimator.runtimeAnimatorController=value.animatorController;humanoid.SetActive(false);
+                humanoid=Instantiate(value.visualPrefab,transform,false);humanoid.name="Pilot Humanoid Feedback Agent";humanoid.transform.localPosition=value.sourcePosition;humanoid.transform.localScale=value.scale;FaceHumanoidTowardParticipant(value.spawnRotation.y);humanoidAnimator=humanoid.GetComponentInChildren<Animator>();if(humanoidAnimator!=null&&value.animatorController!=null)humanoidAnimator.runtimeAnimatorController=value.animatorController;humanoid.SetActive(true);SetHumanoidSpeaking(false);
             }
             Active=this; error="";return true;
         }
@@ -42,7 +42,7 @@ namespace SceneTalkVR.AvatarSystem
             if(orb!=null){orb.ShowImmediate();orb.BeginSpeaking();}
             if(humanoid!=null){humanoid.SetActive(true);SetHumanoidSpeaking(true);}
         }
-        public void EndFeedback(){if(orb!=null){orb.EndSpeaking();orb.HideImmediate();}if(humanoid!=null){SetHumanoidSpeaking(false);humanoid.SetActive(false);}}
+        public void EndFeedback(){if(orb!=null)orb.EndSpeaking();if(humanoid!=null)SetHumanoidSpeaking(false);}
         public void ResetSession()
         {
             EndFeedback(); if(audioSource!=null){audioSource.Stop();audioSource.clip=null;}
@@ -63,6 +63,15 @@ namespace SceneTalkVR.AvatarSystem
             foreach(var parameter in humanoidAnimator.parameters) if(parameter.name==profile.speakingParameterOrState&&parameter.type==AnimatorControllerParameterType.Bool){humanoidAnimator.SetBool(parameter.name,speaking);return;}
             if(speaking)humanoidAnimator.Play(profile.speakingParameterOrState);
             else if(!string.IsNullOrWhiteSpace(profile.idleParameterOrState))humanoidAnimator.Play(profile.idleParameterOrState);
+        }
+
+        private void FaceHumanoidTowardParticipant(float yawOffset)
+        {
+            if(humanoid==null)return;
+            var camera=Camera.main;if(camera==null){humanoid.transform.localRotation=Quaternion.Euler(0f,yawOffset,0f);return;}
+            var direction=camera.transform.position-humanoid.transform.position;direction.y=0f;
+            if(direction.sqrMagnitude<.0001f)return;
+            humanoid.transform.rotation=Quaternion.Euler(0f,Quaternion.LookRotation(direction.normalized,Vector3.up).eulerAngles.y+yawOffset,0f);
         }
     }
 }

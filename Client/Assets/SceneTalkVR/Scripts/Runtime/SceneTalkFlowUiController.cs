@@ -261,7 +261,7 @@ namespace SceneTalkVR.Runtime
             if (pilotButton != null)
             {
                 pilotButton.onClick.RemoveAllListeners();
-                pilotButton.onClick.AddListener(() => pilotCollectionUi?.OpenSetup());
+                pilotButton.onClick.AddListener(() => pilotCollectionUi?.OpenAutomaticParticipantFlow());
             }
 
             if (settingsButton != null)
@@ -562,9 +562,9 @@ namespace SceneTalkVR.Runtime
         {
             if (demoRankingPanel == null || demoRankingText == null) return;
             demoRankingText.text = pilot
-                ? "Please rank the three feedback forms.\n\nVoice Only\nFloating Orb\nHumanoid Agent"
-                : "Please rank the four feedback conditions.\n\nNE\nNR\nSE\nSR";
-            demoRankingPanel.name = "ParticipantFinalRankingPanel";
+                ? "PILOT REHEARSAL RANKING\n\nUse Rehearsal Control to exercise QA ranking submission."
+                : "FORMAL REHEARSAL RANKING\n\nUse the collection participant flow for the interactive final ranking.";
+            demoRankingPanel.name = "RehearsalRankingOperatorNotice";
             rehearsalFinalRankingVisible = true;
             demoRankingPanel.SetActive(true);
             demoRankingPanel.transform.SetAsLastSibling();

@@ -30,6 +30,9 @@ namespace SceneTalkVR.Core
         private SceneTalkOrchestrator orchestrator; private int currentPosition=-1; private bool subscribed;
         private bool rankingSubmitted; private string lastBundlePath;
         private bool questionnaireTransitionPending;
+        private PreferenceRankingResponse qaRankingDraft;
+        private const string LastParticipantKey="SceneTalkVR.Pilot.LastParticipantId";
+        private const string LastSessionKey="SceneTalkVR.Pilot.LastSessionId";
 
         public ExperimentRuntimeContext RuntimeContext { get; private set; }
         public PilotParticipantStage Stage { get; private set; }
@@ -50,6 +53,19 @@ namespace SceneTalkVR.Core
         public void Configure(ExperimentConditionManager value,SceneTalkOrchestrator sceneOrchestrator){manager=value;orchestrator=sceneOrchestrator;Resolve();Subscribe();}
 
         public void OpenSetup(){if(IsArmed)EndSession();Stage=PilotParticipantStage.Setup;RefreshUi();}
+        public bool OpenOrCreateAutomaticParticipantSession(out string error)
+        {
+            if(IsArmed){if(Stage==PilotParticipantStage.None||Stage==PilotParticipantStage.Setup)Stage=PilotParticipantStage.Instructions;RefreshUi();error="";return true;}
+            var previousParticipant=PlayerPrefs.GetString(LastParticipantKey,string.Empty);
+            var previousSession=PlayerPrefs.GetString(LastSessionKey,string.Empty);
+            if(!string.IsNullOrWhiteSpace(previousParticipant)&&!string.IsNullOrWhiteSpace(previousSession)
+                && File.Exists(Path.Combine(CollectionRoot,Safe(previousParticipant)+"_"+Safe(previousSession),"raw","pilot_assignment.json"))
+                && ResumeSession(previousParticipant,previousSession,out error))return true;
+            var timestamp=DateTime.UtcNow.ToString("yyyyMMddTHHmmssZ");var suffix=Guid.NewGuid().ToString("N").Substring(0,6).ToUpperInvariant();
+            var participantId=$"PILOT-P-{timestamp}-{suffix}";var sessionId=$"PILOT-S-{timestamp}-{suffix}";
+            if(!CreateSession(participantId,sessionId,out error))return false;
+            PlayerPrefs.SetString(LastParticipantKey,participantId);PlayerPrefs.SetString(LastSessionKey,sessionId);PlayerPrefs.Save();return true;
+        }
         public bool CreateSession(string participantId,string sessionId,out string error)
             => Arm(participantId,sessionId,false,out error);
         public bool ResumeSession(string participantId,string sessionId,out string error)
@@ -124,6 +140,28 @@ namespace SceneTalkVR.Core
         public bool Retry(out string error){if(workflow?.Current?.status!=PilotRunStatus.TechnicalInvalid){error="pilot_retry_not_available";return false;}Stage=PilotParticipantStage.TaskIntroduction;return BeginCurrentTask(out error);}
         public void EndSession(){Write("PilotSessionEnded");ResetRuntime();RuntimeContext=null;Stage=PilotParticipantStage.None;RefreshUi();}
 
+        public bool PrepareCurrentPilotConditionForQa(out string error)
+        { if(Stage==PilotParticipantStage.Instructions)BeginPilot();if(Stage==PilotParticipantStage.Transition)ContinueAfterTransition();var ok=BeginCurrentTask(out error);if(ok)Write("QaPreparePilotCondition","",true);return ok; }
+        public bool CompleteCurrentPilotGoalsForQa(out string error)
+        {
+            error="";if(!IsArmed||Stage!=PilotParticipantStage.Dialogue){error="pilot_dialogue_not_active";return false;}
+            foreach(var goal in workflow.Goals.Goals.ToArray())
+            { if((goal.state==GoalProgressState.NotStarted||goal.state==GoalProgressState.Rejected)&&!workflow.Goals.SubmitGoalCandidate(goal.goalId,"qa_operator",new GoalEvidence{turnId="qa",transcript="qaAutomationUsed=true"},out error))return false;if(goal.state==GoalProgressState.Candidate&&!workflow.Goals.ConfirmGoal(goal.goalId,"qa_operator","qaAutomationUsed=true",out error))return false; }
+            Write("QaCompletePilotGoals","",true);return true;
+        }
+        public bool OpenPilotQuestionnaireForQa(out string error)
+        { if(Stage==PilotParticipantStage.Dialogue)workflow.CompleteTask();if(workflow.Current?.status!=PilotRunStatus.AwaitingPilotQuestionnaire){error="pilot_not_awaiting_questionnaire";return false;}if(!workflow.BeginQuestionnaire(out error))return false;Stage=PilotParticipantStage.Questionnaire;Persist();Write("QaOpenPilotQuestionnaire","",true);RefreshUi();return true; }
+        public bool AutoFillPilotQuestionnaireForQa(out string error)
+        { error="";var service=workflow?.Questionnaire;if(Stage!=PilotParticipantStage.Questionnaire||service?.ActiveSession==null||service.Definition==null){error="pilot_questionnaire_not_visible";return false;}foreach(var item in manager.QuestionnaireCatalog.GetEnabledItems(service.Definition.questionnaireId,manager.ExperimentProtocol)){var raw=item.itemType==QuestionnaireItemType.Likert?Mathf.Clamp(5,item.scaleMin,item.scaleMax).ToString():item.choiceValues!=null&&item.choiceValues.Length>0?item.choiceValues[0]:"QA response";if(!service.SetResponse(item.itemId,raw,out error))return false;}Write("QaAutoFillPilotQuestionnaire","",true);return true; }
+        public bool SubmitPilotQuestionnaireForQa(out string error){var ok=SubmitQuestionnaire(out error);if(ok)Write("QaSubmitPilotQuestionnaire","",true);return ok;}
+        public bool PrepareNextPilotConditionForQa(out string error){if(Stage==PilotParticipantStage.Transition)ContinueAfterTransition();return PrepareCurrentPilotConditionForQa(out error);}
+        public void MarkPilotTechnicalInvalidForQa(){MarkTechnicalInvalid("qa_operator_injected");Write("QaMarkPilotTechnicalInvalid","",true);}
+        public bool RetryPilotConditionForQa(out string error){var ok=Retry(out error);if(ok)Write("QaRetryPilotCondition","",true);return ok;}
+        public bool OpenPilotFinalRankingForQa(out string error){if(Assignment?.conditions==null||Assignment.conditions.Any(x=>x.status!=PilotRunStatus.Completed)){error="pilot_final_ranking_requires_three_valid_conditions";return false;}Stage=PilotParticipantStage.FinalRanking;Write("QaOpenPilotFinalRanking","",true);RefreshUi();error="";return true;}
+        public bool AutoFillPilotRankingForQa(out string error){if(Stage!=PilotParticipantStage.FinalRanking){error="pilot_final_ranking_not_visible";return false;}qaRankingDraft=new PreferenceRankingResponse{rankings=new[]{new PreferenceRankEntry{embodimentCondition="voice_only",rank=1},new PreferenceRankEntry{embodimentCondition="floating_orb",rank=2},new PreferenceRankEntry{embodimentCondition="humanoid_agent",rank=3}},preferredEmbodimentCondition="voice_only",reason="QA operator ranking"};Write("QaAutoFillPilotRanking","",true);error="";return true;}
+        public bool SubmitPilotRankingForQa(out string error){if(qaRankingDraft==null){error="pilot_qa_ranking_not_filled";return false;}var ok=SubmitFinalRanking(qaRankingDraft,out error);if(ok){Write("QaSubmitPilotRanking","",true);qaRankingDraft=null;}return ok;}
+        public void ResetPilotSessionForQa(){Write("QaResetPilotSession","",true);EndSession();PlayerPrefs.DeleteKey(LastParticipantKey);PlayerPrefs.DeleteKey(LastSessionKey);PlayerPrefs.Save();}
+
         private void OnAllGoalsConfirmed(GoalProgressChangedEvent value)
         {
             if(!IsArmed||Stage!=PilotParticipantStage.Dialogue||questionnaireTransitionPending||value?.conditionRunId!=workflow.PilotRunId)return;
@@ -141,8 +179,8 @@ namespace SceneTalkVR.Core
         private void PersistGoals(){if(!IsArmed||string.IsNullOrWhiteSpace(workflow.PilotRunId)||workflow.Current==null)return;Directory.CreateDirectory(CurrentDataFolder);var file=$"pilot_goals_{workflow.Current.conditionPosition}_{workflow.Current.runAttempt}.json";File.WriteAllText(Path.Combine(CurrentDataFolder,file),JsonUtility.ToJson(new PilotGoalSnapshot{participantId=ParticipantId,sessionId=SessionId,pilotRunId=workflow.PilotRunId,taskId=workflow.Current.task.taskId,savedAtUtc=DateTime.UtcNow.ToString("o"),goals=workflow.Goals.Goals.ToArray()},true),Encoding.UTF8);}
         private bool ValidateAssignment(PilotAssignment value,out string error){if(value==null||value.flowMode!=ExperimentFlowMode.Pilot||value.runQualification!=ExperimentRunQualification.Collection||value.dataOrigin!="participant_collection"||!value.collectionEligible||value.developerTestAssignment||value.demoMode||value.conditions?.Length!=3){error="pilot_collection_assignment_invalid";return false;}return PilotAssignmentAllocator.IsCompatible(value,manager.ExperimentProtocol.ProtocolVersion,manager.TaskCatalog.CatalogVersion,out error);}
         private bool FailArm(){RuntimeContext=null;Stage=PilotParticipantStage.Setup;return false;}
-        private void ResetRuntime(){questionnaireTransitionPending=false;StopAllCoroutines();workflow?.ResetPilotConditionBoundary();workflow?.ClearAssignmentForRuntimeMode();orchestrator?.ResetForConditionSelection();currentPosition=-1;rankingSubmitted=false;}
-        private void Write(string type,string detail=""){if(!IsArmed)return;Directory.CreateDirectory(CurrentDataFolder);var item=workflow?.Current;var value=new PilotCollectionOperatorEvent{timestampUtc=DateTime.UtcNow.ToString("o"),eventType=type,participantId=ParticipantId,sessionId=SessionId,pilotRunId=workflow?.PilotRunId??"",sequenceId=Assignment?.sequenceId??"",conditionPosition=item?.conditionPosition??-1,embodiment=item==null?"":PilotProtocolValues.Label(item.embodimentCondition),taskId=item?.task?.taskId??"",detail=detail};File.AppendAllText(Path.Combine(CurrentDataFolder,"pilot_collection_operator_events.jsonl"),JsonUtility.ToJson(value)+Environment.NewLine,Encoding.UTF8);}
+        private void ResetRuntime(){questionnaireTransitionPending=false;qaRankingDraft=null;StopAllCoroutines();workflow?.ResetPilotConditionBoundary();workflow?.ClearAssignmentForRuntimeMode();orchestrator?.ResetForConditionSelection();currentPosition=-1;rankingSubmitted=false;}
+        private void Write(string type,string detail="",bool qa=false){if(!IsArmed)return;Directory.CreateDirectory(CurrentDataFolder);var item=workflow?.Current;var value=new PilotCollectionOperatorEvent{timestampUtc=DateTime.UtcNow.ToString("o"),eventType=type,participantId=ParticipantId,sessionId=SessionId,pilotRunId=workflow?.PilotRunId??"",sequenceId=Assignment?.sequenceId??"",conditionPosition=item?.conditionPosition??-1,embodiment=item==null?"":PilotProtocolValues.Label(item.embodimentCondition),taskId=item?.task?.taskId??"",detail=detail,qaAutomationUsed=qa,actor=qa?"qa_operator":"experiment_operator"};File.AppendAllText(Path.Combine(CurrentDataFolder,"pilot_collection_operator_events.jsonl"),JsonUtility.ToJson(value)+Environment.NewLine,Encoding.UTF8);}
         private static bool ValidIdentity(string value,out string error){if(string.IsNullOrWhiteSpace(value)){error="participant_or_session_required";return false;}if(value.IndexOfAny(Path.GetInvalidFileNameChars())>=0||value.Contains("/")||value.Contains("\\")){error="participant_or_session_contains_invalid_path_character";return false;}error="";return true;}
         private static string Safe(string value)=>new string((value??"").Select(c=>char.IsLetterOrDigit(c)||c=='-'||c=='_'?c:'_').ToArray());
         private static void RefreshUi()=>FindFirstObjectByType<SceneTalkFlowUiController>(FindObjectsInactive.Include)?.RefreshExternalState();

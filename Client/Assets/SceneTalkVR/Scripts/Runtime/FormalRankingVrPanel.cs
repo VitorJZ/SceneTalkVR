@@ -16,6 +16,10 @@ namespace SceneTalkVR.Runtime
         private InputField reasonInput;
         private readonly Dictionary<FormalConditionCode, int> ranks = new Dictionary<FormalConditionCode, int>();
         private readonly Dictionary<string, Button> rankButtons = new Dictionary<string, Button>();
+        private readonly Dictionary<FormalConditionCode, Button> preferredButtons = new Dictionary<FormalConditionCode, Button>();
+        private FormalConditionCode? preferredCondition;
+        private bool submitted;
+        private string activeSessionId;
 
         private void Update()
         {
@@ -24,6 +28,8 @@ namespace SceneTalkVR.Runtime
             {
                 SetActive(panel, false); SetActive(completionPanel, false); return;
             }
+            if (!string.Equals(activeSessionId, coordinator.SessionId, StringComparison.Ordinal))
+            { activeSessionId = coordinator.SessionId; ResetResponse(); }
             if (coordinator.FinalRankingVisible) { EnsureBuilt(); SetActive(panel, true); SetActive(completionPanel, false); panel.transform.SetAsLastSibling(); }
             else if (coordinator.ExperimentCompleted) { EnsureBuilt(); SetActive(panel, false); SetActive(completionPanel, true); completionPanel.transform.SetAsLastSibling(); }
             else { SetActive(panel, false); SetActive(completionPanel, false); }
@@ -44,15 +50,18 @@ namespace SceneTalkVR.Runtime
             for (var i = 0; i < codes.Length; i++)
             {
                 var y = 120 - i * 68;
-                Label(panel.transform, codes[i] + "Label", Friendly(codes[i]), new Vector2(-190, y), new Vector2(420, 44), 19, TextAnchor.MiddleLeft);
+                Label(panel.transform, codes[i] + "Label", Friendly(codes[i]), new Vector2(-210, y), new Vector2(430, 44), 19, TextAnchor.MiddleLeft);
                 ranks[codes[i]] = 0;
                 for (var rank = 1; rank <= 4; rank++)
                 {
                     var capturedCode = codes[i]; var capturedRank = rank;
-                    var button = Button(panel.transform, codes[i] + "Rank" + rank, rank.ToString(), new Vector2(145 + rank * 55, y),
+                    var button = Button(panel.transform, codes[i] + "Rank" + rank, rank.ToString(), new Vector2(90 + rank * 52, y),
                         () => SelectRank(capturedCode, capturedRank), new Vector2(46, 42));
                     rankButtons[codes[i] + ":" + rank] = button;
                 }
+                var preferredCode = codes[i];
+                preferredButtons[codes[i]] = Button(panel.transform, codes[i] + "Preferred", "Preferred", new Vector2(360, y),
+                    () => SelectPreferred(preferredCode), new Vector2(118, 42));
             }
             reasonInput = Input(panel.transform, "RankingReason", "Why do you prefer your top-ranked mode?", new Vector2(0, -166), new Vector2(700, 64));
             validation = Label(panel.transform, "Validation", string.Empty, new Vector2(0, -218), new Vector2(700, 30), 17);
@@ -68,9 +77,12 @@ namespace SceneTalkVR.Runtime
 
         public void Submit()
         {
+            if (submitted) { validation.text = "This ranking has already been submitted."; return; }
             var values = ranks.ToDictionary(x => x.Key, x => x.Value);
             if (values.Values.Any(x => x < 1 || x > 4) || values.Values.Distinct().Count() != 4)
             { validation.text = "Please assign each rank from 1 to 4 exactly once."; return; }
+            if (!preferredCondition.HasValue)
+            { validation.text = "Please select the overall preferred condition."; return; }
             if (string.IsNullOrWhiteSpace(reasonInput.text))
             { validation.text = "Please provide a short reason for your ranking."; return; }
             var entries = values.Select(x => new PreferenceRankEntry { conditionCode = x.Key.ToString(), rank = x.Value })
@@ -78,11 +90,12 @@ namespace SceneTalkVR.Runtime
             var response = new PreferenceRankingResponse
             {
                 rankings = entries,
-                preferredConditionCode = entries[0].conditionCode,
+                preferredConditionCode = preferredCondition.Value.ToString(),
                 reason = reasonInput.text.Trim()
             };
             if (!EditorCollectionSessionCoordinator.Active.SubmitFinalRanking(response, out var error))
             { validation.text = error; return; }
+            submitted = true;
             validation.text = string.Empty;
         }
 
@@ -97,12 +110,30 @@ namespace SceneTalkVR.Runtime
             validation.text = string.Empty;
         }
 
+        private void SelectPreferred(FormalConditionCode code)
+        {
+            preferredCondition = code;
+            foreach (var pair in preferredButtons)
+                pair.Value.GetComponent<Image>().color = pair.Key == code
+                    ? new Color(.12f, .66f, .36f, 1f) : new Color(.12f, .38f, .62f, 1f);
+            validation.text = string.Empty;
+        }
+
+        private void ResetResponse()
+        {
+            submitted=false;preferredCondition=null;
+            foreach(var code in new[]{FormalConditionCode.NE,FormalConditionCode.NR,FormalConditionCode.SE,FormalConditionCode.SR})ranks[code]=0;
+            foreach(var button in rankButtons.Values)if(button!=null)button.GetComponent<Image>().color=new Color(.12f,.38f,.62f,1f);
+            foreach(var button in preferredButtons.Values)if(button!=null)button.GetComponent<Image>().color=new Color(.12f,.38f,.62f,1f);
+            if(reasonInput!=null)reasonInput.text=string.Empty;if(validation!=null)validation.text=string.Empty;
+        }
+
         private static string Friendly(FormalConditionCode code) => code switch
         {
-            FormalConditionCode.NE => "Avatar Direct Correction (NE)",
-            FormalConditionCode.NR => "Avatar Reformulation (NR)",
-            FormalConditionCode.SE => "Assistant Direct Correction (SE)",
-            _ => "Assistant Reformulation (SR)"
+            FormalConditionCode.NE => "Avatar — Direct Correction (NE)",
+            FormalConditionCode.NR => "Avatar — Reformulation (NR)",
+            FormalConditionCode.SE => "Assistant — Direct Correction (SE)",
+            _ => "Assistant — Reformulation (SR)"
         };
         private static GameObject Node(Transform parent, string name) { var go = new GameObject(name, typeof(RectTransform)); go.transform.SetParent(parent, false); return go; }
         private static Text Label(Transform parent, string name, string value, Vector2 pos, Vector2 size, int font, TextAnchor anchor = TextAnchor.MiddleCenter)

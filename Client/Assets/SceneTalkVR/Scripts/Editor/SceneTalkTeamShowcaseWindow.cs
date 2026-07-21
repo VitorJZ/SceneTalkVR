@@ -1,4 +1,5 @@
 using SceneTalkVR.Core;
+using SceneTalkVR.Runtime;
 using UnityEditor;
 using UnityEngine;
 #pragma warning disable 0618 // Legacy window remains read-only for resuming historical Editor Demo sessions.
@@ -14,8 +15,7 @@ namespace SceneTalkVR.EditorTools
         private Vector2 scroll;
 
         [MenuItem("SceneTalkVR/Demo/Team Showcase Control")]
-        [System.Obsolete("Editor Demo is deprecated. Use Rehearsal Control.")]
-        public static void Open() { Debug.LogWarning("[SceneTalkVR] Team Showcase Control is deprecated; opening Rehearsal Control."); SceneTalkRehearsalControlWindow.Open(); }
+        public static void Open() => GetWindow<SceneTalkTeamShowcaseWindow>("Team Showcase Control");
 
         private void OnEnable() { EditorApplication.playModeStateChanged += OnPlayMode; }
         private void OnDisable() { EditorApplication.playModeStateChanged -= OnPlayMode; }
@@ -68,6 +68,24 @@ namespace SceneTalkVR.EditorTools
             RuntimeButton("Run Integrity Audit", d => d.AuditLastBundle(out message));
             RuntimeButton("Reset Demo Session", d => { if (!Confirm("Reset and clear the current Demo session state?")) return false; d.ResetDemoSession(); message = "Demo session reset."; return true; });
             RuntimeButton("Return to Main Menu", d => { d.ResetDemoSession(); message = "Demo state cleared; use the existing Main Menu."; return true; });
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Pilot collection quick test", EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox("QA shortcuts operate the real Pilot lifecycle and are logged with qaAutomationUsed=true, actor=qa_operator. The participant path does not depend on this window.", MessageType.Info);
+            PilotButton("Create Pilot Test Session", p => p.OpenOrCreateAutomaticParticipantSession(out message));
+            PilotButton("Prepare Current Pilot Condition", p => p.PrepareCurrentPilotConditionForQa(out message));
+            PilotButton("Complete Current Pilot Goals", p => p.CompleteCurrentPilotGoalsForQa(out message));
+            PilotButton("Open Pilot Questionnaire", p => p.OpenPilotQuestionnaireForQa(out message));
+            PilotButton("Auto-Fill Pilot Questionnaire", p => p.AutoFillPilotQuestionnaireForQa(out message));
+            PilotButton("Submit Pilot Questionnaire", p => p.SubmitPilotQuestionnaireForQa(out message));
+            PilotButton("Prepare Next Pilot Condition", p => p.PrepareNextPilotConditionForQa(out message));
+            PilotButton("Mark Pilot TechnicalInvalid", p => { p.MarkPilotTechnicalInvalidForQa(); return true; });
+            PilotButton("Retry Pilot Condition", p => p.RetryPilotConditionForQa(out message));
+            PilotButton("Open Pilot Final Ranking", p => p.OpenPilotFinalRankingForQa(out message));
+            PilotButton("Auto-Fill Pilot Ranking", p => p.AutoFillPilotRankingForQa(out message));
+            PilotButton("Submit Pilot Ranking", p => p.SubmitPilotRankingForQa(out message));
+            PilotButton("Export Pilot Bundle", p => p.ExportBundle(out message));
+            PilotButton("Run Pilot Integrity Audit", p => p.AuditBundle(out message));
+            PilotButton("Reset Pilot Session", p => { p.ResetPilotSessionForQa(); return true; });
             EditorGUILayout.HelpBox(message, MessageType.Info);
             EditorGUILayout.EndScrollView();
             if (EditorApplication.isPlaying) Repaint();
@@ -106,6 +124,23 @@ namespace SceneTalkVR.EditorTools
         {
             using (new EditorGUI.DisabledScope(!EditorApplication.isPlaying || EditorDemoSessionCoordinator.Active == null))
                 if (GUILayout.Button(label)) { var ok = run(EditorDemoSessionCoordinator.Active); if (ok && string.IsNullOrWhiteSpace(message)) message = label + " completed."; }
+        }
+        private void PilotButton(string label, System.Func<PilotCollectionSessionCoordinator, bool> run)
+        {
+            using (new EditorGUI.DisabledScope(!EditorApplication.isPlaying))
+                if (GUILayout.Button(label))
+                {
+                    var pilot = EnsurePilotCoordinator();
+                    if (pilot == null) { message = "Pilot scene bindings unavailable; open SampleScene."; return; }
+                    if (run(pilot) && string.IsNullOrWhiteSpace(message)) message = label + " completed.";
+                }
+        }
+        private static PilotCollectionSessionCoordinator EnsurePilotCoordinator()
+        {
+            var existing = Object.FindFirstObjectByType<PilotCollectionSessionCoordinator>(); if (existing != null) return existing;
+            var manager = Object.FindFirstObjectByType<ExperimentConditionManager>(); if (manager == null) return null;
+            var value = manager.gameObject.AddComponent<PilotCollectionSessionCoordinator>();
+            value.Configure(manager, Object.FindFirstObjectByType<SceneTalkOrchestrator>()); return value;
         }
         private static bool Confirm(string text) => EditorUtility.DisplayDialog("Editor Demo only", text, "Continue", "Cancel");
         private static string Summarize(EditorDemoPreflightResult r) => r.status + $" — checks={r.checks.Length}, warnings={r.warnings.Length}, blockers={r.blockers.Length}" + (r.blockers.Length > 0 ? "\n" + string.Join("\n", r.blockers) : "");

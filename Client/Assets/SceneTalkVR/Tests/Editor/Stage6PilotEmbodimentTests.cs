@@ -64,15 +64,16 @@ namespace SceneTalkVR.Tests.Editor
             finally { UnityEngine.Object.DestroyImmediate(go); }
         }
 
-        [Test] public void FloatingOrb_CreatesShowsAndHides()
+        [Test] public void FloatingOrb_RemainsVisibleAndReturnsToIdleUntilReset()
         {
             var go = new GameObject("orb-test"); try
             {
                 var presenter = go.AddComponent<PilotEmbodimentPresenter>();
                 Assert.That(presenter.Configure(presentations.Find(PilotEmbodimentCondition.FloatingOrb), PilotAudioSourcePolicy.SpatialFixedSource, false, out var error), Is.True, error);
-                Assert.That(go.GetComponent<CorrectionAgentPresenter>(), Is.Not.Null); Assert.That(presenter.HasVisualEntity, Is.False);
+                Assert.That(go.GetComponent<CorrectionAgentPresenter>(), Is.Not.Null); Assert.That(presenter.HasVisualEntity, Is.True);
                 presenter.BeginFeedback(); Assert.That(presenter.HasVisualEntity, Is.True);
-                presenter.EndFeedback(); Assert.That(presenter.HasVisualEntity, Is.False);
+                presenter.EndFeedback(); Assert.That(presenter.HasVisualEntity, Is.True);
+                presenter.ResetSession(); Assert.That(presenter.HasVisualEntity, Is.False);
             }
             finally { UnityEngine.Object.DestroyImmediate(go); }
         }
