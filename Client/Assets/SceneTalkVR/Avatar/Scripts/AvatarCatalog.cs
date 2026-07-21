@@ -97,5 +97,13 @@ namespace SceneTalkVR.AvatarSystem
             if (entry == null) { error = $"formal_avatar_preset_missing:{expectedKey}"; return false; }
             return entry.ValidateForFormal(expectedKey, expectedRole, out error);
         }
+
+        public bool ValidateEditorCollectionPreset(string expectedKey, out string error)
+        {
+            if (string.IsNullOrWhiteSpace(expectedKey)) { error = "editor_collection_avatar_key_missing"; return false; }
+            var entry = FindByKey(expectedKey);
+            if (entry == null) { error = $"editor_collection_avatar_missing:{expectedKey}"; return false; }
+            return entry.ValidateForEditorCollection(expectedKey, out error);
+        }
     }
 }

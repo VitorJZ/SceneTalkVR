@@ -8,27 +8,7 @@ namespace SceneTalkVR.Core
         public const string DetectorId = "formal_rehearsal_rule_detector_v1";
 
         public static int Evaluate(ExperimentLifecycleCoordinator lifecycle, string turnId, string transcript)
-        {
-            if (lifecycle?.Assignment == null || lifecycle.CurrentConditionAssignment == null
-                || lifecycle.Assignment.runQualification != ExperimentRunQualification.Rehearsal
-                || lifecycle.Assignment.flowMode != ExperimentFlowMode.Formal
-                || lifecycle.CurrentConditionAssignment.status != ConditionRunStatus.Running
-                || lifecycle.TechnicalValidity == ExperimentTechnicalValidity.TechnicalInvalid
-                || string.IsNullOrWhiteSpace(turnId) || string.IsNullOrWhiteSpace(transcript)) return 0;
-            var taskId = lifecycle.CurrentConditionAssignment.task?.taskId ?? string.Empty;
-            var normalized = Normalize(transcript);
-            var matches = Match(taskId, normalized);
-            var confirmed = 0;
-            foreach (var index in matches)
-            {
-                if (index < 0 || index >= lifecycle.GoalTracker.Goals.Count) continue;
-                var goal = lifecycle.GoalTracker.Goals[index];
-                if (goal.state == GoalProgressState.Confirmed) continue;
-                if (lifecycle.GoalTracker.SubmitGoalCandidate(goal.goalId, DetectorId,
-                    new GoalEvidence { turnId = turnId, transcript = transcript, confidence = .9f }, out _)) confirmed++;
-            }
-            return confirmed;
-        }
+            => GoalEvaluationOrchestrator.EvaluateUserTranscript(lifecycle, turnId, transcript);
 
         public static IReadOnlyList<int> Match(string taskId, string normalizedTranscript)
         {
@@ -39,7 +19,7 @@ namespace SceneTalkVR.Core
                     Add(result, 0, HasAny(text, "my name is", "reservation under", "reservation is under", "booking under", "booked under"));
                     Add(result, 1, Has(text, "breakfast") && HasAny(text, "included", "include", "comes with"));
                     Add(result, 2, HasAny(text, "high floor", "higher floor", "upper floor"));
-                    Add(result, 3, HasAny(text, "check out time", "checkout time", "what time do i check out", "when is check out"));
+                    Add(result, 3, HasAny(text, "check out time", "checkout time", "what time is checkout", "what time do i check out", "when is check out", "when is checkout"));
                     break;
                 case "furniture_shopping":
                     Add(result, 0, HasAny(text, "centimeter", "centimetre", "meter wide", "metre wide", "inches wide", "desk size", "dimensions"));

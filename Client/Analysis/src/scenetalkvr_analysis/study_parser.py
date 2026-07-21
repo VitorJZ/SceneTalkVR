@@ -27,8 +27,21 @@ def parse_attempts(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if event.get("eventType") not in {"ConditionStarted", "PilotConditionStarted"}:
             continue
         run = event.get("conditionRunId", "")
-        rows.append({"participantId":event.get("participantId",""),"sessionId":event.get("sessionId",""),"conditionRunId":run,"pilotRunId":run if event.get("conditionLabel") in {"voice_only","floating_orb","humanoid_agent"} else "","runAttempt":event.get("runAttempt",1),"isTechnicalInvalid":run in invalid or event.get("technicalValidity")=="TechnicalInvalid","isRetry":event.get("runAttempt",1)>1 or run in retries,"supersedesRunId":event.get("supersedesRunId",""),"isValidCompletedAttempt":run in completed and run not in invalid})
+        rows.append({"participantId":event.get("participantId",""),"sessionId":event.get("sessionId",""),"conditionRunId":run,"pilotRunId":run if event.get("conditionLabel") in {"voice_only","floating_orb","humanoid_agent"} else "","conditionCode":event.get("formalConditionCode",event.get("conditionLabel","")),"runAttempt":event.get("runAttempt",1),"isTechnicalInvalid":run in invalid or event.get("technicalValidity")=="TechnicalInvalid","isRetry":event.get("runAttempt",1)>1 or run in retries,"supersedesRunId":event.get("supersedesRunId",""),"isValidCompletedAttempt":run in completed and run not in invalid,"isPrimaryAttempt":False})
     return rows
+
+
+def mark_primary_attempts(attempts: list[dict[str, Any]], policy: str) -> None:
+    if policy != "latest_valid_completed_attempt":
+        return
+    grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
+    for row in attempts:
+        row["isPrimaryAttempt"] = False
+        grouped[(row.get("participantId", ""), row.get("sessionId", ""), row.get("conditionCode", ""))].append(row)
+    for rows in grouped.values():
+        valid = [row for row in rows if row.get("isValidCompletedAttempt")]
+        if valid:
+            max(valid, key=lambda row: (int(row.get("runAttempt", 0) or 0), rows.index(row)))["isPrimaryAttempt"] = True
 
 
 def condition_summaries(study: list[dict[str, Any]], turns: list[dict[str, Any]], goals: list[dict[str, Any]], attempts: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -44,6 +57,7 @@ def condition_summaries(study: list[dict[str, Any]], turns: list[dict[str, Any]]
         confirmed = {x.get("goalId") for x in run_goals if x.get("state") == "GoalConfirmed"}
         all_goals = {x.get("goalId") for x in run_goals if x.get("goalId")}
         result.append({"conditionRunId":run,"turnCount":len(run_turns),"validTurnCount":sum(x.get("technicalValidity")=="Valid" for x in run_turns),"technicalInvalidTurnCount":sum(x.get("technicalValidity")!="Valid" for x in run_turns),"feedbackTurnCount":len(feedback),"noFeedbackTurnCount":len(run_turns)-len(feedback),"meanUserEndToFeedbackAudioMs":_mean(latencies),"medianUserEndToFeedbackAudioMs":_median(latencies),"meanFeedbackToDialogueGapMs":_mean(gaps),"taskCompletionRate":1 if any(x.get("conditionRunId")==run and x.get("eventType") in {"ConditionCompleted","PilotConditionCompleted"} for x in study) else 0,"completedGoalCount":len(confirmed),"totalGoalCount":len(all_goals),"turnsToCompletion":len(run_turns),"conditionDurationMs":max(clocks)-min(clocks) if clocks else None,"completionReason":"completed" if run in {x.get('conditionRunId') for x in study if x.get('eventType') in {'ConditionCompleted','PilotConditionCompleted'}} else "incomplete","retryCount":sum(x.get("conditionRunId")==run and x.get("isRetry") for x in attempts)})
+        result[-1]["isPrimaryAttempt"] = any(x.get("conditionRunId") == run and x.get("isPrimaryAttempt") for x in attempts)
     return result
 
 

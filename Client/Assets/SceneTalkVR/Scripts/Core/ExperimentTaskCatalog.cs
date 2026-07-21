@@ -14,7 +14,12 @@ namespace SceneTalkVR.Core
     [Serializable]
     public sealed class ExperimentTaskGoal
     {
+        public string goalId;
         [TextArea] public string text;
+        public string evaluationIntent;
+        public string[] deterministicPatterns = Array.Empty<string>();
+        [TextArea] public string llmCriteria;
+        [Range(0f, 1f)] public float minimumConfidence = 0.85f;
     }
 
     [Serializable]
@@ -170,9 +175,15 @@ namespace SceneTalkVR.Core
             }
             else
             {
+                var goalIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var goal in task.goals)
                 {
                     if (goal == null || string.IsNullOrWhiteSpace(goal.text)) issues.Add($"{task.taskId}: goals must be non-empty");
+                    else if (string.IsNullOrWhiteSpace(goal.goalId) || !goalIds.Add(goal.goalId)
+                        || string.IsNullOrWhiteSpace(goal.evaluationIntent)
+                        || goal.deterministicPatterns == null || goal.deterministicPatterns.Length == 0
+                        || string.IsNullOrWhiteSpace(goal.llmCriteria) || goal.minimumConfidence <= 0f)
+                        issues.Add($"{task.taskId}: goal evaluation metadata is incomplete");
                 }
             }
             if (string.IsNullOrWhiteSpace(task.initialQuestion)) issues.Add($"{task.taskId}: initialQuestion missing");
@@ -182,5 +193,13 @@ namespace SceneTalkVR.Core
             if (string.IsNullOrWhiteSpace(task.roleplayPrompt)) issues.Add($"{task.taskId}: roleplayPrompt missing");
             if (string.IsNullOrWhiteSpace(task.avatarPresetKey) || task.developerPlaceholderAvatar) issues.Add($"{task.taskId}: formal avatar preset is unavailable or placeholder");
         }
+
+#if UNITY_EDITOR
+        public void EditorSet(string version, ExperimentTaskDefinition[] values)
+        {
+            catalogVersion = version;
+            tasks = values ?? Array.Empty<ExperimentTaskDefinition>();
+        }
+#endif
     }
 }

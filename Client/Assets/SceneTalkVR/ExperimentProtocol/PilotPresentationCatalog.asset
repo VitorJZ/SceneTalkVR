@@ -12,14 +12,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8c29d2d102ff4897a70d2eca71c74b32, type: 3}
   m_Name: PilotPresentationCatalog
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.PilotPresentationCatalog
-  catalogVersion: 1.1-stage6.1
+  catalogVersion: 1.2-editor-collection
   profiles:
   - embodimentCondition: 0
     visualMode: 0
     feedbackActor: voice_only_feedback_agent
-    voiceProfileKey: 101050
-    audioSourcePolicy: 0
-    sourcePosition: {x: 0.9, y: 1.45, z: 1.8}
+    voiceProfileKey: editor_collection_feedback_voice
+    audioSourcePolicy: 2
+    sourcePosition: {x: 0, y: 0, z: 0}
     spatialBlend: 0
     minDistance: 0.2
     maxDistance: 4
@@ -30,11 +30,21 @@ MonoBehaviour:
     disappearanceDelayMs: 0
     visualPrefabKey: none
     visualPrefab: {fileID: 0}
+    animatorController: {fileID: 0}
+    idleParameterOrState:
+    speakingParameterOrState:
+    spawnRotation: {x: 0, y: 0, z: 0}
+    scale: {x: 1, y: 1, z: 1}
+    audioSourceRequired: 1
+    mobileReady: 1
+    assetVersion: editor-collection-1
+    approvedForCollection: 1
+    evidenceReference: formal-editor-collection-directive-v1
     developerPlaceholder: 0
   - embodimentCondition: 1
     visualMode: 1
     feedbackActor: floating_orb_feedback_agent
-    voiceProfileKey: 101050
+    voiceProfileKey: editor_collection_feedback_voice
     audioSourcePolicy: 1
     sourcePosition: {x: 0.9, y: 1.45, z: 1.8}
     spatialBlend: 1
@@ -47,11 +57,21 @@ MonoBehaviour:
     disappearanceDelayMs: 0
     visualPrefabKey: generated_orb_v1
     visualPrefab: {fileID: 0}
+    animatorController: {fileID: 0}
+    idleParameterOrState:
+    speakingParameterOrState:
+    spawnRotation: {x: 0, y: 0, z: 0}
+    scale: {x: 1, y: 1, z: 1}
+    audioSourceRequired: 1
+    mobileReady: 1
+    assetVersion: editor-collection-1
+    approvedForCollection: 1
+    evidenceReference: formal-editor-collection-directive-v1
     developerPlaceholder: 0
   - embodimentCondition: 2
     visualMode: 2
     feedbackActor: humanoid_feedback_agent
-    voiceProfileKey: 101050
+    voiceProfileKey: editor_collection_feedback_voice
     audioSourcePolicy: 1
     sourcePosition: {x: 0.9, y: 0, z: 1.8}
     spatialBlend: 1
@@ -62,6 +82,16 @@ MonoBehaviour:
     subtitlePolicy: feedback_only
     appearanceDelayMs: 0
     disappearanceDelayMs: 0
-    visualPrefabKey: humanoid_feedback_agent_pending
-    visualPrefab: {fileID: 0}
-    developerPlaceholder: 1
+    visualPrefabKey: teacher_female_humanoid_v1
+    visualPrefab: {fileID: 996461390545780520, guid: f996e4fd27273468099629141107f6ed, type: 3}
+    animatorController: {fileID: 22100000, guid: 7ef0b5dcf11c2460eaee00cd1498f325, type: 2}
+    idleParameterOrState: Idle
+    speakingParameterOrState: Talking
+    spawnRotation: {x: 0, y: 180, z: 0}
+    scale: {x: 1, y: 1, z: 1}
+    audioSourceRequired: 1
+    mobileReady: 1
+    assetVersion: editor-collection-1
+    approvedForCollection: 1
+    evidenceReference: formal-editor-collection-directive-v1
+    developerPlaceholder: 0

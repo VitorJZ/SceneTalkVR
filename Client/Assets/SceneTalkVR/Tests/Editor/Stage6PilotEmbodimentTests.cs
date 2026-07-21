@@ -32,15 +32,12 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(labels.Distinct().Count(), Is.EqualTo(3));
         }
 
-        [Test] public void OfficialLockedPilot_RemainsBlockedByUnconfirmedDecisionsAndHumanoid()
+        [Test] public void OfficialLockedPilot_UsesConfirmedDecisionsAndApprovedPresentations()
         {
-            Assert.That(protocol.TryResolvePilotDecisions(out _, out _, out var decisionError), Is.False);
-            StringAssert.Contains("pilot_feedback_style_unconfirmed", decisionError);
-            StringAssert.Contains("voice_only_spatial_audio_unconfirmed", decisionError);
-            Assert.That(presentations.ValidateLocked(protocol, out var presentationError), Is.False);
-            StringAssert.Contains("humanoid_prefab_missing_or_placeholder", presentationError);
-            Assert.That(new PilotAssignmentAllocator().TryCreateLocked("p", "s", protocol, tasks, presentations, out _, out var error), Is.False);
-            StringAssert.Contains("pilot_sequences_unconfirmed", error);
+            Assert.That(protocol.TryResolvePilotDecisions(out _, out _, out var decisionError), Is.True, decisionError);
+            Assert.That(presentations.ValidateLocked(protocol, out var presentationError), Is.True, presentationError);
+            Assert.That(new PilotAssignmentAllocator().TryCreateLocked("p", "s", protocol, tasks, presentations, out var assignment, out var error), Is.True, error);
+            Assert.That(assignment, Is.Not.Null);
         }
 
         [Test] public void PresentationProfiles_ShareVoiceAndControlledParameters()

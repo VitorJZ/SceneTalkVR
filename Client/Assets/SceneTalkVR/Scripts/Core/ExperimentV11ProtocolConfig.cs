@@ -52,6 +52,19 @@ namespace SceneTalkVR.Core
         [SerializeField] private string buildVersion = "stage7-20260719";
         [SerializeField] private ExperimentPhase experimentPhase = ExperimentPhase.Formal;
         [SerializeField] private bool formalModeLocked = true;
+        [SerializeField] private string protocolPurpose = "ParticipantCollection";
+        [SerializeField] private bool approvedForCollection;
+        [SerializeField] private string approvalAuthority;
+        [SerializeField] private string approvalEvidence;
+        [SerializeField] private string protocolSnapshotId;
+
+        [Header("Official Participant Flow")]
+        [SerializeField] private FormalConditionOrderPolicy formalConditionOrderPolicy = FormalConditionOrderPolicy.Undefined;
+        [SerializeField] private string formalTaskAssignmentPolicy;
+        [SerializeField] private GoalConfirmationPolicy goalConfirmationPolicy = GoalConfirmationPolicy.ExperimenterReview;
+        [SerializeField] private QuestionnaireReturnPolicy questionnaireTransitionPolicy = QuestionnaireReturnPolicy.Undefined;
+        [SerializeField] private string finalTransitionPolicy;
+        [SerializeField] private string primaryAttemptPolicy;
 
         [Header("Formal Conditions")]
         [SerializeField] private string[] formalConditionCodes = { "NE", "NR", "SE", "SR" };
@@ -90,6 +103,17 @@ namespace SceneTalkVR.Core
         public string BuildVersion => buildVersion?.Trim() ?? string.Empty;
         public ExperimentPhase ExperimentPhase => experimentPhase;
         public bool FormalModeLocked => formalModeLocked;
+        public string ProtocolPurpose => protocolPurpose?.Trim() ?? string.Empty;
+        public bool ApprovedForCollection => approvedForCollection;
+        public string ApprovalAuthority => approvalAuthority?.Trim() ?? string.Empty;
+        public string ApprovalEvidence => approvalEvidence?.Trim() ?? string.Empty;
+        public string ProtocolSnapshotId => protocolSnapshotId?.Trim() ?? string.Empty;
+        public FormalConditionOrderPolicy FormalConditionOrderPolicy => formalConditionOrderPolicy;
+        public string FormalTaskAssignmentPolicy => formalTaskAssignmentPolicy?.Trim() ?? string.Empty;
+        public GoalConfirmationPolicy GoalConfirmationPolicy => goalConfirmationPolicy;
+        public QuestionnaireReturnPolicy QuestionnaireTransitionPolicy => questionnaireTransitionPolicy;
+        public string FinalTransitionPolicy => finalTransitionPolicy?.Trim() ?? string.Empty;
+        public string PrimaryAttemptPolicy => primaryAttemptPolicy?.Trim() ?? string.Empty;
         public IReadOnlyList<string> FormalConditionCodes => formalConditionCodes;
         public IReadOnlyList<ExperimentConditionSequenceDefinition> ConditionSequenceDefinitions => conditionSequenceDefinitions;
         public IReadOnlyList<string> PilotEmbodimentOptions => pilotEmbodimentOptions;
@@ -168,6 +192,16 @@ namespace SceneTalkVR.Core
             if (string.IsNullOrWhiteSpace(ProtocolVersion)) issues.Add("protocolVersion is empty");
             if (string.IsNullOrWhiteSpace(BuildVersion)) issues.Add("buildVersion is empty");
             if (!FormalModeLocked) issues.Add("formalModeLocked is false");
+            if (!ApprovedForCollection || !string.Equals(ProtocolPurpose, "ParticipantCollection", StringComparison.Ordinal)
+                || string.IsNullOrWhiteSpace(ApprovalAuthority) || string.IsNullOrWhiteSpace(ApprovalEvidence)
+                || string.IsNullOrWhiteSpace(ProtocolSnapshotId)) issues.Add("official collection approval metadata is incomplete");
+            if (formalConditionOrderPolicy != FormalConditionOrderPolicy.ParticipantChoice
+                || formalTaskAssignmentPolicy != "random_bijection_without_replacement"
+                || goalConfirmationPolicy != GoalConfirmationPolicy.AutomaticOnValidatedDetection
+                || questionnaireTransitionPolicy != QuestionnaireReturnPolicy.ReturnToModeSelection
+                || finalTransitionPolicy != "open_final_ranking_after_four_conditions"
+                || primaryAttemptPolicy != "latest_valid_completed_attempt")
+                issues.Add("official participant-flow policy is incomplete");
             if (!HasExactlyFormalConditions()) issues.Add("formalConditionCodes must contain NE, NR, SE, SR exactly once");
             if (requiredDecisions == null || requiredDecisions.Length == 0)
             {
@@ -190,6 +224,34 @@ namespace SceneTalkVR.Core
             error = issues.Count == 0 ? string.Empty : string.Join("; ", issues);
             return issues.Count == 0;
         }
+
+#if UNITY_EDITOR
+        public void EditorSetOfficialCollection(string version, string build, string snapshotId,
+            ExperimentProtocolDecision[] decisions, ExperimentProtocolChange[] changes)
+        {
+            protocolVersion = version;
+            buildVersion = build;
+            experimentPhase = ExperimentPhase.Formal;
+            formalModeLocked = true;
+            protocolPurpose = "ParticipantCollection";
+            approvedForCollection = true;
+            approvalAuthority = "ProjectLead";
+            approvalEvidence = "formal-editor-collection-directive-v1";
+            protocolSnapshotId = snapshotId;
+            formalConditionCodes = new[] { "NE", "NR", "SE", "SR" };
+            formalTaskIds = new[] { "hotel_check_in", "furniture_shopping", "gym_membership", "tourist_assistance" };
+            pilotTaskIds = new[] { "pilot_restaurant_walk_in", "pilot_restaurant_ordering", "pilot_restaurant_wrong_dish" };
+            pilotEmbodimentOptions = new[] { "voice_only", "floating_orb", "humanoid_agent" };
+            formalConditionOrderPolicy = FormalConditionOrderPolicy.ParticipantChoice;
+            formalTaskAssignmentPolicy = "random_bijection_without_replacement";
+            goalConfirmationPolicy = GoalConfirmationPolicy.AutomaticOnValidatedDetection;
+            questionnaireTransitionPolicy = QuestionnaireReturnPolicy.ReturnToModeSelection;
+            finalTransitionPolicy = "open_final_ranking_after_four_conditions";
+            primaryAttemptPolicy = "latest_valid_completed_attempt";
+            requiredDecisions = decisions ?? Array.Empty<ExperimentProtocolDecision>();
+            changeLog = changes ?? Array.Empty<ExperimentProtocolChange>();
+        }
+#endif
 
         private static bool TryParseMap(string value, string[] requiredKeys, string[] allowedValues, out Dictionary<string,string> map, out string error)
         {

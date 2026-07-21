@@ -15,7 +15,7 @@ from scenetalkvr_analysis.dictionary import TABLES, rows as dictionary_rows
 from scenetalkvr_analysis.pipeline import AnalysisError, analyze_bundle, validate_bundle
 from scenetalkvr_analysis.questionnaire_parser import parse_questionnaire
 from scenetalkvr_analysis.scoring import reverse_score
-from scenetalkvr_analysis.study_parser import parse_attempts, parse_goals
+from scenetalkvr_analysis.study_parser import mark_primary_attempts, parse_attempts, parse_goals
 from scenetalkvr_analysis.timing_parser import parse_turns
 
 
@@ -104,6 +104,16 @@ def test_34_editor_demo_explicit_test_mode_is_never_primary(tmp_path):
     write_json(root/"manifest.json",manifest);write_checksums(root)
     cfg=config_file(tmp_path,False);value=json.loads(cfg.read_text());value["includeDemoForTesting"]=True;write_json(cfg,value)
     result=analyze_bundle(root,tmp_path/"out",cfg);assert result["dataOrigin"]=="editor_demo";assert not result["primaryAnalysisGenerated"]
+
+def test_35_official_collection_policy_generates_primary_dataset(tmp_path):
+    root=make_bundle(tmp_path/"collection","formal",collection=True);cfg=config_file(tmp_path,False,collection=True);value=json.loads(cfg.read_text());value["primaryAttemptPolicy"]="latest_valid_completed_attempt";write_json(cfg,value)
+    result=analyze_bundle(root,tmp_path/"out",cfg);assert result["primaryAnalysisGenerated"];assert result["primaryAttemptPolicy"]=="latest_valid_completed_attempt"
+    with (tmp_path/"out"/"all_attempts.csv").open(encoding="utf-8-sig") as stream: rows=list(csv.DictReader(stream))
+    assert len(rows)==1 and rows[0]["isPrimaryAttempt"]=="True"
+
+def test_36_latest_valid_completed_attempt_retains_invalid_and_marks_latest():
+    rows=[{"participantId":"p","sessionId":"s","conditionCode":"NE","conditionRunId":"bad","runAttempt":1,"isValidCompletedAttempt":False},{"participantId":"p","sessionId":"s","conditionCode":"NE","conditionRunId":"valid-1","runAttempt":2,"isValidCompletedAttempt":True},{"participantId":"p","sessionId":"s","conditionCode":"NE","conditionRunId":"valid-2","runAttempt":3,"isValidCompletedAttempt":True}]
+    mark_primary_attempts(rows,"latest_valid_completed_attempt");assert len(rows)==3;assert [x["conditionRunId"] for x in rows if x["isPrimaryAttempt"]]==["valid-2"]
 
 
 def config_file(root: Path, include: bool, collection: bool=False) -> Path:

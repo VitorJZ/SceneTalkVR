@@ -264,7 +264,9 @@ namespace SceneTalkVR.Core
 
         public string DraftPath => ActiveSession == null ? string.Empty : Path.Combine(DefaultFolder,
             $"{Safe(ActiveSession.participantId)}_{Safe(ActiveSession.sessionId)}_{Safe(ActiveSession.questionnaireLinkageKey)}_questionnaire_draft.json");
-        public static string DefaultFolder => RehearsalSessionCoordinator.Active != null && RehearsalSessionCoordinator.Active.IsActive
+        public static string DefaultFolder => EditorCollectionSessionCoordinator.Active != null && EditorCollectionSessionCoordinator.Active.IsArmed
+            ? EditorCollectionSessionCoordinator.Active.CurrentDataFolder
+            : RehearsalSessionCoordinator.Active != null && RehearsalSessionCoordinator.Active.IsActive
             ? RehearsalSessionCoordinator.Active.CurrentDataFolder
             : EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsDemoMode
             ? EditorDemoSessionCoordinator.Active.CurrentDataFolder
@@ -323,7 +325,7 @@ namespace SceneTalkVR.Core
         public static void AppendResponses(string folder, QuestionnaireSession session)
         {
             Directory.CreateDirectory(folder);
-            var stem = $"{session.participantId}_{session.sessionId}_questionnaire_responses_v1";
+            var stem = $"{FileToken(session.participantId)}_{FileToken(session.sessionId)}_questionnaire_responses_v1";
             var json = Path.Combine(folder, stem + ".jsonl"); var csv = Path.Combine(folder, stem + ".csv");
             if (!File.Exists(csv)) File.WriteAllText(csv, CsvHeader + Environment.NewLine, Encoding.UTF8);
             foreach (var r in session.responses ?? Array.Empty<QuestionnaireResponse>())
@@ -333,9 +335,10 @@ namespace SceneTalkVR.Core
             }
         }
         public static void AppendRanking(string folder, PreferenceRankingResponse response)
-        { Directory.CreateDirectory(folder); File.AppendAllText(Path.Combine(folder, $"{response.participantId}_{response.sessionId}_ranking_v1.jsonl"), JsonUtility.ToJson(response) + Environment.NewLine, Encoding.UTF8); }
+        { Directory.CreateDirectory(folder); File.AppendAllText(Path.Combine(folder, $"{FileToken(response.participantId)}_{FileToken(response.sessionId)}_ranking_v1.jsonl"), JsonUtility.ToJson(response) + Environment.NewLine, Encoding.UTF8); }
         public static void AppendInterview(string folder, InterviewNote note)
-        { Directory.CreateDirectory(folder); File.AppendAllText(Path.Combine(folder, $"{note.participantId}_{note.sessionId}_interview_v1.jsonl"), JsonUtility.ToJson(note) + Environment.NewLine, Encoding.UTF8); }
+        { Directory.CreateDirectory(folder); File.AppendAllText(Path.Combine(folder, $"{FileToken(note.participantId)}_{FileToken(note.sessionId)}_interview_v1.jsonl"), JsonUtility.ToJson(note) + Environment.NewLine, Encoding.UTF8); }
+        private static string FileToken(string value) { var safe = string.Concat((value ?? "unknown").Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)); return safe.Length <= 24 ? safe : safe.Substring(0, 24); }
         private static string Csv(string value) => "\"" + (value ?? string.Empty).Replace("\"", "\"\"") + "\"";
     }
 }

@@ -73,7 +73,7 @@ namespace SceneTalkVR.Tests.Editor
             }
         }
 
-        [Test] public void TouristAssistance_IsCompleteExceptPendingAvatarPreset()
+        [Test] public void TouristAssistance_HasApprovedEditorCollectionAvatarPreset()
         {
             var task = Catalog.Find("tourist_assistance");
             Assert.That(task, Is.Not.Null);
@@ -81,15 +81,14 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(task.scenarioId, Is.EqualTo("tourist_assistance"));
             Assert.That(task.avatarRole, Is.EqualTo("tourist information officer"));
             Assert.That(task.voiceProfileKey, Is.Not.Empty);
-            Assert.That(task.developerPlaceholderAvatar, Is.True);
-            Assert.That(task.avatarPresetKey, Is.Empty);
+            Assert.That(task.developerPlaceholderAvatar, Is.False);
+            Assert.That(task.avatarPresetKey, Is.EqualTo("teacher_female_humanoid_v1"));
         }
 
-        [Test] public void FormalValidation_BlocksPendingAvatarPresetsWithoutReportingPanoramaMissing()
+        [Test] public void FormalValidation_AcceptsApprovedEditorCollectionTaskResources()
         {
-            Assert.That(Catalog.ValidateFormal(null, out var error), Is.False);
-            Assert.That(error, Does.Contain("avatar preset"));
-            Assert.That(error, Does.Not.Contain("local panorama missing"));
+            Assert.That(Catalog.ValidateFormal(null, out var error), Is.True, error);
+            Assert.That(error, Is.Empty);
         }
 
         [Test] public void FormalValidation_FailsWhenLocalPanoramaIsMissing()

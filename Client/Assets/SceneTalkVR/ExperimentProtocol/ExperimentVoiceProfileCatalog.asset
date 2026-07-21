@@ -12,8 +12,44 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 69a709347d30c1042b09fd86832eda2e, type: 3}
   m_Name: ExperimentVoiceProfileCatalog
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentVoiceProfileCatalog
-  catalogVersion: 1.1-stage7
-  formalExplicitFeedbackProfileKey:
-  formalRecastFeedbackProfileKey:
-  pilotSharedFeedbackProfileKey:
-  profiles: []
+  catalogVersion: 1.2-editor-collection
+  formalExplicitFeedbackProfileKey: editor_collection_feedback_voice
+  formalRecastFeedbackProfileKey: editor_collection_feedback_voice
+  pilotSharedFeedbackProfileKey: editor_collection_feedback_voice
+  profiles:
+  - voiceProfileKey: editor_collection_dialogue_voice
+    provider: tencent
+    voiceId: 101050
+    language: en-US
+    speakingSpeed: 1
+    volume: 1
+    pitch: 1
+    sampleRate: 24000
+    subtitlePolicy: 3
+    approvedForCollection: 1
+    approvedForEditorDemo: 0
+    approvedForRehearsal: 0
+    approvedForEditorCollection: 1
+    replaceableAsset: 1
+    offlineDemoVoice: 0
+    approvedBy: ProjectLead
+    evidenceReference: formal-editor-collection-directive-v1
+    assetVersion: editor-collection-1
+  - voiceProfileKey: editor_collection_feedback_voice
+    provider: tencent
+    voiceId: 101050
+    language: en-US
+    speakingSpeed: 1
+    volume: 1
+    pitch: 1
+    sampleRate: 24000
+    subtitlePolicy: 2
+    approvedForCollection: 1
+    approvedForEditorDemo: 0
+    approvedForRehearsal: 0
+    approvedForEditorCollection: 1
+    replaceableAsset: 1
+    offlineDemoVoice: 0
+    approvedBy: ProjectLead
+    evidenceReference: formal-editor-collection-directive-v1
+    assetVersion: editor-collection-1

@@ -29,58 +29,22 @@ namespace SceneTalkVR.Tests.PlayMode
         };
 
         [UnityTest]
-        public IEnumerator DeveloperTaskPath_ShowsReadOnlyGoals_AndExitClearsSession()
+        public IEnumerator OfficialStartWithoutArmedSession_DoesNotExposeLegacyTaskSelection()
         {
             SceneManager.LoadScene("SampleScene", LoadSceneMode.Single);
             yield return null;
             yield return null;
 
-            var lifecycleType = Type.GetType("SceneTalkVR.Core.ExperimentLifecycleCoordinator, Assembly-CSharp");
-            Assert.That(lifecycleType, Is.Not.Null);
-            var lifecycle = FindSceneComponent(lifecycleType);
-            Assert.That(lifecycle, Is.Not.Null);
-
             InvokeButton("Start");
             yield return null;
-            InvokeButton("Gym Membership");
-
-            var panel = FindTransform("ReadOnlyTaskGoalPanel");
-            Assert.That(panel, Is.Not.Null);
-            yield return WaitFor(() => panel.gameObject.activeInHierarchy, 10f, "Gym Goal Panel did not become visible.");
-            Assert.That(panel.GetComponentsInChildren<Button>(true), Is.Empty, "Participant Goal Panel must stay read-only.");
-
-            var goalText = panel.GetComponentsInChildren<Text>(true).Single(x => x.name == "GoalStateText");
-            AssertGoals(goalText.text, "gym_membership", GymGoals);
-            var tracker = lifecycleType.GetProperty("GoalTracker")!.GetValue(lifecycle);
-            AssertTrackerGoals(tracker, GymGoals);
-
-            var assignment = lifecycleType.GetProperty("Assignment")!.GetValue(lifecycle);
-            Assert.That(assignment, Is.Not.Null);
-            Assert.That(ReadField<string>(assignment, "dataOrigin"), Is.EqualTo("developer_manual"));
-            Assert.That(ReadField<bool>(assignment, "collectionEligible"), Is.False);
-            Assert.That(ReadField<bool>(assignment, "developerTestAssignment"), Is.True);
-            Assert.That(lifecycleType.GetProperty("ConditionRunId")!.GetValue(lifecycle) as string, Is.Not.Empty);
-            Assert.That(lifecycleType.GetProperty("QuestionnaireLinkageKey")!.GetValue(lifecycle) as string, Is.Not.Empty);
-
-            InvokeButton("Exit");
-            yield return null;
-            yield return null;
-            Assert.That(panel.gameObject.activeInHierarchy, Is.False);
-            Assert.That(goalText.text, Is.Empty);
-            AssertTrackerGoals(tracker, Array.Empty<string>());
-            Assert.That(lifecycleType.GetProperty("Assignment")!.GetValue(lifecycle), Is.Null);
-
-            InvokeButton("Start");
-            yield return null;
-            InvokeButton("Hotel Check-In");
-            yield return WaitFor(() => panel.gameObject.activeInHierarchy, 10f, "Hotel Goal Panel did not become visible.");
-            AssertGoals(goalText.text, "hotel_check_in", HotelGoals);
-            foreach (var gymGoal in GymGoals) Assert.That(goalText.text, Does.Not.Contain(gymGoal));
-            AssertTrackerGoals(tracker, HotelGoals);
+            Assert.That(FindActiveButton("Gym Membership"), Is.Null);
+            var prompt = FindTransform("SessionNotPreparedPanel");
+            Assert.That(prompt, Is.Not.Null);
+            Assert.That(prompt.gameObject.activeInHierarchy, Is.True);
         }
 
         [UnityTest]
-        public IEnumerator FormalProtocol_RemainsBlockedByElevenUnconfirmedDecisions()
+        public IEnumerator FormalProtocol_HasElevenConfirmedDecisions()
         {
             SceneManager.LoadScene("SampleScene", LoadSceneMode.Single);
             yield return null;
@@ -92,12 +56,11 @@ namespace SceneTalkVR.Tests.PlayMode
             var decisions = ((IEnumerable)protocol.GetType().GetProperty("RequiredDecisions")!.GetValue(protocol))
                 .Cast<object>().ToArray();
             Assert.That(decisions, Has.Length.EqualTo(11));
-            Assert.That(decisions.Count(x => ReadField<object>(x, "status").ToString() == "Unconfirmed"), Is.EqualTo(11));
+            Assert.That(decisions.Count(x => ReadField<object>(x, "status").ToString() == "Confirmed"), Is.EqualTo(11));
 
             var args = new object[] { null };
             var valid = (bool)protocol.GetType().GetMethod("ValidateForFormalMode")!.Invoke(protocol, args);
-            Assert.That(valid, Is.False);
-            Assert.That(args[0] as string, Does.Contain("unconfirmed protocol decision"));
+            Assert.That(valid, Is.True, args[0] as string);
         }
 
         private static IEnumerator WaitFor(Func<bool> predicate, float timeoutSeconds, string failure)
@@ -115,6 +78,10 @@ namespace SceneTalkVR.Tests.PlayMode
             Assert.That(button, Is.Not.Null, $"Active button '{label}' was not found.");
             button.onClick.Invoke();
         }
+
+        private static Button FindActiveButton(string label) => Resources.FindObjectsOfTypeAll<Button>()
+            .FirstOrDefault(x => x.gameObject.scene.IsValid() && x.gameObject.activeInHierarchy
+                && x.GetComponentInChildren<Text>(true)?.text == label);
 
         private static Transform FindTransform(string name) => Resources.FindObjectsOfTypeAll<Transform>()
             .FirstOrDefault(x => x.gameObject.scene.IsValid() && x.name == name);

@@ -27,4 +27,8 @@ MonoBehaviour:
     approvedForRehearsal: 1
     loopbackAllowedForRehearsal: 1
     collectionAllowed: 0
+    target: 0
+    loopbackAllowed: 0
+    picoRequired: 0
+    approvedForEditorCollection: 0
     evidenceReference: scenetalkvr-rehearsal-baseline-v1

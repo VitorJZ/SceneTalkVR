@@ -17,7 +17,11 @@ namespace SceneTalkVR.Core
         InterviewStarted, InterviewCompleted, ConditionCompleted, ConditionTechnicalInvalid,
         ConditionAborted, ExperimentCompleted
         , GoalCollectionReset, GoalProgressChanged, GoalAutoConfirmed,
-        FormalConditionSelected, TaskLimitReachedWithoutCompletion
+        FormalConditionSelected, TaskLimitReachedWithoutCompletion,
+        ParticipantSessionArmed, FormalModeSelectionShown, FormalModeSelected, ConditionTaskResolved,
+        UserTranscriptFinalized, GoalEvaluationStarted, GoalEvaluationCompleted, AllGoalsConfirmed,
+        QuestionnaireOpened, QuestionnaireResponseChanged, ReturnedToModeSelection,
+        AllFormalConditionsCompleted, FinalRankingOpened
     }
 
     [Serializable]
@@ -32,6 +36,7 @@ namespace SceneTalkVR.Core
         public string questionnaireLinkageKey;
         public string sequenceId;
         public int conditionPosition;
+        public int runAttempt;
         public string formalConditionCode;
         public string taskId;
         public string taskAssignmentId;
@@ -63,6 +68,12 @@ namespace SceneTalkVR.Core
         public string formalConditionOrderPolicy;
         public string taskAssignmentPolicy;
         public int participantSelectionPosition;
+        public string evidenceTranscript;
+        public float confidence;
+        public string evaluatorVersion;
+        public string evaluationReason;
+        public string deploymentProfile;
+        public string primaryAttemptPolicy;
     }
 
     [DisallowMultipleComponent]
@@ -79,6 +90,7 @@ namespace SceneTalkVR.Core
         private int conditionStartTurn;
         private bool goalEventsSubscribed;
         private bool taskCompletionObserved;
+        private readonly List<string> recentUserTurns = new List<string>();
 
         public event Action QuestionnaireRequested;
         public event Action QuestionnaireSubmitted;
@@ -130,6 +142,16 @@ namespace SceneTalkVR.Core
             maxDurationMinutes = Mathf.Max(0f, durationMinutes);
         }
 
+        public string[] RecordFinalUserTranscript(string transcript)
+        {
+            if (!string.IsNullOrWhiteSpace(transcript))
+            {
+                recentUserTurns.Add(transcript.Trim());
+                while (recentUserTurns.Count > 6) recentUserTurns.RemoveAt(0);
+            }
+            return recentUserTurns.ToArray();
+        }
+
         private void EnsureGoalSubscription()
         {
             if (goalEventsSubscribed) return;
@@ -170,6 +192,30 @@ namespace SceneTalkVR.Core
             return true;
         }
 
+        public bool ResumeCondition(int position, IEnumerable<GoalProgressRecord> restoredGoals, out string error)
+        {
+            error = string.Empty;
+            if (assignment?.conditions == null || position < 0 || position >= assignment.conditions.Length)
+            { error = "condition_assignment_missing"; return false; }
+            var item = assignment.conditions[position];
+            if (item.status != ConditionRunStatus.Running && item.status != ConditionRunStatus.AwaitingQuestionnaire
+                && item.status != ConditionRunStatus.QuestionnaireInProgress)
+            { error = "condition_not_resumable:" + item.status; return false; }
+            currentCondition = item;
+            recentUserTurns.Clear();
+            ConditionRunId = item.latestConditionRunId ?? string.Empty;
+            QuestionnaireLinkageKey = string.IsNullOrWhiteSpace(ConditionRunId) ? string.Empty : "ql-" + ConditionRunId;
+            if (!conditionManager.ApplyFormalAssignment(item.formalConditionCode, item.task.taskId, out error,
+                assignment.participantId, assignment.experimentSessionId)) return false;
+            var task = conditionManager.TaskCatalog.Find(item.task.taskId);
+            goalTracker.RestoreGoals(task, CreateGoalContext(task), restoredGoals);
+            taskCompletionObserved = goalTracker.AreAllConfirmed;
+            conditionStartedUtc = DateTime.UtcNow;
+            conditionStartTurn = conditionManager.CurrentTurnIndex;
+            if (item.status == ConditionRunStatus.Running) orchestrator?.LoadAssignedTask(item.task.taskId);
+            return true;
+        }
+
         public bool CreateOrLoadFormalAssignment(string participantId, string sessionId, AssignmentPolicy policy, out string error)
         {
             error = string.Empty;
@@ -204,6 +250,7 @@ namespace SceneTalkVR.Core
             { error = "technical_retry_requires_explicit_authorization"; return false; }
 
             conditionManager.ResetConditionSessionBoundary();
+            recentUserTurns.Clear();
             currentCondition = next;
             assignment.status = AssignmentStatus.Active;
             currentCondition.runAttempt++;
@@ -315,10 +362,13 @@ namespace SceneTalkVR.Core
             goalTracker.SubmitGoalCandidate(goalId, source, new GoalEvidence { turnId = turnId, transcript = transcript }, out error);
 
         public bool ConfirmGoalByExperimenter(string goalId, string experimenterId, string note, out string error) =>
-            goalTracker.ConfirmGoal(goalId, experimenterId, note, out error);
+            goalTracker.ConfirmGoalByExperimenter(goalId, experimenterId, note, out error);
 
         public bool RejectGoalByExperimenter(string goalId, string experimenterId, string reason, out string error) =>
             goalTracker.RejectGoal(goalId, experimenterId, reason, out error);
+
+        public bool UndoGoalByExperimenter(string goalId, string experimenterId, string reason, out string error) =>
+            goalTracker.UndoGoal(goalId, experimenterId, reason, out error);
 
         public bool ShouldEndForLimit(out string reason)
         {
@@ -366,7 +416,7 @@ namespace SceneTalkVR.Core
             WriteEvent(StudyEventType.QuestionnaireSubmitted, actor: actor);
             currentCondition.status = ConditionRunStatus.Completed;
             WriteEvent(StudyEventType.ConditionCompleted, reason: CompletionReason, actor: actor);
-            if (AllConditionsCompleted()) { assignment.status = AssignmentStatus.Completed; WriteEvent(StudyEventType.ExperimentCompleted, actor: actor); }
+            if (AllConditionsCompleted()) { assignment.status = AssignmentStatus.Completed; WriteEvent(StudyEventType.AllFormalConditionsCompleted, actor: actor); }
             QuestionnaireSubmitted?.Invoke();
             error = string.Empty; return true;
         }
@@ -390,6 +440,14 @@ namespace SceneTalkVR.Core
 
         public void RecordStudyEvent(StudyEventType type, string actor = "system", string reason = "") => WriteEvent(type, actor: actor, reason: reason);
 
+        public void RecordGoalEvaluationEvent(StudyEventType type, string turnId, string goalId,
+            string transcript, float confidence, string evaluatorVersion, string reason)
+        {
+            WriteEvent(type, goalId: goalId, turnId: turnId, actor: "system_goal_evaluator", reason: reason,
+                evidenceTranscript: transcript, confidence: confidence, evaluatorVersion: evaluatorVersion,
+                evaluationReason: reason);
+        }
+
         public void MarkTechnicalInvalid(string reason)
         {
             if (currentCondition == null) return;
@@ -410,6 +468,7 @@ namespace SceneTalkVR.Core
         public void ResetSession()
         {
             goalTracker.ResetGoals(null);
+            recentUserTurns.Clear();
             conditionStartedUtc = default;
             conditionStartTurn = 0;
             CompletionReason = string.Empty;
@@ -424,15 +483,32 @@ namespace SceneTalkVR.Core
         public void ClearAssignmentForRuntimeMode()
         {
             goalTracker.ResetGoals(null);
+            recentUserTurns.Clear();
             assignment = null; currentCondition = null; ConditionRunId = string.Empty; QuestionnaireLinkageKey = string.Empty;
             conditionStartedUtc = default; conditionStartTurn = 0; CompletionReason = string.Empty;
             TechnicalValidity = ExperimentTechnicalValidity.Valid;
         }
 
+        public void ClearCurrentConditionBoundary()
+        {
+            goalTracker.ResetGoals(null);
+            recentUserTurns.Clear();
+            currentCondition = null;
+            ConditionRunId = string.Empty;
+            QuestionnaireLinkageKey = string.Empty;
+            conditionStartedUtc = default;
+            conditionStartTurn = 0;
+            CompletionReason = string.Empty;
+            TechnicalValidity = ExperimentTechnicalValidity.Valid;
+            taskCompletionObserved = false;
+        }
+
         private void OnGoalChanged(GoalProgressRecord goal, string action)
         {
             var type = action == "confirmed" ? StudyEventType.GoalConfirmed : action == "rejected" ? StudyEventType.GoalRejected : StudyEventType.GoalCandidateSubmitted;
-            WriteEvent(type, goal.goalId, goal.evidenceTurnId, action == "candidate" ? goal.candidateSource : goal.confirmedBy, goal.rejectionReason);
+            WriteEvent(type, goal.goalId, goal.evidenceTurnId, action == "candidate" ? goal.candidateSource : goal.confirmedBy,
+                goal.rejectionReason, evidenceTranscript: goal.evidenceTranscript, confidence: goal.confidence,
+                evaluatorVersion: goal.evaluatorVersion, evaluationReason: goal.evaluationReason);
         }
 
         private void OnAllGoalsConfirmed(GoalProgressChangedEvent value)
@@ -442,6 +518,7 @@ namespace SceneTalkVR.Core
                 || !string.Equals(value.taskAssignmentId, currentCondition.task?.taskAssignmentId, StringComparison.Ordinal)) return;
             if (TechnicalValidity == ExperimentTechnicalValidity.TechnicalInvalid) return;
             taskCompletionObserved = true;
+            WriteEvent(StudyEventType.AllGoalsConfirmed, actor: value.actor);
             CompleteTask("all_goals_confirmed", value.actor == GoalProgressTracker.AutomaticConfirmationActor
                 ? GoalProgressTracker.AutomaticConfirmationActor : "system");
         }
@@ -468,7 +545,8 @@ namespace SceneTalkVR.Core
             conditionRunId = ConditionRunId ?? string.Empty,
             taskAssignmentId = currentCondition?.task?.taskAssignmentId ?? string.Empty,
             taskId = task?.taskId ?? string.Empty,
-            confirmationPolicy = assignment != null && assignment.runQualification == ExperimentRunQualification.Rehearsal
+            confirmationPolicy = assignment != null && (assignment.runQualification == ExperimentRunQualification.Rehearsal
+                || assignment.runQualification == ExperimentRunQualification.Collection)
                 ? GoalConfirmationPolicy.AutomaticOnValidatedDetection
                 : GoalConfirmationPolicy.ExperimenterReview
         };
@@ -480,7 +558,8 @@ namespace SceneTalkVR.Core
             return true;
         }
 
-        private void WriteEvent(StudyEventType type, string goalId = "", string turnId = "", string actor = "", string reason = "", ExperimentTechnicalValidity validity = ExperimentTechnicalValidity.Valid)
+        private void WriteEvent(StudyEventType type, string goalId = "", string turnId = "", string actor = "", string reason = "", ExperimentTechnicalValidity validity = ExperimentTechnicalValidity.Valid,
+            string evidenceTranscript = "", float confidence = 0f, string evaluatorVersion = "", string evaluationReason = "")
         {
             if (assignment == null) return;
             var record = new StudyEventRecord
@@ -489,6 +568,7 @@ namespace SceneTalkVR.Core
                 sessionId = assignment.experimentSessionId, conditionRunId = ConditionRunId ?? string.Empty,
                 questionnaireLinkageKey = QuestionnaireLinkageKey ?? string.Empty, sequenceId = assignment.sequenceId,
                 conditionPosition = currentCondition?.conditionPosition ?? -1, formalConditionCode = currentCondition?.formalConditionCode.ToString() ?? string.Empty,
+                runAttempt = currentCondition?.runAttempt ?? 0,
                 taskId = currentCondition?.task?.taskId ?? string.Empty, taskAssignmentId = currentCondition?.task?.taskAssignmentId ?? string.Empty,
                 goalId = goalId ?? string.Empty, turnId = turnId ?? string.Empty, actor = actor ?? string.Empty,
                 reason = reason ?? string.Empty, technicalValidity = validity.ToString(),
@@ -505,10 +585,16 @@ namespace SceneTalkVR.Core
                 formalConditionOrderPolicy = assignment.formalConditionOrderPolicy ?? string.Empty,
                 taskAssignmentPolicy = assignment.taskAssignmentPolicy ?? string.Empty,
                 participantSelectionPosition = currentCondition?.participantSelectionPosition ?? -1
+                ,evidenceTranscript = evidenceTranscript ?? string.Empty, confidence = confidence,
+                evaluatorVersion = evaluatorVersion ?? string.Empty, evaluationReason = evaluationReason ?? string.Empty,
+                deploymentProfile = assignment.deploymentProfile ?? string.Empty,
+                primaryAttemptPolicy = assignment.primaryAttemptPolicy ?? string.Empty
             };
             try
             {
-                var folder = assignment.runQualification == ExperimentRunQualification.Rehearsal && RehearsalSessionCoordinator.Active != null
+                var folder = assignment.runQualification == ExperimentRunQualification.Collection && EditorCollectionSessionCoordinator.Active != null
+                    ? EditorCollectionSessionCoordinator.Active.CurrentDataFolder
+                    : assignment.runQualification == ExperimentRunQualification.Rehearsal && RehearsalSessionCoordinator.Active != null
                     ? RehearsalSessionCoordinator.Active.CurrentDataFolder
                     : assignment.demoMode && EditorDemoSessionCoordinator.Active != null
                     ? EditorDemoSessionCoordinator.Active.CurrentDataFolder
@@ -516,8 +602,11 @@ namespace SceneTalkVR.Core
                 Directory.CreateDirectory(folder);
                 File.AppendAllText(Path.Combine(folder, $"{assignment.participantId}_{assignment.experimentSessionId}_study_events_v1.jsonl"),
                     JsonUtility.ToJson(record) + Environment.NewLine, Encoding.UTF8);
-                ExperimentAssignmentAllocator.Save(assignment,
-                    ExperimentAssignmentAllocator.DefaultPath(assignment.participantId, assignment.experimentSessionId));
+                var assignmentPath = assignment.runQualification == ExperimentRunQualification.Collection
+                    && EditorCollectionSessionCoordinator.Active != null
+                    ? Path.Combine(EditorCollectionSessionCoordinator.Active.CurrentDataFolder, "formal_assignment.json")
+                    : ExperimentAssignmentAllocator.DefaultPath(assignment.participantId, assignment.experimentSessionId);
+                ExperimentAssignmentAllocator.Save(assignment, assignmentPath);
             }
             catch (Exception ex) { Debug.LogWarning($"[Experiment] Study event write failed: {ex.Message}", this); }
         }

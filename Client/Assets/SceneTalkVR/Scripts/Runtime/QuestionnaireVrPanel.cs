@@ -22,6 +22,10 @@ namespace SceneTalkVR.Runtime
         private int page;
         private bool submitConfirmationArmed;
         private readonly List<GameObject> pageObjects = new List<GameObject>();
+        private readonly Dictionary<string, Button> likertButtons = new Dictionary<string, Button>();
+        private readonly Dictionary<string, int> itemPages = new Dictionary<string, int>();
+        private string activeLinkageKey;
+        private bool submissionInProgress;
 
         private void Awake()
         {
@@ -40,8 +44,16 @@ namespace SceneTalkVR.Runtime
         private void OnQuestionnaireChanged(QuestionnaireSession session)
         {
             if (session == null) { if (panel != null) panel.SetActive(false); return; }
-            EnsureBuilt(); RebuildPages(); ShowPage(Mathf.Clamp(session.currentPage, 0, Mathf.Max(0, pageObjects.Count - 1)));
+            EnsureBuilt();
+            if (!string.Equals(activeLinkageKey, session.questionnaireLinkageKey, StringComparison.Ordinal))
+            {
+                activeLinkageKey = session.questionnaireLinkageKey;
+                RebuildPages();
+            }
+            ShowPage(Mathf.Clamp(session.currentPage, 0, Mathf.Max(0, pageObjects.Count - 1)), false);
+            RefreshLikertSelection(session);
             panel.SetActive(session.completionStatus != QuestionnaireCompletionStatus.Submitted);
+            if (panel.activeSelf) panel.transform.SetAsLastSibling();
         }
 
         private void EnsureBuilt()
@@ -52,6 +64,7 @@ namespace SceneTalkVR.Runtime
             if (worldCanvas == null) return;
             panel = Node(worldCanvas.transform, "QuestionnairePanel");
             var image = panel.AddComponent<Image>(); image.color = new Color(0.035f, 0.05f, 0.08f, 0.97f);
+            var group = panel.AddComponent<CanvasGroup>(); group.alpha = 1f; group.interactable = true; group.blocksRaycasts = true;
             var rect = panel.GetComponent<RectTransform>(); rect.anchoredPosition = Vector2.zero; rect.sizeDelta = new Vector2(920f, 560f);
             progressText = Label(panel.transform, "Progress", "", new Vector2(0, 238), new Vector2(820, 40), 22);
             validationText = Label(panel.transform, "RequiredStatus", "", new Vector2(0, -198), new Vector2(800, 36), 18);
@@ -66,6 +79,7 @@ namespace SceneTalkVR.Runtime
         {
             foreach (var child in pageObjects) if (child != null) Destroy(child);
             pageObjects.Clear();
+            likertButtons.Clear(); itemPages.Clear();
             if (content == null || controller?.Service.Definition == null) return;
             var definition = controller.Service.Definition;
             var enabled = controller.GetComponent<ExperimentConditionManager>().QuestionnaireCatalog
@@ -79,15 +93,19 @@ namespace SceneTalkVR.Runtime
                 var y = 116f;
                 foreach (var item in items)
                 {
+                    itemPages[item.itemId] = pageObjects.Count - 1;
                     Label(pageRoot.transform, "Prompt_" + item.itemId, item.promptChinese + "\n" + item.promptEnglish,
-                        new Vector2(-70, y), new Vector2(650, 62), 17, TextAnchor.MiddleLeft);
+                        new Vector2(-150, y), new Vector2(500, 62), 17, TextAnchor.MiddleLeft);
                     if (item.itemType == QuestionnaireItemType.Likert)
                     {
                         for (var value = item.scaleMin; value <= item.scaleMax; value++)
                         {
                             var capturedItem = item.itemId; var capturedValue = value;
-                            Button(pageRoot.transform, $"{item.itemId}_{value}", value.ToString(), new Vector2(328 + (value - item.scaleMax) * 44, y),
-                                () => { controller.SetResponse(capturedItem, capturedValue.ToString(), out var error); validationText.text = error; });
+                            var button = Button(pageRoot.transform, $"{item.itemId}_{value}", value.ToString(),
+                                new Vector2(136 + (value - item.scaleMin) * 44, y),
+                                () => { controller.SetResponse(capturedItem, capturedValue.ToString(), out var error); validationText.text = Humanize(error); },
+                                new Vector2(40, 42));
+                            likertButtons[capturedItem + ":" + capturedValue] = button;
                         }
                     }
                     y -= 82f;
@@ -95,7 +113,8 @@ namespace SceneTalkVR.Runtime
             }
         }
 
-        public void ShowPage(int value)
+        public void ShowPage(int value) => ShowPage(value, true);
+        private void ShowPage(int value, bool recordNavigation)
         {
             if (pageObjects.Count == 0) return;
             page = Mathf.Clamp(value, 0, pageObjects.Count - 1); submitConfirmationArmed = false;
@@ -104,16 +123,52 @@ namespace SceneTalkVR.Runtime
             previousButton.interactable = page > 0; nextButton.interactable = page < pageObjects.Count - 1;
             submitButton.gameObject.SetActive(page == pageObjects.Count - 1);
             submitButton.GetComponentInChildren<Text>().text = "Submit";
-            controller.CompletePage(page, out _);
+            if (recordNavigation) controller.CompletePage(page, out _);
         }
         public void Previous() => ShowPage(page - 1);
         public void Next() => ShowPage(page + 1);
         public void Submit()
         {
-            if (!controller.Service.CanSubmit(out var error)) { validationText.text = error; return; }
+            if (submissionInProgress) return;
+            if (!controller.Service.CanSubmit(out var error))
+            {
+                validationText.text = Humanize(error);
+                if (error != null && error.StartsWith("required_item_missing:", StringComparison.Ordinal))
+                {
+                    var itemId = error.Substring("required_item_missing:".Length);
+                    if (itemPages.TryGetValue(itemId, out var targetPage)) ShowPage(targetPage);
+                }
+                return;
+            }
             if (!submitConfirmationArmed) { submitConfirmationArmed = true; validationText.text = "Press again to confirm submission."; submitButton.GetComponentInChildren<Text>().text = "Confirm"; return; }
-            if (!controller.Submit(out error)) { validationText.text = error; return; }
+            submissionInProgress = true;
+            if (!controller.Submit(out error)) { submissionInProgress = false; validationText.text = Humanize(error); return; }
+            submissionInProgress = false;
             validationText.text = "Submitted"; panel.SetActive(false);
+        }
+
+        private void RefreshLikertSelection(QuestionnaireSession session)
+        {
+            var selected = (session.responses ?? Array.Empty<QuestionnaireResponse>())
+                .Where(x => !string.IsNullOrWhiteSpace(x.rawValue)).ToDictionary(x => x.itemId, x => x.rawValue);
+            foreach (var pair in likertButtons)
+            {
+                var split = pair.Key.LastIndexOf(':');
+                var item = split < 0 ? pair.Key : pair.Key.Substring(0, split);
+                var value = split < 0 ? string.Empty : pair.Key.Substring(split + 1);
+                pair.Value.GetComponent<Image>().color = selected.TryGetValue(item, out var current) && current == value
+                    ? new Color(.12f, .68f, .34f, 1f) : new Color(0.12f, 0.38f, 0.62f, 1f);
+            }
+            if (validationText != null && session.completionStatus != QuestionnaireCompletionStatus.Submitted)
+                validationText.text = session.hasMissing ? "Please answer all required items." : "All required items are answered.";
+        }
+
+        private static string Humanize(string error)
+        {
+            if (string.IsNullOrWhiteSpace(error)) return string.Empty;
+            if (error.StartsWith("required_item_missing:", StringComparison.Ordinal)) return "Please answer every required question before submitting.";
+            if (error == "questionnaire_already_submitted") return "This questionnaire has already been submitted.";
+            return "Unable to submit: " + error;
         }
 
         private void ApplyUserScale()
@@ -129,10 +184,11 @@ namespace SceneTalkVR.Runtime
             text.color = Color.white; text.fontSize = fontSize; text.alignment = anchor; text.horizontalOverflow = HorizontalWrapMode.Wrap; text.verticalOverflow = VerticalWrapMode.Overflow;
             var rect = text.rectTransform; rect.anchoredPosition = position; rect.sizeDelta = size; return text;
         }
-        private static Button Button(Transform parent, string name, string value, Vector2 position, UnityEngine.Events.UnityAction action)
+        private static Button Button(Transform parent, string name, string value, Vector2 position,
+            UnityEngine.Events.UnityAction action, Vector2? size = null)
         {
             var go = Node(parent, name); var image = go.AddComponent<Image>(); image.color = new Color(0.12f, 0.38f, 0.62f, 1f);
-            var button = go.AddComponent<Button>(); button.onClick.AddListener(action); var rect = go.GetComponent<RectTransform>(); rect.anchoredPosition = position; rect.sizeDelta = new Vector2(112, 42);
+            var button = go.AddComponent<Button>(); button.onClick.AddListener(action); var rect = go.GetComponent<RectTransform>(); rect.anchoredPosition = position; rect.sizeDelta = size ?? new Vector2(112, 42);
             var label = Label(go.transform, "Label", value, Vector2.zero, rect.sizeDelta, 18); label.raycastTarget = false; return button;
         }
     }

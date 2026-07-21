@@ -12,41 +12,23 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d96bab79c29fb79439b971b211928eca, type: 3}
   m_Name: ExperimentDeploymentCatalog
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentDeploymentCatalog
-  catalogVersion: 1.1-stage7
+  catalogVersion: 1.2-editor-collection
   profiles:
-  - profileId: 0
-    voiceGatewayBaseUrl:
+  - profileId: 6
+    voiceGatewayBaseUrl: http://127.0.0.1:8787
     requestTimeoutSeconds: 30
-    sttProvider: unconfirmed
-    ttsProvider: unconfirmed
-    microphonePolicy: editor_default
-    networkRequired: 0
-    approvedForCollection: 0
-    evidenceReference:
-  - profileId: 1
-    voiceGatewayBaseUrl:
-    requestTimeoutSeconds: 30
-    sttProvider: unconfirmed
-    ttsProvider: unconfirmed
-    microphonePolicy: runtime_permission_required
+    sttProvider: voice_gateway_live_stt
+    ttsProvider: tencent
+    microphonePolicy: UnityEditor default microphone
     networkRequired: 1
-    approvedForCollection: 0
-    evidenceReference:
-  - profileId: 2
-    voiceGatewayBaseUrl:
-    requestTimeoutSeconds: 30
-    sttProvider: unconfirmed
-    ttsProvider: unconfirmed
-    microphonePolicy: runtime_permission_required
-    networkRequired: 1
-    approvedForCollection: 0
-    evidenceReference:
-  - profileId: 3
-    voiceGatewayBaseUrl:
-    requestTimeoutSeconds: 5
-    sttProvider: mock
-    ttsProvider: mock
-    microphonePolicy: disabled
-    networkRequired: 0
-    approvedForCollection: 0
-    evidenceReference:
+    approvedForCollection: 1
+    approvedForEditorDemo: 0
+    loopbackAllowedForEditorDemo: 0
+    approvedForRehearsal: 0
+    loopbackAllowedForRehearsal: 0
+    collectionAllowed: 1
+    target: 1
+    loopbackAllowed: 1
+    picoRequired: 0
+    approvedForEditorCollection: 1
+    evidenceReference: formal-editor-collection-directive-v1

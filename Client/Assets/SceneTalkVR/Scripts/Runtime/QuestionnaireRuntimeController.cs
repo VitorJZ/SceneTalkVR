@@ -58,7 +58,12 @@ namespace SceneTalkVR.Runtime
             return true;
         }
 
-        public bool SetResponse(string itemId, string rawValue, out string error) => service.SetResponse(itemId, rawValue, out error);
+        public bool SetResponse(string itemId, string rawValue, out string error)
+        {
+            if (!service.SetResponse(itemId, rawValue, out error)) return false;
+            lifecycle?.RecordStudyEvent(StudyEventType.QuestionnaireResponseChanged, "participant", $"itemId={itemId};value={rawValue}");
+            return true;
+        }
 
         public bool CompletePage(int pageIndex, out string error)
         {

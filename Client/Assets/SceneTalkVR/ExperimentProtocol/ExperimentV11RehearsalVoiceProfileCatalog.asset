@@ -29,6 +29,8 @@ MonoBehaviour:
     approvedForCollection: 0
     approvedForEditorDemo: 0
     approvedForRehearsal: 1
+    approvedForEditorCollection: 0
+    replaceableAsset: 0
     offlineDemoVoice: 0
     approvedBy: Project Lead Approval
     evidenceReference: scenetalkvr-rehearsal-baseline-v1
@@ -45,6 +47,8 @@ MonoBehaviour:
     approvedForCollection: 0
     approvedForEditorDemo: 0
     approvedForRehearsal: 1
+    approvedForEditorCollection: 0
+    replaceableAsset: 0
     offlineDemoVoice: 0
     approvedBy: Project Lead Approval
     evidenceReference: scenetalkvr-rehearsal-baseline-v1

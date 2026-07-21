@@ -230,19 +230,22 @@ namespace SceneTalkVR.Runtime
                 var lifecycle = manager.LifecycleCoordinator;
                 var rehearsalPrepared = RehearsalSessionCoordinator.Active != null
                     && RehearsalSessionCoordinator.Active.IsTaskPrepared(taskId);
+                var collectionPrepared = EditorCollectionSessionCoordinator.Active != null
+                    && EditorCollectionSessionCoordinator.Active.IsTaskPrepared(taskId);
                 var demoPrepared = EditorDemoSessionCoordinator.Active != null
                     && EditorDemoSessionCoordinator.Active.IsTaskPrepared(taskId);
                 var prepareDeveloperSession = !manager.IsFormalExperiment
                     && !rehearsalPrepared
+                    && !collectionPrepared
                     && !demoPrepared
                     && definition != null
                     && definition.phase == ExperimentTaskPhase.Formal
                     && lifecycle != null;
                 var assignmentError = string.Empty;
-                var prepared = rehearsalPrepared || demoPrepared || (prepareDeveloperSession
+                var prepared = collectionPrepared || rehearsalPrepared || demoPrepared || (prepareDeveloperSession
                     ? lifecycle.PrepareDeveloperTaskSession(taskId, out assignmentError)
                     : manager.LoadAssignedTask(taskId, out assignmentError));
-                if (rehearsalPrepared || demoPrepared) assignmentError = string.Empty;
+                if (collectionPrepared || rehearsalPrepared || demoPrepared) assignmentError = string.Empty;
                 if (!prepared)
                 {
                     LastError = assignmentError;
@@ -320,6 +323,12 @@ namespace SceneTalkVR.Runtime
                 var rehearsalAvatarKey = RehearsalSessionCoordinator.Active.ResolveFormalAvatarKey(taskId);
                 if (!string.IsNullOrWhiteSpace(rehearsalAvatarKey)) initialPayload.avatarRole.presetKey = rehearsalAvatarKey;
                 initialPayload.avatarRole.voiceProfileKey = "rehearsal_dialogue_voice";
+            }
+            if (EditorCollectionSessionCoordinator.Active != null && EditorCollectionSessionCoordinator.Active.IsArmed)
+            {
+                var collectionAvatarKey = EditorCollectionSessionCoordinator.Active.ResolveFormalAvatarKey(taskId);
+                if (!string.IsNullOrWhiteSpace(collectionAvatarKey)) initialPayload.avatarRole.presetKey = collectionAvatarKey;
+                initialPayload.avatarRole.voiceProfileKey = "editor_collection_dialogue_voice";
             }
 
             ApplyExperimentConditionToPayload(initialPayload);
@@ -486,6 +495,14 @@ namespace SceneTalkVR.Runtime
             activeSpeechCaptureMode = SpeechCaptureMode.None;
             IsAwaitingTurnReviewAction = false;
             ClearCorrectionReviewState();
+            foreach (var module in FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (module == this || module is ExperimentLifecycleCoordinator || module is QuestionnaireRuntimeController
+                    || module is PilotWorkflowCoordinator) continue;
+                if (module is ISceneTalkSessionReset reset) reset.ResetSession();
+            }
+            foreach (var source in FindObjectsByType<AudioSource>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (source != null && source.isPlaying) source.Stop();
             SetState(SceneTalkState.TurnReview);
         }
 
@@ -525,6 +542,25 @@ namespace SceneTalkVR.Runtime
 
             manager?.ResetConditionSessionBoundary();
 
+            SetState(SceneTalkState.Idle);
+        }
+
+        public void ResetForConditionSelection()
+        {
+            finishRequested = true;
+            CancelActiveSpeechCapture();
+            if (currentTurn != null) { StopCoroutine(currentTurn); currentTurn = null; }
+            LastTranscript = string.Empty;
+            LastScenePayload = null;
+            LastError = string.Empty;
+            ClearCorrectionReviewState();
+            IsDialogueActive = false;
+            IsSpeechRecording = false;
+            activeSpeechCaptureMode = SpeechCaptureMode.None;
+            ClearPresentedSceneIfSupported();
+            AvatarSessionReset?.ClearAvatar();
+            if (brainModule is ISceneTalkSessionReset brainReset) brainReset.ResetSession();
+            ResolveExperimentConditionManager(false)?.ResetConditionSessionBoundary();
             SetState(SceneTalkState.Idle);
         }
 
@@ -828,7 +864,7 @@ namespace SceneTalkVR.Runtime
 
             currentTurn = null;
             var dialogueGoalManager = ResolveExperimentConditionManager(false);
-            ValidatedRehearsalGoalDetector.Evaluate(dialogueGoalManager?.LifecycleCoordinator, dialogueGoalManager?.CurrentTurnId, transcript);
+            GoalEvaluationOrchestrator.EvaluateUserTranscript(dialogueGoalManager?.LifecycleCoordinator, dialogueGoalManager?.CurrentTurnId, transcript);
             EnterTurnReviewState();
         }
 

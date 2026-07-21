@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "1.0",
+  "generatedAtUtc": "2026-07-21T04:08:05.2794607Z",
+  "branch": "experiment-v1.1-integration",
+  "baselineCommit": "a7e482c87458b4c93a3300d41728e6b0e9b6b14e",
+  "implementationCommit": "SELF: fix(experiment): complete formal editor collection participant flow",
+  "protocolVersion": "1.2.0-editor-collection",
+  "unityVersion": "6000.3.16f1",
+  "deploymentProfile": "editor_collection",
+  "results": {
+    "compile": { "status": "PASS", "consoleErrors": 0 },
+    "editMode": { "status": "PASS", "passed": 247, "failed": 0, "skipped": 0 },
+    "playMode": { "status": "PASS", "passed": 36, "failed": 0, "skipped": 0 },
+    "pythonPytest": { "status": "PASS", "passed": 40, "failed": 0 },
+    "preflightEditorFormalCollection": "READY",
+    "preflightPilotCollection": "READY",
+    "picoDeployment": "NOT_VALIDATED",
+    "sampleSceneMissingScripts": 0,
+    "consoleErrorsAfterManualFlow": 0,
+    "voiceGatewayHealth": { "status": "PASS", "endpoint": "http://127.0.0.1:8787/health", "provider": "tencent" },
+    "manualGameView": {
+      "operatorArmStartModeSelection": "PASS",
+      "hotelReservationNameRule": "PASS",
+      "fourGoalsAutoQuestionnaire": "PASS",
+      "likertSelectionAndVisualState": "PASS",
+      "submitCloseAndReturn": "PASS",
+      "fourConditionsAndRanking": "PASS",
+      "resumeMappingRunAndGoalSnapshot": "PASS",
+      "microphoneToSttPhysicalSpeech": "NOT_EXECUTED_NO_HUMAN_MICROPHONE_INPUT",
+      "qualification": "QA_NON_COLLECTION",
+      "qaAutomationUsed": true,
+      "collectionEligible": false,
+      "bundleExportExpectedResult": "BLOCKED_collection_bundle_identity_invalid"
+    }
+  },
+  "readiness": {
+    "editorParticipantCollectionReady": false,
+    "participantCollectionReady": false,
+    "editorReleaseCandidateEligible": false,
+    "picoParticipantCollectionReady": false,
+    "basis": "Configuration preflight is READY, but the directive permits these release flags only after a physical microphone run and a genuine participant bundle pass.",
+    "remainingOperatorCheck": "Run one human microphone participant session, export and audit its collection-eligible bundle, then set the three Editor release flags true."
+  }
+}

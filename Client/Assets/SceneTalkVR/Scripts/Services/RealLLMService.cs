@@ -224,6 +224,16 @@ namespace SceneTalkVR.Runtime.Services
             }
         }
 
+        public async Task<string> GenerateStructuredGoalEvaluationAsync(string requestJson)
+        {
+            const string systemPrompt = "You are a strict task-goal evaluator. Return one JSON object only, matching the supplied GoalEvaluationResult schema. Evaluate only the participant transcript, only goal IDs supplied in currentGoalDefinitions, and never infer completion without explicit evidence. For every goal return goalId, achieved, confidence from 0 to 1, evidence copied from the participant transcript, reason, and evaluatorVersion=goal_evaluator_v1.2.0+structured_llm.";
+            var responseJson = await SendChatRequest(systemPrompt, requestJson, true);
+            var response = JsonUtility.FromJson<OpenAiResponse>(responseJson);
+            if (response?.choices == null || response.choices.Length == 0 || string.IsNullOrWhiteSpace(response.choices[0].message?.content))
+                throw new InvalidOperationException("Structured goal evaluation response was empty.");
+            return response.choices[0].message.content;
+        }
+
         #endregion
 
         #region Dialogue Multi-Turn Helpers

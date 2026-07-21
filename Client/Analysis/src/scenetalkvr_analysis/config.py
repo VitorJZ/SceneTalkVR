@@ -12,7 +12,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "includeDemoForTesting": False,
     "requireCollectionEligible": True,
     "requireIntegrityPass": True,
-    "primaryAttemptPolicy": "UNCONFIRMED",
+    "primaryAttemptPolicy": "latest_valid_completed_attempt",
     "timingToleranceMs": 0,
     "includeTranscriptText": False,
     "includeInterviewTextInAggregate": False,

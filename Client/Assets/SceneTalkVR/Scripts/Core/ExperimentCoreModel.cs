@@ -12,6 +12,7 @@ namespace SceneTalkVR.Core
     public enum ExperimentTechnicalValidity { Valid, Retry, FallbackUsed, TechnicalInvalid }
     public enum ExperimentFlowMode { DeveloperManual, Formal, Pilot, Synthetic }
     public enum ExperimentRunQualification { Development, Rehearsal, Collection }
+    public enum ExperimentDeploymentTarget { Undefined, UnityEditor, Pico }
     public enum ExperimentRuntimeMode
     {
         DeveloperManual,
@@ -19,7 +20,8 @@ namespace SceneTalkVR.Core
         EditorDemoPilot,
         SyntheticDryRun,
         LockedFormalCollection,
-        LockedPilotCollection
+        LockedPilotCollection,
+        EditorCollectionFormal
     }
 
     [Serializable]
@@ -33,6 +35,8 @@ namespace SceneTalkVR.Core
         public string resourceSnapshotId;
         public string dataOrigin;
         public bool collectionEligible;
+        public ExperimentDeploymentTarget deploymentTarget;
+        public string deploymentProfile;
 
         public bool IsValidCombination => IsAllowed(flowMode, qualification);
         public bool IsRehearsal => qualification == ExperimentRunQualification.Rehearsal;
@@ -59,6 +63,24 @@ namespace SceneTalkVR.Core
                 resourceSnapshotId = resourceSnapshotId?.Trim() ?? string.Empty,
                 dataOrigin = "rehearsal",
                 collectionEligible = false
+            };
+        }
+
+        public static ExperimentRuntimeContext CreateEditorCollection(string participantId, string sessionId,
+            string protocolSnapshotId, string resourceSnapshotId)
+        {
+            return new ExperimentRuntimeContext
+            {
+                flowMode = ExperimentFlowMode.Formal,
+                qualification = ExperimentRunQualification.Collection,
+                participantId = participantId?.Trim() ?? string.Empty,
+                sessionId = sessionId?.Trim() ?? string.Empty,
+                protocolSnapshotId = protocolSnapshotId?.Trim() ?? string.Empty,
+                resourceSnapshotId = resourceSnapshotId?.Trim() ?? string.Empty,
+                dataOrigin = "participant_collection",
+                collectionEligible = true,
+                deploymentTarget = ExperimentDeploymentTarget.UnityEditor,
+                deploymentProfile = "editor_collection"
             };
         }
     }
@@ -138,6 +160,10 @@ namespace SceneTalkVR.Core
         public bool collectionEligible;
         public ExperimentRuntimeMode runtimeMode;
         public bool demoMode;
+        public bool synthetic;
+        public bool qaAutomationUsed;
+        public string deploymentProfile;
+        public string primaryAttemptPolicy;
         public string demoProtocolVersion;
         public ExperimentFlowMode flowMode;
         public ExperimentRunQualification runQualification;

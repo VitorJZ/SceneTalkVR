@@ -41,7 +41,13 @@ namespace SceneTalkVR.Tests.Editor
 
         [Test] public void Assignment_ResumeCompatibilityDoesNotReinterpretV1()
         {
-            var old = new ExperimentAssignment { assignmentVersion = "1.0", protocolVersion = "1.1-rehearsal-1", taskCatalogVersion = catalog.CatalogVersion };
+            var old = new ExperimentAssignment
+            {
+                assignmentVersion = "1.0",
+                protocolVersion = "1.1-rehearsal-2",
+                taskCatalogVersion = catalog.CatalogVersion,
+                formalConditionOrderPolicy = "participant_choice"
+            };
             Assert.That(ExperimentAssignmentAllocator.IsCompatible(old, "1.1-rehearsal-2", catalog.CatalogVersion, out var reason), Is.False);
             Assert.That(reason, Is.EqualTo("assignment_version_changed"));
         }
@@ -113,8 +119,9 @@ namespace SceneTalkVR.Tests.Editor
             var report = PanoramaAssetValidator.ValidateAll();
             Assert.That(report.panoramas, Has.Length.EqualTo(5));
             Assert.That(report.generatorCapability, Is.EqualTo(PanoramaAssetValidator.GeneratorCapability));
-            Assert.That(report.result, Is.EqualTo("FAIL"), "Legacy square assets must not be reported as valid equirectangular panoramas.");
-            Assert.That(report.panoramas.Count(x => !x.dimensionValid), Is.GreaterThanOrEqualTo(4));
+            Assert.That(report.result, Is.EqualTo("FAIL"), "The retained Pilot restaurant panorama is still square and must remain explicit.");
+            Assert.That(report.panoramas.Count(x => !x.dimensionValid), Is.EqualTo(1));
+            Assert.That(report.panoramas.Single(x => !x.dimensionValid).resourceKey, Does.Contain("restaurant"));
         }
 
         [Test] public void PanoramaMemoryEstimate_UsesAstcBlocksAndMipmaps()

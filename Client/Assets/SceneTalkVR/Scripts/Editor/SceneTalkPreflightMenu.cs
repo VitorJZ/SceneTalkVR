@@ -35,6 +35,7 @@ namespace SceneTalkVR.EditorTools
         private const string PilotPresentationCatalogPath = "Assets/SceneTalkVR/ExperimentProtocol/PilotPresentationCatalog.asset";
         private const string VoiceProfileCatalogPath = "Assets/SceneTalkVR/ExperimentProtocol/ExperimentVoiceProfileCatalog.asset";
         private const string DeploymentCatalogPath = "Assets/SceneTalkVR/ExperimentProtocol/ExperimentDeploymentCatalog.asset";
+        private const string EditorCollectionResourcePath = "Assets/SceneTalkVR/ExperimentProtocol/ExperimentEditorCollectionResources.asset";
         private const string AndroidPackageName = "com.scenetalkvr.demo";
         private const string PicoOpenXrDefine = "PICO_OPENXR_SDK";
         private const string OpenXrLoaderTypeName = "UnityEngine.XR.OpenXR.OpenXRLoader";
@@ -221,6 +222,7 @@ namespace SceneTalkVR.EditorTools
             var pilotPresentations = AssetDatabase.LoadAssetAtPath<PilotPresentationCatalog>(PilotPresentationCatalogPath);
             var voiceProfiles = AssetDatabase.LoadAssetAtPath<ExperimentVoiceProfileCatalog>(VoiceProfileCatalogPath);
             var deployments = AssetDatabase.LoadAssetAtPath<ExperimentDeploymentCatalog>(DeploymentCatalogPath);
+            var editorCollectionResources = AssetDatabase.LoadAssetAtPath<EditorCollectionResourceCatalog>(EditorCollectionResourcePath);
             var configAppliers = FindAll<SceneTalkRuntimeConfigApplier>();
             var voiceClients = FindAll<VoiceGatewayClient>();
             var holodeckServices = FindAll<HolodeckSceneService>();
@@ -314,7 +316,7 @@ namespace SceneTalkVR.EditorTools
             foreach (var task in taskCatalog?.GetTasks(ExperimentTaskPhase.Formal) ?? new System.Collections.Generic.List<ExperimentTaskDefinition>())
             {
                 var avatarError = avatarCatalog == null ? "avatar_catalog_missing" : string.Empty;
-                var avatarValid = avatarCatalog != null && avatarCatalog.ValidateExactFormalPreset(task.avatarPresetKey, task.avatarRole, out avatarError);
+                var avatarValid = avatarCatalog != null && avatarCatalog.ValidateEditorCollectionPreset(task.avatarPresetKey, out avatarError);
                 AppendCheck(report, avatarValid, avatarValid ? $"{task.taskId} exact formal avatar valid" : $"{task.taskId} avatar blocked: {avatarError}");
                 var texture = Resources.Load<Texture2D>(task.panoramaResourceKey);
                 AppendCheck(report, texture != null && texture.width == texture.height * 2 && texture.width >= 2048, texture == null ? $"{task.taskId} panorama missing" : $"{task.taskId} panorama is collection-grade 2:1 (actual {texture.width}x{texture.height})");
@@ -324,6 +326,20 @@ namespace SceneTalkVR.EditorTools
             AppendCheck(report, formalProtocolValid, formalProtocolValid
                 ? "Formal Mode decisions are confirmed"
                 : $"Formal Mode is blocked until protocol decisions are confirmed: {formalProtocolError}");
+            var editorResourceError = editorCollectionResources == null ? "editor_collection_resource_catalog_missing" : string.Empty;
+            var editorResourcesValid = editorCollectionResources != null
+                && editorCollectionResources.Validate(taskCatalog, voiceProfiles, deployments, out editorResourceError);
+            var editorDeploymentError = deployments == null ? "deployment_catalog_missing" : string.Empty;
+            var editorDeploymentValid = deployments != null
+                && deployments.ValidateForCollection(ExperimentDeploymentProfileId.EditorCollection, out editorDeploymentError);
+            AppendSection(report, "Deployment Readiness Summary");
+            AppendCheck(report, formalProtocolValid && taskCatalogValid && questionnaireValid && voiceValid
+                && editorResourcesValid && editorDeploymentValid,
+                formalProtocolValid && taskCatalogValid && questionnaireValid && voiceValid && editorResourcesValid && editorDeploymentValid
+                    ? "Editor Formal Collection: READY"
+                    : $"Editor Formal Collection: BLOCKED ({formalProtocolError};{editorResourceError};{editorDeploymentError})");
+            AppendCheck(report, lockedPilotValid, lockedPilotValid ? "Pilot Collection: READY" : $"Pilot Collection: BLOCKED ({lockedPilotError})");
+            report.AppendLine("- [INFO] PICO Deployment: NOT VALIDATED (does not block Editor Collection)");
             AppendCheck(report, configAppliers.Length >= 1, $"Scene has runtime config applier (found {configAppliers.Length})");
             AppendCheck(report, HasRequiredSceneReferences(configAppliers, experimentManagers), "Required runtime, protocol, and avatar catalog references are assigned");
             AppendCheck(report, !string.IsNullOrWhiteSpace(effectiveVoiceUrl), "Voice gateway URL is configured");

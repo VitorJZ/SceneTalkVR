@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace SceneTalkVR.Core
 {
-    public enum ExperimentDeploymentProfileId { DevelopmentEditor, PicoLab, PicoPortable, MockOffline, EditorDemo, RehearsalEditor }
+    public enum ExperimentDeploymentProfileId { DevelopmentEditor, PicoLab, PicoPortable, MockOffline, EditorDemo, RehearsalEditor, EditorCollection }
 
     [Serializable]
     public sealed class ExperimentDeploymentProfile
@@ -23,6 +23,10 @@ namespace SceneTalkVR.Core
         public bool approvedForRehearsal;
         public bool loopbackAllowedForRehearsal;
         public bool collectionAllowed;
+        public ExperimentDeploymentTarget target;
+        public bool loopbackAllowed;
+        public bool picoRequired;
+        public bool approvedForEditorCollection;
         public string evidenceReference;
 
         public string EndpointHost
@@ -48,6 +52,10 @@ namespace SceneTalkVR.Core
             if (profile.requestTimeoutSeconds <= 0) issues.Add("deployment_timeout_invalid");
             if (profile.networkRequired && string.IsNullOrWhiteSpace(profile.voiceGatewayBaseUrl)) issues.Add("deployment_endpoint_empty");
             if ((id == ExperimentDeploymentProfileId.PicoLab || id == ExperimentDeploymentProfileId.PicoPortable) && IsLoopback(profile.voiceGatewayBaseUrl)) issues.Add("pico_endpoint_loopback_forbidden");
+            if (id == ExperimentDeploymentProfileId.EditorCollection
+                && (profile.target != ExperimentDeploymentTarget.UnityEditor || !profile.approvedForEditorCollection
+                    || !profile.loopbackAllowed || profile.picoRequired || !IsLoopback(profile.voiceGatewayBaseUrl)))
+                issues.Add("editor_collection_deployment_invalid");
             if (ContainsMock(profile.sttProvider) || ContainsMock(profile.ttsProvider)) issues.Add("mock_provider_forbidden_for_collection");
             if (ContainsSecretMaterial(profile.voiceGatewayBaseUrl)) issues.Add("deployment_endpoint_contains_secret_material");
             error = string.Join("; ", issues); return issues.Count == 0;

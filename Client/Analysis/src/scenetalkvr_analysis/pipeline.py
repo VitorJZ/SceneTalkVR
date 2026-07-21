@@ -17,7 +17,7 @@ from .quality_control import qc_summary
 from .questionnaire_parser import parse_questionnaire
 from .ranking_parser import parse_rankings
 from .report import markdown_qc
-from .study_parser import condition_summaries, parse_attempts, parse_goals
+from .study_parser import condition_summaries, mark_primary_attempts, parse_attempts, parse_goals
 from .timing_parser import parse_turns
 
 
@@ -40,11 +40,11 @@ def analyze_bundle(path: str | Path, output: str | Path, config_path: str | Path
         raise AnalysisError("editor_demo_input_requires_includeDemoForTesting")
     assignments=parse_assignments(bundle.manifest,bundle.assignment)
     turns,timing_qc=parse_turns(bundle.timing,int(config.get("timingToleranceMs",0)));exclusions.extend(timing_qc)
-    goals=parse_goals(bundle.study);attempts=parse_attempts(bundle.study);conditions=condition_summaries(bundle.study,turns,goals,attempts)
+    goals=parse_goals(bundle.study);attempts=parse_attempts(bundle.study);mark_primary_attempts(attempts,config.get("primaryAttemptPolicy",""));conditions=condition_summaries(bundle.study,turns,goals,attempts)
     items,scores,questionnaire_qc=parse_questionnaire(bundle.questionnaire);exclusions.extend(questionnaire_qc)
     rankings=parse_rankings(bundle.ranking);interviews=parse_interviews(bundle.interview,bool(config.get("includeInterviewTextInAggregate",False)))
     collection=bool(bundle.manifest.get("collectionEligible",False)) and not synthetic and not demo
-    primary_blocked=collection and config.get("primaryAttemptPolicy")=="UNCONFIRMED"
+    primary_blocked=collection and config.get("primaryAttemptPolicy")!="latest_valid_completed_attempt"
     if primary_blocked: exclusions.append(_session_exclusion(bundle,"primary_attempt_policy_unconfirmed","Primary analysis is blocked until an attempt-selection policy is approved."))
     included=not exclusions and not primary_blocked
     session={"participantId":bundle.manifest.get("participantId",""),"sessionId":bundle.manifest.get("sessionId",""),"sessionMode":bundle.manifest.get("sessionMode",""),"dataOrigin":bundle.manifest.get("dataOrigin",""),"collectionEligible":bundle.manifest.get("collectionEligible",False),"gitCommit":bundle.manifest.get("gitCommit",""),"protocolVersion":bundle.manifest.get("protocolVersion",""),"taskCatalogVersion":bundle.manifest.get("taskCatalogVersion",""),"questionnaireCatalogVersion":bundle.manifest.get("questionnaireCatalogVersion",""),"assignmentVersion":bundle.manifest.get("assignmentVersion",""),"formalConditionOrderPolicy":bundle.manifest.get("formalConditionOrderPolicy",""),"taskAssignmentPolicy":bundle.manifest.get("taskAssignmentPolicy",""),"goalConfirmationPolicy":bundle.manifest.get("goalConfirmationPolicy",""),"questionnaireReturnPolicy":bundle.manifest.get("questionnaireReturnPolicy",""),"assignmentAlgorithmVersion":bundle.manifest.get("assignmentAlgorithmVersion",""),"randomSeedHash":bundle.manifest.get("randomSeedHash",""),"integrityStatus":bundle.manifest.get("integrityStatus",""),"inclusionStatus":"included" if included else "excluded_or_qc_only","exclusionReasons":";".join(sorted({x["ruleId"] for x in exclusions}))}

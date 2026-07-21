@@ -13,6 +13,8 @@ namespace SceneTalkVR.Core
         public string turnId;
         public string transcript;
         public float confidence = 1f;
+        public string evaluatorVersion;
+        public string evaluationReason;
     }
 
     [Serializable]
@@ -47,6 +49,10 @@ namespace SceneTalkVR.Core
         public string candidateAtUtc;
         public string confirmedAtUtc;
         public string rejectionReason;
+        public float confidence;
+        public string evaluatorVersion;
+        public string confirmationPolicy;
+        public string evaluationReason;
     }
 
     [Serializable]
@@ -69,7 +75,7 @@ namespace SceneTalkVR.Core
 
     public sealed class GoalProgressTracker
     {
-        public const string AutomaticConfirmationActor = "system_rehearsal_goal_detector";
+        public const string AutomaticConfirmationActor = "system_goal_evaluator";
         private readonly List<GoalProgressRecord> goals = new List<GoalProgressRecord>();
         private GoalTrackingContext context = new GoalTrackingContext();
         private bool allConfirmedRaised;
@@ -95,7 +101,7 @@ namespace SceneTalkVR.Core
                 for (var i = 0; i < task.goals.Length; i++)
                     goals.Add(new GoalProgressRecord
                     {
-                        goalId = $"{task.taskId}.goal.{i + 1}",
+                        goalId = string.IsNullOrWhiteSpace(task.goals[i]?.goalId) ? $"{task.taskId}.goal.{i + 1}" : task.goals[i].goalId,
                         goalText = task.goals[i]?.text ?? string.Empty,
                         state = GoalProgressState.NotStarted,
                         conditionRunId = context.conditionRunId ?? string.Empty,
@@ -130,6 +136,11 @@ namespace SceneTalkVR.Core
             goal.evidenceTranscript = evidence.transcript?.Trim() ?? string.Empty;
             goal.candidateEvidence = $"turnId={goal.evidenceTurnId};confidence={evidence.confidence:0.###};transcript={goal.evidenceTranscript}";
             goal.candidateAt = goal.candidateAtUtc = DateTime.UtcNow.ToString("o");
+            goal.confidence = evidence.confidence;
+            goal.evaluatorVersion = string.IsNullOrWhiteSpace(evidence.evaluatorVersion) ? goal.candidateSource : evidence.evaluatorVersion.Trim();
+            goal.evaluationReason = evidence.evaluationReason?.Trim() ?? string.Empty;
+            goal.confirmationPolicy = context.confirmationPolicy == GoalConfirmationPolicy.AutomaticOnValidatedDetection
+                ? "automatic_validated_detection" : "experimenter_review";
             goal.rejectionReason = string.Empty;
             goal.revision++;
             Publish(goal, oldState, GoalProgressState.Candidate, goal.candidateSource, "candidate");
@@ -138,6 +149,36 @@ namespace SceneTalkVR.Core
                 return ConfirmGoal(goalId, AutomaticConfirmationActor, "policy=automatic_validated_detection", out error);
             error = string.Empty;
             return true;
+        }
+
+        public void RestoreGoals(ExperimentTaskDefinition task, GoalTrackingContext trackingContext,
+            IEnumerable<GoalProgressRecord> restored)
+        {
+            ResetGoals(task, trackingContext);
+            if (restored == null) return;
+            foreach (var source in restored)
+            {
+                var target = Find(source?.goalId);
+                if (target == null || source == null) continue;
+                target.state = source.state;
+                target.candidateEvidence = source.candidateEvidence;
+                target.candidateAt = source.candidateAt;
+                target.confirmedAt = source.confirmedAt;
+                target.confirmedBy = source.confirmedBy;
+                target.candidateSource = source.candidateSource;
+                target.evidenceTurnId = source.evidenceTurnId;
+                target.evidenceTranscript = source.evidenceTranscript;
+                target.candidateAtUtc = source.candidateAtUtc;
+                target.confirmedAtUtc = source.confirmedAtUtc;
+                target.rejectionReason = source.rejectionReason;
+                target.confidence = source.confidence;
+                target.evaluatorVersion = source.evaluatorVersion;
+                target.confirmationPolicy = source.confirmationPolicy;
+                target.evaluationReason = source.evaluationReason;
+                target.revision = source.revision;
+            }
+            allConfirmedRaised = AreAllConfirmed;
+            OnGoalProgressChanged?.Invoke(CreatePayload(null, GoalProgressState.NotStarted, GoalProgressState.NotStarted, "system_resume"));
         }
 
         public bool ConfirmGoal(string goalId, string experimenterId, string note, out string error)
@@ -157,6 +198,26 @@ namespace SceneTalkVR.Core
             return true;
         }
 
+        public bool ConfirmGoalByExperimenter(string goalId, string experimenterId, string note, out string error)
+        {
+            var goal = Find(goalId);
+            if (goal == null) { error = "goal_not_found"; return false; }
+            if (string.IsNullOrWhiteSpace(experimenterId)) { error = "experimenter_identity_required"; return false; }
+            if (goal.state == GoalProgressState.Confirmed) { error = "goal_already_confirmed"; return false; }
+            if (goal.state != GoalProgressState.Candidate)
+            {
+                var oldState = goal.state;
+                goal.state = GoalProgressState.Candidate;
+                goal.candidateSource = "experimenter_review";
+                goal.candidateEvidence = note?.Trim() ?? string.Empty;
+                goal.candidateAt = goal.candidateAtUtc = DateTime.UtcNow.ToString("o");
+                goal.confirmationPolicy = "experimenter_review";
+                goal.revision++;
+                Publish(goal, oldState, GoalProgressState.Candidate, experimenterId.Trim(), "candidate");
+            }
+            return ConfirmGoal(goalId, experimenterId, note, out error);
+        }
+
         public bool RejectGoal(string goalId, string experimenterId, string reason, out string error)
         {
             var goal = Find(goalId);
@@ -169,6 +230,23 @@ namespace SceneTalkVR.Core
             goal.rejectionReason = reason ?? string.Empty;
             goal.revision++;
             Publish(goal, oldState, GoalProgressState.Rejected, goal.confirmedBy, "rejected");
+            error = string.Empty;
+            return true;
+        }
+
+        public bool UndoGoal(string goalId, string experimenterId, string reason, out string error)
+        {
+            var goal = Find(goalId);
+            if (goal == null) { error = "goal_not_found"; return false; }
+            if (string.IsNullOrWhiteSpace(experimenterId)) { error = "experimenter_identity_required"; return false; }
+            var oldState = goal.state;
+            goal.state = GoalProgressState.NotStarted;
+            goal.confirmedAt = goal.confirmedAtUtc = string.Empty;
+            goal.confirmedBy = experimenterId.Trim();
+            goal.rejectionReason = reason ?? string.Empty;
+            goal.revision++;
+            allConfirmedRaised = false;
+            Publish(goal, oldState, GoalProgressState.NotStarted, goal.confirmedBy, "undo");
             error = string.Empty;
             return true;
         }

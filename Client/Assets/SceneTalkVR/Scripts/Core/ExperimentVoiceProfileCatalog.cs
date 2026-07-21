@@ -22,6 +22,8 @@ namespace SceneTalkVR.Core
         public bool approvedForCollection;
         public bool approvedForEditorDemo;
         public bool approvedForRehearsal;
+        public bool approvedForEditorCollection;
+        public bool replaceableAsset;
         public bool offlineDemoVoice;
         public string approvedBy;
         public string evidenceReference;

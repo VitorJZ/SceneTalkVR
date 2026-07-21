@@ -118,6 +118,23 @@ namespace SceneTalkVR.Core
         public int CurrentTurnIndex => turnIndex;
         public ExperimentLifecycleCoordinator LifecycleCoordinator => GetComponent<ExperimentLifecycleCoordinator>();
 
+        public void EnterEditorCollectionMode(ExperimentV11ProtocolConfig protocol, ExperimentTaskCatalog tasks,
+            QuestionnaireCatalog questionnaires, ExperimentVoiceProfileCatalog voices,
+            ExperimentDeploymentCatalog deployments)
+        {
+            experimentProtocol = protocol;
+            taskCatalog = tasks;
+            questionnaireCatalog = questionnaires;
+            voiceProfileCatalog = voices;
+            deploymentCatalog = deployments;
+            deploymentProfile = ExperimentDeploymentProfileId.EditorCollection;
+            formalExperiment = true;
+            debugMode = false;
+            showDebugLabel = false;
+            assignmentConditionActive = false;
+            RefreshCondition(false);
+        }
+
         public bool ValidateFormalProtocol(out string error)
         {
             if (!formalExperiment)
@@ -180,6 +197,8 @@ namespace SceneTalkVR.Core
 
         private void Awake()
         {
+            if (GetComponent<StructuredLlmGoalEvaluationFallback>() == null)
+                gameObject.AddComponent<StructuredLlmGoalEvaluationFallback>();
             if (GetComponent<ExperimentLifecycleCoordinator>() == null)
             {
                 gameObject.AddComponent<ExperimentLifecycleCoordinator>();
@@ -191,6 +210,14 @@ namespace SceneTalkVR.Core
             if (GetComponent<QuestionnaireVrPanel>() == null)
             {
                 gameObject.AddComponent<QuestionnaireVrPanel>();
+            }
+            if (GetComponent<FormalRankingVrPanel>() == null)
+            {
+                gameObject.AddComponent<FormalRankingVrPanel>();
+            }
+            if (GetComponent<EditorCollectionSessionCoordinator>() == null)
+            {
+                gameObject.AddComponent<EditorCollectionSessionCoordinator>();
             }
             if (GetComponent<PilotWorkflowCoordinator>() == null)
             {
@@ -356,6 +383,11 @@ namespace SceneTalkVR.Core
 
         public bool LoadAssignedTask(string taskId, out string error)
         {
+            return LoadAssignedTask(taskId, ExperimentTaskPhase.Formal, formalExperiment, out error);
+        }
+
+        private bool LoadAssignedTask(string taskId, ExperimentTaskPhase expectedPhase, bool enforceExpectedPhase, out string error)
+        {
             error = string.Empty;
             if (taskCatalog == null)
             {
@@ -370,9 +402,9 @@ namespace SceneTalkVR.Core
                 return false;
             }
 
-            if (formalExperiment && definition.phase != ExperimentTaskPhase.Formal)
+            if (enforceExpectedPhase && definition.phase != expectedPhase)
             {
-                error = $"Formal Mode rejects non-formal assigned task '{taskId}'.";
+                error = $"{expectedPhase} flow rejects task '{taskId}' with phase '{definition.phase}'.";
                 return false;
             }
 
@@ -400,7 +432,7 @@ namespace SceneTalkVR.Core
         public bool ApplyPilotAssignment(PilotFeedbackStyleChoice style, string taskId, string assignedParticipantId, string assignedSessionId, out string error)
         {
             if (style == PilotFeedbackStyleChoice.Undefined) { error = "pilot_feedback_style_unconfirmed"; return false; }
-            if (!LoadAssignedTask(taskId, out error)) return false;
+            if (!LoadAssignedTask(taskId, ExperimentTaskPhase.Pilot, true, out error)) return false;
             formalCondition = style == PilotFeedbackStyleChoice.Recast ? FormalConditionCode.SR : FormalConditionCode.SE;
             assignmentConditionActive = true;
             if (!string.IsNullOrWhiteSpace(assignedParticipantId)) participantId = assignedParticipantId.Trim();
@@ -751,10 +783,11 @@ namespace SceneTalkVR.Core
             var conditionAssignment = lifecycle?.CurrentConditionAssignment;
             var editorDemo = EditorDemoSessionCoordinator.Active;
             var rehearsal = RehearsalSessionCoordinator.Active;
+            var collection = EditorCollectionSessionCoordinator.Active;
 
             return new ExperimentTurnLogRecord
             {
-                protocolVersion = rehearsal != null && rehearsal.IsActive ? rehearsal.Protocol.ProtocolVersion : editorDemo != null && editorDemo.IsDemoMode ? editorDemo.DemoProtocol.DemoProtocolVersion : experimentProtocol == null ? string.Empty : experimentProtocol.ProtocolVersion,
+                protocolVersion = collection != null && collection.IsArmed ? collection.Protocol.ProtocolVersion : rehearsal != null && rehearsal.IsActive ? rehearsal.Protocol.ProtocolVersion : editorDemo != null && editorDemo.IsDemoMode ? editorDemo.DemoProtocol.DemoProtocolVersion : experimentProtocol == null ? string.Empty : experimentProtocol.ProtocolVersion,
                 buildVersion = experimentBuildInfo == null ? (experimentProtocol == null ? string.Empty : experimentProtocol.BuildVersion) : experimentBuildInfo.BuildVersion,
                 gitCommit = experimentBuildInfo == null ? string.Empty : experimentBuildInfo.GitCommit,
                 activeBranch = experimentBuildInfo == null ? string.Empty : experimentBuildInfo.ActiveBranch,
@@ -807,10 +840,10 @@ namespace SceneTalkVR.Core
                 whetherHolodeckCalled = isFixed ? false : (config != null && config.UseHolodeckBackend),
                 panoramaSource = isFixed ? "local" : (config != null && config.ForceFallbackPanorama ? "fallback" : "generated_once"),
                 panoramaResourceKey = condition.task != null ? condition.task.panoramaResourceKey : string.Empty,
-                avatarPresetKey = editorDemo != null && editorDemo.IsFormalDemo ? editorDemo.ResolveFormalAvatarKey(condition.task?.taskId) : condition.task != null ? condition.task.avatarPresetKey : string.Empty,
+                avatarPresetKey = collection != null && collection.IsArmed ? collection.ResolveFormalAvatarKey(condition.task?.taskId) : editorDemo != null && editorDemo.IsFormalDemo ? editorDemo.ResolveFormalAvatarKey(condition.task?.taskId) : condition.task != null ? condition.task.avatarPresetKey : string.Empty,
                 resolvedAvatarPresetKey = string.Empty,
                 avatarFallbackLevel = condition.task != null && condition.task.developerPlaceholderAvatar ? "developer_placeholder_pending" : string.Empty,
-                voiceProfileKey = rehearsal != null && rehearsal.IsActive
+                voiceProfileKey = collection != null && collection.IsArmed ? "editor_collection_dialogue_voice" : rehearsal != null && rehearsal.IsActive
                     ? "rehearsal_dialogue_voice"
                     : condition.task != null ? condition.task.voiceProfileKey : string.Empty,
                 whetherImageGenerationCalled = !isFixed,
@@ -826,7 +859,7 @@ namespace SceneTalkVR.Core
                 taskCompletionRate = lifecycle?.GoalTracker?.GetCompletionRate() ?? 0f,
                 turnsToCompletion = lifecycle?.TurnsToCompletion ?? 0,
                 completionReason = lifecycle?.CompletionReason ?? string.Empty,
-                runtimeMode = editorDemo != null && editorDemo.IsDemoMode ? editorDemo.RuntimeMode.ToString() : formalExperiment ? ExperimentRuntimeMode.LockedFormalCollection.ToString() : ExperimentRuntimeMode.DeveloperManual.ToString(),
+                runtimeMode = collection != null && collection.IsArmed ? ExperimentRuntimeMode.EditorCollectionFormal.ToString() : editorDemo != null && editorDemo.IsDemoMode ? editorDemo.RuntimeMode.ToString() : formalExperiment ? ExperimentRuntimeMode.LockedFormalCollection.ToString() : ExperimentRuntimeMode.DeveloperManual.ToString(),
                 dataOrigin = rehearsal != null && rehearsal.IsActive ? "rehearsal" : editorDemo != null && editorDemo.IsDemoMode ? "editor_demo" : studyAssignment?.dataOrigin ?? string.Empty,
                 collectionEligible = rehearsal != null && rehearsal.IsActive ? false : editorDemo != null && editorDemo.IsDemoMode ? false : studyAssignment?.collectionEligible ?? false,
                 developerTestAssignment = rehearsal != null && rehearsal.IsActive ? false : editorDemo != null && editorDemo.IsDemoMode || (studyAssignment?.developerTestAssignment ?? false),
@@ -884,6 +917,8 @@ namespace SceneTalkVR.Core
 
         private string ResolveLogFolder()
         {
+            if (EditorCollectionSessionCoordinator.Active != null && EditorCollectionSessionCoordinator.Active.IsArmed)
+                return EditorCollectionSessionCoordinator.Active.CurrentDataFolder;
             if (RehearsalSessionCoordinator.Active != null && RehearsalSessionCoordinator.Active.IsActive)
                 return RehearsalSessionCoordinator.Active.CurrentDataFolder;
             if (EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsDemoMode)

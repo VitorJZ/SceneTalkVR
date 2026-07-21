@@ -28,6 +28,8 @@ namespace SceneTalkVR.AvatarSystem
         public Vector3 scale = Vector3.one;
         public string assetVersion;
         public bool approvedForCollection;
+        public bool approvedForEditorCollection;
+        public bool replaceableAsset;
         public string evidenceReference;
 
         [Header("Fixed Scenario Mapping")]
@@ -64,6 +66,21 @@ namespace SceneTalkVR.AvatarSystem
                 || scale == Vector3.zero || !mobileReady || !approvedForCollection || string.IsNullOrWhiteSpace(assetVersion) || string.IsNullOrWhiteSpace(evidenceReference))
             { error = "formal_avatar_metadata_incomplete_or_unapproved"; return false; }
             error = string.Empty; return true;
+        }
+
+        public bool ValidateForEditorCollection(string expectedKey, out string error)
+        {
+            if (!string.Equals(key?.Trim(), expectedKey?.Trim(), StringComparison.OrdinalIgnoreCase))
+            { error = "editor_collection_avatar_preset_key_mismatch"; return false; }
+            if (!HasPrefab || animatorController == null || string.IsNullOrWhiteSpace(voiceProfileKey)
+                || string.IsNullOrWhiteSpace(voiceId) || string.IsNullOrWhiteSpace(idleState)
+                || string.IsNullOrWhiteSpace(thinkingState) || string.IsNullOrWhiteSpace(speakingState)
+                || scale == Vector3.zero || !approvedForEditorCollection || !approvedForCollection
+                || !replaceableAsset || string.IsNullOrWhiteSpace(assetVersion)
+                || string.IsNullOrWhiteSpace(evidenceReference))
+            { error = "editor_collection_avatar_metadata_incomplete_or_unapproved"; return false; }
+            error = string.Empty;
+            return true;
         }
     }
 }

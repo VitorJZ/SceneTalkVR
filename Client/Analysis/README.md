@@ -16,4 +16,4 @@ python -m pytest
 
 The default template excludes Synthetic and developer assignments. To inspect Stage 8/9 synthetic fixtures, copy the template and explicitly set `includeSyntheticForTesting` to `true` and `primaryAttemptPolicy` to a clearly test-only value such as `TEST_ONLY_LATEST_VALID`.
 
-The pipeline never edits a source bundle. It records source and configuration hashes, omits transcript/free-text from ordinary aggregate tables, and blocks collection main-analysis generation while `primaryAttemptPolicy` is `UNCONFIRMED`.
+The pipeline never edits a source bundle. It records source and configuration hashes and omits transcript/free-text from ordinary aggregate tables. Official collection analysis uses `latest_valid_completed_attempt`: every attempt is retained, while the last valid completed attempt for each condition is marked primary.

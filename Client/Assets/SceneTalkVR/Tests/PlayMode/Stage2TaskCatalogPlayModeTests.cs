@@ -18,7 +18,7 @@ namespace SceneTalkVR.Tests.PlayMode
         };
 
         [UnityTest]
-        public IEnumerator DeveloperMode_MainMenuAndFourCatalogTasksStartOffline()
+        public IEnumerator TaskCatalog_FourFormalTasksCanStartOffline()
         {
             if (!string.Equals(SceneManager.GetActiveScene().name, "SampleScene", StringComparison.Ordinal))
             {
@@ -32,9 +32,6 @@ namespace SceneTalkVR.Tests.PlayMode
             Assert.That(managerType, Is.Not.Null);
             var manager = FindSceneComponent(managerType);
             Assert.That(manager, Is.Not.Null, "ExperimentConditionManager must exist in SampleScene.");
-
-            var isFormal = (bool)managerType.GetProperty("IsFormalExperiment")!.GetValue(manager);
-            Assert.That(isFormal, Is.False, "Stage 2 validation uses Developer Mode; Formal decisions remain blocked.");
 
             var catalog = managerType.GetProperty("TaskCatalog")!.GetValue(manager);
             Assert.That(catalog, Is.Not.Null, "Experiment Task Catalog must be bound.");
