@@ -28,6 +28,9 @@ MonoBehaviour:
       - booking is under
       - reservation is under
       - booked under
+      - the reservation should be in
+      - the booking is under
+      - it should be under the name
       llmCriteria: Return achieved=true only when the participant's user transcript
         provides or asks for this goal intent. Avatar and agent speech are excluded.
       minimumConfidence: 0.85
@@ -38,6 +41,9 @@ MonoBehaviour:
       - breakfast included
       - serve breakfast
       - time is breakfast
+      - morning meal
+      - does the room price include breakfast
+      - does the room come with breakfast
       llmCriteria: Return achieved=true only when the participant's user transcript
         provides or asks for this goal intent. Avatar and agent speech are excluded.
       minimumConfidence: 0.85
@@ -48,6 +54,8 @@ MonoBehaviour:
       - higher floor
       - upper floor
       - room upstairs
+      - tenth floor
+      - put me higher up
       llmCriteria: Return achieved=true only when the participant's user transcript
         provides or asks for this goal intent. Avatar and agent speech are excluded.
       minimumConfidence: 0.85
@@ -85,6 +93,9 @@ MonoBehaviour:
       - desk size
       - dimensions
       - centimeter
+      - centimeters
+      - 120 by 60
+      - how wide is the desk
       llmCriteria: Return achieved=true only when the participant's user transcript
         provides or asks for this goal intent. Avatar and agent speech are excluded.
       minimumConfidence: 0.85
@@ -113,6 +124,9 @@ MonoBehaviour:
       deterministicPatterns:
       - home delivery
       - do you deliver
+      - bring it to my apartment
+      - deliver it to my home
+      - can you send it to my address
       llmCriteria: Return achieved=true only when the participant's user transcript
         provides or asks for this goal intent. Avatar and agent speech are excluded.
       minimumConfidence: 0.85
@@ -140,6 +154,9 @@ MonoBehaviour:
       - my fitness goal
       - want to lose weight
       - want to build muscle
+      - improve my endurance
+      - build strength
+      - get fitter
       llmCriteria: Return achieved=true only when the participant's user transcript
         provides or asks for this goal intent. Avatar and agent speech are excluded.
       minimumConfidence: 0.85
@@ -168,6 +185,9 @@ MonoBehaviour:
       deterministicPatterns:
       - free trial
       - trial available
+      - try the gym before joining
+      - test the gym first
+      - trial session
       llmCriteria: Return achieved=true only when the participant's user transcript
         provides or asks for this goal intent. Avatar and agent speech are excluded.
       minimumConfidence: 0.85
@@ -194,6 +214,9 @@ MonoBehaviour:
       deterministicPatterns:
       - how do i get to the museum
       - directions to the museum
+      - best route to the museum
+      - how can i reach the museum
+      - way to the museum
       llmCriteria: Return achieved=true only when the participant's user transcript
         provides or asks for this goal intent. Avatar and agent speech are excluded.
       minimumConfidence: 0.85
@@ -212,6 +235,9 @@ MonoBehaviour:
       deterministicPatterns:
       - take photos inside
       - photography allowed
+      - use my camera
+      - take pictures inside
+      - photos allowed indoors
       llmCriteria: Return achieved=true only when the participant's user transcript
         provides or asks for this goal intent. Avatar and agent speech are excluded.
       minimumConfidence: 0.85
@@ -250,6 +276,9 @@ MonoBehaviour:
       - no reservation
       - don't have a reservation
       - do not have a reservation
+      - i did not book a table
+      - i have no booking
+      - we did not make a reservation
       llmCriteria: Confirm only when the participant says they do not have a reservation.
       minimumConfidence: 0.85
     - goalId: party_size
@@ -259,6 +288,11 @@ MonoBehaviour:
       - there are four of us
       - party of
       - people in our group
+      - we are a group of
+      - there are three of us
+      - table for three
+      - table for four
+      - table for two
       llmCriteria: Confirm only when the participant states the party size.
       minimumConfidence: 0.85
     - goalId: table_availability
@@ -304,6 +338,9 @@ MonoBehaviour:
       - what do you recommend
       - recommendation
       - recommend a dish
+      - suggest something popular
+      - what is good here
+      - what would you recommend
       llmCriteria: Confirm only when the participant asks for a recommendation.
       minimumConfidence: 0.85
     - goalId: main_course
@@ -313,6 +350,9 @@ MonoBehaviour:
       - i'd like the grilled chicken
       - i would like the grilled chicken
       - i'll have
+      - i will take the
+      - i would like the
+      - i will have the
       llmCriteria: Confirm only when the participant orders a main course.
       minimumConfidence: 0.85
     - goalId: dietary_restriction
@@ -323,6 +363,9 @@ MonoBehaviour:
       - don't eat seafood
       - do not eat seafood
       - vegetarian
+      - i cannot eat
+      - i am allergic to
+      - i do not eat
       llmCriteria: Confirm only when the participant states a dietary restriction.
       minimumConfidence: 0.85
     - goalId: drink
@@ -332,6 +375,9 @@ MonoBehaviour:
       - glass of water
       - i'd like a drink
       - i would like a drink
+      - could i get some tea
+      - i would like water
+      - bring me a drink
       llmCriteria: Confirm only when the participant orders a drink.
       minimumConfidence: 0.85
     initialQuestion: Here is the menu. Are you ready to order, or would you like
@@ -360,6 +406,9 @@ MonoBehaviour:
       - isn't what i ordered
       - is not what i ordered
       - wrong dish
+      - somebody else's order
+      - this is not my order
+      - you brought the wrong meal
       llmCriteria: Confirm only when the participant says the dish is wrong.
       minimumConfidence: 0.85
     - goalId: original_order

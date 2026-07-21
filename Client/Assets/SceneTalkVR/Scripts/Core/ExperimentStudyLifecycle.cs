@@ -19,7 +19,7 @@ namespace SceneTalkVR.Core
         , GoalCollectionReset, GoalProgressChanged, GoalAutoConfirmed,
         FormalConditionSelected, TaskLimitReachedWithoutCompletion,
         ParticipantSessionArmed, FormalModeSelectionShown, FormalModeSelected, ConditionTaskResolved,
-        UserTranscriptFinalized, GoalEvaluationStarted, GoalEvaluationCompleted, AllGoalsConfirmed,
+        UserTranscriptFinalized, GoalEvaluationStarted, GoalEvaluationCompleted, GoalEvaluationFailed, AllGoalsConfirmed,
         QuestionnaireOpened, QuestionnaireResponseChanged, ReturnedToModeSelection,
         AllFormalConditionsCompleted, FinalRankingOpened
     }
@@ -71,6 +71,8 @@ namespace SceneTalkVR.Core
         public string evidenceTranscript;
         public float confidence;
         public string evaluatorVersion;
+        public string evaluatorSource;
+        public long evaluatorLatencyMs;
         public string evaluationReason;
         public string deploymentProfile;
         public string primaryAttemptPolicy;
@@ -441,11 +443,12 @@ namespace SceneTalkVR.Core
         public void RecordStudyEvent(StudyEventType type, string actor = "system", string reason = "") => WriteEvent(type, actor: actor, reason: reason);
 
         public void RecordGoalEvaluationEvent(StudyEventType type, string turnId, string goalId,
-            string transcript, float confidence, string evaluatorVersion, string reason)
+            string transcript, float confidence, string evaluatorVersion, string reason,
+            string evaluatorSource = "", long evaluatorLatencyMs = 0)
         {
             WriteEvent(type, goalId: goalId, turnId: turnId, actor: "system_goal_evaluator", reason: reason,
                 evidenceTranscript: transcript, confidence: confidence, evaluatorVersion: evaluatorVersion,
-                evaluationReason: reason);
+                evaluationReason: reason, evaluatorSource: evaluatorSource, evaluatorLatencyMs: evaluatorLatencyMs);
         }
 
         public void MarkTechnicalInvalid(string reason)
@@ -559,7 +562,8 @@ namespace SceneTalkVR.Core
         }
 
         private void WriteEvent(StudyEventType type, string goalId = "", string turnId = "", string actor = "", string reason = "", ExperimentTechnicalValidity validity = ExperimentTechnicalValidity.Valid,
-            string evidenceTranscript = "", float confidence = 0f, string evaluatorVersion = "", string evaluationReason = "")
+            string evidenceTranscript = "", float confidence = 0f, string evaluatorVersion = "", string evaluationReason = "",
+            string evaluatorSource = "", long evaluatorLatencyMs = 0)
         {
             if (assignment == null) return;
             var record = new StudyEventRecord
@@ -587,6 +591,7 @@ namespace SceneTalkVR.Core
                 participantSelectionPosition = currentCondition?.participantSelectionPosition ?? -1
                 ,evidenceTranscript = evidenceTranscript ?? string.Empty, confidence = confidence,
                 evaluatorVersion = evaluatorVersion ?? string.Empty, evaluationReason = evaluationReason ?? string.Empty,
+                evaluatorSource = evaluatorSource ?? string.Empty, evaluatorLatencyMs = evaluatorLatencyMs,
                 deploymentProfile = assignment.deploymentProfile ?? string.Empty,
                 primaryAttemptPolicy = assignment.primaryAttemptPolicy ?? string.Empty
             };

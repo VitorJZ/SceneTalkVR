@@ -158,25 +158,25 @@ namespace SceneTalkVR.EditorTools
         {
             if (taskId == "hotel_check_in") return new[]
             {
-                new[] { "my name is", "booking is under", "reservation is under", "booked under" },
-                new[] { "breakfast included", "serve breakfast", "time is breakfast" },
-                new[] { "higher floor", "upper floor", "room upstairs" },
+                new[] { "my name is", "booking is under", "reservation is under", "booked under", "the reservation should be in", "the booking is under", "it should be under the name" },
+                new[] { "breakfast included", "serve breakfast", "time is breakfast", "morning meal", "does the room price include breakfast", "does the room come with breakfast" },
+                new[] { "higher floor", "upper floor", "room upstairs", "tenth floor", "put me higher up" },
                 new[] { "what time is checkout", "checkout time", "when do i need to check out" }
             };
             if (taskId == "furniture_shopping") return new[]
             {
-                new[] { "desk size", "dimensions", "centimeter" }, new[] { "what material", "made of" },
-                new[] { "my budget", "spend up to", "price limit" }, new[] { "home delivery", "do you deliver" }
+                new[] { "desk size", "dimensions", "centimeter", "centimeters", "120 by 60", "how wide is the desk" }, new[] { "what material", "made of" },
+                new[] { "my budget", "spend up to", "price limit" }, new[] { "home delivery", "do you deliver", "bring it to my apartment", "deliver it to my home", "can you send it to my address" }
             };
             if (taskId == "gym_membership") return new[]
             {
-                new[] { "my fitness goal", "want to lose weight", "want to build muscle" }, new[] { "monthly membership", "per month" },
-                new[] { "workout plan", "training plan", "exercise plan" }, new[] { "free trial", "trial available" }
+                new[] { "my fitness goal", "want to lose weight", "want to build muscle", "improve my endurance", "build strength", "get fitter" }, new[] { "monthly membership", "per month" },
+                new[] { "workout plan", "training plan", "exercise plan" }, new[] { "free trial", "trial available", "try the gym before joining", "test the gym first", "trial session" }
             };
             return new[]
             {
-                new[] { "how do i get to the museum", "directions to the museum" }, new[] { "need a ticket", "ticket required" },
-                new[] { "take photos inside", "photography allowed" }, new[] { "nearby attraction", "another attraction" }
+                new[] { "how do i get to the museum", "directions to the museum", "best route to the museum", "how can i reach the museum", "way to the museum" }, new[] { "need a ticket", "ticket required" },
+                new[] { "take photos inside", "photography allowed", "use my camera", "take pictures inside", "photos allowed indoors" }, new[] { "nearby attraction", "another attraction" }
             };
         }
 

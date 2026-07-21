@@ -10,7 +10,7 @@ namespace SceneTalkVR.Core
     [Serializable]
     public sealed class PilotEventRecord
     {
-        public string schemaVersion="1.1";public string timestampUtc;public string eventType;public string pilotProtocolVersion;public string pilotAssignmentVersion;public string pilotRunId;public string participantId;public string sessionId;public string sequenceId;public int conditionPosition;public string embodimentCondition;public string pilotFeedbackStyle;public string taskId;public string taskAssignmentId;public string feedbackTextHash;public string actualPlaybackActor;public string visualEntityType;public string visualPrefabKey;public string voiceProfileKey;public string audioSourcePolicy;public float spatialBlend;public Vector3 sourcePosition;public string feedbackPlaybackStartedAt;public string feedbackPlaybackEndedAt;public long userEndToFeedbackAudioMs=-1;public long feedbackToDialogueGapMs=-1;public string technicalValidity;public string failureStage;public string failureReason;public string questionnaireLinkageKey;public string runtimeMode;public string dataOrigin;public bool collectionEligible;public bool developerTestAssignment;public bool demoMode;public string demoProtocolVersion;public bool autoFilledForDemo;public string flowMode;public string runQualification;public string protocolSnapshotId;public string resourceSnapshotId;
+        public string schemaVersion="1.1";public string timestampUtc;public string eventType;public string pilotProtocolVersion;public string pilotAssignmentVersion;public string pilotRunId;public string participantId;public string sessionId;public string sequenceId;public int conditionPosition;public string embodimentCondition;public string pilotFeedbackStyle;public string taskId;public string taskAssignmentId;public string feedbackTextHash;public string actualPlaybackActor;public string visualEntityType;public string visualPrefabKey;public string voiceProfileKey;public string audioSourcePolicy;public float spatialBlend;public Vector3 sourcePosition;public string feedbackPlaybackStartedAt;public string feedbackPlaybackEndedAt;public long userEndToFeedbackAudioMs=-1;public long feedbackToDialogueGapMs=-1;public string technicalValidity;public string failureStage;public string failureReason;public string questionnaireLinkageKey;public string runtimeMode;public string dataOrigin;public bool collectionEligible;public bool developerTestAssignment;public bool demoMode;public string demoProtocolVersion;public bool autoFilledForDemo;public string flowMode;public string runQualification;public string protocolSnapshotId;public string resourceSnapshotId;public string goalId;public string turnId;public bool achieved;public float confidence;public string evaluatorSource;public long evaluatorLatencyMs;public string evaluatorVersion;public string evaluationReason;
     }
 
     [DisallowMultipleComponent]
@@ -91,6 +91,13 @@ namespace SceneTalkVR.Core
         private bool Invalid(string stage,string reason){if(current!=null)current.status=PilotRunStatus.TechnicalInvalid;presenter?.ResetSession();Write("PilotTechnicalInvalid",stage,reason,ExperimentTechnicalValidity.TechnicalInvalid);return false;}
         public static string BuildCorrectionPlannerContext(PilotFeedbackStyleChoice style)=>"feedback_style="+PilotProtocolValues.Label(style)+"; use the shared correction planner";
         public void RecordFeedback(string text,bool started){Write(started?"PilotFeedbackPlaybackStarted":"PilotFeedbackPlaybackEnded",feedbackHash:ExperimentEventTimeline.HashText(text));}
+        public void RecordGoalEvaluationAudit(string turnId,GoalEvaluationAudit audit)
+        {
+            if(audit==null)return;
+            Write(audit.eventType,reason:audit.error,goalId:audit.goalId,turnId:turnId,achieved:audit.achieved,
+                confidence:audit.confidence,evaluatorSource:GoalEvaluationOrchestrator.SourceLabel(audit.source),
+                evaluatorLatencyMs:audit.latencyMs,evaluatorVersion:audit.evaluatorVersion,evaluationReason:audit.reason);
+        }
         public void ObserveTimingEvent(ExperimentTimingEvent timingEvent)
         {
             if (!HasActivePilotRun || timingEvent == null) return;
@@ -101,7 +108,9 @@ namespace SceneTalkVR.Core
             if (timingEvent.eventType == ExperimentTimingEventType.UserSpeechEnded.ToString() || timingEvent.eventType == ExperimentTimingEventType.CorrectionPlaybackStarted.ToString() || timingEvent.eventType == ExperimentTimingEventType.CorrectionPlaybackEnded.ToString() || timingEvent.eventType == ExperimentTimingEventType.DialoguePlaybackStarted.ToString())
                 Write("PilotTimingLinked:" + timingEvent.eventType, feedbackHash:timingEvent.feedbackTextHash);
         }
-        private void Write(string type,string stage="",string reason="",ExperimentTechnicalValidity validity=ExperimentTechnicalValidity.Valid,string feedbackHash="")
+        private void Write(string type,string stage="",string reason="",ExperimentTechnicalValidity validity=ExperimentTechnicalValidity.Valid,string feedbackHash="",
+            string goalId="",string turnId="",bool achieved=false,float confidence=0f,string evaluatorSource="",long evaluatorLatencyMs=0,
+            string evaluatorVersion="",string evaluationReason="")
         {
             if (assignment == null) return;
             var p = current == null ? null : assignment.runQualification == ExperimentRunQualification.Rehearsal && RehearsalSessionCoordinator.Active != null
@@ -132,7 +141,9 @@ namespace SceneTalkVR.Core
                 demoProtocolVersion = assignment.demoProtocolVersion,
                 flowMode = assignment.flowMode.ToString(), runQualification = assignment.runQualification.ToString(),
                 protocolSnapshotId = assignment.protocolSnapshotId, resourceSnapshotId = assignment.resourceSnapshotId,
-                autoFilledForDemo = assignment.demoMode && reason.IndexOf("autoFilledForDemo=true", StringComparison.Ordinal) >= 0
+                goalId=goalId??"",turnId=turnId??"",achieved=achieved,confidence=confidence,evaluatorSource=evaluatorSource??"",
+                evaluatorLatencyMs=evaluatorLatencyMs,evaluatorVersion=evaluatorVersion??"",evaluationReason=evaluationReason??"",
+                autoFilledForDemo = assignment.demoMode && (reason??string.Empty).IndexOf("autoFilledForDemo=true", StringComparison.Ordinal) >= 0
             };
             var folder = assignment.runQualification == ExperimentRunQualification.Rehearsal && RehearsalSessionCoordinator.Active != null
                 ? RehearsalSessionCoordinator.Active.CurrentDataFolder

@@ -823,6 +823,10 @@ namespace SceneTalkVR.Runtime
 
             LastTranscript = transcript;
             RefreshUi();
+            var goalManager = ResolveExperimentConditionManager(false);
+            GoalEvaluationOrchestrator.StartActiveTaskGoalEvaluation(this,
+                goalManager?.LifecycleCoordinator, PilotWorkflowCoordinator.Active,
+                goalManager?.CurrentTurnId, transcript);
             SetState(SceneTalkState.Processing);
             AvatarThinkingState?.SetThinking(true);
 
@@ -866,9 +870,6 @@ namespace SceneTalkVR.Runtime
             }
 
             currentTurn = null;
-            var dialogueGoalManager = ResolveExperimentConditionManager(false);
-            GoalEvaluationOrchestrator.EvaluateUserTranscript(dialogueGoalManager?.LifecycleCoordinator, dialogueGoalManager?.CurrentTurnId, transcript);
-            GoalEvaluationOrchestrator.EvaluatePilotUserTranscript(PilotWorkflowCoordinator.Active, dialogueGoalManager?.CurrentTurnId, transcript);
             EnterTurnReviewState();
         }
 

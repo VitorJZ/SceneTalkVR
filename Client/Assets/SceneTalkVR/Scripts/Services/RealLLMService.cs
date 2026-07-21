@@ -226,7 +226,23 @@ namespace SceneTalkVR.Runtime.Services
 
         public async Task<string> GenerateStructuredGoalEvaluationAsync(string requestJson)
         {
-            const string systemPrompt = "You are a strict task-goal evaluator. Return one JSON object only, matching the supplied GoalEvaluationResult schema. Evaluate only the participant transcript, only goal IDs supplied in currentGoalDefinitions, and never infer completion without explicit evidence. For every goal return goalId, achieved, confidence from 0 to 1, evidence copied from the participant transcript, reason, and evaluatorVersion=goal_evaluator_v1.2.0+structured_llm.";
+            const string systemPrompt =
+                "You are a strict communication-goal evaluator for an English speaking task. " +
+                "Determine whether the PARTICIPANT has actually completed each specified communication goal.\n\n" +
+                "Rules:\n" +
+                "1. Evaluate only participant speech. Never use dialogue-avatar or feedback-agent speech as evidence.\n" +
+                "2. Accept natural paraphrases, synonyms, short answers, different numbers or names, conversational ellipsis, harmless grammar errors, filler words, and common speech-to-text punctuation errors.\n" +
+                "3. Do not require exact wording or keywords from the goal definition.\n" +
+                "4. Distinguish the required speech act: providing information, asking a question, making a request, reporting a problem, or expressing a restriction or preference.\n" +
+                "5. A keyword mention alone is not enough.\n" +
+                "6. Do not mark a goal achieved when the participant negates or rejects the goal, says they do not need or want it, describes an unrelated past event, quotes another person, uses a hypothetical or counterfactual statement, or merely repeats the goal wording without performing the required speech act.\n" +
+                "7. Goals such as no reservation, wrong dish, or dietary restriction may legitimately use negative language. Judge intended meaning, not the word not.\n" +
+                "8. Use the latest participant utterance and recent participant utterances from the same task when a goal is expressed across multiple turns.\n" +
+                "9. Evidence must quote or closely reproduce participant words supporting the decision.\n" +
+                "10. If evidence is ambiguous, incomplete, contradictory, or unrelated, return achieved=false.\n" +
+                "11. Return strict JSON only, with no markdown or text outside JSON.\n\n" +
+                "Output schema: {\"taskId\":\"<task id>\",\"turnId\":\"<turn id>\",\"evaluations\":[{\"goalId\":\"<goal id>\",\"achieved\":true,\"confidence\":0.0,\"evidence\":\"<participant evidence or empty string>\",\"reason\":\"<brief semantic reason>\",\"evaluatorVersion\":\"goal_evaluator_v1.2.1+structured_llm\"}]}.\n" +
+                "Confidence: 0.90-1.00 direct and unambiguous; 0.75-0.89 clear paraphrase or completion distributed across recent participant turns; 0.50-0.74 plausible but incomplete or ambiguous; below 0.50 unsupported or contradictory.";
             var responseJson = await SendChatRequest(systemPrompt, requestJson, true);
             var response = JsonUtility.FromJson<OpenAiResponse>(responseJson);
             if (response?.choices == null || response.choices.Length == 0 || string.IsNullOrWhiteSpace(response.choices[0].message?.content))
