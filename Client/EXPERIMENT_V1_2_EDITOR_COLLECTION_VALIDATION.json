@@ -3,7 +3,7 @@
   "generatedAtUtc": "2026-07-21T04:08:05.2794607Z",
   "branch": "experiment-v1.1-integration",
   "baselineCommit": "a7e482c87458b4c93a3300d41728e6b0e9b6b14e",
-  "implementationCommit": "SELF: fix(experiment): complete formal editor collection participant flow",
+  "implementationCommit": "d56c01e1469ebc90227619dd5bc6d902e684100e",
   "protocolVersion": "1.2.0-editor-collection",
   "unityVersion": "6000.3.16f1",
   "deploymentProfile": "editor_collection",

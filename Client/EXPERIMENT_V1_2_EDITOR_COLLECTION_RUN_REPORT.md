@@ -1,6 +1,6 @@
 # Experiment v1.2 Editor Collection Run Report
 
-Date: 2026-07-21 UTC. Unity: 6000.3.16f1. Baseline: `a7e482c87458b4c93a3300d41728e6b0e9b6b14e` on `experiment-v1.1-integration`.
+Date: 2026-07-21 UTC. Unity: 6000.3.16f1. Baseline: `a7e482c87458b4c93a3300d41728e6b0e9b6b14e`; functional implementation: `d56c01e1469ebc90227619dd5bc6d902e684100e` on `experiment-v1.1-integration`.
 
 The current Editor and actual SampleScene were used. No second Editor was launched. The local gateway health endpoint returned HTTP 200 with provider `tencent`.
 

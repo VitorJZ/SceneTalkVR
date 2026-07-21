@@ -4,7 +4,7 @@
 
 The Editor participant flow is implemented and regression-clean: Compile PASS, Console 0 errors, EditMode 247/247, PlayMode 36/36, Python 40/40. Preflight reports `Editor Formal Collection: READY`, `Pilot Collection: READY`, and independently `PICO Deployment: NOT VALIDATED`.
 
-Baseline branch and commit: `experiment-v1.1-integration` at `a7e482c87458b4c93a3300d41728e6b0e9b6b14e`. The implementation commit is the commit titled `fix(experiment): complete formal editor collection participant flow` (recorded by Git after this report is committed).
+Baseline branch and commit: `experiment-v1.1-integration` at `a7e482c87458b4c93a3300d41728e6b0e9b6b14e`. The functional implementation commit is `d56c01e1469ebc90227619dd5bc6d902e684100e`, titled `fix(experiment): complete formal editor collection participant flow`.
 
 ## Main fixes
 
@@ -38,7 +38,7 @@ Baseline branch and commit: `experiment-v1.1-integration` at `a7e482c87458b4c93a
 15. No participant bundle was generated during automated QA; integrity correctly blocked the QA-marked run.
 16. The Editor flow completed four conditions, four questionnaires, ranking, completion and Resume at the final-transcript boundary; physical microphone speech still needs a human smoke run.
 17. Unity 247 EditMode + 36 PlayMode and Python 40 tests passed.
-18. Final Git SHA is reported by `git rev-parse HEAD` after commit and push; the functional commit has the exact requested message.
+18. Functional Git SHA: `d56c01e1469ebc90227619dd5bc6d902e684100e`. A following metadata-only commit refreshes BuildInfo and this SHA record.
 
 ## Files and evidence
 
