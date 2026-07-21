@@ -89,6 +89,34 @@ namespace SceneTalkVR.EditorTools
                     status = "QA use recorded; collectionEligible=false.";
                 }
             }
+            var pilot = EditorApplication.isPlaying ? PilotCollectionSessionCoordinator.Active : null;
+            if (pilot?.IsArmed == true)
+            {
+                EditorGUILayout.Space();
+                EditorGUILayout.LabelField("Pilot Editor Collection", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField("Flow Mode", "Pilot");
+                EditorGUILayout.LabelField("Participant / Session", pilot.ParticipantId + " / " + pilot.SessionId);
+                EditorGUILayout.LabelField("Sequence / Position", (pilot.Assignment?.sequenceId ?? "") + " / " + (pilot.CurrentPosition + 1));
+                EditorGUILayout.LabelField("Embodiment / Task", (pilot.Workflow?.Current == null ? "" : PilotProtocolValues.Label(pilot.Workflow.Current.embodimentCondition)) + " / " + (pilot.CurrentTask?.taskId ?? ""));
+                EditorGUILayout.LabelField("Pilot Run", pilot.Workflow?.PilotRunId ?? "");
+                EditorGUILayout.LabelField("Goal progress", (pilot.Workflow?.Goals.ConfirmedCount ?? 0) + " / " + (pilot.Workflow?.Goals.Goals.Count ?? 0));
+                EditorGUILayout.LabelField("Questionnaire", pilot.Workflow?.Questionnaire.ActiveSession?.completionStatus.ToString() ?? "not_started");
+                EditorGUILayout.LabelField("Data path", pilot.CurrentDataFolder);
+                technicalReason = EditorGUILayout.TextField("Pilot technical reason", technicalReason);
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (GUILayout.Button("Mark Pilot TechnicalInvalid")) { pilot.MarkTechnicalInvalid(string.IsNullOrWhiteSpace(technicalReason) ? "operator_marked_technical_invalid" : technicalReason.Trim()); status = "Pilot condition marked TechnicalInvalid."; }
+                    if (GUILayout.Button("Retry Pilot Condition")) status = pilot.Retry(out var retryError) ? "Pilot retry started." : retryError;
+                }
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (GUILayout.Button("Export Pilot Bundle")) status = pilot.ExportBundle(out var exportError) ? pilot.LastBundlePath : exportError;
+                    if (GUILayout.Button("Audit Pilot Bundle")) status = pilot.AuditBundle(out var auditError) ? "Pilot bundle audit PASS" : auditError;
+                }
+                if (GUILayout.Button("End Pilot Session")) { pilot.EndSession(); status = "Pilot session ended."; }
+                showQaRecovery = EditorGUILayout.Foldout(showQaRecovery, "Advanced QA Tools", true);
+                if (showQaRecovery) EditorGUILayout.HelpBox("Participant collection does not require auto-fill or auto-complete. Any future QA automation must set qaAutomationUsed=true and actor=qa_operator.", MessageType.Warning);
+            }
             if (!string.IsNullOrWhiteSpace(status)) EditorGUILayout.HelpBox(status, MessageType.None);
             if (Event.current.type == EventType.Repaint) Repaint();
         }

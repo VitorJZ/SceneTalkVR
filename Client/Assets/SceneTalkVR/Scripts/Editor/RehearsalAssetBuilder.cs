@@ -38,8 +38,8 @@ namespace SceneTalkVR.EditorTools
             resource.EditorSet("v1.1-rehearsal-1-resources", mappings, humanoid, "teacher_female_humanoid_v1", panoramas);
 
             var voices = GetOrCreate<ExperimentVoiceProfileCatalog>(VoicePath);
-            var dialogue = Voice("rehearsal_dialogue_voice", VoiceSubtitlePolicy.AllSpeech);
-            var feedback = Voice("rehearsal_feedback_voice", VoiceSubtitlePolicy.FeedbackOnly);
+            var dialogue = Voice("rehearsal_dialogue_voice", "101050", VoiceSubtitlePolicy.AllSpeech);
+            var feedback = Voice("rehearsal_feedback_voice", "default_female_en", VoiceSubtitlePolicy.FeedbackOnly);
             voices.EditorSet("1.1-rehearsal-1", feedback.voiceProfileKey, feedback.voiceProfileKey, feedback.voiceProfileKey, new[] { dialogue, feedback });
 
             var deployments = GetOrCreate<ExperimentDeploymentCatalog>(DeploymentPath);
@@ -59,9 +59,9 @@ namespace SceneTalkVR.EditorTools
 
         private static RehearsalAvatarMapping Map(string task, string role, string avatar) => new RehearsalAvatarMapping
         { taskId = task, taskRole = role, avatarPresetKey = avatar, approvedForRehearsal = true, approvedForCollection = false };
-        private static ExperimentVoiceProfile Voice(string key, VoiceSubtitlePolicy subtitles) => new ExperimentVoiceProfile
+        private static ExperimentVoiceProfile Voice(string key, string voiceId, VoiceSubtitlePolicy subtitles) => new ExperimentVoiceProfile
         {
-            voiceProfileKey = key, provider = "tencent", voiceId = "101050", language = "en-US", speakingSpeed = 1f,
+            voiceProfileKey = key, provider = "tencent", voiceId = voiceId, language = "en-US", speakingSpeed = 1f,
             volume = 1f, pitch = 1f, sampleRate = 24000, subtitlePolicy = subtitles,
             approvedForRehearsal = true, approvedForCollection = false, approvedForEditorDemo = false,
             approvedBy = "Project Lead Approval", evidenceReference = "scenetalkvr-rehearsal-baseline-v1", assetVersion = "rehearsal-1"

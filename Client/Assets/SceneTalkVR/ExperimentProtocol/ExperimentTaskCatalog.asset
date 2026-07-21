@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4c7590b75c2b47d689fe3a3316a325f1, type: 3}
   m_Name: ExperimentTaskCatalog
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentTaskCatalog
-  catalogVersion: 1.2.0-editor-collection
+  catalogVersion: 1.2.1-pilot-collection
   tasks:
   - taskId: hotel_check_in
     scenarioId: hotel_check_in
@@ -243,29 +243,41 @@ MonoBehaviour:
     context: Arriving at a restaurant without a reservation and asking whether a
       table is available.
     goals:
-    - goalId:
+    - goalId: no_reservation
       text: Explain that you do not have a reservation.
-      evaluationIntent:
-      deterministicPatterns: []
-      llmCriteria:
+      evaluationIntent: no_reservation
+      deterministicPatterns:
+      - no reservation
+      - don't have a reservation
+      - do not have a reservation
+      llmCriteria: Confirm only when the participant says they do not have a reservation.
       minimumConfidence: 0.85
-    - goalId:
+    - goalId: party_size
       text: State the number of diners.
-      evaluationIntent:
-      deterministicPatterns: []
-      llmCriteria:
+      evaluationIntent: party_size
+      deterministicPatterns:
+      - there are four of us
+      - party of
+      - people in our group
+      llmCriteria: Confirm only when the participant states the party size.
       minimumConfidence: 0.85
-    - goalId:
+    - goalId: table_availability
       text: Ask whether a table is available.
-      evaluationIntent:
-      deterministicPatterns: []
-      llmCriteria:
+      evaluationIntent: table_availability
+      deterministicPatterns:
+      - table available
+      - have a table
+      - any tables
+      llmCriteria: Confirm only when the participant asks about table availability.
       minimumConfidence: 0.85
-    - goalId:
+    - goalId: wait_time
       text: Ask how long the wait will be.
-      evaluationIntent:
-      deterministicPatterns: []
-      llmCriteria:
+      evaluationIntent: wait_time
+      deterministicPatterns:
+      - how long is the wait
+      - waiting time
+      - how long do we have to wait
+      llmCriteria: Confirm only when the participant asks about the wait time.
       minimumConfidence: 0.85
     initialQuestion: Good evening! Welcome to Riverside Restaurant. Do you have a
       reservation?
@@ -285,32 +297,45 @@ MonoBehaviour:
     phase: 0
     context: Looking at a restaurant menu and ordering a meal.
     goals:
-    - goalId:
+    - goalId: recommendation
       text: Ask for a recommended dish.
-      evaluationIntent:
-      deterministicPatterns: []
-      llmCriteria:
+      evaluationIntent: recommendation
+      deterministicPatterns:
+      - what do you recommend
+      - recommendation
+      - recommend a dish
+      llmCriteria: Confirm only when the participant asks for a recommendation.
       minimumConfidence: 0.85
-    - goalId:
+    - goalId: main_course
       text: Order one main course.
-      evaluationIntent:
-      deterministicPatterns: []
-      llmCriteria:
+      evaluationIntent: main_course
+      deterministicPatterns:
+      - i'd like the grilled chicken
+      - i would like the grilled chicken
+      - i'll have
+      llmCriteria: Confirm only when the participant orders a main course.
       minimumConfidence: 0.85
-    - goalId:
+    - goalId: dietary_restriction
       text: Explain a dietary requirement or food restriction.
-      evaluationIntent:
-      deterministicPatterns: []
-      llmCriteria:
+      evaluationIntent: dietary_restriction
+      deterministicPatterns:
+      - allergic to
+      - don't eat seafood
+      - do not eat seafood
+      - vegetarian
+      llmCriteria: Confirm only when the participant states a dietary restriction.
       minimumConfidence: 0.85
-    - goalId:
+    - goalId: drink
       text: Order a drink.
-      evaluationIntent:
-      deterministicPatterns: []
-      llmCriteria:
+      evaluationIntent: drink
+      deterministicPatterns:
+      - glass of water
+      - i'd like a drink
+      - i would like a drink
+      llmCriteria: Confirm only when the participant orders a drink.
       minimumConfidence: 0.85
-    initialQuestion: Here is the menu. Would you like a recommendation, or are you
-      ready to order?
+    initialQuestion: Here is the menu. Are you ready to order, or would you like
+      a recommendation?
     environmentType: restaurant
     panoramaResourceKey: SceneTalkVR/Textures/restaurant-360
     avatarPresetKey: barista_humanoid_v1
@@ -328,29 +353,42 @@ MonoBehaviour:
     context: Politely resolving a problem after the restaurant server brings the
       wrong dish.
     goals:
-    - goalId:
+    - goalId: wrong_dish
       text: Explain that the received dish is incorrect.
-      evaluationIntent:
-      deterministicPatterns: []
-      llmCriteria:
+      evaluationIntent: wrong_dish
+      deterministicPatterns:
+      - isn't what i ordered
+      - is not what i ordered
+      - wrong dish
+      llmCriteria: Confirm only when the participant says the dish is wrong.
       minimumConfidence: 0.85
-    - goalId:
+    - goalId: original_order
       text: State what was originally ordered.
-      evaluationIntent:
-      deterministicPatterns: []
-      llmCriteria:
+      evaluationIntent: original_order
+      deterministicPatterns:
+      - i ordered the beef pasta
+      - originally ordered
+      - my order was
+      llmCriteria: Confirm only when the participant states the original order.
       minimumConfidence: 0.85
-    - goalId:
+    - goalId: replacement_request
       text: Ask for the dish to be replaced.
-      evaluationIntent:
-      deterministicPatterns: []
-      llmCriteria:
+      evaluationIntent: replacement_request
+      deterministicPatterns:
+      - could you replace it
+      - replace this
+      - bring the correct dish
+      llmCriteria: Confirm only when the participant requests a replacement.
       minimumConfidence: 0.85
-    - goalId:
+    - goalId: replacement_wait_time
       text: Ask how long the replacement will take.
-      evaluationIntent:
-      deterministicPatterns: []
-      llmCriteria:
+      evaluationIntent: replacement_wait_time
+      deterministicPatterns:
+      - how long will the replacement take
+      - how long will it take
+      - replacement wait
+      llmCriteria: Confirm only when the participant asks how long replacement will
+        take.
       minimumConfidence: 0.85
     initialQuestion: Here is your meal. Is everything all right with your order?
     environmentType: restaurant

@@ -18,13 +18,14 @@ EVENT_PAIRS = {
 
 
 def parse_turns(events: list[dict[str, Any]], tolerance_ms: int = 0) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for event in events:
         if event.get("turnId"):
-            grouped[event["turnId"]].append(event)
+            grouped[(event.get("conditionRunId", ""), event["turnId"])].append(event)
     rows: list[dict[str, Any]] = []
     exclusions: list[dict[str, Any]] = []
-    for turn_index, (turn_id, raw) in enumerate(sorted(grouped.items()), 1):
+    analyzable = [(key, raw) for key, raw in sorted(grouped.items()) if any(x.get("eventType") in {"UserSpeechEnded", "TurnSummary"} for x in raw)]
+    for turn_index, ((condition_run_id, turn_id), raw) in enumerate(analyzable, 1):
         source_order = [int(x.get("monotonicElapsedMs", -1)) for x in raw]
         if any(b < a for a, b in zip(source_order, source_order[1:])):
             exclusions.append(_exclusion(raw[0], turn_id, "timing_non_monotonic", "FAIL", "Monotonic event order regressed."))
@@ -48,7 +49,7 @@ def parse_turns(events: list[dict[str, Any]], tolerance_ms: int = 0) -> tuple[li
         provider, style = FORMAL.get(condition, ("", ""))
         row = {
             "participantId": summary.get("participantId", raw[0].get("participantId", "")), "sessionId": summary.get("sessionId", raw[0].get("sessionId", "")),
-            "conditionRunId": summary.get("conditionRunId", ""), "pilotRunId": summary.get("conditionRunId", "") if condition in {"voice_only","floating_orb","humanoid_agent"} else "",
+            "conditionRunId": summary.get("conditionRunId", condition_run_id), "pilotRunId": summary.get("conditionRunId", condition_run_id) if condition in {"voice_only","floating_orb","humanoid_agent"} else "",
             "turnId": turn_id, "turnIndex": turn_index, "conditionCode": condition if condition in FORMAL else "", "provider": provider, "style": style,
             "embodimentCondition": condition if condition not in FORMAL else "", "taskId": summary.get("taskId", ""), "hasFeedback": has_feedback,
             "feedbackTextHash": summary.get("feedbackTextHash", ""), "actualPlaybackActor": summary.get("actualPlaybackActor", ""),

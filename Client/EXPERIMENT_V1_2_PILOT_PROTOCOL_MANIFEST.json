@@ -1,0 +1,20 @@
+{
+  "protocolVersion": "1.2.0-editor-collection",
+  "flowMode": "pilot",
+  "runQualification": "collection",
+  "deploymentProfile": "editor_collection",
+  "dataOrigin": "participant_collection",
+  "collectionEligible": true,
+  "developerTestAssignment": false,
+  "synthetic": false,
+  "demoMode": false,
+  "feedbackStyle": "explicit",
+  "voiceOnlySpatialAudio": "non_spatial_head_locked",
+  "sequenceMapping": { "a": "voice_only", "b": "floating_orb", "c": "humanoid_agent" },
+  "maxTurns": 5,
+  "maxDurationMinutes": 8,
+  "scaleAnchors": { "1": "Strongly disagree / 非常不同意", "7": "Strongly agree / 非常同意" },
+  "primaryAttemptPolicy": "latest_valid_completed_attempt",
+  "embodiments": ["voice_only", "floating_orb", "humanoid_agent"],
+  "sharedFeedbackParameters": ["planner", "feedbackText", "feedbackTextHash", "voiceProfile", "voiceId", "speakingSpeed", "volume", "subtitlePolicy", "feedbackFirstGate"]
+}

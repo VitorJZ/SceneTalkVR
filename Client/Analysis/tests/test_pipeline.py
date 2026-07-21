@@ -115,6 +115,23 @@ def test_36_latest_valid_completed_attempt_retains_invalid_and_marks_latest():
     rows=[{"participantId":"p","sessionId":"s","conditionCode":"NE","conditionRunId":"bad","runAttempt":1,"isValidCompletedAttempt":False},{"participantId":"p","sessionId":"s","conditionCode":"NE","conditionRunId":"valid-1","runAttempt":2,"isValidCompletedAttempt":True},{"participantId":"p","sessionId":"s","conditionCode":"NE","conditionRunId":"valid-2","runAttempt":3,"isValidCompletedAttempt":True}]
     mark_primary_attempts(rows,"latest_valid_completed_attempt");assert len(rows)==3;assert [x["conditionRunId"] for x in rows if x["isPrimaryAttempt"]]==["valid-2"]
 
+def test_40_pilot_collection_numbered_files_and_goal_snapshots(tmp_path):
+    root=make_bundle(tmp_path/"pilot-collection","pilot",collection=True)
+    for folder in ["timing","study","questionnaire","ranking"]:
+        source=root/folder/f"{folder}.jsonl"
+        source.rename(root/folder/f"{folder}-records-01.jsonl")
+    (root/"goals").mkdir()
+    write_json(root/"goals"/"goals-records-01.json",{
+        "participantId":"p","sessionId":"s","pilotRunId":"run-1","taskId":"pilot_restaurant_walk_in","savedAtUtc":"2026-07-21T00:00:00Z",
+        "goals":[{"goalId":"no_reservation","goalText":"Explain no reservation","state":2,"conditionRunId":"run-1","confirmedAtUtc":"2026-07-21T00:00:00Z","confirmedBy":"system_goal_evaluator","evidenceTurnId":"turn-1"}]
+    })
+    write_checksums(root)
+    result=analyze_bundle(root,tmp_path/"out",config_file(tmp_path,False,collection=True))
+    assert result["tables"]["all_attempts.csv"]==2
+    assert result["tables"]["goals_long.csv"]>=1
+    assert result["tables"]["questionnaire_items_long.csv"]>=1
+    assert result["tables"]["rankings_long.csv"]==3
+
 
 def config_file(root: Path, include: bool, collection: bool=False) -> Path:
     path=root/("collection-config.json" if collection else "synthetic-config.json")

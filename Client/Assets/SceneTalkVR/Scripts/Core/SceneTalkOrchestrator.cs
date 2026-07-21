@@ -232,20 +232,23 @@ namespace SceneTalkVR.Runtime
                     && RehearsalSessionCoordinator.Active.IsTaskPrepared(taskId);
                 var collectionPrepared = EditorCollectionSessionCoordinator.Active != null
                     && EditorCollectionSessionCoordinator.Active.IsTaskPrepared(taskId);
+                var pilotCollectionPrepared = PilotCollectionSessionCoordinator.Active != null
+                    && PilotCollectionSessionCoordinator.Active.IsTaskPrepared(taskId);
                 var demoPrepared = EditorDemoSessionCoordinator.Active != null
                     && EditorDemoSessionCoordinator.Active.IsTaskPrepared(taskId);
                 var prepareDeveloperSession = !manager.IsFormalExperiment
                     && !rehearsalPrepared
                     && !collectionPrepared
                     && !demoPrepared
+                    && !pilotCollectionPrepared
                     && definition != null
                     && definition.phase == ExperimentTaskPhase.Formal
                     && lifecycle != null;
                 var assignmentError = string.Empty;
-                var prepared = collectionPrepared || rehearsalPrepared || demoPrepared || (prepareDeveloperSession
+                var prepared = collectionPrepared || rehearsalPrepared || demoPrepared || pilotCollectionPrepared || (prepareDeveloperSession
                     ? lifecycle.PrepareDeveloperTaskSession(taskId, out assignmentError)
                     : manager.LoadAssignedTask(taskId, out assignmentError));
-                if (collectionPrepared || rehearsalPrepared || demoPrepared) assignmentError = string.Empty;
+                if (collectionPrepared || rehearsalPrepared || demoPrepared || pilotCollectionPrepared) assignmentError = string.Empty;
                 if (!prepared)
                 {
                     LastError = assignmentError;
@@ -865,6 +868,7 @@ namespace SceneTalkVR.Runtime
             currentTurn = null;
             var dialogueGoalManager = ResolveExperimentConditionManager(false);
             GoalEvaluationOrchestrator.EvaluateUserTranscript(dialogueGoalManager?.LifecycleCoordinator, dialogueGoalManager?.CurrentTurnId, transcript);
+            GoalEvaluationOrchestrator.EvaluatePilotUserTranscript(PilotWorkflowCoordinator.Active, dialogueGoalManager?.CurrentTurnId, transcript);
             EnterTurnReviewState();
         }
 

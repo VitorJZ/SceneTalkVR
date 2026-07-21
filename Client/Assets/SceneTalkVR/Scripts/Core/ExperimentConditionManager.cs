@@ -318,7 +318,8 @@ namespace SceneTalkVR.Core
             {
                 var rehearsalPilot = RehearsalSessionCoordinator.Active != null && RehearsalSessionCoordinator.Active.IsPilot;
                 var editorPilotDemo = EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsPilotDemo;
-                var phase = rehearsalPilot || editorPilotDemo || experimentProtocol != null && experimentProtocol.ExperimentPhase == ExperimentPhase.Pilot
+                var pilotCollection = PilotCollectionSessionCoordinator.Active != null && PilotCollectionSessionCoordinator.Active.IsArmed;
+                var phase = rehearsalPilot || editorPilotDemo || pilotCollection || experimentProtocol != null && experimentProtocol.ExperimentPhase == ExperimentPhase.Pilot
                     ? ExperimentTaskPhase.Pilot
                     : ExperimentTaskPhase.Formal;
                 var tasks = taskCatalog.GetTasks(phase);
@@ -917,6 +918,8 @@ namespace SceneTalkVR.Core
 
         private string ResolveLogFolder()
         {
+            if (PilotCollectionSessionCoordinator.Active != null && PilotCollectionSessionCoordinator.Active.IsArmed)
+                return PilotCollectionSessionCoordinator.Active.CurrentDataFolder;
             if (EditorCollectionSessionCoordinator.Active != null && EditorCollectionSessionCoordinator.Active.IsArmed)
                 return EditorCollectionSessionCoordinator.Active.CurrentDataFolder;
             if (RehearsalSessionCoordinator.Active != null && RehearsalSessionCoordinator.Active.IsActive)
@@ -970,7 +973,8 @@ namespace SceneTalkVR.Core
             {
                 var rehearsalPilot = RehearsalSessionCoordinator.Active != null && RehearsalSessionCoordinator.Active.IsPilot;
                 var editorPilotDemo = EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsPilotDemo;
-                var phase = rehearsalPilot || editorPilotDemo || experimentProtocol != null && experimentProtocol.ExperimentPhase == ExperimentPhase.Pilot
+                var pilotCollection = PilotCollectionSessionCoordinator.Active != null && PilotCollectionSessionCoordinator.Active.IsArmed;
+                var phase = rehearsalPilot || editorPilotDemo || pilotCollection || experimentProtocol != null && experimentProtocol.ExperimentPhase == ExperimentPhase.Pilot
                     ? ExperimentTaskPhase.Pilot
                     : ExperimentTaskPhase.Formal;
                 var requested = string.IsNullOrWhiteSpace(scenarioId) ? null : taskCatalog.Find(scenarioId.Trim());
@@ -1245,7 +1249,7 @@ namespace SceneTalkVR.Core
             {
                 var folder = ResolveLogFolder();
                 Directory.CreateDirectory(folder);
-                var filePrefix = $"{SanitizeFileToken(record.participantId)}_{SanitizeFileToken(record.sessionId)}";
+                var filePrefix = PilotCollectionSessionCoordinator.Active?.IsArmed == true ? "pilot_timing" : $"{SanitizeFileToken(record.participantId)}_{SanitizeFileToken(record.sessionId)}";
                 File.AppendAllText(Path.Combine(folder, $"{filePrefix}_events_v1.jsonl"), JsonUtility.ToJson(record) + Environment.NewLine, Encoding.UTF8);
             }
             catch (Exception ex)

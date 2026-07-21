@@ -21,7 +21,8 @@ namespace SceneTalkVR.Core
         SyntheticDryRun,
         LockedFormalCollection,
         LockedPilotCollection,
-        EditorCollectionFormal
+        EditorCollectionFormal,
+        EditorCollectionPilot
     }
 
     [Serializable]
@@ -82,6 +83,14 @@ namespace SceneTalkVR.Core
                 deploymentTarget = ExperimentDeploymentTarget.UnityEditor,
                 deploymentProfile = "editor_collection"
             };
+        }
+
+        public static ExperimentRuntimeContext CreatePilotEditorCollection(string participantId, string sessionId,
+            string protocolSnapshotId, string resourceSnapshotId)
+        {
+            var value = CreateEditorCollection(participantId, sessionId, protocolSnapshotId, resourceSnapshotId);
+            value.flowMode = ExperimentFlowMode.Pilot;
+            return value;
         }
     }
 

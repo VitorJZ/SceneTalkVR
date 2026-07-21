@@ -37,7 +37,7 @@ MonoBehaviour:
     assetVersion: editor-collection-1
   - voiceProfileKey: editor_collection_feedback_voice
     provider: tencent
-    voiceId: 101050
+    voiceId: default_female_en
     language: en-US
     speakingSpeed: 1
     volume: 1

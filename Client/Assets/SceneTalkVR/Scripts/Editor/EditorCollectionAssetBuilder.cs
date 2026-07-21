@@ -57,8 +57,8 @@ namespace SceneTalkVR.EditorTools
             ConfigureAvatars(avatarCatalog);
 
             var voices = AssetDatabase.LoadAssetAtPath<ExperimentVoiceProfileCatalog>(VoicePath);
-            var dialogue = Voice("editor_collection_dialogue_voice", VoiceSubtitlePolicy.AllSpeech);
-            var feedback = Voice("editor_collection_feedback_voice", VoiceSubtitlePolicy.FeedbackOnly);
+            var dialogue = Voice("editor_collection_dialogue_voice", "101050", VoiceSubtitlePolicy.AllSpeech);
+            var feedback = Voice("editor_collection_feedback_voice", "default_female_en", VoiceSubtitlePolicy.FeedbackOnly);
             voices.EditorSet("1.2-editor-collection", feedback.voiceProfileKey, feedback.voiceProfileKey,
                 feedback.voiceProfileKey, new[] { dialogue, feedback });
 
@@ -118,9 +118,9 @@ namespace SceneTalkVR.EditorTools
         private static EditorCollectionAvatarMapping Mapping(string taskId, string key) => new EditorCollectionAvatarMapping
         { taskId = taskId, requestedPresetKey = key, approvedForEditorCollection = true, approvedForCollection = true, replaceableAsset = true };
 
-        private static ExperimentVoiceProfile Voice(string key, VoiceSubtitlePolicy subtitles) => new ExperimentVoiceProfile
+        private static ExperimentVoiceProfile Voice(string key, string voiceId, VoiceSubtitlePolicy subtitles) => new ExperimentVoiceProfile
         {
-            voiceProfileKey = key, provider = "tencent", voiceId = "101050", language = "en-US",
+            voiceProfileKey = key, provider = "tencent", voiceId = voiceId, language = "en-US",
             speakingSpeed = 1f, volume = 1f, pitch = 1f, sampleRate = 24000, subtitlePolicy = subtitles,
             approvedForCollection = true, approvedForEditorCollection = true, replaceableAsset = true,
             approvedBy = "ProjectLead", evidenceReference = "formal-editor-collection-directive-v1",
@@ -151,7 +151,7 @@ namespace SceneTalkVR.EditorTools
                     task.goals[i].minimumConfidence = .85f;
                 }
             }
-            catalog.EditorSet("1.2.0-editor-collection", catalog.Tasks.ToArray());
+            catalog.EditorSet("1.2.1-pilot-collection", catalog.Tasks.ToArray());
         }
 
         private static string[][] Patterns(string taskId)
@@ -188,7 +188,10 @@ namespace SceneTalkVR.EditorTools
                 var animator = entry.prefab == null ? null : entry.prefab.GetComponentInChildren<Animator>(true);
                 entry.animatorController = animator?.runtimeAnimatorController;
                 entry.voiceProfileKey = "editor_collection_dialogue_voice";
-                entry.voiceId = "101050";
+                entry.voiceId = entry.genderPresentations != null
+                    && entry.genderPresentations.Any(x => string.Equals(x, "male", StringComparison.OrdinalIgnoreCase))
+                    ? "default_male_en"
+                    : "default_female_en";
                 entry.idleState = "Idle"; entry.thinkingState = "Thinking"; entry.speakingState = "Talking";
                 entry.spawnPosition = Vector3.zero; entry.spawnRotation = new Vector3(0, 180, 0); entry.scale = Vector3.one;
                 entry.assetVersion = "editor-collection-1"; entry.approvedForCollection = true;

@@ -197,6 +197,10 @@ namespace SceneTalkVR.AvatarSystem
             var activePilotPresenter = !useDialogueAvatar ? PilotEmbodimentPresenter.Active : null;
             var activePilotProfile = activePilotPresenter?.Profile;
             var timing = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include);
+            var resolvedPilotVoiceId = string.Empty;
+            if (activePilotProfile != null && timing?.VoiceProfileCatalog != null
+                && timing.VoiceProfileCatalog.TryGet(activePilotProfile.voiceProfileKey, out var pilotVoiceProfile))
+                resolvedPilotVoiceId = pilotVoiceProfile.voiceId;
             var actualActor = useDialogueAvatar ? "Avatar" : activePilotProfile?.feedbackActor ?? "Agent";
             var actualVoice = rehearsal != null && rehearsal.IsActive ? "rehearsal_feedback_voice"
                 : !string.IsNullOrWhiteSpace(activePilotProfile?.voiceProfileKey)
@@ -212,7 +216,8 @@ namespace SceneTalkVR.AvatarSystem
                 logLabel = useDialogueAvatar
                     ? "Correction feedback"
                     : "Assistant correction feedback",
-                voiceIdOverride = !string.IsNullOrWhiteSpace(rehearsalFeedbackVoiceId) ? rehearsalFeedbackVoiceId : assistantAgentVoiceId,
+                voiceIdOverride = !string.IsNullOrWhiteSpace(rehearsalFeedbackVoiceId) ? rehearsalFeedbackVoiceId
+                    : !string.IsNullOrWhiteSpace(resolvedPilotVoiceId) ? resolvedPilotVoiceId : assistantAgentVoiceId,
                 preparationStarted = () => timing?.RecordTimingEvent(ExperimentTimingEventType.CorrectionTtsStarted, feedbackText: text),
                 preparationReady = () => timing?.RecordTimingEvent(ExperimentTimingEventType.CorrectionTtsReady, feedbackText: text),
                 playbackStarted = () => timing?.RecordTimingEvent(
@@ -251,7 +256,8 @@ namespace SceneTalkVR.AvatarSystem
                 if (pilotPresenter != null && pilotPresenter.Profile != null)
                 {
                     playbackRequest.voiceIdOverride = !string.IsNullOrWhiteSpace(rehearsalFeedbackVoiceId)
-                        ? rehearsalFeedbackVoiceId : pilotPresenter.Profile.voiceProfileKey;
+                        ? rehearsalFeedbackVoiceId : !string.IsNullOrWhiteSpace(resolvedPilotVoiceId)
+                        ? resolvedPilotVoiceId : pilotPresenter.Profile.voiceProfileKey;
                     playbackRequest.audioSourceOverride = pilotPresenter.AudioSource;
                     var timingStarted = playbackRequest.playbackStarted;
                     var timingEnded = playbackRequest.playbackEnded;

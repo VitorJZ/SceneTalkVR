@@ -29,18 +29,21 @@ namespace SceneTalkVR.Tests.PlayMode
         };
 
         [UnityTest]
-        public IEnumerator OfficialStartWithoutArmedSession_DoesNotExposeLegacyTaskSelection()
+        public IEnumerator EditorStartWithoutArmedCollection_ShowsFormalConditionSelection()
         {
             SceneManager.LoadScene("SampleScene", LoadSceneMode.Single);
             yield return null;
             yield return null;
 
-            InvokeButton("Start");
+            InvokeButton("Formal Experiment");
             yield return null;
             Assert.That(FindActiveButton("Gym Membership"), Is.Null);
             var prompt = FindTransform("SessionNotPreparedPanel");
-            Assert.That(prompt, Is.Not.Null);
-            Assert.That(prompt.gameObject.activeInHierarchy, Is.True);
+            Assert.That(prompt == null || !prompt.gameObject.activeInHierarchy, Is.True);
+            Assert.That(FindActiveButton("NE — Explicit feedback from partner"), Is.Not.Null);
+            Assert.That(FindActiveButton("NR — Recast feedback from partner"), Is.Not.Null);
+            Assert.That(FindActiveButton("SE — Explicit feedback from support agent"), Is.Not.Null);
+            Assert.That(FindActiveButton("SR — Recast feedback from support agent"), Is.Not.Null);
         }
 
         [UnityTest]

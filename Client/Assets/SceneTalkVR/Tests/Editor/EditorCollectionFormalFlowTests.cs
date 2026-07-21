@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using NUnit.Framework;
+using SceneTalkVR.AvatarSystem;
 using SceneTalkVR.Core;
 using SceneTalkVR.EditorTools;
 using UnityEditor;
@@ -132,6 +133,25 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(typeof(StructuredLlmGoalEvaluationFallback).GetInterfaces(), Does.Contain(typeof(IAsyncStructuredGoalEvaluationFallback)));
             var service = Type.GetType("SceneTalkVR.Runtime.Services.RealLLMService, Assembly-CSharp");
             Assert.That(service?.GetMethod("GenerateStructuredGoalEvaluationAsync"), Is.Not.Null);
+        }
+
+        [Test]
+        public void T42_FormalAvatarVoiceMetadataMatchesPresentedGender()
+        {
+            var catalog = Load<AvatarCatalog>(EditorCollectionAssetBuilder.AvatarPath);
+            AssertVoice(catalog, "barista_humanoid_v1", "female", "default_female_en");
+            AssertVoice(catalog, "teacher_humanoid_v1", "male", "default_male_en");
+            AssertVoice(catalog, "barista_male_humanoid_v1", "male", "default_male_en");
+            AssertVoice(catalog, "teacher_female_humanoid_v1", "female", "default_female_en");
+            Assert.That(voices.TryGet("editor_collection_feedback_voice", out var feedback), Is.True);
+            Assert.That(feedback.voiceId, Is.EqualTo("default_female_en"), "The shared Pilot feedback voice must match its female Humanoid presentation.");
+        }
+
+        private static void AssertVoice(AvatarCatalog catalog, string key, string gender, string voiceId)
+        {
+            var preset = catalog.presets.Single(x => x.key == key);
+            Assert.That(preset.genderPresentations.Any(x => string.Equals(x, gender, StringComparison.OrdinalIgnoreCase)), Is.True, key);
+            Assert.That(preset.voiceId, Is.EqualTo(voiceId), key);
         }
 
         private static GoalEvaluationRequest Request(ExperimentTaskDefinition task, string transcript, ExperimentTaskGoal goal) => new GoalEvaluationRequest { taskId = task.taskId, turnId = "turn-1", userTranscript = transcript, currentGoalDefinitions = new[] { goal } };

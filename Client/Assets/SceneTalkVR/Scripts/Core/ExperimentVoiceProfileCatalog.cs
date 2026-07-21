@@ -78,7 +78,8 @@ namespace SceneTalkVR.Core
             foreach (var key in required)
             {
                 if (!TryGet(key, out var item)) { issues.Add("rehearsal_voice_missing:" + key); continue; }
-                if (!item.approvedForRehearsal || item.approvedForCollection || item.provider != "tencent" || item.voiceId != "101050"
+                var expectedVoiceId = key == "rehearsal_feedback_voice" ? "default_female_en" : "101050";
+                if (!item.approvedForRehearsal || item.approvedForCollection || item.provider != "tencent" || item.voiceId != expectedVoiceId
                     || item.language != "en-US" || item.sampleRate != 24000 || item.speakingSpeed <= 0f || item.volume <= 0f)
                     issues.Add("rehearsal_voice_invalid:" + key);
             }

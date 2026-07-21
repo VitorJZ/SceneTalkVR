@@ -16,6 +16,7 @@ namespace SceneTalkVR.Tests.PlayMode
         private Component lifecycle;
         private Component questionnaire;
         private Component manager;
+        private Component rehearsal;
 
         [UnitySetUp]
         public IEnumerator SetUp()
@@ -25,6 +26,7 @@ namespace SceneTalkVR.Tests.PlayMode
             manager = Find("SceneTalkVR.Core.ExperimentConditionManager, Assembly-CSharp");
             lifecycle = Find("SceneTalkVR.Core.ExperimentLifecycleCoordinator, Assembly-CSharp");
             questionnaire = Find("SceneTalkVR.Runtime.QuestionnaireRuntimeController, Assembly-CSharp");
+            rehearsal = Find("SceneTalkVR.Core.RehearsalSessionCoordinator, Assembly-CSharp");
             var goalOrchestrator = Type.GetType("SceneTalkVR.Core.GoalEvaluationOrchestrator, Assembly-CSharp");
             goalOrchestrator?.GetProperty("AsyncStructuredFallback", BindingFlags.Public | BindingFlags.Static)?.SetValue(null, null);
             var type = Type.GetType("SceneTalkVR.Core.EditorCollectionSessionCoordinator, Assembly-CSharp");
@@ -32,10 +34,20 @@ namespace SceneTalkVR.Tests.PlayMode
             Configure();
         }
 
-        [UnityTearDown] public IEnumerator TearDown() { CallVoid(collection, "EndRuntimeSession"); yield return null; }
+        [UnityTearDown] public IEnumerator TearDown() { CallVoid(collection, "EndRuntimeSession"); CallVoid(rehearsal, "ResetSession"); yield return null; }
 
-        [UnityTest] public IEnumerator T01_UnarmedStartShowsPreparationMessageAndNoTaskSelection()
-        { Click("StartButton"); yield return null; Assert.That(Active("SessionNotPreparedPanel"), Is.True); Assert.That(Active("TaskSelectionPanel"), Is.False); Assert.That(Active("FormalModeSelectionPanel"), Is.False); }
+        [UnityTest] public IEnumerator T01_UnarmedEditorStartCreatesNonCollectionRehearsalAndShowsModes()
+        {
+            Click("StartButton"); yield return null;
+            rehearsal = Find("SceneTalkVR.Core.RehearsalSessionCoordinator, Assembly-CSharp");
+            Assert.That(Active("SessionNotPreparedPanel"), Is.False);
+            Assert.That(Active("TaskSelectionPanel"), Is.False);
+            Assert.That(Active("FormalModeSelectionPanel"), Is.True);
+            Assert.That((bool)Get(rehearsal, "IsFormal"), Is.True);
+            var runtime = Get(rehearsal, "RuntimeContext");
+            Assert.That(Get(runtime, "dataOrigin"), Is.EqualTo("rehearsal"));
+            Assert.That(Get(runtime, "collectionEligible"), Is.False);
+        }
 
         [UnityTest] public IEnumerator T02_ArmedStartUsesRealMainMenuPathToModeSelection()
         { Arm(out _); Assert.That(Active("InitialPanel"), Is.True); Click("StartButton"); yield return null; Assert.That(Active("FormalModeSelectionPanel"), Is.True); Assert.That(Active("TaskSelectionPanel"), Is.False); Assert.That(Get(Get(collection, "RuntimeContext"), "qualification").ToString(), Is.EqualTo("Collection")); }

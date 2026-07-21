@@ -36,6 +36,45 @@ def _jsonl(path: Path) -> list[dict[str, Any]]:
     return values
 
 
+def _jsonl_directory(path: Path) -> list[dict[str, Any]]:
+    values: list[dict[str, Any]] = []
+    if not path.is_dir():
+        return values
+    for file in sorted(path.glob("*.jsonl")):
+        values.extend(_normalize_event(value) for value in _jsonl(file))
+    return values
+
+
+def _goal_snapshots(path: Path) -> list[dict[str, Any]]:
+    values: list[dict[str, Any]] = []
+    if not path.is_dir():
+        return values
+    for file in sorted(path.glob("*.json")):
+        snapshot = _json(file)
+        for goal in snapshot.get("goals", []):
+            row = dict(goal)
+            row.update({
+                "participantId": snapshot.get("participantId", ""),
+                "sessionId": snapshot.get("sessionId", ""),
+                "conditionRunId": goal.get("conditionRunId") or snapshot.get("pilotRunId", ""),
+                "taskId": snapshot.get("taskId", ""),
+                "eventType": "GoalConfirmed" if goal.get("state") == 2 else "GoalCandidateSubmitted" if goal.get("state") == 1 else "GoalPending",
+                "timestampUtc": goal.get("confirmedAtUtc") or goal.get("candidateAtUtc") or snapshot.get("savedAtUtc", ""),
+                "turnId": goal.get("evidenceTurnId", ""),
+                "actor": goal.get("confirmedBy", ""),
+                "_sourceFile": file.relative_to(path.parent).as_posix(),
+            })
+            values.append(row)
+    return values
+
+
+def _normalize_event(value: dict[str, Any]) -> dict[str, Any]:
+    value = dict(value)
+    value["conditionRunId"] = value.get("conditionRunId") or value.get("pilotRunId", "")
+    value["conditionLabel"] = value.get("conditionLabel") or value.get("embodimentCondition", "")
+    return value
+
+
 @dataclass(frozen=True)
 class SessionBundle:
     root: Path
@@ -65,11 +104,11 @@ class SessionBundle:
             root=path,
             manifest=_json(manifest_path),
             assignment=_json(assignment_path),
-            timing=_jsonl(path / "timing" / "timing.jsonl"),
-            study=_jsonl(path / "study" / "study.jsonl"),
-            questionnaire=_jsonl(path / "questionnaire" / "questionnaire.jsonl"),
-            ranking=_jsonl(path / "ranking" / "ranking.jsonl"),
-            interview=_jsonl(path / "interview" / "interview.jsonl"),
+            timing=_jsonl_directory(path / "timing"),
+            study=_jsonl_directory(path / "study") + _goal_snapshots(path / "goals"),
+            questionnaire=_jsonl_directory(path / "questionnaire"),
+            ranking=_jsonl_directory(path / "ranking"),
+            interview=_jsonl_directory(path / "interview"),
             source_hashes=hashes,
             manifest_hash=sha256_file(manifest_path),
         )

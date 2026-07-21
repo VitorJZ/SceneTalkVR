@@ -20,6 +20,7 @@ def parse_goals(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def parse_attempts(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
     retries = {x.get("conditionRunId", "") for x in events if x.get("eventType") == "RetryAuthorized"}
     invalid = {x.get("conditionRunId", "") for x in events if x.get("eventType") in {"ConditionTechnicalInvalid", "PilotConditionTechnicalInvalid"}}
     completed = {x.get("conditionRunId", "") for x in events if x.get("eventType") in {"ConditionCompleted", "PilotConditionCompleted"}}
@@ -27,6 +28,9 @@ def parse_attempts(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if event.get("eventType") not in {"ConditionStarted", "PilotConditionStarted"}:
             continue
         run = event.get("conditionRunId", "")
+        if not run or run in seen:
+            continue
+        seen.add(run)
         rows.append({"participantId":event.get("participantId",""),"sessionId":event.get("sessionId",""),"conditionRunId":run,"pilotRunId":run if event.get("conditionLabel") in {"voice_only","floating_orb","humanoid_agent"} else "","conditionCode":event.get("formalConditionCode",event.get("conditionLabel","")),"runAttempt":event.get("runAttempt",1),"isTechnicalInvalid":run in invalid or event.get("technicalValidity")=="TechnicalInvalid","isRetry":event.get("runAttempt",1)>1 or run in retries,"supersedesRunId":event.get("supersedesRunId",""),"isValidCompletedAttempt":run in completed and run not in invalid,"isPrimaryAttempt":False})
     return rows
 

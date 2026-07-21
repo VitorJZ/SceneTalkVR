@@ -21,7 +21,7 @@ MonoBehaviour:
     addressableKey:
     semanticRole:
     voiceProfileKey: editor_collection_dialogue_voice
-    voiceId: 101050
+    voiceId: default_female_en
     animatorController: {fileID: 22100000, guid: 2dc12d134bd5c46318272bb0f04ae20c, type: 2}
     idleState: Idle
     thinkingState: Thinking
@@ -79,7 +79,7 @@ MonoBehaviour:
     addressableKey:
     semanticRole:
     voiceProfileKey: editor_collection_dialogue_voice
-    voiceId: 101050
+    voiceId: default_male_en
     animatorController: {fileID: 9100000, guid: 2b78b31307ad14184a55d4c154c482a1, type: 2}
     idleState: Idle
     thinkingState: Thinking
@@ -137,7 +137,7 @@ MonoBehaviour:
     addressableKey:
     semanticRole:
     voiceProfileKey: editor_collection_dialogue_voice
-    voiceId: 101050
+    voiceId: default_male_en
     animatorController: {fileID: 22100000, guid: e701c7253667c43fb9ad90ba766a12ce, type: 2}
     idleState: Idle
     thinkingState: Thinking
@@ -194,7 +194,7 @@ MonoBehaviour:
     addressableKey:
     semanticRole:
     voiceProfileKey: editor_collection_dialogue_voice
-    voiceId: 101050
+    voiceId: default_female_en
     animatorController: {fileID: 22100000, guid: 7ef0b5dcf11c2460eaee00cd1498f325, type: 2}
     idleState: Idle
     thinkingState: Thinking

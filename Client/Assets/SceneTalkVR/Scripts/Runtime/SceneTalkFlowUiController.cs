@@ -34,8 +34,10 @@ namespace SceneTalkVR.Runtime
         private GameObject rehearsalWaitingPanel;
         private GameObject formalModeSelectionPanel;
         private GameObject sessionNotPreparedPanel;
+        private PilotCollectionParticipantUi pilotCollectionUi;
 
         private Button startButton;
+        private Button pilotButton;
         private Button settingsButton;
         private Button quitButton;
         private Button fontMinusButton;
@@ -132,6 +134,7 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
+            pilotCollectionUi?.ResetForCanvasRebuild();
             ClearCanvasChildren();
             baseFontSizes.Clear();
             ConfigureCanvasRect();
@@ -162,11 +165,12 @@ namespace SceneTalkVR.Runtime
             CreateButton(sessionNotPreparedPanel.transform, "SessionNotPreparedBackButton", "Back", new Vector2(0f, -92f), new Vector2(160f, 44f), new Color(.24f, .36f, .42f, 1f))
                 .onClick.AddListener(() => { sessionPreparationBlocked = false; Refresh(); });
 
-            mainMenuPanel = CreatePanel(root, "InitialPanel", new Vector2(0f, 0f), new Vector2(380f, 360f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
-            CreateText(mainMenuPanel.transform, "Title", "SceneTalkVR", new Vector2(0f, 122f), new Vector2(320f, 54f), 34, TextAnchor.MiddleCenter, Color.white);
-            startButton = CreateButton(mainMenuPanel.transform, "StartButton", "Start", new Vector2(0f, 48f), new Vector2(190f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f));
-            settingsButton = CreateButton(mainMenuPanel.transform, "SettingsButton", "Settings", new Vector2(0f, -24f), new Vector2(190f, 54f), new Color(0.24f, 0.36f, 0.42f, 1f));
-            quitButton = CreateButton(mainMenuPanel.transform, "QuitButton", "Quit", new Vector2(0f, -96f), new Vector2(190f, 54f), new Color(0.58f, 0.18f, 0.18f, 1f));
+            mainMenuPanel = CreatePanel(root, "InitialPanel", new Vector2(0f, 0f), new Vector2(430f, 430f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
+            CreateText(mainMenuPanel.transform, "Title", "SceneTalkVR", new Vector2(0f, 166f), new Vector2(360f, 54f), 34, TextAnchor.MiddleCenter, Color.white);
+            startButton = CreateButton(mainMenuPanel.transform, "StartButton", "Formal Experiment", new Vector2(0f, 80f), new Vector2(250f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f));
+            pilotButton = CreateButton(mainMenuPanel.transform, "PilotExperimentButton", "Pilot Experiment", new Vector2(0f, 10f), new Vector2(250f, 54f), new Color(0.18f, 0.48f, 0.58f, 1f));
+            settingsButton = CreateButton(mainMenuPanel.transform, "SettingsButton", "Settings", new Vector2(0f, -60f), new Vector2(250f, 54f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            quitButton = CreateButton(mainMenuPanel.transform, "QuitButton", "Quit", new Vector2(0f, -130f), new Vector2(250f, 54f), new Color(0.58f, 0.18f, 0.18f, 1f));
 
             settingsPanel = CreatePanel(root, "SettingsPanel", new Vector2(0f, 0f), new Vector2(820f, 380f), new Color(0.04f, 0.05f, 0.07f, 0.92f));
             settingsTitleText = CreateText(settingsPanel.transform, "Title", "Settings", new Vector2(0f, 146f), new Vector2(480f, 48f), 30, TextAnchor.MiddleCenter, Color.white);
@@ -238,6 +242,9 @@ namespace SceneTalkVR.Runtime
             exitButton = CreateButton(root, "ExitButton", "Exit", ExitButtonPosition, ExitButtonSize, ExitButtonColor);
             exitButtonObject = exitButton.gameObject;
 
+            pilotCollectionUi = GetComponent<PilotCollectionParticipantUi>() ?? gameObject.AddComponent<PilotCollectionParticipantUi>();
+            pilotCollectionUi.Configure(worldCanvas, orchestrator);
+
             BindButtons();
             CaptureBaseFontSizes(root);
             ApplyUserSettings(SceneTalkUserSettingsStore.Current);
@@ -249,6 +256,12 @@ namespace SceneTalkVR.Runtime
             {
                 startButton.onClick.RemoveAllListeners();
                 startButton.onClick.AddListener(HandleParticipantStart);
+            }
+
+            if (pilotButton != null)
+            {
+                pilotButton.onClick.RemoveAllListeners();
+                pilotButton.onClick.AddListener(() => pilotCollectionUi?.OpenSetup());
             }
 
             if (settingsButton != null)
@@ -338,20 +351,59 @@ namespace SceneTalkVR.Runtime
         private void HandleParticipantStart()
         {
             var collection = EditorCollectionSessionCoordinator.Active;
-            if (collection == null || !collection.IsArmed)
+            if (collection != null && collection.IsArmed)
             {
-                sessionPreparationBlocked = true;
+                sessionPreparationBlocked = false;
+                if (!collection.BeginParticipantFlow(out var collectionError))
+                {
+                    sessionPreparationBlocked = true;
+                    Debug.LogError("[EditorCollection] Participant Start blocked: " + collectionError, this);
+                }
                 Refresh();
                 return;
             }
+
+            // A normal Editor Play -> Start path is a rehearsal, never participant collection.
+            // This keeps the four-condition participant UI usable without requiring an
+            // operator-window pre-step, while preserving the armed collection boundary.
+            var rehearsal = RehearsalSessionCoordinator.Active
+                ?? FindFirstObjectByType<RehearsalSessionCoordinator>(FindObjectsInactive.Include);
+#if UNITY_EDITOR
+            rehearsal ??= CreateEditorManualRehearsalCoordinator();
+#endif
+            var token = System.Guid.NewGuid().ToString("N");
+            var sessionId = $"editor-manual-{System.DateTime.UtcNow:yyyyMMdd-HHmmss}-{token.Substring(0, 8)}";
+            var error = rehearsal == null ? "rehearsal_session_coordinator_missing" : string.Empty;
             sessionPreparationBlocked = false;
-            if (!collection.BeginParticipantFlow(out var error))
+            if (rehearsal == null || !rehearsal.CreateFormalSession("EDITOR-MANUAL", sessionId, out error))
             {
                 sessionPreparationBlocked = true;
-                Debug.LogError("[EditorCollection] Participant Start blocked: " + error, this);
+                Debug.LogError("[Rehearsal] Automatic Editor manual session failed: " + error, this);
+            }
+            else
+            {
+                Debug.Log("[Rehearsal] Editor Start created a non-collection Formal rehearsal session. "
+                    + "dataOrigin=rehearsal; collectionEligible=false; sessionId=" + sessionId, this);
             }
             Refresh();
         }
+
+#if UNITY_EDITOR
+        private static RehearsalSessionCoordinator CreateEditorManualRehearsalCoordinator()
+        {
+            var manager = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include);
+            if (manager == null) return null;
+            var coordinator = manager.GetComponent<RehearsalSessionCoordinator>()
+                ?? manager.gameObject.AddComponent<RehearsalSessionCoordinator>();
+            const string root = "Assets/SceneTalkVR/ExperimentProtocol/";
+            coordinator.Configure(
+                UnityEditor.AssetDatabase.LoadAssetAtPath<ExperimentV11RehearsalProtocol>(root + "ExperimentV11RehearsalProtocol.asset"),
+                UnityEditor.AssetDatabase.LoadAssetAtPath<ExperimentV11RehearsalResourceCatalog>(root + "ExperimentV11RehearsalResources.asset"),
+                UnityEditor.AssetDatabase.LoadAssetAtPath<ExperimentVoiceProfileCatalog>(root + "ExperimentV11RehearsalVoiceProfileCatalog.asset"),
+                UnityEditor.AssetDatabase.LoadAssetAtPath<ExperimentDeploymentCatalog>(root + "ExperimentV11RehearsalDeploymentCatalog.asset"));
+            return coordinator;
+        }
+#endif
 
         private void BuildTaskButtons()
         {
@@ -435,6 +487,9 @@ namespace SceneTalkVR.Runtime
             if (collectionArmed) sessionPreparationBlocked = false;
             var collectionParticipantActive = collectionArmed && collection.ParticipantStarted;
             var collectionFinal = collectionArmed && (collection.FinalRankingVisible || collection.ExperimentCompleted);
+            var pilotCollection = PilotCollectionSessionCoordinator.Active;
+            var pilotStage = pilotCollection?.Stage ?? PilotParticipantStage.None;
+            var pilotFlowVisible = pilotStage != PilotParticipantStage.None;
             var questionnaireSession = FindFirstObjectByType<QuestionnaireRuntimeController>(FindObjectsInactive.Include)?.ActiveSession;
             var questionnaireActive = questionnaireSession != null
                 && (questionnaireSession.completionStatus == QuestionnaireCompletionStatus.InProgress
@@ -447,7 +502,7 @@ namespace SceneTalkVR.Runtime
                     : rehearsalActive && rehearsal.IsFormal && rehearsal.AwaitingParticipantConditionChoice);
             bool isFixedMode = orchestrator.RuntimeConfig != null && orchestrator.RuntimeConfig.UseFixedExperimentMode;
 
-            var showMain = !rehearsalActive && !collectionParticipantActive && !sessionPreparationBlocked
+            var showMain = !rehearsalActive && !collectionParticipantActive && !sessionPreparationBlocked && !pilotFlowVisible
                 && (state == SceneTalkState.Idle || state == SceneTalkState.Finished);
             var showSettings = state == SceneTalkState.Settings;
             var showRequest = !dialogueActive
@@ -465,6 +520,9 @@ namespace SceneTalkVR.Runtime
                 || state == SceneTalkState.CorrectionFeedbackSpeaking
                 || state == SceneTalkState.DialogueSpeaking
                 || state == SceneTalkState.TurnReview) && !questionnaireActive;
+            if (pilotFlowVisible) showDialogue = pilotStage == PilotParticipantStage.Dialogue && (dialogueActive
+                || state == SceneTalkState.AvatarSpeaking || state == SceneTalkState.CorrectionFeedbackSpeaking
+                || state == SceneTalkState.DialogueSpeaking || state == SceneTalkState.TurnReview);
 
             if (collectionFinal) { showRequest = false; showTaskSelection = false; showLoading = false; showDialogue = false; showFormalModeSelection = false; }
             SetActive(mainMenuPanel, showMain);
@@ -477,7 +535,7 @@ namespace SceneTalkVR.Runtime
             SetActive(loadingPanel, showLoading);
             SetActive(subtitlePanel, showDialogue);
             RefreshGoalPanel(showDialogue);
-            SetActive(exitButtonObject, !showMain && !rehearsalActive && !collectionArmed);
+            SetActive(exitButtonObject, !showMain && !rehearsalActive && !collectionArmed && !pilotFlowVisible);
 
             RefreshSettingsPanel(showSettings);
             RefreshRequestPanel(showRequest);
@@ -551,7 +609,8 @@ namespace SceneTalkVR.Runtime
             var pilot = PilotWorkflowCoordinator.Active;
             var usePilotRehearsal = RehearsalSessionCoordinator.Active != null && RehearsalSessionCoordinator.Active.IsPilot;
             var usePilotDemo = EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsPilotDemo;
-            var tracker = usePilotRehearsal || usePilotDemo ? pilot?.Goals : lifecycle?.GoalTracker;
+            var usePilotCollection = PilotCollectionSessionCoordinator.Active?.IsArmed == true;
+            var tracker = usePilotRehearsal || usePilotDemo || usePilotCollection ? pilot?.Goals : lifecycle?.GoalTracker;
             BindGoalTracker(tracker);
             var hasGoals = tracker != null && tracker.Goals.Count > 0;
             SetActive(taskGoalPanel, dialogueVisible && goalPanelVisible && hasGoals);

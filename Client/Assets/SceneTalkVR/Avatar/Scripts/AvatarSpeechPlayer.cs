@@ -348,12 +348,6 @@ namespace SceneTalkVR.AvatarSystem
             AvatarSpeechPlaybackContext context,
             SpringScenePayload payload)
         {
-            var rehearsal = SceneTalkVR.Core.RehearsalSessionCoordinator.Active;
-            if (rehearsal != null && rehearsal.IsActive)
-            {
-                var rehearsalVoiceId = rehearsal.ResolveVoiceId("rehearsal_dialogue_voice");
-                if (!string.IsNullOrWhiteSpace(rehearsalVoiceId)) return rehearsalVoiceId;
-            }
             var role = payload != null ? payload.avatarRole : null;
             var appearance = role != null ? role.appearance : null;
             var requestedGender = appearance != null ? appearance.genderPresentation : string.Empty;

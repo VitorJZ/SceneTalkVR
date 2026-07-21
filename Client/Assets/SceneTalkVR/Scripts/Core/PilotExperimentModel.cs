@@ -54,7 +54,22 @@ namespace SceneTalkVR.Core
 
     public sealed class PilotAssignmentAllocator
     {
-        public const string Version="1.0";
+        public const string Version="1.2-collection";
+        public bool TryCreateCollection(string participantId,string sessionId,ExperimentV11ProtocolConfig protocol,
+            ExperimentTaskCatalog tasks,PilotPresentationCatalog presentations,string resourceSnapshotId,
+            out PilotAssignment assignment,out string error)
+        {
+            assignment=null;error="";
+            if(protocol==null){error="protocol_missing";return false;}if(!protocol.ValidateForFormalMode(out error))return false;
+            if(!protocol.TryResolvePilotDecisions(out var style,out var audio,out error))return false;
+            if(!protocol.TryResolvePilotSequences(out var sequences,out error))return false;
+            var pilotTasks=tasks?.GetTasks(ExperimentTaskPhase.Pilot).ToArray()??Array.Empty<ExperimentTaskDefinition>();
+            if(!ExperimentTaskCatalog.ValidatePilotTasks(pilotTasks,out error))return false;
+            if(presentations==null){error="presentation_catalog_missing";return false;}if(!presentations.ValidateLocked(protocol,out error))return false;
+            return TryCreateCollectionBalanced(participantId,sessionId,protocol.ProtocolVersion,tasks.CatalogVersion,
+                sequences,pilotTasks.Select(x=>x.taskId).ToArray(),style,audio,protocol.ProtocolSnapshotId,
+                resourceSnapshotId,out assignment,out error);
+        }
         public bool TryCreateLocked(string participantId,string sessionId,ExperimentV11ProtocolConfig protocol,ExperimentTaskCatalog tasks,PilotPresentationCatalog presentations,out PilotAssignment assignment,out string error)
         {
             assignment=null; var issues=new List<string>();var style=PilotFeedbackStyleChoice.Undefined;var audio=PilotAudioSourcePolicy.Undefined;var decisionError="protocol_missing";var presentationError="presentation_catalog_missing";
@@ -90,6 +105,43 @@ namespace SceneTalkVR.Core
             var seed=Hash(participantId+"|"+protocolVersion+"|"+Version); var sequence=sequences[(int)(seed%3)]; var offset=(int)((seed/3)%3);
             assignment=new PilotAssignment{pilotProtocolVersion=protocolVersion,pilotAssignmentVersion=Version,taskCatalogVersion=taskCatalogVersion,participantId=participantId,sessionId=sessionId,sequenceId=sequence.sequenceId,assignmentSeed=seed.ToString(CultureInfo.InvariantCulture),createdAtUtc=DateTime.UtcNow.ToString("o"),developerTestAssignment=developer,dataOrigin=dataOrigin,collectionEligible=qualification==ExperimentRunQualification.Collection,flowMode=flowMode,runQualification=qualification,protocolSnapshotId=protocolSnapshotId,resourceSnapshotId=resourceSnapshotId,feedbackStyle=style,feedbackStyleLabel=PilotProtocolValues.Label(style),voiceOnlyAudioPolicy=audio,voiceOnlyAudioPolicyLabel=PilotProtocolValues.Label(audio),conditions=new PilotConditionAssignment[3]};
             for(var i=0;i<3;i++) assignment.conditions[i]=new PilotConditionAssignment{conditionPosition=i,embodimentCondition=sequence.conditions[i],embodimentConditionLabel=PilotProtocolValues.Label(sequence.conditions[i]),task=new PilotTaskAssignment{taskId=taskIds[(i+offset)%3],taskAssignmentId=$"pta-{seed}-{i}"}};
+            error="";return true;
+        }
+        private bool TryCreateCollectionBalanced(string participantId,string sessionId,string protocolVersion,
+            string taskCatalogVersion,PilotSequenceDefinition[] sequences,string[] taskIds,
+            PilotFeedbackStyleChoice style,PilotAudioSourcePolicy audio,string protocolSnapshotId,
+            string resourceSnapshotId,out PilotAssignment assignment,out string error)
+        {
+            assignment=null;
+            participantId=participantId?.Trim();sessionId=sessionId?.Trim();
+            if(string.IsNullOrWhiteSpace(participantId)||string.IsNullOrWhiteSpace(sessionId)){error="participant_and_session_required";return false;}
+            if(style!=PilotFeedbackStyleChoice.Explicit){error="pilot_collection_requires_explicit_feedback";return false;}
+            if(audio!=PilotAudioSourcePolicy.NonSpatialHeadLocked){error="pilot_collection_requires_head_locked_voice_only";return false;}
+            if(sequences==null||sequences.Length!=3||sequences.Any(x=>x.conditions==null||x.conditions.Length!=3||x.conditions.Distinct().Count()!=3)){error="pilot_sequences_invalid";return false;}
+            var approvedTasks=new[]{"pilot_restaurant_walk_in","pilot_restaurant_ordering","pilot_restaurant_wrong_dish"};
+            if(taskIds==null||taskIds.Length!=3||approvedTasks.Any(x=>!taskIds.Contains(x))){error="pilot_tasks_invalid";return false;}
+            var seed=Hash(participantId+protocolVersion);
+            var group=(int)(seed%3);
+            var expectedOrders=new[]{
+                new[]{PilotEmbodimentCondition.VoiceOnly,PilotEmbodimentCondition.FloatingOrb,PilotEmbodimentCondition.HumanoidAgent},
+                new[]{PilotEmbodimentCondition.FloatingOrb,PilotEmbodimentCondition.HumanoidAgent,PilotEmbodimentCondition.VoiceOnly},
+                new[]{PilotEmbodimentCondition.HumanoidAgent,PilotEmbodimentCondition.VoiceOnly,PilotEmbodimentCondition.FloatingOrb}};
+            var sequence=sequences.FirstOrDefault(x=>x.conditions.SequenceEqual(expectedOrders[group]))
+                ??new PilotSequenceDefinition{sequenceId=((char)('A'+group)).ToString(),conditions=expectedOrders[group],confirmed=true};
+            assignment=new PilotAssignment{pilotProtocolVersion=protocolVersion,pilotAssignmentVersion=Version,
+                taskCatalogVersion=taskCatalogVersion,participantId=participantId,sessionId=sessionId,
+                sequenceId="Sequence "+((char)('A'+group)),assignmentSeed=seed.ToString(CultureInfo.InvariantCulture),
+                createdAtUtc=DateTime.UtcNow.ToString("o"),developerTestAssignment=false,
+                dataOrigin="participant_collection",collectionEligible=true,feedbackStyle=style,
+                feedbackStyleLabel=PilotProtocolValues.Label(style),runtimeMode=ExperimentRuntimeMode.EditorCollectionPilot,
+                demoMode=false,demoProtocolVersion="",flowMode=ExperimentFlowMode.Pilot,
+                runQualification=ExperimentRunQualification.Collection,protocolSnapshotId=protocolSnapshotId,
+                resourceSnapshotId=resourceSnapshotId,voiceOnlyAudioPolicy=audio,
+                voiceOnlyAudioPolicyLabel=PilotProtocolValues.Label(audio),conditions=new PilotConditionAssignment[3]};
+            // The approved Latin-square group uses the same position order for task and embodiment.
+            for(var i=0;i<3;i++) assignment.conditions[i]=new PilotConditionAssignment{conditionPosition=i,
+                embodimentCondition=sequence.conditions[i],embodimentConditionLabel=PilotProtocolValues.Label(sequence.conditions[i]),
+                task=new PilotTaskAssignment{taskId=approvedTasks[i],taskAssignmentId=$"pilot-{seed}-{group}-{i}"}};
             error="";return true;
         }
         public static void Save(PilotAssignment value,string path){SyncLabels(value);Directory.CreateDirectory(Path.GetDirectoryName(path));File.WriteAllText(path,JsonUtility.ToJson(value,true));}

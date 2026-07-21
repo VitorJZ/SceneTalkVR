@@ -235,6 +235,44 @@ namespace SceneTalkVR.Core
             return confirmed;
         }
 
+        public static int EvaluatePilotUserTranscript(PilotWorkflowCoordinator pilot, string turnId,
+            string transcript, string speaker = "participant")
+        {
+            if (pilot == null || !pilot.HasActivePilotRun || pilot.Current?.status != PilotRunStatus.Running
+                || !string.Equals(speaker, "participant", StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(turnId) || string.IsNullOrWhiteSpace(transcript)) return 0;
+            var manager = pilot.GetComponent<ExperimentConditionManager>();
+            var task = manager?.TaskCatalog?.Find(pilot.Current.task?.taskId);
+            if (task == null) return 0;
+            var request = new GoalEvaluationRequest
+            {
+                participantId = pilot.Assignment.participantId,
+                sessionId = pilot.Assignment.sessionId,
+                conditionRunId = pilot.PilotRunId,
+                taskId = task.taskId,
+                turnId = turnId,
+                userTranscript = transcript,
+                recentUserTurns = new[] { transcript },
+                currentGoalDefinitions = task.goals,
+                evaluatorVersion = GoalAchievementEvaluator.EvaluatorVersion
+            };
+            var result = new GoalAchievementEvaluator(StructuredFallback).Evaluate(request);
+            var confirmed = 0;
+            foreach (var evaluation in result?.evaluations ?? Array.Empty<GoalEvaluationItem>())
+            {
+                if (evaluation == null || !evaluation.achieved) continue;
+                var definition = task.goals.FirstOrDefault(x => x.goalId == evaluation.goalId);
+                var existing = pilot.Goals.Goals.FirstOrDefault(x => x.goalId == evaluation.goalId);
+                if (definition == null || existing == null || existing.state == GoalProgressState.Confirmed
+                    || evaluation.confidence < definition.minimumConfidence) continue;
+                if (pilot.Goals.SubmitGoalCandidate(evaluation.goalId,
+                    string.IsNullOrWhiteSpace(evaluation.evaluatorVersion) ? GoalAchievementEvaluator.EvaluatorVersion : evaluation.evaluatorVersion,
+                    new GoalEvidence { turnId = turnId, transcript = transcript, confidence = evaluation.confidence,
+                        evaluatorVersion = evaluation.evaluatorVersion, evaluationReason = evaluation.reason }, out _)) confirmed++;
+            }
+            return confirmed;
+        }
+
         private static int ApplyResult(ExperimentLifecycleCoordinator lifecycle, ExperimentTaskDefinition task,
             string turnId, string transcript, GoalEvaluationResult result)
         {

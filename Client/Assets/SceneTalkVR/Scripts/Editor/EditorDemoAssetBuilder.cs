@@ -45,8 +45,8 @@ namespace SceneTalkVR.EditorTools
             mapping.EditorSet("1.0-editor-demo", formal, humanoid, "teacher_female_humanoid_v1", panoramas);
 
             var voices = GetOrCreate<ExperimentVoiceProfileCatalog>(VoicePath);
-            var dialogue = Voice("editor_demo_dialogue_voice", VoiceSubtitlePolicy.AllSpeech);
-            var feedback = Voice("editor_demo_feedback_voice", VoiceSubtitlePolicy.FeedbackOnly);
+            var dialogue = Voice("editor_demo_dialogue_voice", "101050", VoiceSubtitlePolicy.AllSpeech);
+            var feedback = Voice("editor_demo_feedback_voice", "default_female_en", VoiceSubtitlePolicy.FeedbackOnly);
             voices.EditorSet("1.1-editor-demo-v1", feedback.voiceProfileKey, feedback.voiceProfileKey, feedback.voiceProfileKey, new[] { dialogue, feedback });
 
             var deployments = GetOrCreate<ExperimentDeploymentCatalog>(DeploymentPath);
@@ -71,9 +71,9 @@ namespace SceneTalkVR.EditorTools
         }
 
         private static EditorDemoAvatarMapping Map(string task, string avatar) => new EditorDemoAvatarMapping { taskId = task, demoAvatarKey = avatar, demoPlaceholder = true, semanticRoleApproved = false };
-        private static ExperimentVoiceProfile Voice(string key, VoiceSubtitlePolicy subtitle) => new ExperimentVoiceProfile
+        private static ExperimentVoiceProfile Voice(string key, string voiceId, VoiceSubtitlePolicy subtitle) => new ExperimentVoiceProfile
         {
-            voiceProfileKey = key, provider = "tencent", voiceId = "101050", language = "en-US", speakingSpeed = 1f,
+            voiceProfileKey = key, provider = "tencent", voiceId = voiceId, language = "en-US", speakingSpeed = 1f,
             volume = 1f, pitch = 1f, sampleRate = 24000, subtitlePolicy = subtitle,
             approvedForCollection = false, approvedForEditorDemo = true, offlineDemoVoice = false,
             approvedBy = "Editor demonstration configuration", evidenceReference = "editor-demo-protocol-v1", assetVersion = "editor-demo-v1"
