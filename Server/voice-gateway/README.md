@@ -79,7 +79,14 @@ TENCENT_REGION=ap-guangzhou
 TENCENT_ASR_ENGINE=16k_en
 TENCENT_TTS_VOICE_TYPE=1051
 TENCENT_FALLBACK_TO_MOCK=true
+TENCENT_TRANSPORT=auto
+TENCENT_CURL_PATH=curl.exe
+TENCENT_CURL_SSL_NO_REVOKE=true
 ```
+
+`TENCENT_TRANSPORT=auto` first uses Python HTTPS and retries transport-level
+network failures with `curl.exe`. On Windows with Clash/VPN, keep
+`TENCENT_CURL_SSL_NO_REVOKE=true` if certificate revocation checks fail.
 
 Optional local config file, for teammates who do not want to export variables every run:
 

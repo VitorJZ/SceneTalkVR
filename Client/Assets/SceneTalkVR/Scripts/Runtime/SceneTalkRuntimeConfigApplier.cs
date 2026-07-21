@@ -1,3 +1,5 @@
+using System;
+using System.Net;
 using SceneTalkVR.AvatarSystem;
 using SceneTalkVR.Core;
 using SceneTalkVR.Demo;
@@ -103,14 +105,18 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
-            voiceGatewayClient.ConfigureGatewayBaseUrl(config.VoiceGatewayBaseUrl);
+            voiceGatewayClient.ConfigureGatewayBaseUrl(ResolveServiceUrlForRuntime(
+                config.VoiceGatewayBaseUrl,
+                8787));
         }
 
         private void ConfigureBrain()
         {
             if (realLlmService != null)
             {
-                realLlmService.ConfigureApi(config.DirectLlmApiUrl, config.DirectLlmModelName);
+                realLlmService.ConfigureApi(
+                    ResolveServiceUrlForRuntime(config.DirectLlmApiUrl, 8788),
+                    config.DirectLlmModelName);
             }
         }
 
@@ -189,13 +195,56 @@ namespace SceneTalkVR.Runtime
 
         private string BuildAppliedConfigLog()
         {
+            var effectiveVoiceGatewayUrl = config.HasVoiceGatewayBaseUrl
+                ? ResolveServiceUrlForRuntime(config.VoiceGatewayBaseUrl, 8787)
+                : "<scene default>";
+            var effectiveLlmUrl = ResolveServiceUrlForRuntime(config.DirectLlmApiUrl, 8788);
             return "[SceneTalkVR] Runtime config applied. "
                 + $"brain={config.BrainMode}, "
-                + $"voiceGateway={(config.HasVoiceGatewayBaseUrl ? config.VoiceGatewayBaseUrl : "<scene default>")}, "
+                + $"voiceGateway={effectiveVoiceGatewayUrl}, "
+                + $"llm={effectiveLlmUrl}, "
                 + $"holodeck={(config.UseHolodeckBackend ? config.HolodeckBackendUrl : "mock layout")}, "
                 + $"onlyUsePanorama={config.OnlyUsePanorama}, "
                 + $"forceFallbackPanorama={config.ForceFallbackPanorama}, "
                 + $"maxSpawnCount={config.MaxSpawnCount}.";
+        }
+
+        internal static string ResolveServiceUrlForRuntime(
+            string configuredUrl,
+            int expectedLocalPort)
+        {
+            var normalized = SceneTalkRuntimeConfig.NormalizeUrl(configuredUrl);
+            if (!Application.isEditor
+                || string.IsNullOrWhiteSpace(normalized)
+                || !Uri.TryCreate(normalized, UriKind.Absolute, out var uri)
+                || uri.IsLoopback
+                || uri.Port != expectedLocalPort
+                || !IsPrivateLanHost(uri.Host))
+            {
+                return normalized;
+            }
+
+            var builder = new UriBuilder(uri)
+            {
+                Host = "127.0.0.1"
+            };
+            return builder.Uri.AbsoluteUri.TrimEnd('/');
+        }
+
+        private static bool IsPrivateLanHost(string host)
+        {
+            if (!IPAddress.TryParse(host, out var address)
+                || address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+            {
+                return false;
+            }
+
+            var bytes = address.GetAddressBytes();
+            return bytes[0] == 10
+                || bytes[0] == 127
+                || bytes[0] == 169 && bytes[1] == 254
+                || bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31
+                || bytes[0] == 192 && bytes[1] == 168;
         }
 
         private T Resolve<T>(T current) where T : Component

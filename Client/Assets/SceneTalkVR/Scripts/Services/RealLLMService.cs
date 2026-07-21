@@ -200,15 +200,17 @@ namespace SceneTalkVR.Runtime.Services
                 yield return null;
             }
 
-            if (correctionTask.IsFaulted || dialogueTask.IsFaulted)
+            if (dialogueTask.IsFaulted || dialogueTask.IsCanceled)
             {
-                var ex = correctionTask.Exception?.InnerException ?? correctionTask.Exception ?? dialogueTask.Exception?.InnerException ?? dialogueTask.Exception;
+                var ex = dialogueTask.Exception?.InnerException ?? dialogueTask.Exception;
                 onError?.Invoke(ex?.Message ?? "Parallel LLM tasks faulted.");
                 yield break;
             }
 
             var payload = dialogueTask.Result;
-            var feedback = correctionTask.Result;
+            var feedback = correctionTask.IsFaulted || correctionTask.IsCanceled
+                ? BuildCorrectionFallback("correction_generation_failed", correctionTask.Exception)
+                : correctionTask.Result;
             payload.correctionFeedback = feedback;
             ApplyExperimentConditionToPayload(payload);
 
@@ -270,20 +272,7 @@ namespace SceneTalkVR.Runtime.Services
         {
             if (ShouldSuppressCorrectionByStt(out var suppressionReason))
             {
-                return new CorrectionFeedbackData
-                {
-                    hasFeedback = false,
-                    provider = currentCondition?.provider ?? "dialogue_avatar",
-                    style = currentCondition?.style ?? "explicit",
-                    errorType = "none",
-                    originalText = "",
-                    correctedText = "",
-                    feedbackText = "",
-                    recastText = "",
-                    targetSpan = "",
-                    confidence = 1f,
-                    rationaleTag = suppressionReason
-                };
+                return BuildCorrectionFallback(suppressionReason);
             }
 
             var builder = new System.Text.StringBuilder();
@@ -358,9 +347,10 @@ namespace SceneTalkVR.Runtime.Services
 
             string systemPrompt = builder.ToString();
             string responseText = await SendChatRequest(systemPrompt, userInput, true);
-            responseText = CleanJsonString(responseText);
-            Debug.Log($"[RealLLMService] Correction Planner response: {responseText}");
-            
+
+            // responseText is the complete OpenAI response envelope. Do not run
+            // content cleanup on it: reasoning_content can contain </think>, and
+            // trimming at that marker corrupts the outer JSON object.
             var response = JsonUtility.FromJson<OpenAiResponse>(responseText);
             if (response == null || response.choices == null || response.choices.Length == 0)
             {
@@ -369,7 +359,8 @@ namespace SceneTalkVR.Runtime.Services
 
             string content = response.choices[0].message.content;
             content = CleanJsonString(content);
-            
+            Debug.Log($"[RealLLMService] Correction Planner content: {content}");
+
             var feedback = JsonUtility.FromJson<CorrectionFeedbackData>(content);
             if (feedback == null)
             {
@@ -482,6 +473,7 @@ namespace SceneTalkVR.Runtime.Services
 
         private SpringScenePayload TryParseDialoguePayload(string content)
         {
+            var fallbackContent = content;
             if (!string.IsNullOrWhiteSpace(content))
             {
                 try
@@ -498,9 +490,13 @@ namespace SceneTalkVR.Runtime.Services
                         return payload;
                     }
                 }
-                catch (FormatException)
+                catch (FormatException ex)
                 {
-                    throw;
+                    Debug.LogWarning($"[RealLLMService] Dialogue JSON parse fallback: {ex.Message}");
+                    if (content.TrimStart().StartsWith("{", StringComparison.Ordinal))
+                    {
+                        fallbackContent = "Sorry, I couldn't format that reply correctly. Could you say that again?";
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -510,7 +506,7 @@ namespace SceneTalkVR.Runtime.Services
 
             return new SpringScenePayload
             {
-                dialogueReply = content,
+                dialogueReply = fallbackContent,
                 taskType = currentCondition == null ? string.Empty : currentCondition.scenarioId,
                 environmentType = currentCondition?.task == null
                     ? string.Empty
@@ -1132,15 +1128,17 @@ namespace SceneTalkVR.Runtime.Services
                 yield return null;
             }
 
-            if (correctionTask.IsFaulted || dialogueTask.IsFaulted)
+            if (dialogueTask.IsFaulted || dialogueTask.IsCanceled)
             {
-                var ex = correctionTask.Exception?.InnerException ?? correctionTask.Exception ?? dialogueTask.Exception?.InnerException ?? dialogueTask.Exception;
+                var ex = dialogueTask.Exception?.InnerException ?? dialogueTask.Exception;
                 onError?.Invoke(ex?.Message ?? "Parallel LLM streaming tasks faulted.");
                 yield break;
             }
 
             var payload = dialogueTask.Result;
-            var feedback = correctionTask.Result;
+            var feedback = correctionTask.IsFaulted || correctionTask.IsCanceled
+                ? BuildCorrectionFallback("correction_generation_failed", correctionTask.Exception)
+                : correctionTask.Result;
             payload.correctionFeedback = feedback;
             ApplyExperimentConditionToPayload(payload);
 
@@ -1337,6 +1335,32 @@ namespace SceneTalkVR.Runtime.Services
                     confidence = 1f,
                     rationaleTag = suppressionReason
                 }
+            };
+        }
+
+        private CorrectionFeedbackData BuildCorrectionFallback(string rationaleTag, Exception exception = null)
+        {
+            if (exception != null)
+            {
+                var root = exception.InnerException ?? exception;
+                Debug.LogWarning($"[RealLLMService] Correction generation fallback: {root.Message}");
+            }
+
+            return new CorrectionFeedbackData
+            {
+                hasFeedback = false,
+                provider = currentCondition?.provider ?? "dialogue_avatar",
+                style = currentCondition?.style ?? "explicit",
+                errorType = "none",
+                originalText = "",
+                correctedText = "",
+                feedbackText = "",
+                recastText = "",
+                targetSpan = "",
+                confidence = 1f,
+                rationaleTag = string.IsNullOrWhiteSpace(rationaleTag)
+                    ? "correction_unavailable"
+                    : rationaleTag
             };
         }
 

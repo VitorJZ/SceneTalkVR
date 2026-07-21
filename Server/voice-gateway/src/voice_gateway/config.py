@@ -21,6 +21,9 @@ class GatewayConfig:
     tencent_asr_engine: str = "16k_en"
     tencent_tts_voice_type: int = 1051
     tencent_fallback_to_mock: bool = True
+    tencent_transport: str = "auto"
+    tencent_curl_path: str = "curl.exe"
+    tencent_curl_ssl_no_revoke: bool = True
 
     @classmethod
     def from_env(cls) -> "GatewayConfig":
@@ -39,6 +42,11 @@ class GatewayConfig:
                 "tencent_asr_engine": os.getenv("TENCENT_ASR_ENGINE"),
                 "tencent_tts_voice_type": os.getenv("TENCENT_TTS_VOICE_TYPE"),
                 "tencent_fallback_to_mock": os.getenv("TENCENT_FALLBACK_TO_MOCK"),
+                "tencent_transport": os.getenv("TENCENT_TRANSPORT"),
+                "tencent_curl_path": os.getenv("TENCENT_CURL_PATH"),
+                "tencent_curl_ssl_no_revoke": os.getenv(
+                    "TENCENT_CURL_SSL_NO_REVOKE"
+                ),
             }
         )
 
@@ -65,6 +73,10 @@ class GatewayConfig:
 
         if "provider" in clean_values:
             clean_values["provider"] = str(clean_values["provider"]).strip().lower()
+        if "tencent_transport" in clean_values:
+            clean_values["tencent_transport"] = (
+                str(clean_values["tencent_transport"]).strip().lower()
+            )
 
         return GatewayConfig(**{**self.__dict__, **clean_values})
 
@@ -92,7 +104,7 @@ def _coerce_value(key: str, value: Any) -> Any:
     if key in {"port", "tencent_tts_voice_type"}:
         return int(value)
 
-    if key == "tencent_fallback_to_mock":
+    if key in {"tencent_fallback_to_mock", "tencent_curl_ssl_no_revoke"}:
         if isinstance(value, bool):
             return value
         return str(value).strip().lower() not in {"0", "false", "no", "off"}

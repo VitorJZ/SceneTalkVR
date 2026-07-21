@@ -11,6 +11,7 @@ namespace SceneTalkVR.Voice
         [SerializeField] private VoiceGatewaySettings settings;
         [SerializeField] private string gatewayBaseUrl = "http://127.0.0.1:8787";
         [SerializeField] private int requestTimeoutSeconds = 10;
+        [SerializeField, Min(0)] private int transientRetryCount = 1;
         private string runtimeGatewayBaseUrl;
 
         public string GatewayBaseUrl => !string.IsNullOrWhiteSpace(runtimeGatewayBaseUrl)
@@ -116,30 +117,108 @@ namespace SceneTalkVR.Voice
             Action<string> onError)
         {
             var url = $"{GatewayBaseUrl}{route}";
-            using var request = new UnityWebRequest(url, UnityWebRequest.kHttpVerbPOST);
             var bodyRaw = Encoding.UTF8.GetBytes(json);
-            request.uploadHandler = new UploadHandlerRaw(bodyRaw);
-            request.downloadHandler = new DownloadHandlerBuffer();
-            request.timeout = RequestTimeoutSeconds;
-            request.SetRequestHeader("Content-Type", "application/json");
-            request.SetRequestHeader("Accept", "application/json");
-
-            yield return request.SendWebRequest();
-
-            if (request.result != UnityWebRequest.Result.Success)
+            var maxAttempts = Mathf.Max(1, transientRetryCount + 1);
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
             {
-                onError?.Invoke($"Voice gateway request failed: {request.error}");
+                using var request = new UnityWebRequest(url, UnityWebRequest.kHttpVerbPOST);
+                request.uploadHandler = new UploadHandlerRaw(bodyRaw);
+                request.downloadHandler = new DownloadHandlerBuffer();
+                request.timeout = RequestTimeoutSeconds;
+                request.SetRequestHeader("Content-Type", "application/json");
+                request.SetRequestHeader("Accept", "application/json");
+
+                yield return request.SendWebRequest();
+
+                var responseBody = request.downloadHandler != null
+                    ? request.downloadHandler.text
+                    : string.Empty;
+                if (request.result != UnityWebRequest.Result.Success)
+                {
+                    if (attempt < maxAttempts && IsTransientFailure(request))
+                    {
+                        yield return new WaitForSecondsRealtime(0.25f * attempt);
+                        continue;
+                    }
+
+                    onError?.Invoke(BuildGatewayRequestError(request, responseBody, attempt));
+                    yield break;
+                }
+
+                if (string.IsNullOrWhiteSpace(responseBody))
+                {
+                    onError?.Invoke("Voice gateway returned an empty response.");
+                    yield break;
+                }
+
+                onComplete?.Invoke(responseBody);
                 yield break;
             }
+        }
 
-            var responseBody = request.downloadHandler != null ? request.downloadHandler.text : string.Empty;
+        private static bool IsTransientFailure(UnityWebRequest request)
+        {
+            if (request == null)
+            {
+                return false;
+            }
+
+            if (request.result == UnityWebRequest.Result.ConnectionError)
+            {
+                return true;
+            }
+
+            var statusCode = request.responseCode;
+            return statusCode == 408 || statusCode == 429 || statusCode >= 500;
+        }
+
+        private static string BuildGatewayRequestError(
+            UnityWebRequest request,
+            string responseBody,
+            int attempts)
+        {
+            var requestError = request != null && !string.IsNullOrWhiteSpace(request.error)
+                ? request.error
+                : "unknown network error";
+            var attemptSuffix = attempts > 1 ? $" after {attempts} attempts" : string.Empty;
+            var gatewayDetail = ExtractGatewayErrorDetail(responseBody);
+            return string.IsNullOrWhiteSpace(gatewayDetail)
+                ? $"Voice gateway request failed{attemptSuffix}: {requestError}"
+                : $"Voice gateway request failed{attemptSuffix}: {requestError}; {gatewayDetail}";
+        }
+
+        private static string ExtractGatewayErrorDetail(string responseBody)
+        {
             if (string.IsNullOrWhiteSpace(responseBody))
             {
-                onError?.Invoke("Voice gateway returned an empty response.");
-                yield break;
+                return string.Empty;
             }
 
-            onComplete?.Invoke(responseBody);
+            try
+            {
+                var error = JsonUtility.FromJson<VoiceGatewayErrorResponse>(responseBody);
+                if (error != null && (!string.IsNullOrWhiteSpace(error.errorCode)
+                    || !string.IsNullOrWhiteSpace(error.message)))
+                {
+                    var code = string.IsNullOrWhiteSpace(error.errorCode)
+                        ? "gateway_error"
+                        : error.errorCode.Trim();
+                    var message = string.IsNullOrWhiteSpace(error.message)
+                        ? "No error message was returned."
+                        : error.message.Trim();
+                    return $"{code}: {message}";
+                }
+            }
+            catch (ArgumentException)
+            {
+                // Preserve a bounded raw response below when the body is not JSON.
+            }
+
+            var normalized = responseBody.Replace('\r', ' ').Replace('\n', ' ').Trim();
+            const int maxDetailLength = 512;
+            return normalized.Length <= maxDetailLength
+                ? normalized
+                : $"{normalized.Substring(0, maxDetailLength)}...";
         }
 
         private IEnumerator DownloadAudioClip(
@@ -263,5 +342,13 @@ namespace SceneTalkVR.Voice
         public int latencyMs;
         public bool cacheHit;
         public string fallbackLevel;
+    }
+
+    [Serializable]
+    internal sealed class VoiceGatewayErrorResponse
+    {
+        public string errorCode;
+        public string message;
+        public bool retryable;
     }
 }

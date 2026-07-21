@@ -102,6 +102,9 @@ class VoiceGatewayHandler(BaseHTTPRequestHandler):
                     status=HTTPStatus.BAD_GATEWAY,
                 )
                 return
+            except Exception as exc:
+                self._send_unexpected_error(exc)
+                return
 
             self._send_json(
                 {
@@ -139,6 +142,9 @@ class VoiceGatewayHandler(BaseHTTPRequestHandler):
                     status=HTTPStatus.BAD_GATEWAY,
                 )
                 return
+            except Exception as exc:
+                self._send_unexpected_error(exc)
+                return
 
             self.gateway_state.audio_cache[result.request_id] = result.audio_bytes
             self._send_json(
@@ -162,7 +168,12 @@ class VoiceGatewayHandler(BaseHTTPRequestHandler):
         )
 
     def log_message(self, format: str, *args: Any) -> None:
-        print(f"[voice-gateway] {self.address_string()} {format % args}")
+        try:
+            print(f"[voice-gateway] {self.address_string()} {format % args}")
+        except (BrokenPipeError, OSError, ValueError):
+            # A detached background process can lose stdout. Request handling must
+            # continue because BaseHTTPRequestHandler logs before sending headers.
+            pass
 
     def _read_json_body(self) -> dict[str, Any] | None:
         content_type = self.headers.get("Content-Type", "")
@@ -208,6 +219,16 @@ class VoiceGatewayHandler(BaseHTTPRequestHandler):
             "message": message,
             "retryable": error_code not in {"empty_text", "invalid_json"},
         }
+
+    def _send_unexpected_error(self, error: Exception) -> None:
+        message = str(error).strip()
+        detail = type(error).__name__
+        if message:
+            detail = f"{detail}: {message}"
+        self._send_json(
+            self._error("gateway_internal_error", detail),
+            status=HTTPStatus.INTERNAL_SERVER_ERROR,
+        )
 
     def _send_json(
         self, payload: dict[str, Any], status: HTTPStatus = HTTPStatus.OK

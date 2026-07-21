@@ -2,6 +2,7 @@ import base64
 import hashlib
 import hmac
 import json
+import subprocess
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -13,13 +14,28 @@ from ..config import GatewayConfig
 from .base import ProviderError, SttResult, TtsResult
 
 
+class TencentTransportError(ProviderError):
+    pass
+
+
 class TencentCloudApiClient:
     algorithm = "TC3-HMAC-SHA256"
 
-    def __init__(self, secret_id: str, secret_key: str, region: str) -> None:
+    def __init__(
+        self,
+        secret_id: str,
+        secret_key: str,
+        region: str,
+        transport: str = "auto",
+        curl_path: str = "curl.exe",
+        curl_ssl_no_revoke: bool = True,
+    ) -> None:
         self._secret_id = secret_id
         self._secret_key = secret_key
         self._region = region
+        self._transport = (transport or "auto").strip().lower()
+        self._curl_path = curl_path or "curl.exe"
+        self._curl_ssl_no_revoke = curl_ssl_no_revoke
 
     def post_json(
         self,
@@ -44,21 +60,7 @@ class TencentCloudApiClient:
             body=body,
         )
 
-        request = urllib_request.Request(
-            f"https://{endpoint}",
-            data=body.encode("utf-8"),
-            headers=headers,
-            method="POST",
-        )
-
-        try:
-            with urllib_request.urlopen(request, timeout=20) as response:
-                response_body = response.read().decode("utf-8")
-        except HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise ProviderError(f"Tencent API HTTP {exc.code}: {detail}") from exc
-        except URLError as exc:
-            raise ProviderError(f"Tencent API network error: {exc.reason}") from exc
+        response_body = self._send_request(endpoint, body, headers)
 
         try:
             parsed = json.loads(response_body)
@@ -76,6 +78,120 @@ class TencentCloudApiClient:
             raise ProviderError(f"{code}: {message}")
 
         return response_payload
+
+    def _send_request(
+        self,
+        endpoint: str,
+        body: str,
+        headers: dict[str, str],
+    ) -> str:
+        transport = self._transport if self._transport in {"auto", "urllib", "curl"} else "auto"
+        if transport == "curl":
+            return self._send_with_curl(endpoint, body, headers)
+
+        try:
+            return self._send_with_urllib(endpoint, body, headers)
+        except TencentTransportError:
+            if transport != "auto":
+                raise
+
+        return self._send_with_curl(endpoint, body, headers)
+
+    @staticmethod
+    def _send_with_urllib(
+        endpoint: str,
+        body: str,
+        headers: dict[str, str],
+    ) -> str:
+        request = urllib_request.Request(
+            f"https://{endpoint}",
+            data=body.encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+
+        try:
+            with urllib_request.urlopen(request, timeout=20) as response:
+                return response.read().decode("utf-8")
+        except HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise ProviderError(f"Tencent API HTTP {exc.code}: {detail}") from exc
+        except URLError as exc:
+            raise TencentTransportError(
+                f"Tencent API network error: {exc.reason}"
+            ) from exc
+        except (TimeoutError, OSError) as exc:
+            raise TencentTransportError(f"Tencent API network error: {exc}") from exc
+
+    def _send_with_curl(
+        self,
+        endpoint: str,
+        body: str,
+        headers: dict[str, str],
+    ) -> str:
+        command = [
+            self._curl_path,
+            "-sS",
+            "-m",
+            "20",
+        ]
+        if self._curl_ssl_no_revoke:
+            command.append("--ssl-no-revoke")
+
+        for key, value in headers.items():
+            command.extend(["-H", f"{key}: {value}"])
+
+        command.extend(
+            [
+                "--data-binary",
+                "@-",
+                "-w",
+                "\nSCENETALK_HTTP_STATUS:%{http_code}",
+                f"https://{endpoint}",
+            ]
+        )
+
+        try:
+            completed = subprocess.run(
+                command,
+                input=body.encode("utf-8"),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=25,
+                check=False,
+            )
+        except FileNotFoundError as exc:
+            raise TencentTransportError(
+                f"Tencent curl executable not found: {self._curl_path}"
+            ) from exc
+        except subprocess.TimeoutExpired as exc:
+            raise TencentTransportError("Tencent curl request timed out.") from exc
+
+        marker = b"\nSCENETALK_HTTP_STATUS:"
+        if marker not in completed.stdout:
+            detail = completed.stderr.decode("utf-8", errors="replace").strip()
+            raise TencentTransportError(
+                f"Tencent curl request failed with exit code {completed.returncode}: {detail}"
+            )
+
+        response_body, raw_status = completed.stdout.rsplit(marker, 1)
+        try:
+            status_code = int(raw_status.strip()[:3])
+        except ValueError as exc:
+            raise TencentTransportError(
+                "Tencent curl response did not include HTTP status."
+            ) from exc
+
+        decoded_body = response_body.decode("utf-8", errors="replace")
+        if completed.returncode != 0 and status_code == 0:
+            detail = completed.stderr.decode("utf-8", errors="replace").strip()
+            raise TencentTransportError(
+                f"Tencent curl request failed with exit code {completed.returncode}: {detail}"
+            )
+        if status_code < 200 or status_code >= 300:
+            raise ProviderError(f"Tencent API HTTP {status_code}: {decoded_body}")
+
+        return decoded_body
 
     def _build_headers(
         self,
@@ -150,6 +266,9 @@ class TencentSpeechProvider:
             config.tencent_secret_id,
             config.tencent_secret_key,
             config.tencent_region,
+            config.tencent_transport,
+            config.tencent_curl_path,
+            config.tencent_curl_ssl_no_revoke,
         )
 
     def transcribe(self, request: dict[str, Any]) -> SttResult:
