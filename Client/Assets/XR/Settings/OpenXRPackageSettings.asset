@@ -1274,6 +1274,7 @@ MonoBehaviour:
   m_Name: Android
   m_EditorClassIdentifier: Unity.XR.OpenXR::UnityEngine.XR.OpenXR.OpenXRSettings
   features:
+  - {fileID: 4885001557947540710}
   - {fileID: 8976570106955848209}
   - {fileID: -7692473521618520328}
   - {fileID: -386078065176411590}
@@ -1290,10 +1291,23 @@ MonoBehaviour:
   - {fileID: -312979705985975565}
   - {fileID: 5375947789087171211}
   - {fileID: -4611095284344823116}
+  - {fileID: -5500140960771565815}
+  - {fileID: 7721949445094471264}
+  - {fileID: -4753680280312801157}
+  - {fileID: 3141436967103388114}
   - {fileID: 32144034008700695}
+  - {fileID: -3424786904148455509}
+  - {fileID: -5645510306274786521}
+  - {fileID: 5600730075588225779}
+  - {fileID: -6364132839028497230}
+  - {fileID: -5772758744953359744}
+  - {fileID: 7992669153466688193}
+  - {fileID: -3501154792233956668}
+  - {fileID: -8535518653716310061}
+  - {fileID: -5034844752954503768}
   - {fileID: 724534567150157436}
   - {fileID: -3170566293611275162}
-  customLoaderName: 
+  customLoaderName: LoaderForUnitySDK_1_1_0
   m_renderMode: 1
   m_latencyOptimization: 0
   m_autoColorSubmissionMode: 1
