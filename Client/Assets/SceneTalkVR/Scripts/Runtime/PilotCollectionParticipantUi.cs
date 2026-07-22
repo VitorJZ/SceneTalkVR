@@ -104,6 +104,7 @@ namespace SceneTalkVR.Runtime
             if(stage==PilotParticipantStage.TaskIntroduction&&builtTaskPosition!=coordinator.CurrentPosition){builtTaskPosition=coordinator.CurrentPosition;var task=coordinator.CurrentTask;if(task!=null)introductionText.text=task.displayName+"\n\n"+task.context+"\n\nCommunication goals:\n"+string.Join("\n",task.goals.Select(x=>"• "+x.text));}
             if(stage==PilotParticipantStage.Questionnaire){BuildQuestionnaire();RefreshAnswers();questionnaire.transform.SetAsLastSibling();}
             if(stage==PilotParticipantStage.FinalRanking)ranking.transform.SetAsLastSibling();if(stage==PilotParticipantStage.Completion)completion.transform.SetAsLastSibling();
+            if(stage!=PilotParticipantStage.None)GetComponent<SceneTalkFlowUiController>()?.BringExitButtonToFront();
         }
         private GameObject Panel(string name,Vector2 size){var go=new GameObject(name,typeof(RectTransform));go.transform.SetParent(canvas.transform,false);go.AddComponent<Image>().color=new Color(.035f,.05f,.08f,.98f);go.GetComponent<RectTransform>().sizeDelta=size;go.SetActive(false);return go;}
         private static GameObject Node(Transform parent,string name){var go=new GameObject(name,typeof(RectTransform));go.transform.SetParent(parent,false);return go;}

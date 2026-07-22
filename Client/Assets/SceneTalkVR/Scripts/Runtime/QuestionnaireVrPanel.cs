@@ -54,7 +54,11 @@ namespace SceneTalkVR.Runtime
             ShowPage(Mathf.Clamp(session.currentPage, 0, Mathf.Max(0, pageObjects.Count - 1)), false);
             RefreshLikertSelection(session);
             panel.SetActive(session.completionStatus != QuestionnaireCompletionStatus.Submitted);
-            if (panel.activeSelf) panel.transform.SetAsLastSibling();
+            if (panel.activeSelf)
+            {
+                panel.transform.SetAsLastSibling();
+                FindFirstObjectByType<SceneTalkFlowUiController>(FindObjectsInactive.Include)?.BringExitButtonToFront();
+            }
         }
 
         private void EnsureBuilt()

@@ -312,6 +312,39 @@ namespace SceneTalkVR.Core
             RefreshUi();
         }
 
+        public void ExitAndEndRuntimeSession(string reason)
+        {
+            reason = string.IsNullOrWhiteSpace(reason) ? "participant_exit" : reason.Trim();
+            if (!IsArmed)
+            {
+                EndRuntimeSession();
+                return;
+            }
+
+            var assignment = Assignment;
+            if (assignment != null && assignment.status != AssignmentStatus.Completed)
+            {
+                var current = lifecycle?.CurrentConditionAssignment;
+                if (current != null
+                    && current.status != ConditionRunStatus.Completed
+                    && current.status != ConditionRunStatus.TechnicalInvalid
+                    && current.status != ConditionRunStatus.Aborted)
+                {
+                    lifecycle.Abort(reason);
+                }
+
+                assignment.status = AssignmentStatus.Aborted;
+                PersistGoalSnapshot();
+                PersistAssignment();
+            }
+
+            WriteOperator("ParticipantSessionExited", "reason=" + reason, actor: "participant");
+            orchestrator?.ReturnToInitialMenu();
+            ResetRuntimeOnly();
+            RuntimeContext = null;
+            RefreshUi();
+        }
+
         private void OnQuestionnaireRequested()
         {
             if (!IsArmed) return;
@@ -405,7 +438,7 @@ namespace SceneTalkVR.Core
             return File.Exists(path) ? JsonUtility.FromJson<EditorCollectionGoalSnapshot>(File.ReadAllText(path, Encoding.UTF8)) : null;
         }
 
-        private void WriteOperator(string eventType, string detail = "", bool qa = false)
+        private void WriteOperator(string eventType, string detail = "", bool qa = false, string actor = "")
         {
             if (!IsArmed) return;
             Directory.CreateDirectory(CurrentDataFolder);
@@ -415,7 +448,8 @@ namespace SceneTalkVR.Core
                 participantId = ParticipantId, sessionId = SessionId,
                 protocolVersion = protocol.ProtocolVersion, protocolSnapshotId = protocol.ProtocolSnapshotId,
                 resourceSnapshotId = resources.ResourceSnapshotId, qaAutomationUsed = qa,
-                actor = qa ? "qa_recovery_operator" : "experiment_operator", detail = detail ?? string.Empty
+                actor = !string.IsNullOrWhiteSpace(actor) ? actor : qa ? "qa_recovery_operator" : "experiment_operator",
+                detail = detail ?? string.Empty
             };
             File.AppendAllText(Path.Combine(CurrentDataFolder, "editor_collection_operator_events.jsonl"),
                 JsonUtility.ToJson(value) + Environment.NewLine, Encoding.UTF8);

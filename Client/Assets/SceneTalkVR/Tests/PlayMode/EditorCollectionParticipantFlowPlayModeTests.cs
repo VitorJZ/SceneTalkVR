@@ -52,7 +52,7 @@ namespace SceneTalkVR.Tests.PlayMode
         }
 
         [UnityTest] public IEnumerator T02_ArmedStartUsesRealMainMenuPathToModeSelection()
-        { Arm(out _); Assert.That(Active("InitialPanel"), Is.True); Click("StartButton"); yield return null; Assert.That(Active("FormalModeSelectionPanel"), Is.True); Assert.That(Active("TaskSelectionPanel"), Is.False); Assert.That(Get(Get(collection, "RuntimeContext"), "qualification").ToString(), Is.EqualTo("Collection")); }
+        { Arm(out _); Assert.That(Active("InitialPanel"), Is.True); AssertExitOverlay(); Click("StartButton"); yield return null; Assert.That(Active("FormalModeSelectionPanel"), Is.True); Assert.That(Active("TaskSelectionPanel"), Is.False); Assert.That(Get(Get(collection, "RuntimeContext"), "qualification").ToString(), Is.EqualTo("Collection")); AssertExitOverlay(); }
 
         [UnityTest] public IEnumerator T03_ActualModeButtonLoadsPreassignedTaskAndReadOnlyGoals()
         {
@@ -69,6 +69,7 @@ namespace SceneTalkVR.Tests.PlayMode
             var tracker = Get(lifecycle, "GoalTracker"); Assert.That(GoalState(tracker, "reservation_name"), Is.EqualTo("Confirmed")); Assert.That(TextOf("ReadOnlyTaskGoalPanel"), Does.Contain("1 / 4 completed"));
             Assert.That(Evaluate("My name is Harry Potter."), Is.Zero); Evaluate("Is breakfast included?"); Evaluate("Could I have a room on a higher floor?"); Evaluate("What time is checkout?"); yield return null;
             Assert.That((int)Get(tracker, "ConfirmedCount"), Is.EqualTo(4)); Assert.That(Get(questionnaire, "ActiveSession"), Is.Not.Null); Assert.That(Get(Get(questionnaire, "ActiveSession"), "completionStatus").ToString(), Is.EqualTo("InProgress")); Assert.That(Active("QuestionnairePanel"), Is.True);
+            AssertExitOverlay();
         }
 
         [UnityTest] public IEnumerator T05_AvatarAndUnrelatedSpeechCannotAdvanceGoals()
@@ -125,8 +126,31 @@ namespace SceneTalkVR.Tests.PlayMode
                 OutCall(questionnaire, "Submit"); yield return null;
             }
             yield return null; Assert.That(Active("FormalFinalRankingPanel"), Is.True);
+            AssertExitOverlay();
             Click("NERank1"); Click("NRRank2"); Click("SERank3"); Click("SRRank4"); Click("NEPreferred"); Input("RankingReason").text = "Device validation ranking."; Click("RankingSubmitButton"); yield return null;
-            Assert.That(Active("FormalExperimentCompletionPanel"), Is.True); Assert.That((bool)Get(rehearsal, "ExperimentCompleted"), Is.True); Assert.That((bool)Get(Get(rehearsal, "FormalAssignment"), "collectionEligible"), Is.False);
+            Assert.That(Active("FormalExperimentCompletionPanel"), Is.True); AssertExitOverlay(); Assert.That((bool)Get(rehearsal, "ExperimentCompleted"), Is.True); Assert.That((bool)Get(Get(rehearsal, "FormalAssignment"), "collectionEligible"), Is.False);
+        }
+
+        [UnityTest] public IEnumerator T10_GlobalExitAbortsAndPersistsFormalCollectionSession()
+        {
+            Arm(out var assignment); Click("StartButton"); yield return null;
+            var selected = ConditionForTask(assignment, "hotel_check_in");
+            Click(Get(selected, "formalConditionCode") + "ModeButton"); yield return null;
+            var activeCondition = Get(lifecycle, "CurrentConditionAssignment");
+            var dataFolder = (string)Get(collection, "CurrentDataFolder");
+            AssertExitOverlay();
+
+            Click("ExitButton"); yield return null;
+
+            Assert.That(Active("InitialPanel"), Is.True);
+            Assert.That((bool)Get(collection, "IsArmed"), Is.False);
+            Assert.That(Get(assignment, "status").ToString(), Is.EqualTo("Aborted"));
+            Assert.That(Get(activeCondition, "status").ToString(), Is.EqualTo("Aborted"));
+            var persisted = JsonUtility.FromJson(System.IO.File.ReadAllText(System.IO.Path.Combine(dataFolder, "formal_assignment.json")), assignment.GetType());
+            Assert.That(Get(persisted, "status").ToString(), Is.EqualTo("Aborted"));
+            var events = System.IO.File.ReadAllText(System.IO.Path.Combine(dataFolder, "editor_collection_operator_events.jsonl"));
+            Assert.That(events, Does.Contain("ParticipantSessionExited"));
+            Assert.That(events, Does.Contain("\"actor\":\"participant\""));
         }
 
         private void Arm(out object assignment)
@@ -151,5 +175,18 @@ namespace SceneTalkVR.Tests.PlayMode
         private static bool Active(string name) { var go = Resources.FindObjectsOfTypeAll<GameObject>().FirstOrDefault(x => x.name == name && x.scene.IsValid()); return go != null && go.activeInHierarchy; }
         private static string TextOf(string name) { var go = Resources.FindObjectsOfTypeAll<GameObject>().First(x => x.name == name && x.scene.IsValid()); return string.Join("\n", go.GetComponentsInChildren<TMP_Text>(true).Select(x => x.text)); }
         private static Button[] ButtonsUnder(string name) { var go = Resources.FindObjectsOfTypeAll<GameObject>().First(x => x.name == name && x.scene.IsValid()); return go.GetComponentsInChildren<Button>(true); }
+        private static void AssertExitOverlay()
+        {
+            var button = Button("ExitButton");
+            var rect = button.GetComponent<RectTransform>();
+            var canvas = Resources.FindObjectsOfTypeAll<Canvas>().First(x => x.gameObject.scene.IsValid() && x.gameObject.name.StartsWith("SceneTalkVR World UI", StringComparison.Ordinal));
+            Assert.That(button.gameObject.activeInHierarchy, Is.True);
+            Assert.That(button.transform.parent, Is.EqualTo(canvas.transform));
+            Assert.That(button.transform.GetSiblingIndex(), Is.EqualTo(canvas.transform.childCount - 1));
+            Assert.That(rect.anchorMin, Is.EqualTo(Vector2.one));
+            Assert.That(rect.anchorMax, Is.EqualTo(Vector2.one));
+            Assert.That(rect.anchoredPosition.x, Is.LessThan(0f));
+            Assert.That(rect.anchoredPosition.y, Is.LessThan(0f));
+        }
     }
 }

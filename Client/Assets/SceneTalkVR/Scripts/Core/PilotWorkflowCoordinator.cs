@@ -67,6 +67,13 @@ namespace SceneTalkVR.Core
             QuestionnaireResearchExporter.AppendRanking(PilotCollectionSessionCoordinator.Active?.CurrentDataFolder??QuestionnaireSessionService.DefaultFolder,ranking);Write("PilotFinalRankingSubmitted");error="";return true;
         }
         public void MarkTechnicalInvalid(string stage,string reason){Invalid(stage,reason);RunStatusChanged?.Invoke(PilotRunStatus.TechnicalInvalid);}
+        public void AbortCurrent(string reason)
+        {
+            if(current==null||current.status==PilotRunStatus.Completed||current.status==PilotRunStatus.TechnicalInvalid||current.status==PilotRunStatus.Aborted)return;
+            current.status=PilotRunStatus.Aborted;presenter?.ResetSession();questionnaire.Reset();
+            Write("PilotConditionAborted","ParticipantExit",string.IsNullOrWhiteSpace(reason)?"participant_exit":reason);
+            RunStatusChanged?.Invoke(current.status);
+        }
         public bool PrepareNext(out string error)
         {
             error = "";

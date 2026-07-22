@@ -12,7 +12,7 @@ namespace SceneTalkVR.Runtime
     public sealed class SceneTalkFlowUiController : MonoBehaviour
     {
         private const string FlowRootName = "SceneTalkVR Flow UI";
-        private static readonly Vector2 ExitButtonPosition = new Vector2(360f, 218f);
+        private static readonly Vector2 ExitButtonInset = new Vector2(-18f, -18f);
         private static readonly Vector2 ExitButtonSize = new Vector2(110f, 44f);
         private static readonly Color ExitButtonColor = new Color(0.58f, 0.18f, 0.18f, 1f);
 
@@ -47,7 +47,6 @@ namespace SceneTalkVR.Runtime
         private Button pilotButton;
         private Button settingsButton;
         private Button historyButton;
-        private Button quitButton;
         private Button fontMinusButton;
         private Button fontPlusButton;
         private Button uiMinusButton;
@@ -148,6 +147,11 @@ namespace SceneTalkVR.Runtime
             Refresh();
         }
 
+        private void LateUpdate()
+        {
+            BringExitButtonToFront();
+        }
+
         public void Configure(
             SceneTalkOrchestrator targetOrchestrator,
             Canvas targetCanvas,
@@ -208,7 +212,6 @@ namespace SceneTalkVR.Runtime
             pilotButton = CreateButton(mainMenuPanel.transform, "PilotExperimentButton", "Pilot Experiment", new Vector2(0f, 42f), new Vector2(250f, 50f), new Color(0.18f, 0.48f, 0.58f, 1f));
             settingsButton = CreateButton(mainMenuPanel.transform, "SettingsButton", "Settings", new Vector2(0f, -18f), new Vector2(250f, 50f), new Color(0.24f, 0.36f, 0.42f, 1f));
             historyButton = CreateButton(mainMenuPanel.transform, "HistoryButton", "History", new Vector2(0f, -78f), new Vector2(250f, 50f), new Color(0.24f, 0.36f, 0.42f, 1f));
-            quitButton = CreateButton(mainMenuPanel.transform, "QuitButton", "Quit", new Vector2(0f, -138f), new Vector2(250f, 50f), new Color(0.58f, 0.18f, 0.18f, 1f));
 
             historyListPanel = CreatePanel(root, "HistoryListPanel", Vector2.zero, new Vector2(820f, 500f), new Color(0.04f, 0.05f, 0.07f, 0.94f));
             CreateText(historyListPanel.transform, "Title", "Conversation History", new Vector2(0f, 210f), new Vector2(620f, 44f), 30, TextAnchor.MiddleCenter, Color.white);
@@ -355,11 +358,11 @@ namespace SceneTalkVR.Runtime
             CreateText(taskGoalPanel.transform, "Title", "Task Goals", new Vector2(0f, 150f), new Vector2(300f, 36f), 22, TextAnchor.MiddleCenter, Color.white);
             taskGoalText = CreateText(taskGoalPanel.transform, "GoalStateText", string.Empty, new Vector2(0f, -5f), new Vector2(300f, 270f), 16, TextAnchor.UpperLeft, new Color(0.86f, 0.92f, 1f, 1f));
             
-            exitButton = CreateButton(root, "ExitButton", "Exit", ExitButtonPosition, ExitButtonSize, ExitButtonColor);
-            exitButtonObject = exitButton.gameObject;
-
             pilotCollectionUi = GetComponent<PilotCollectionParticipantUi>() ?? gameObject.AddComponent<PilotCollectionParticipantUi>();
             pilotCollectionUi.Configure(worldCanvas, orchestrator);
+
+            exitButton = CreateGlobalExitButton();
+            exitButtonObject = exitButton.gameObject;
 
             if (ExperimentRuntimePlatform.IsPicoDeviceValidation)
             {
@@ -372,7 +375,7 @@ namespace SceneTalkVR.Runtime
             }
 
             BindButtons();
-            CaptureBaseFontSizes(root);
+            CaptureBaseFontSizes(worldCanvas.transform);
             ApplyUserSettings(SceneTalkUserSettingsStore.Current);
         }
 
@@ -400,12 +403,6 @@ namespace SceneTalkVR.Runtime
             {
                 historyButton.onClick.RemoveAllListeners();
                 historyButton.onClick.AddListener(() => orchestrator?.OpenHistory());
-            }
-
-            if (quitButton != null)
-            {
-                quitButton.onClick.RemoveAllListeners();
-                quitButton.onClick.AddListener(QuitApplication);
             }
 
             if (fontMinusButton != null)
@@ -553,7 +550,7 @@ namespace SceneTalkVR.Runtime
             if (exitButton != null)
             {
                 exitButton.onClick.RemoveAllListeners();
-                exitButton.onClick.AddListener(ExitCurrentView);
+                exitButton.onClick.AddListener(HandleGlobalExit);
             }
         }
 
@@ -773,7 +770,7 @@ namespace SceneTalkVR.Runtime
             // Keep assigned goals visible while the initial scene is loading so participants
             // can review the read-only task goals before their first speaking turn.
             RefreshGoalPanel(showDialogue || showLoading);
-            SetActive(exitButtonObject, !showMain && !rehearsalActive && !collectionArmed && !pilotFlowVisible);
+            SetActive(exitButtonObject, true);
 
             RefreshSettingsPanel(showSettings);
             RefreshHistoryList(showHistoryList);
@@ -785,6 +782,7 @@ namespace SceneTalkVR.Runtime
             RefreshSubtitlePanel(showDialogue);
             RefreshDemoOverlay();
             RefreshFormalModeSelection(showFormalModeSelection);
+            BringExitButtonToFront();
         }
 
         public void RefreshExternalState() => Refresh();
@@ -1579,6 +1577,83 @@ namespace SceneTalkVR.Runtime
             }
 
             orchestrator.ReturnToInitialMenu();
+        }
+
+        private void HandleGlobalExit()
+        {
+            if (orchestrator == null)
+            {
+                return;
+            }
+
+            var pilot = PilotCollectionSessionCoordinator.Active;
+            if (pilot != null && pilot.Stage != PilotParticipantStage.None)
+            {
+                pilot.ExitAndEndSession("participant_exit");
+                return;
+            }
+
+            var collection = EditorCollectionSessionCoordinator.Active;
+            if (collection?.IsArmed == true)
+            {
+                collection.ExitAndEndRuntimeSession("participant_exit");
+                return;
+            }
+
+            var rehearsal = RehearsalSessionCoordinator.Active;
+            if (rehearsal?.IsActive == true)
+            {
+                rehearsal.ResetSession();
+                return;
+            }
+
+            var demo = EditorDemoSessionCoordinator.Active;
+            if (demo?.IsDemoMode == true)
+            {
+                demo.ResetDemoSession();
+                return;
+            }
+
+            if (sessionPreparationBlocked)
+            {
+                sessionPreparationBlocked = false;
+                Refresh();
+                return;
+            }
+
+            if (orchestrator.CurrentState == SceneTalkState.Idle
+                || orchestrator.CurrentState == SceneTalkState.Finished)
+            {
+                QuitApplication();
+                return;
+            }
+
+            ExitCurrentView();
+        }
+
+        private Button CreateGlobalExitButton()
+        {
+            var button = CreateButton(
+                worldCanvas.transform,
+                "ExitButton",
+                "Exit",
+                Vector2.zero,
+                ExitButtonSize,
+                ExitButtonColor);
+            var rect = button.GetComponent<RectTransform>();
+            rect.anchorMin = Vector2.one;
+            rect.anchorMax = Vector2.one;
+            rect.pivot = Vector2.one;
+            rect.anchoredPosition = ExitButtonInset;
+            return button;
+        }
+
+        public void BringExitButtonToFront()
+        {
+            if (exitButtonObject != null && exitButtonObject.transform.parent == worldCanvas?.transform)
+            {
+                exitButtonObject.transform.SetAsLastSibling();
+            }
         }
 
         private void CaptureBaseFontSizes(Transform root)

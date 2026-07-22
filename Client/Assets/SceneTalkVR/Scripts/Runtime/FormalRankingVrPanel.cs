@@ -38,7 +38,7 @@ namespace SceneTalkVR.Runtime
             { activeSessionId = sessionId; ResetResponse(); }
             var rankingVisible = collectionActive ? collection.FinalRankingVisible : rehearsal.FinalRankingVisible;
             var completed = collectionActive ? collection.ExperimentCompleted : rehearsal.ExperimentCompleted;
-            if (rankingVisible) { EnsureBuilt(); SetActive(panel, true); SetActive(completionPanel, false); panel.transform.SetAsLastSibling(); }
+            if (rankingVisible) { EnsureBuilt(); SetActive(panel, true); SetActive(completionPanel, false); panel.transform.SetAsLastSibling(); BringExitToFront(); }
             else if (completed)
             {
                 EnsureBuilt(); SetActive(panel, false); SetActive(completionPanel, true);
@@ -46,6 +46,7 @@ namespace SceneTalkVR.Runtime
                     ? "PICO device validation completed.\nNOT PARTICIPANT DATA — collectionEligible=false."
                     : "Thank you. Please contact the experimenter.\nYour session is ready for bundle export and integrity audit.";
                 completionPanel.transform.SetAsLastSibling();
+                BringExitToFront();
             }
             else { SetActive(panel, false); SetActive(completionPanel, false); }
         }
@@ -173,5 +174,6 @@ namespace SceneTalkVR.Runtime
         private static TextAlignmentOptions ToTmpAlignment(TextAnchor anchor) => anchor switch { TextAnchor.UpperLeft => TextAlignmentOptions.TopLeft, TextAnchor.UpperCenter => TextAlignmentOptions.Top, TextAnchor.UpperRight => TextAlignmentOptions.TopRight, TextAnchor.MiddleLeft => TextAlignmentOptions.Left, TextAnchor.MiddleRight => TextAlignmentOptions.Right, TextAnchor.LowerLeft => TextAlignmentOptions.BottomLeft, TextAnchor.LowerCenter => TextAlignmentOptions.Bottom, TextAnchor.LowerRight => TextAlignmentOptions.BottomRight, _ => TextAlignmentOptions.Center };
         private static bool Fail(out string error, string value) { error = value; return false; }
         private static void SetActive(GameObject value, bool active) { if (value != null && value.activeSelf != active) value.SetActive(active); }
+        private static void BringExitToFront() => FindFirstObjectByType<SceneTalkFlowUiController>(FindObjectsInactive.Include)?.BringExitButtonToFront();
     }
 }
