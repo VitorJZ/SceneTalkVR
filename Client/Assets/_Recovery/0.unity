@@ -2418,7 +2418,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0cc7e53b82b50a64382d1b09d75a0d35, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Runtime.Services.PanoramaSceneService
-  apiKey: sk-azcoikjkgvfzqcpytdlvjnemnxnvcqnhghlnsvtgfugoqblv
+  apiKey:
   modelName: Tongyi-MAI/Z-Image
   imageSize: 1024x1024
   fallbackTexture: {fileID: 2800000, guid: 2b1cecb1152339547a3b0f46551d6331, type: 3}
@@ -2436,7 +2436,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Runtime.Services.RealLLMService
   apiUrl: https://models.sjtu.edu.cn/api/v1/chat/completions
-  apiKey: sk-AGepmiQRplsPpiBqfA5uUw
+  apiKey:
   modelName: minimax-m2.7
   systemPrompt: "You are a VR scene dispatcher and an English tutor. Based on the
     user's input, generate a JSON response that matches the following structure:\n{\n 

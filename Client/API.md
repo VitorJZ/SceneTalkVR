@@ -1,5 +1,5 @@
 API Base_url: https://models.sjtu.edu.cn/api/v1
-API key: sk-AGepmiQRplsPpiBqfA5uUw
+API key: <REDACTED - configure credentials outside the repository>
 
 模型名及调用名：
 DeepSeek V3.2（常规模式）：调用名 deepseek-chat

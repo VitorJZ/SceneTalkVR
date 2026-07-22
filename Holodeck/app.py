@@ -16,11 +16,9 @@ load_dotenv(dotenv_path="../.env")
 from ai2holodeck.generation.holodeck import Holodeck
 from ai2holodeck.constants import OBJATHOR_ASSETS_DIR
 
-# Use environmental variables if set, fallback if missing
+# Use the configured endpoint while keeping credentials outside source control.
 if not os.environ.get("OPENAI_API_BASE"):
     os.environ["OPENAI_API_BASE"] = "https://models.sjtu.edu.cn/api/v1"
-if not os.environ.get("OPENAI_API_KEY"):
-    os.environ["OPENAI_API_KEY"] = "sk-AGepmiQRplsPpiBqfA5uUw"
 
 app = FastAPI(title="SceneTalkVR Holodeck Backend")
 
@@ -32,10 +30,15 @@ _holodeck_model = None
 @app.on_event("startup")
 async def startup_event():
     global _holodeck_model
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        print("OPENAI_API_KEY is not configured; Holodeck generation is disabled.")
+        return
+
     print("Pre-loading models... This might take a while.")
     try:
         _holodeck_model = Holodeck(
-            openai_api_key=os.environ.get("OPENAI_API_KEY"),
+            openai_api_key=api_key,
             openai_org=os.environ.get("OPENAI_ORG"),
             objaverse_asset_dir=OBJATHOR_ASSETS_DIR,
             single_room=True

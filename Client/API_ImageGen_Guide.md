@@ -1,4 +1,4 @@
-My API Key: sk-azcoikjkgvfzqcpytdlvjnemnxnvcqnhghlnsvtgfugoqblv
+My API Key: <REDACTED - configure credentials outside the repository>
 
 AuthorizationBearer <token>required
 
