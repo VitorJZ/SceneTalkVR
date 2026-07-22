@@ -231,8 +231,11 @@ namespace SceneTalkVR.AvatarSystem
                 logLabel = useDialogueAvatar
                     ? "Correction feedback"
                     : "Assistant correction feedback",
-                voiceIdOverride = !string.IsNullOrWhiteSpace(rehearsalFeedbackVoiceId) ? rehearsalFeedbackVoiceId
-                    : !string.IsNullOrWhiteSpace(resolvedPilotVoiceId) ? resolvedPilotVoiceId : assistantAgentVoiceId,
+                voiceIdOverride = ResolveVoiceIdOverride(
+                    useDialogueAvatar,
+                    rehearsalFeedbackVoiceId,
+                    resolvedPilotVoiceId,
+                    assistantAgentVoiceId),
                 preparationStarted = () => timing?.RecordTimingEvent(ExperimentTimingEventType.CorrectionTtsStarted, feedbackText: text),
                 preparationReady = () => timing?.RecordTimingEvent(ExperimentTimingEventType.CorrectionTtsReady, feedbackText: text),
                 playbackStarted = () => timing?.RecordTimingEvent(
@@ -429,6 +432,24 @@ namespace SceneTalkVR.AvatarSystem
                 ? assistantAgentVoiceType
                 : DefaultAssistantAgentVoice;
             return ((int)selectedVoice).ToString();
+        }
+
+        internal static string ResolveVoiceIdOverride(
+            bool useDialogueAvatar,
+            string rehearsalFeedbackVoiceId,
+            string pilotVoiceId,
+            string assistantAgentVoiceId)
+        {
+            if (useDialogueAvatar)
+            {
+                return null;
+            }
+
+            return !string.IsNullOrWhiteSpace(rehearsalFeedbackVoiceId)
+                ? rehearsalFeedbackVoiceId
+                : !string.IsNullOrWhiteSpace(pilotVoiceId)
+                    ? pilotVoiceId
+                    : assistantAgentVoiceId;
         }
 
         private CorrectionAgentPresenter ResolveCorrectionAgentPresenter(bool createIfMissing)
