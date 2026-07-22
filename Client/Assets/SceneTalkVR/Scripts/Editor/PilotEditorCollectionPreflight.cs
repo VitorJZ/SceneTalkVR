@@ -5,7 +5,9 @@ using System.Linq;
 using SceneTalkVR.Core;
 using SceneTalkVR.Voice;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace SceneTalkVR.EditorTools
 {
@@ -13,10 +15,14 @@ namespace SceneTalkVR.EditorTools
     [Serializable] public sealed class PilotPreflightReport{public string generatedAtUtc;public string overall;public PilotPreflightCheck[] checks=Array.Empty<PilotPreflightCheck>();}
     public static class PilotEditorCollectionPreflight
     {
+        private const string MainScenePath = "Assets/Scenes/SampleScene.unity";
+
         [MenuItem("SceneTalkVR/Diagnostics/Pilot Editor Collection Preflight",false,55)]
         public static void RunMenu(){var report=Run();Debug.Log("[PilotPreflight] "+JsonUtility.ToJson(report,true));}
         public static PilotPreflightReport Run()
         {
+            if(Application.isBatchMode&&SceneManager.GetActiveScene().path!=MainScenePath)
+                EditorSceneManager.OpenScene(MainScenePath,OpenSceneMode.Single);
             var list=new List<PilotPreflightCheck>();void Check(string id,bool ok,string detail,bool warning=false)=>list.Add(new PilotPreflightCheck{id=id,result=ok?"READY":warning?"WARNING":"BLOCKED",detail=detail});
             var protocol=AssetDatabase.LoadAssetAtPath<ExperimentV11ProtocolConfig>("Assets/SceneTalkVR/ExperimentProtocol/ExperimentV11Protocol.asset");
             var tasks=AssetDatabase.LoadAssetAtPath<ExperimentTaskCatalog>("Assets/SceneTalkVR/ExperimentProtocol/ExperimentTaskCatalog.asset");
