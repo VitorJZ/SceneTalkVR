@@ -1,6 +1,6 @@
 ﻿# Vitor Preflight Report
 
-Generated: 2026-07-22 10:59:05
+Generated: 2026-07-22 12:02:24
 Unity: 6000.3.16f1
 Active Build Target: Android
 Android Build Support Path: `E:/ProgramFile/UnityEditor/6000.3.16f1/Editor/Data\PlaybackEngines\AndroidPlayer`
@@ -105,8 +105,8 @@ Android Build Support Path: `E:/ProgramFile/UnityEditor/6000.3.16f1/Editor/Data\
 - [x] Required runtime, protocol, and avatar catalog references are assigned
 - [x] Voice gateway URL is configured
 - [x] Voice gateway URL is not localhost for PICO: `http://192.168.137.1:8787`
-- [x] Holodeck backend URL is configured when backend mode is enabled
-- [x] Holodeck backend URL is not localhost for PICO: `http://localhost:8080/generate_scene`
+- [x] Holodeck backend is disabled for this build
+- [x] Holodeck backend LAN endpoint check is not applicable while backend mode is disabled
 - [x] Brain module/profile is set to a real LLM path for real-device runs
 
 ## Packages

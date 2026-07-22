@@ -370,8 +370,12 @@ namespace SceneTalkVR.EditorTools
             AppendCheck(report, HasRequiredSceneReferences(configAppliers, experimentManagers), "Required runtime, protocol, and avatar catalog references are assigned");
             AppendCheck(report, !string.IsNullOrWhiteSpace(effectiveVoiceUrl), "Voice gateway URL is configured");
             AppendCheck(report, !SceneTalkRuntimeConfig.IsLoopbackUrl(effectiveVoiceUrl), $"Voice gateway URL is not localhost for PICO: `{DisplayEndpoint(effectiveVoiceUrl)}`");
-            AppendCheck(report, !usesHolodeckBackend || !string.IsNullOrWhiteSpace(effectiveHolodeckUrl), "Holodeck backend URL is configured when backend mode is enabled");
-            AppendCheck(report, !usesHolodeckBackend || !SceneTalkRuntimeConfig.IsLoopbackUrl(effectiveHolodeckUrl), $"Holodeck backend URL is not localhost for PICO: `{DisplayEndpoint(effectiveHolodeckUrl)}`");
+            AppendCheck(report, !usesHolodeckBackend || !string.IsNullOrWhiteSpace(effectiveHolodeckUrl), usesHolodeckBackend
+                ? "Holodeck backend URL is configured"
+                : "Holodeck backend is disabled for this build");
+            AppendCheck(report, !usesHolodeckBackend || !SceneTalkRuntimeConfig.IsLoopbackUrl(effectiveHolodeckUrl), usesHolodeckBackend
+                ? $"Holodeck backend URL is not localhost for PICO: `{DisplayEndpoint(effectiveHolodeckUrl)}`"
+                : "Holodeck backend LAN endpoint check is not applicable while backend mode is disabled");
             AppendCheck(report, UsesRealBrainProfile(orchestrators.FirstOrDefault(), runtimeConfig), "Brain module/profile is set to a real LLM path for real-device runs");
 
             AppendSection(report, "Packages");
