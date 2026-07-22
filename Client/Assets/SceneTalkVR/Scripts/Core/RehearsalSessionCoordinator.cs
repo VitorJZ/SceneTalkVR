@@ -10,7 +10,7 @@ namespace SceneTalkVR.Core
     [Serializable]
     public sealed class RehearsalOperatorEvent
     {
-        public string schemaVersion = "1.1";
+        public string schemaVersion = "1.2";
         public string timestampUtc;
         public string flowMode;
         public string runQualification = "Rehearsal";
@@ -22,6 +22,8 @@ namespace SceneTalkVR.Core
         public string protocolVersion;
         public string protocolSnapshotId;
         public string resourceSnapshotId;
+        public string deploymentTarget;
+        public string deploymentProfile;
         public string participantId;
         public string sessionId;
         public string actor = "rehearsal_operator";
@@ -46,6 +48,8 @@ namespace SceneTalkVR.Core
         private int currentPosition = -1;
         private bool rankingSubmitted;
         private bool interviewSaved;
+        private bool finalRankingVisible;
+        private bool experimentCompleted;
         private bool resetInProgress;
         private string lastBundlePath;
         private bool lifecycleSubscribed;
@@ -54,6 +58,8 @@ namespace SceneTalkVR.Core
         public bool IsActive => RuntimeContext != null && RuntimeContext.IsRehearsal;
         public bool IsFormal => IsActive && RuntimeContext.flowMode == ExperimentFlowMode.Formal;
         public bool IsPilot => IsActive && RuntimeContext.flowMode == ExperimentFlowMode.Pilot;
+        public bool IsDeviceValidation => IsActive && RuntimeContext.deploymentTarget == ExperimentDeploymentTarget.Pico
+            && string.Equals(RuntimeContext.deploymentProfile, "pico_device_validation", StringComparison.Ordinal);
         public ExperimentAssignment FormalAssignment => formalLifecycle?.Assignment;
         public PilotAssignment PilotAssignment => pilotWorkflow?.Assignment;
         public ExperimentV11RehearsalProtocol Protocol => protocol;
@@ -70,7 +76,12 @@ namespace SceneTalkVR.Core
         public string LastBundlePath => lastBundlePath ?? string.Empty;
         public bool RankingSubmitted => rankingSubmitted;
         public bool InterviewSaved => interviewSaved;
-        public static string RehearsalRoot => Path.Combine(Directory.GetParent(Application.dataPath).FullName, "Library", "SceneTalkVR", "RehearsalSessions");
+        public bool FinalRankingVisible => finalRankingVisible;
+        public bool ExperimentCompleted => experimentCompleted;
+        public static string RehearsalRoot => ExperimentRuntimePlatform.IsPicoDeviceValidation
+            ? Path.Combine(Application.persistentDataPath, "SceneTalkVR", "DeviceValidationSessions")
+            : Path.Combine(Directory.GetParent(Application.dataPath)?.FullName ?? Application.persistentDataPath,
+                "Library", "SceneTalkVR", "RehearsalSessions");
         public string CurrentDataFolder => string.IsNullOrWhiteSpace(ParticipantId) || string.IsNullOrWhiteSpace(SessionId)
             ? RehearsalRoot : Path.Combine(RehearsalRoot, Safe(ParticipantId) + "_" + Safe(SessionId), "raw");
 
@@ -96,7 +107,8 @@ namespace SceneTalkVR.Core
             if (string.IsNullOrWhiteSpace(participantId)) { error = "participant_id_missing"; return false; }
             if (string.IsNullOrWhiteSpace(sessionId)) { error = "session_id_missing"; return false; }
             ResetSession();
-            RuntimeContext = ExperimentRuntimeContext.CreateRehearsal(flow, participantId, sessionId, protocol.ProtocolSnapshotId, resources.ResourceSnapshotId);
+            RuntimeContext = CreateRuntimeContext(flow, participantId, sessionId);
+            Directory.CreateDirectory(CurrentDataFolder);
             if (flow == ExperimentFlowMode.Formal)
             {
                 var allocator = new ExperimentAssignmentAllocator();
@@ -110,13 +122,19 @@ namespace SceneTalkVR.Core
                     resources.ResourceSnapshotId, out var assignment, out error) || !pilotWorkflow.LoadAssignment(assignment, out error)) return FailStart(error);
             }
             currentPosition = -1; rankingSubmitted = false; interviewSaved = false;
-            PersistAssignments(); WriteOperator("CreateSession"); RefreshUi(); return true;
+            finalRankingVisible = false; experimentCompleted = false;
+            PersistAssignments(); WriteOperator("CreateSession");
+            Debug.Log($"[ExperimentRuntime] Rehearsal armed. flow={flow}; qualification=Rehearsal; "
+                + $"dataOrigin=rehearsal; collectionEligible=false; target={RuntimeContext.deploymentTarget}; "
+                + $"profile={RuntimeContext.deploymentProfile}; sessionId={SessionId}", this);
+            RefreshUi(); return true;
         }
 
         public bool LoadSession(ExperimentFlowMode flow, string participantId, string sessionId, out string error)
         {
             if (!ValidateCommon(flow, out error)) return false;
-            RuntimeContext = ExperimentRuntimeContext.CreateRehearsal(flow, participantId, sessionId, protocol.ProtocolSnapshotId, resources.ResourceSnapshotId);
+            RuntimeContext = CreateRuntimeContext(flow, participantId, sessionId);
+            Directory.CreateDirectory(CurrentDataFolder);
             var raw = CurrentDataFolder;
             if (flow == ExperimentFlowMode.Formal)
             {
@@ -130,6 +148,7 @@ namespace SceneTalkVR.Core
                 if (!ValidatePilotRehearsal(value, out error) || !pilotWorkflow.LoadAssignment(value, out error)) return FailStart(error);
                 currentPosition = Array.FindIndex(value.conditions, x => x.status == PilotRunStatus.Running || x.status == PilotRunStatus.AwaitingPilotQuestionnaire || x.status == PilotRunStatus.PilotQuestionnaireInProgress);
             }
+            finalRankingVisible = false; experimentCompleted = false;
             WriteOperator("LoadSession"); RefreshUi(); return true;
         }
 
@@ -235,14 +254,21 @@ namespace SceneTalkVR.Core
         {
             var ui = FindFirstObjectByType<SceneTalkFlowUiController>(FindObjectsInactive.Include);
             if (!IsActive || ui == null) { error = !IsActive ? "rehearsal_session_not_active" : "scene_talk_flow_ui_missing"; return false; }
-            ui.ShowRehearsalRanking(IsPilot); WriteOperator("OpenFinalRanking"); error = string.Empty; return true;
+            finalRankingVisible = true;
+            if (!IsDeviceValidation) ui.ShowRehearsalRanking(IsPilot);
+            WriteOperator("OpenFinalRanking"); RefreshUi(); error = string.Empty; return true;
         }
 
         public bool SubmitRanking(PreferenceRankingResponse response, out string error)
         {
             var ok = IsFormal ? questionnaire.SubmitFormalRanking(response, out error)
                 : IsPilot ? pilotWorkflow.SubmitFinalRanking(response, out error) : Fail(out error, "rehearsal_session_not_active");
-            if (ok) { rankingSubmitted = true; WriteOperator("SubmitFinalRanking"); } return ok;
+            if (ok)
+            {
+                rankingSubmitted = true; finalRankingVisible = false; experimentCompleted = true;
+                WriteOperator("SubmitFinalRanking"); RefreshUi();
+            }
+            return ok;
         }
 
         public bool AutoFillRankingForQa(out string error)
@@ -339,7 +365,8 @@ namespace SceneTalkVR.Core
                 if (formalLifecycle?.CurrentConditionAssignment != null) formalLifecycle.Abort("rehearsal_reset");
                 orchestrator?.ReturnToInitialMenu(); formalLifecycle?.ClearAssignmentForRuntimeMode(); pilotWorkflow?.ClearAssignmentForRuntimeMode();
                 questionnaire?.Service.Reset(); conditionManager?.ResetConditionSessionBoundary(); currentPosition = -1;
-                rankingSubmitted = interviewSaved = false; RuntimeContext = null; RefreshUi();
+                rankingSubmitted = interviewSaved = finalRankingVisible = experimentCompleted = false;
+                RuntimeContext = null; RefreshUi();
             }
             finally { resetInProgress = false; }
         }
@@ -347,16 +374,30 @@ namespace SceneTalkVR.Core
         private bool ValidateCommon(ExperimentFlowMode flow, out string error)
         {
             ResolveDependencies();
-            if (!Application.isEditor) { error = "rehearsal_requires_unity_editor"; return false; }
+            if (!ExperimentRuntimePlatform.IsEditorRehearsal && !ExperimentRuntimePlatform.IsPicoDeviceValidation)
+            { error = "rehearsal_runtime_not_supported"; return false; }
             if (flow != ExperimentFlowMode.Formal && flow != ExperimentFlowMode.Pilot) { error = "rehearsal_flow_invalid"; return false; }
+            if (EditorCollectionSessionCoordinator.Active?.IsArmed == true
+                || EditorDemoSessionCoordinator.Active?.IsDemoMode == true)
+            { error = "another_experiment_runtime_is_active"; return false; }
             if (conditionManager == null || formalLifecycle == null || pilotWorkflow == null || questionnaire == null || orchestrator == null) { error = "rehearsal_scene_bindings_missing"; return false; }
             if (protocol == null) { error = "rehearsal_protocol_missing"; return false; }
             if (!protocol.Validate(out error)) return false;
             if (resources == null || string.IsNullOrWhiteSpace(resources.ResourceSnapshotId) || voiceCatalog == null || deploymentCatalog == null) { error = "rehearsal_resources_missing"; return false; }
             if (!voiceCatalog.ValidateForRehearsal(out error)) return false;
-            if (!deploymentCatalog.TryGet(ExperimentDeploymentProfileId.RehearsalEditor, out var deployment)
-                || !deployment.approvedForRehearsal || !deployment.loopbackAllowedForRehearsal || deployment.collectionAllowed) { error = "rehearsal_deployment_invalid"; return false; }
+            var profile = ExperimentRuntimePlatform.IsPicoDeviceValidation
+                ? ExperimentDeploymentProfileId.PicoDeviceValidation : ExperimentDeploymentProfileId.RehearsalEditor;
+            if (!deploymentCatalog.ValidateForRehearsal(profile, out error)) return false;
             error = string.Empty; return true;
+        }
+
+        private ExperimentRuntimeContext CreateRuntimeContext(ExperimentFlowMode flow, string participantId, string sessionId)
+        {
+            var pico = ExperimentRuntimePlatform.IsPicoDeviceValidation;
+            return ExperimentRuntimeContext.CreateRehearsal(flow, participantId, sessionId,
+                protocol.ProtocolSnapshotId, resources.ResourceSnapshotId,
+                pico ? ExperimentDeploymentTarget.Pico : ExperimentDeploymentTarget.UnityEditor,
+                pico ? "pico_device_validation" : "rehearsal_editor");
         }
 
         private void ResolveDependencies()
@@ -424,7 +465,10 @@ namespace SceneTalkVR.Core
             var value = new RehearsalOperatorEvent { timestampUtc = DateTime.UtcNow.ToString("o"), flowMode = RuntimeContext.flowMode.ToString(),
                 protocolVersion = protocol.ProtocolVersion, protocolSnapshotId = RuntimeContext.protocolSnapshotId,
                 resourceSnapshotId = RuntimeContext.resourceSnapshotId, participantId = ParticipantId, sessionId = SessionId,
-                action = action, qaAutomationUsed = qa, actor = qa ? "rehearsal_qa_operator" : "rehearsal_operator", detail = detail ?? string.Empty };
+                deploymentTarget = RuntimeContext.deploymentTarget.ToString(), deploymentProfile = RuntimeContext.deploymentProfile,
+                action = action, qaAutomationUsed = qa,
+                actor = qa ? "rehearsal_qa_operator" : IsDeviceValidation ? "device_validation_participant" : "rehearsal_operator",
+                detail = detail ?? string.Empty };
             File.AppendAllText(Path.Combine(CurrentDataFolder, "rehearsal_operator_events.jsonl"), JsonUtility.ToJson(value) + Environment.NewLine, Encoding.UTF8);
         }
 

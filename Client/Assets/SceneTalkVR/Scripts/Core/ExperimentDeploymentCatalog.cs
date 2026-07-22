@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace SceneTalkVR.Core
 {
-    public enum ExperimentDeploymentProfileId { DevelopmentEditor, PicoLab, PicoPortable, MockOffline, EditorDemo, RehearsalEditor, EditorCollection }
+    public enum ExperimentDeploymentProfileId { DevelopmentEditor, PicoLab, PicoPortable, MockOffline, EditorDemo, RehearsalEditor, EditorCollection, PicoDeviceValidation }
 
     [Serializable]
     public sealed class ExperimentDeploymentProfile
@@ -62,13 +62,26 @@ namespace SceneTalkVR.Core
         }
 
         public bool ValidateForRehearsal(out string error)
+            => ValidateForRehearsal(ExperimentDeploymentProfileId.RehearsalEditor, out error);
+
+        public bool ValidateForRehearsal(ExperimentDeploymentProfileId id, out string error)
         {
-            if (!TryGet(ExperimentDeploymentProfileId.RehearsalEditor, out var profile)) { error = "rehearsal_deployment_missing"; return false; }
+            if (id != ExperimentDeploymentProfileId.RehearsalEditor && id != ExperimentDeploymentProfileId.PicoDeviceValidation)
+            { error = "rehearsal_deployment_profile_invalid"; return false; }
+            if (!TryGet(id, out var profile)) { error = "rehearsal_deployment_missing:" + id; return false; }
             var issues = new List<string>();
             if (!profile.approvedForRehearsal || profile.approvedForCollection || profile.collectionAllowed) issues.Add("rehearsal_deployment_qualification_invalid");
-            if (!profile.loopbackAllowedForRehearsal || !IsLoopback(profile.voiceGatewayBaseUrl)) issues.Add("rehearsal_editor_loopback_invalid");
+            if (id == ExperimentDeploymentProfileId.RehearsalEditor
+                && (!profile.loopbackAllowedForRehearsal || !IsLoopback(profile.voiceGatewayBaseUrl)
+                    || profile.target != ExperimentDeploymentTarget.UnityEditor || profile.picoRequired))
+                issues.Add("rehearsal_editor_deployment_invalid");
+            if (id == ExperimentDeploymentProfileId.PicoDeviceValidation
+                && (profile.loopbackAllowedForRehearsal || IsLoopback(profile.voiceGatewayBaseUrl)
+                    || profile.target != ExperimentDeploymentTarget.Pico || !profile.picoRequired))
+                issues.Add("pico_device_validation_deployment_invalid");
             if (profile.requestTimeoutSeconds <= 0 || string.IsNullOrWhiteSpace(profile.sttProvider) || string.IsNullOrWhiteSpace(profile.ttsProvider)) issues.Add("rehearsal_live_pipeline_invalid");
             if (ContainsMock(profile.sttProvider) || ContainsMock(profile.ttsProvider)) issues.Add("rehearsal_mock_provider_forbidden");
+            if (ContainsSecretMaterial(profile.voiceGatewayBaseUrl)) issues.Add("deployment_endpoint_contains_secret_material");
             error = string.Join("; ", issues); return issues.Count == 0;
         }
 

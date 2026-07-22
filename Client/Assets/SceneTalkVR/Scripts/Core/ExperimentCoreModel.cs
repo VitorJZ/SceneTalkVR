@@ -50,7 +50,9 @@ namespace SceneTalkVR.Core
             || flow == ExperimentFlowMode.Synthetic && value == ExperimentRunQualification.Development;
 
         public static ExperimentRuntimeContext CreateRehearsal(ExperimentFlowMode flow, string participantId,
-            string sessionId, string protocolSnapshotId, string resourceSnapshotId)
+            string sessionId, string protocolSnapshotId, string resourceSnapshotId,
+            ExperimentDeploymentTarget deploymentTarget = ExperimentDeploymentTarget.Undefined,
+            string deploymentProfile = "")
         {
             if (flow != ExperimentFlowMode.Formal && flow != ExperimentFlowMode.Pilot)
                 throw new ArgumentOutOfRangeException(nameof(flow), "Rehearsal requires Formal or Pilot flow.");
@@ -63,7 +65,9 @@ namespace SceneTalkVR.Core
                 protocolSnapshotId = protocolSnapshotId?.Trim() ?? string.Empty,
                 resourceSnapshotId = resourceSnapshotId?.Trim() ?? string.Empty,
                 dataOrigin = "rehearsal",
-                collectionEligible = false
+                collectionEligible = false,
+                deploymentTarget = deploymentTarget,
+                deploymentProfile = deploymentProfile?.Trim() ?? string.Empty
             };
         }
 
@@ -92,6 +96,21 @@ namespace SceneTalkVR.Core
             value.flowMode = ExperimentFlowMode.Pilot;
             return value;
         }
+    }
+
+    /// <summary>
+    /// Keeps runtime platform decisions explicit and testable. A PICO build may run the
+    /// non-collection device-validation rehearsal, but it never becomes collection eligible.
+    /// </summary>
+    public static class ExperimentRuntimePlatform
+    {
+        public static bool ForcePicoDeviceValidationForTests { get; set; }
+        public static bool IsPicoDeviceValidation => ForcePicoDeviceValidationForTests
+            || (!Application.isEditor && Application.platform == RuntimePlatform.Android);
+        public static bool IsEditorRehearsal => Application.isEditor && !ForcePicoDeviceValidationForTests;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetForRuntime() => ForcePicoDeviceValidationForTests = false;
     }
 
     [Serializable]

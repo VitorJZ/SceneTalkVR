@@ -43,15 +43,29 @@ namespace SceneTalkVR.EditorTools
             voices.EditorSet("1.1-rehearsal-1", feedback.voiceProfileKey, feedback.voiceProfileKey, feedback.voiceProfileKey, new[] { dialogue, feedback });
 
             var deployments = GetOrCreate<ExperimentDeploymentCatalog>(DeploymentPath);
-            deployments.EditorSet("1.1-rehearsal-1", new[] { new ExperimentDeploymentProfile
+            deployments.EditorSet("1.2-rehearsal-device-validation", new[]
             {
-                profileId = ExperimentDeploymentProfileId.RehearsalEditor, voiceGatewayBaseUrl = "http://127.0.0.1:8787",
-                requestTimeoutSeconds = 30, sttProvider = "voice_gateway_live_stt", ttsProvider = "tencent",
-                microphonePolicy = "UnityEditor default microphone", networkRequired = true,
-                approvedForRehearsal = true, loopbackAllowedForRehearsal = true,
-                approvedForCollection = false, collectionAllowed = false,
-                evidenceReference = "scenetalkvr-rehearsal-baseline-v1"
-            }});
+                new ExperimentDeploymentProfile
+                {
+                    profileId = ExperimentDeploymentProfileId.RehearsalEditor, voiceGatewayBaseUrl = "http://127.0.0.1:8787",
+                    requestTimeoutSeconds = 30, sttProvider = "voice_gateway_live_stt", ttsProvider = "tencent",
+                    microphonePolicy = "UnityEditor default microphone", networkRequired = true,
+                    approvedForRehearsal = true, loopbackAllowedForRehearsal = true,
+                    approvedForCollection = false, collectionAllowed = false,
+                    target = ExperimentDeploymentTarget.UnityEditor, picoRequired = false,
+                    evidenceReference = "scenetalkvr-rehearsal-baseline-v1"
+                },
+                new ExperimentDeploymentProfile
+                {
+                    profileId = ExperimentDeploymentProfileId.PicoDeviceValidation, voiceGatewayBaseUrl = "http://192.168.137.1:8787",
+                    requestTimeoutSeconds = 30, sttProvider = "voice_gateway_live_stt", ttsProvider = "tencent",
+                    microphonePolicy = "runtime_permission_required", networkRequired = true,
+                    approvedForRehearsal = true, loopbackAllowedForRehearsal = false,
+                    approvedForCollection = false, collectionAllowed = false,
+                    target = ExperimentDeploymentTarget.Pico, picoRequired = true,
+                    evidenceReference = "pico-device-validation-not-collection-approved"
+                }
+            });
             EditorUtility.SetDirty(protocol); EditorUtility.SetDirty(resource); EditorUtility.SetDirty(voices); EditorUtility.SetDirty(deployments);
             AssetDatabase.SaveAssets(); AssetDatabase.Refresh();
             Debug.Log("[SceneTalkVR] Rehearsal protocol and resource assets updated. Collection approval remains false.");

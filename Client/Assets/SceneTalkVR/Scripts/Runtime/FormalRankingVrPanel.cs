@@ -14,6 +14,7 @@ namespace SceneTalkVR.Runtime
         private GameObject panel;
         private GameObject completionPanel;
         private TMP_Text validation;
+        private TMP_Text completionMessage;
         private TMP_InputField reasonInput;
         private readonly Dictionary<FormalConditionCode, int> ranks = new Dictionary<FormalConditionCode, int>();
         private readonly Dictionary<string, Button> rankButtons = new Dictionary<string, Button>();
@@ -24,15 +25,28 @@ namespace SceneTalkVR.Runtime
 
         private void Update()
         {
-            var coordinator = EditorCollectionSessionCoordinator.Active;
-            if (coordinator == null || !coordinator.IsArmed)
+            var collection = EditorCollectionSessionCoordinator.Active;
+            var rehearsal = RehearsalSessionCoordinator.Active;
+            var collectionActive = collection?.IsArmed == true;
+            var deviceValidationActive = rehearsal?.IsDeviceValidation == true && rehearsal.IsFormal;
+            if (!collectionActive && !deviceValidationActive)
             {
                 SetActive(panel, false); SetActive(completionPanel, false); return;
             }
-            if (!string.Equals(activeSessionId, coordinator.SessionId, StringComparison.Ordinal))
-            { activeSessionId = coordinator.SessionId; ResetResponse(); }
-            if (coordinator.FinalRankingVisible) { EnsureBuilt(); SetActive(panel, true); SetActive(completionPanel, false); panel.transform.SetAsLastSibling(); }
-            else if (coordinator.ExperimentCompleted) { EnsureBuilt(); SetActive(panel, false); SetActive(completionPanel, true); completionPanel.transform.SetAsLastSibling(); }
+            var sessionId = collectionActive ? collection.SessionId : rehearsal.SessionId;
+            if (!string.Equals(activeSessionId, sessionId, StringComparison.Ordinal))
+            { activeSessionId = sessionId; ResetResponse(); }
+            var rankingVisible = collectionActive ? collection.FinalRankingVisible : rehearsal.FinalRankingVisible;
+            var completed = collectionActive ? collection.ExperimentCompleted : rehearsal.ExperimentCompleted;
+            if (rankingVisible) { EnsureBuilt(); SetActive(panel, true); SetActive(completionPanel, false); panel.transform.SetAsLastSibling(); }
+            else if (completed)
+            {
+                EnsureBuilt(); SetActive(panel, false); SetActive(completionPanel, true);
+                if (completionMessage != null) completionMessage.text = deviceValidationActive
+                    ? "PICO device validation completed.\nNOT PARTICIPANT DATA — collectionEligible=false."
+                    : "Thank you. Please contact the experimenter.\nYour session is ready for bundle export and integrity audit.";
+                completionPanel.transform.SetAsLastSibling();
+            }
             else { SetActive(panel, false); SetActive(completionPanel, false); }
         }
 
@@ -72,7 +86,7 @@ namespace SceneTalkVR.Runtime
             var completionImage = completionPanel.AddComponent<Image>(); completionImage.color = new Color(.035f, .05f, .08f, .98f);
             completionPanel.GetComponent<RectTransform>().sizeDelta = new Vector2(700, 300);
             Label(completionPanel.transform, "Title", "Experiment Completed", new Vector2(0, 66), new Vector2(620, 54), 32);
-            Label(completionPanel.transform, "Message", "Thank you. Please contact the experimenter.\nYour session is ready for bundle export and integrity audit.", new Vector2(0, -28), new Vector2(620, 110), 21);
+            completionMessage = Label(completionPanel.transform, "Message", "Thank you. Please contact the experimenter.\nYour session is ready for bundle export and integrity audit.", new Vector2(0, -28), new Vector2(620, 110), 21);
             completionPanel.SetActive(false);
         }
 
@@ -94,7 +108,14 @@ namespace SceneTalkVR.Runtime
                 preferredConditionCode = preferredCondition.Value.ToString(),
                 reason = reasonInput.text.Trim()
             };
-            if (!EditorCollectionSessionCoordinator.Active.SubmitFinalRanking(response, out var error))
+            var collection = EditorCollectionSessionCoordinator.Active;
+            var rehearsal = RehearsalSessionCoordinator.Active;
+            var ok = collection?.IsArmed == true
+                ? collection.SubmitFinalRanking(response, out var error)
+                : rehearsal?.IsDeviceValidation == true && rehearsal.IsFormal
+                    ? rehearsal.SubmitRanking(response, out error)
+                    : Fail(out error, "formal_ranking_runtime_missing");
+            if (!ok)
             { validation.text = error; return; }
             submitted = true;
             validation.text = string.Empty;
@@ -150,6 +171,7 @@ namespace SceneTalkVR.Runtime
         private static Button Button(Transform parent, string name, string label, Vector2 pos, UnityEngine.Events.UnityAction action, Vector2? size = null)
         { var actual = size ?? new Vector2(220, 44); var go = Node(parent, name); go.AddComponent<Image>().color = new Color(.12f, .52f, .38f, 1f); var button = go.AddComponent<Button>(); button.onClick.AddListener(action); go.GetComponent<RectTransform>().anchoredPosition = pos; go.GetComponent<RectTransform>().sizeDelta = actual; var text = Label(go.transform, "Label", label, Vector2.zero, actual, 19); text.raycastTarget = false; return button; }
         private static TextAlignmentOptions ToTmpAlignment(TextAnchor anchor) => anchor switch { TextAnchor.UpperLeft => TextAlignmentOptions.TopLeft, TextAnchor.UpperCenter => TextAlignmentOptions.Top, TextAnchor.UpperRight => TextAlignmentOptions.TopRight, TextAnchor.MiddleLeft => TextAlignmentOptions.Left, TextAnchor.MiddleRight => TextAlignmentOptions.Right, TextAnchor.LowerLeft => TextAlignmentOptions.BottomLeft, TextAnchor.LowerCenter => TextAlignmentOptions.Bottom, TextAnchor.LowerRight => TextAlignmentOptions.BottomRight, _ => TextAlignmentOptions.Center };
+        private static bool Fail(out string error, string value) { error = value; return false; }
         private static void SetActive(GameObject value, bool active) { if (value != null && value.activeSelf != active) value.SetActive(active); }
     }
 }

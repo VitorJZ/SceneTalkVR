@@ -16701,9 +16701,13 @@ MonoBehaviour:
   questionnaireCatalog: {fileID: 11400000, guid: 86947b6478341f14dadc1ae614ba437f, type: 2}
   pilotPresentationCatalog: {fileID: 11400000, guid: bcb059205ef079849a47aa2b6a827a17, type: 2}
   voiceProfileCatalog: {fileID: 11400000, guid: 0846d6a23b4e2be478a4b19b179a9a5b, type: 2}
-  deploymentCatalog: {fileID: 11400000, guid: 2ef2e88fa75cb404f913132175eba57f, type: 2}
-  deploymentProfile: 0
-  useConditionOrder: 0
+    deploymentCatalog: {fileID: 11400000, guid: 2ef2e88fa75cb404f913132175eba57f, type: 2}
+    deploymentProfile: 0
+    deviceValidationProtocol: {fileID: 11400000, guid: 3e204ef487b9efe45aa5cdfeb07d8220, type: 2}
+    deviceValidationResources: {fileID: 11400000, guid: e15492b3b3a47c9499276ec0e91b62e9, type: 2}
+    deviceValidationVoiceCatalog: {fileID: 11400000, guid: 349bbf1a28ac8dc4db09aa3f72905779, type: 2}
+    deviceValidationDeploymentCatalog: {fileID: 11400000, guid: e2717ce5a829e6143b0e0a45bd723f4d, type: 2}
+    useConditionOrder: 0
   manualCondition: 1
   manualAssistantEmbodiment: 1
   formalCondition: 0

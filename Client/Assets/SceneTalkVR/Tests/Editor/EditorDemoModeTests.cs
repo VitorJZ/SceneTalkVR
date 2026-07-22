@@ -85,6 +85,22 @@ namespace SceneTalkVR.Tests.Editor
         {
             foreach(var field in new[]{"flowMode","runQualification","protocolSnapshotId","resourceSnapshotId"})Assert.That(typeof(PilotEventRecord).GetField(field),Is.Not.Null,field);
         }
+        [Test] public void T48_PicoDeviceValidationDeploymentIsRehearsalOnly()
+        {
+            Assert.That(deployments.ValidateForRehearsal(ExperimentDeploymentProfileId.PicoDeviceValidation,out var error),Is.True,error);
+            Assert.That(deployments.TryGet(ExperimentDeploymentProfileId.PicoDeviceValidation,out var profile),Is.True);
+            Assert.That(profile.target,Is.EqualTo(ExperimentDeploymentTarget.Pico));
+            Assert.That(profile.picoRequired,Is.True);Assert.That(profile.approvedForCollection,Is.False);Assert.That(profile.collectionAllowed,Is.False);
+            Assert.That(ExperimentDeploymentCatalog.IsLoopback(profile.voiceGatewayBaseUrl),Is.False);
+        }
+        [Test] public void T49_PicoRuntimeContextCanNeverBecomeCollectionEligible()
+        {
+            var context=ExperimentRuntimeContext.CreateRehearsal(ExperimentFlowMode.Formal,"PICO-VALIDATION","S01",
+                protocol.ProtocolSnapshotId,resources.ResourceSnapshotId,ExperimentDeploymentTarget.Pico,"pico_device_validation");
+            Assert.That(context.IsRehearsal,Is.True);Assert.That(context.IsCollection,Is.False);
+            Assert.That(context.dataOrigin,Is.EqualTo("rehearsal"));Assert.That(context.collectionEligible,Is.False);
+            Assert.That(context.deploymentTarget,Is.EqualTo(ExperimentDeploymentTarget.Pico));
+        }
 
         private static void AssertIsolation(ExperimentAssignment a){Assert.That(a.flowMode,Is.EqualTo(ExperimentFlowMode.Formal));Assert.That(a.runQualification,Is.EqualTo(ExperimentRunQualification.Rehearsal));Assert.That(a.dataOrigin,Is.EqualTo("rehearsal"));Assert.That(a.collectionEligible,Is.False);Assert.That(a.developerTestAssignment,Is.False);Assert.That(a.demoMode,Is.False);}
         private static void AssertIsolation(PilotAssignment a){Assert.That(a.flowMode,Is.EqualTo(ExperimentFlowMode.Pilot));Assert.That(a.runQualification,Is.EqualTo(ExperimentRunQualification.Rehearsal));Assert.That(a.dataOrigin,Is.EqualTo("rehearsal"));Assert.That(a.collectionEligible,Is.False);Assert.That(a.developerTestAssignment,Is.False);Assert.That(a.demoMode,Is.False);}

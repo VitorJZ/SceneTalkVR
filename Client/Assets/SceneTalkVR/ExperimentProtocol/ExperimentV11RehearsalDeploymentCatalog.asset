@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d96bab79c29fb79439b971b211928eca, type: 3}
   m_Name: ExperimentV11RehearsalDeploymentCatalog
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentDeploymentCatalog
-  catalogVersion: 1.1-rehearsal-1
+  catalogVersion: 1.2-rehearsal-device-validation
   profiles:
   - profileId: 5
     voiceGatewayBaseUrl: http://127.0.0.1:8787
@@ -27,8 +27,26 @@ MonoBehaviour:
     approvedForRehearsal: 1
     loopbackAllowedForRehearsal: 1
     collectionAllowed: 0
-    target: 0
+    target: 1
     loopbackAllowed: 0
     picoRequired: 0
     approvedForEditorCollection: 0
     evidenceReference: scenetalkvr-rehearsal-baseline-v1
+  - profileId: 7
+    voiceGatewayBaseUrl: http://192.168.137.1:8787
+    requestTimeoutSeconds: 30
+    sttProvider: voice_gateway_live_stt
+    ttsProvider: tencent
+    microphonePolicy: runtime_permission_required
+    networkRequired: 1
+    approvedForCollection: 0
+    approvedForEditorDemo: 0
+    loopbackAllowedForEditorDemo: 0
+    approvedForRehearsal: 1
+    loopbackAllowedForRehearsal: 0
+    collectionAllowed: 0
+    target: 2
+    loopbackAllowed: 0
+    picoRequired: 1
+    approvedForEditorCollection: 0
+    evidenceReference: pico-device-validation-not-collection-approved

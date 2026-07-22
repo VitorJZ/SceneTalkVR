@@ -361,6 +361,16 @@ namespace SceneTalkVR.Runtime
             pilotCollectionUi = GetComponent<PilotCollectionParticipantUi>() ?? gameObject.AddComponent<PilotCollectionParticipantUi>();
             pilotCollectionUi.Configure(worldCanvas, orchestrator);
 
+            if (ExperimentRuntimePlatform.IsPicoDeviceValidation)
+            {
+                var manager = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include);
+                Debug.Log("[ExperimentRuntime] PICO device validation UI ready. "
+                    + $"qualification=Rehearsal; dataOrigin=rehearsal; collectionEligible=false; "
+                    + $"profile=pico_device_validation; protocolBound={manager?.DeviceValidationProtocol != null}; "
+                    + $"resourcesBound={manager?.DeviceValidationResources != null}; voiceCatalogBound={manager?.DeviceValidationVoiceCatalog != null}; "
+                    + $"deploymentCatalogBound={manager?.DeviceValidationDeploymentCatalog != null}", this);
+            }
+
             BindButtons();
             CaptureBaseFontSizes(root);
             ApplyUserSettings(SceneTalkUserSettingsStore.Current);
@@ -570,47 +580,53 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
-            // A normal Editor Play -> Start path is a rehearsal, never participant collection.
+            // An unarmed start is a rehearsal. On PICO it is explicitly a device-validation
+            // session and remains ineligible for participant collection.
             // This keeps the four-condition participant UI usable without requiring an
             // operator-window pre-step, while preserving the armed collection boundary.
             var rehearsal = RehearsalSessionCoordinator.Active
                 ?? FindFirstObjectByType<RehearsalSessionCoordinator>(FindObjectsInactive.Include);
-#if UNITY_EDITOR
-            rehearsal ??= CreateEditorManualRehearsalCoordinator();
-#endif
+            rehearsal ??= EnsureRuntimeRehearsalCoordinator();
             var token = System.Guid.NewGuid().ToString("N");
-            var sessionId = $"editor-manual-{System.DateTime.UtcNow:yyyyMMdd-HHmmss}-{token.Substring(0, 8)}";
+            var deviceValidation = ExperimentRuntimePlatform.IsPicoDeviceValidation;
+            var sessionPrefix = deviceValidation ? "pico-val" : "editor-manual";
+            var participantId = deviceValidation ? "PICO-VAL" : "EDITOR-MANUAL";
+            var sessionId = $"{sessionPrefix}-{System.DateTime.UtcNow:yyyyMMdd-HHmmss}-{token.Substring(0, 8)}";
             var error = rehearsal == null ? "rehearsal_session_coordinator_missing" : string.Empty;
             sessionPreparationBlocked = false;
-            if (rehearsal == null || !rehearsal.CreateFormalSession("EDITOR-MANUAL", sessionId, out error))
+            if (rehearsal == null || !rehearsal.CreateFormalSession(participantId, sessionId, out error))
             {
                 sessionPreparationBlocked = true;
-                Debug.LogError("[Rehearsal] Automatic Editor manual session failed: " + error, this);
+                Debug.LogError("[Rehearsal] Automatic Formal rehearsal failed: " + error, this);
             }
             else
             {
-                Debug.Log("[Rehearsal] Editor Start created a non-collection Formal rehearsal session. "
-                    + "dataOrigin=rehearsal; collectionEligible=false; sessionId=" + sessionId, this);
+                Debug.Log("[ExperimentRuntime] Formal rehearsal created. "
+                    + $"deviceValidation={deviceValidation}; dataOrigin=rehearsal; collectionEligible=false; sessionId={sessionId}", this);
             }
             Refresh();
         }
 
-#if UNITY_EDITOR
-        private static RehearsalSessionCoordinator CreateEditorManualRehearsalCoordinator()
+        internal static RehearsalSessionCoordinator EnsureRuntimeRehearsalCoordinator()
         {
             var manager = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include);
             if (manager == null) return null;
             var coordinator = manager.GetComponent<RehearsalSessionCoordinator>()
                 ?? manager.gameObject.AddComponent<RehearsalSessionCoordinator>();
+            var protocol = manager.DeviceValidationProtocol;
+            var resources = manager.DeviceValidationResources;
+            var voices = manager.DeviceValidationVoiceCatalog;
+            var deployments = manager.DeviceValidationDeploymentCatalog;
+#if UNITY_EDITOR
             const string root = "Assets/SceneTalkVR/ExperimentProtocol/";
-            coordinator.Configure(
-                UnityEditor.AssetDatabase.LoadAssetAtPath<ExperimentV11RehearsalProtocol>(root + "ExperimentV11RehearsalProtocol.asset"),
-                UnityEditor.AssetDatabase.LoadAssetAtPath<ExperimentV11RehearsalResourceCatalog>(root + "ExperimentV11RehearsalResources.asset"),
-                UnityEditor.AssetDatabase.LoadAssetAtPath<ExperimentVoiceProfileCatalog>(root + "ExperimentV11RehearsalVoiceProfileCatalog.asset"),
-                UnityEditor.AssetDatabase.LoadAssetAtPath<ExperimentDeploymentCatalog>(root + "ExperimentV11RehearsalDeploymentCatalog.asset"));
+            protocol ??= UnityEditor.AssetDatabase.LoadAssetAtPath<ExperimentV11RehearsalProtocol>(root + "ExperimentV11RehearsalProtocol.asset");
+            resources ??= UnityEditor.AssetDatabase.LoadAssetAtPath<ExperimentV11RehearsalResourceCatalog>(root + "ExperimentV11RehearsalResources.asset");
+            voices ??= UnityEditor.AssetDatabase.LoadAssetAtPath<ExperimentVoiceProfileCatalog>(root + "ExperimentV11RehearsalVoiceProfileCatalog.asset");
+            deployments ??= UnityEditor.AssetDatabase.LoadAssetAtPath<ExperimentDeploymentCatalog>(root + "ExperimentV11RehearsalDeploymentCatalog.asset");
+#endif
+            coordinator.Configure(protocol, resources, voices, deployments);
             return coordinator;
         }
-#endif
 
         private void BuildTaskButtons()
         {
@@ -702,7 +718,7 @@ namespace SceneTalkVR.Runtime
                 && (questionnaireSession.completionStatus == QuestionnaireCompletionStatus.InProgress
                     || questionnaireSession.completionStatus == QuestionnaireCompletionStatus.Reopened);
             if (!rehearsalActive) rehearsalFinalRankingVisible = false;
-            var showFinalRanking = rehearsalActive && rehearsalFinalRankingVisible;
+            var showFinalRanking = rehearsalActive && (rehearsalFinalRankingVisible || rehearsal.FinalRankingVisible);
             var rehearsalWaiting = rehearsalActive && string.IsNullOrWhiteSpace(rehearsal.CurrentTaskId);
             var showFormalModeSelection = !showFinalRanking && !collectionFinal
                 && (collectionArmed ? collection.AwaitingParticipantConditionChoice
@@ -798,7 +814,25 @@ namespace SceneTalkVR.Runtime
 
         private void RefreshDemoOverlay()
         {
-            if (RehearsalSessionCoordinator.Active != null && RehearsalSessionCoordinator.Active.IsActive)
+            var rehearsal = RehearsalSessionCoordinator.Active;
+            var deviceValidation = ExperimentRuntimePlatform.IsPicoDeviceValidation
+                || rehearsal?.IsDeviceValidation == true
+                || PilotCollectionSessionCoordinator.Active?.IsDeviceValidation == true;
+            if (deviceValidation)
+            {
+                SetActive(demoBanner, true); SetActive(demoStatusPanel, true);
+                if (demoBannerText != null) demoBannerText.text = "PICO DEVICE VALIDATION — NOT PARTICIPANT DATA";
+                if (demoStatusText != null)
+                {
+                    var mode = rehearsal?.IsFormal == true ? "Formal" : rehearsal?.IsPilot == true ? "Pilot" : "Not started";
+                    demoStatusText.text = $"Mode: PICO Device Validation {mode}\n"
+                        + $"Qualification: Rehearsal\nData origin: rehearsal\nCollection eligible: No\n"
+                        + $"Profile: pico_device_validation\nSession: {rehearsal?.SessionId ?? string.Empty}";
+                }
+                demoBanner?.transform.SetAsLastSibling();
+                return;
+            }
+            if (rehearsal != null && rehearsal.IsActive)
             {
                 SetActive(demoBanner, false); SetActive(demoStatusPanel, false);
                 return;

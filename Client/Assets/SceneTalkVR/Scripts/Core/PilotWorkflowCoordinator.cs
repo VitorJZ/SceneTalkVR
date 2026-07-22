@@ -152,7 +152,8 @@ namespace SceneTalkVR.Core
                 : PilotCollectionSessionCoordinator.Active?.IsArmed==true?PilotCollectionSessionCoordinator.Active.CurrentDataFolder
                 : Path.Combine(Application.persistentDataPath, "SceneTalkVR", "ExperimentLogs");
             Directory.CreateDirectory(folder);
-            var fileName = PilotCollectionSessionCoordinator.Active?.IsArmed == true ? "pilot_events_v1.jsonl"
+            var fileName = assignment.runQualification == ExperimentRunQualification.Rehearsal
+                || PilotCollectionSessionCoordinator.Active?.IsArmed == true ? "pilot_events_v1.jsonl"
                 : $"{assignment.participantId}_{assignment.sessionId}_pilot_events_v1.jsonl";
             File.AppendAllText(Path.Combine(folder, fileName), JsonUtility.ToJson(r) + Environment.NewLine, Encoding.UTF8);
         }

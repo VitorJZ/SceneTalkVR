@@ -53,6 +53,12 @@ namespace SceneTalkVR.Core
         [SerializeField] private ExperimentDeploymentCatalog deploymentCatalog;
         [SerializeField] private ExperimentDeploymentProfileId deploymentProfile = ExperimentDeploymentProfileId.DevelopmentEditor;
 
+        [Header("Device Validation (Never Collection Eligible)")]
+        [SerializeField] private ExperimentV11RehearsalProtocol deviceValidationProtocol;
+        [SerializeField] private ExperimentV11RehearsalResourceCatalog deviceValidationResources;
+        [SerializeField] private ExperimentVoiceProfileCatalog deviceValidationVoiceCatalog;
+        [SerializeField] private ExperimentDeploymentCatalog deviceValidationDeploymentCatalog;
+
         [Header("Condition")]
         [SerializeField] private bool useConditionOrder;
         [SerializeField] private ExperimentConditionPreset manualCondition = ExperimentConditionPreset.AssistantAgentExplicit;
@@ -167,6 +173,10 @@ namespace SceneTalkVR.Core
         public ExperimentVoiceProfileCatalog VoiceProfileCatalog => voiceProfileCatalog;
         public ExperimentDeploymentCatalog DeploymentCatalog => deploymentCatalog;
         public ExperimentDeploymentProfileId DeploymentProfile => deploymentProfile;
+        public ExperimentV11RehearsalProtocol DeviceValidationProtocol => deviceValidationProtocol;
+        public ExperimentV11RehearsalResourceCatalog DeviceValidationResources => deviceValidationResources;
+        public ExperimentVoiceProfileCatalog DeviceValidationVoiceCatalog => deviceValidationVoiceCatalog;
+        public ExperimentDeploymentCatalog DeviceValidationDeploymentCatalog => deviceValidationDeploymentCatalog;
         public FormalConditionCode CurrentFormalCondition => formalExperiment ? formalCondition : LegacyToFormal(CurrentCondition?.conditionId);
         public int CurrentTurnIndex => turnIndex;
         public ExperimentLifecycleCoordinator LifecycleCoordinator => GetComponent<ExperimentLifecycleCoordinator>();

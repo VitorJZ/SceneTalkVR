@@ -22,6 +22,7 @@ namespace SceneTalkVR.Tests.PlayMode
         [UnitySetUp]
         public IEnumerator SetUp()
         {
+            ForcePicoDeviceValidation(false);
             if (SceneManager.GetActiveScene().name != "SampleScene") { SceneManager.LoadScene("SampleScene"); yield return null; }
             yield return null;
             manager = Find("SceneTalkVR.Core.ExperimentConditionManager, Assembly-CSharp");
@@ -35,7 +36,7 @@ namespace SceneTalkVR.Tests.PlayMode
             Configure();
         }
 
-        [UnityTearDown] public IEnumerator TearDown() { CallVoid(collection, "EndRuntimeSession"); CallVoid(rehearsal, "ResetSession"); yield return null; }
+        [UnityTearDown] public IEnumerator TearDown() { CallVoid(collection, "EndRuntimeSession"); CallVoid(rehearsal, "ResetSession"); ForcePicoDeviceValidation(false); yield return null; }
 
         [UnityTest] public IEnumerator T01_UnarmedEditorStartCreatesNonCollectionRehearsalAndShowsModes()
         {
@@ -106,6 +107,28 @@ namespace SceneTalkVR.Tests.PlayMode
         [UnityTest] public IEnumerator T08_DoubleConditionSelectionCreatesOnlyOneRun()
         { Arm(out _); Click("StartButton"); yield return null; Select("NE", true); var run = Get(collection, "CurrentRunId"); Select("NR", false); Assert.That(Get(collection, "CurrentRunId"), Is.EqualTo(run)); }
 
+        [UnityTest] public IEnumerator T09_PicoDeviceValidation_FormalReachesInteractiveRankingAndCompletion()
+        {
+            ForcePicoDeviceValidation(true);
+            Click("StartButton"); yield return null; rehearsal = Find("SceneTalkVR.Core.RehearsalSessionCoordinator, Assembly-CSharp");
+            var context = Get(rehearsal, "RuntimeContext"); Assert.That(Get(context, "deploymentProfile"), Is.EqualTo("pico_device_validation")); Assert.That((bool)Get(context, "collectionEligible"), Is.False);
+            var assignment = Get(rehearsal, "FormalAssignment");
+            foreach (var item in Conditions(assignment))
+            {
+                var select = rehearsal.GetType().GetMethod("SelectFormalCondition"); var selectArgs = new object[] { Get(item, "formalConditionCode"), null };
+                Assert.That((bool)select.Invoke(rehearsal, selectArgs), Is.True, selectArgs[1] as string);
+                OutCall(rehearsal, "CompleteCurrentGoalsForQa"); yield return null;
+                var service = Get(questionnaire, "Service"); var definition = Get(service, "Definition"); var catalog = Get(manager, "QuestionnaireCatalog"); var protocol = Get(manager, "ExperimentProtocol");
+                var enabled = ((IEnumerable)catalog.GetType().GetMethod("GetEnabledItems").Invoke(catalog, new[] { Get(definition, "questionnaireId"), protocol })).Cast<object>().ToArray();
+                foreach (var question in enabled.Where(x => (bool)Get(x, "required")))
+                { var setArgs = new object[] { Get(question, "itemId"), "4", null }; Assert.That((bool)service.GetType().GetMethod("SetResponse").Invoke(service, setArgs), Is.True, setArgs[2] as string); }
+                OutCall(questionnaire, "Submit"); yield return null;
+            }
+            yield return null; Assert.That(Active("FormalFinalRankingPanel"), Is.True);
+            Click("NERank1"); Click("NRRank2"); Click("SERank3"); Click("SRRank4"); Click("NEPreferred"); Input("RankingReason").text = "Device validation ranking."; Click("RankingSubmitButton"); yield return null;
+            Assert.That(Active("FormalExperimentCompletionPanel"), Is.True); Assert.That((bool)Get(rehearsal, "ExperimentCompleted"), Is.True); Assert.That((bool)Get(Get(rehearsal, "FormalAssignment"), "collectionEligible"), Is.False);
+        }
+
         private void Arm(out object assignment)
         { var token = Guid.NewGuid().ToString("N"); var args = new object[] { "PLAY-" + token, "SESSION-" + token, false, null }; Assert.That((bool)collection.GetType().GetMethod("ArmParticipantSession").Invoke(collection, args), Is.True, args[3] as string); assignment = Get(collection, "Assignment"); Assert.That((bool)Get(assignment, "collectionEligible"), Is.True); Assert.That((bool)Get(assignment, "developerTestAssignment"), Is.False); }
         private int Evaluate(string transcript, string speaker = "participant") { var type = Type.GetType("SceneTalkVR.Core.GoalEvaluationOrchestrator, Assembly-CSharp"); return (int)type.GetMethod("EvaluateUserTranscript").Invoke(null, new object[] { lifecycle, Guid.NewGuid().ToString("N"), transcript, speaker }); }
@@ -122,6 +145,8 @@ namespace SceneTalkVR.Tests.PlayMode
         private static Component Find(string type) => (Component)Resources.FindObjectsOfTypeAll(Type.GetType(type)).FirstOrDefault();
         private static object Asset(string path, Type type) { var adb = Type.GetType("UnityEditor.AssetDatabase, UnityEditor"); return adb.GetMethod("LoadAssetAtPath", new[] { typeof(string), typeof(Type) }).Invoke(null, new object[] { path, type }); }
         private static Button Button(string name) => Resources.FindObjectsOfTypeAll<Button>().First(x => x.gameObject.name == name);
+        private static TMP_InputField Input(string name) => Resources.FindObjectsOfTypeAll<TMP_InputField>().First(x => x.gameObject.name == name);
+        private static void ForcePicoDeviceValidation(bool value) { var type = Type.GetType("SceneTalkVR.Core.ExperimentRuntimePlatform, Assembly-CSharp"); type.GetProperty("ForcePicoDeviceValidationForTests").SetValue(null, value); }
         private static void Click(string name) => Button(name).onClick.Invoke();
         private static bool Active(string name) { var go = Resources.FindObjectsOfTypeAll<GameObject>().FirstOrDefault(x => x.name == name && x.scene.IsValid()); return go != null && go.activeInHierarchy; }
         private static string TextOf(string name) { var go = Resources.FindObjectsOfTypeAll<GameObject>().First(x => x.name == name && x.scene.IsValid()); return string.Join("\n", go.GetComponentsInChildren<TMP_Text>(true).Select(x => x.text)); }
