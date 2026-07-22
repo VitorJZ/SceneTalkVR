@@ -1,5 +1,7 @@
 # Experiment v1.1 PICO Manual Release Runbook
 
+Chinese version: `EXPERIMENT_V1_1_PICO_MANUAL_RELEASE_RUNBOOK_ZH.md`
+
 Use this runbook only after the automated gates are green. It deliberately leaves network
 addresses, approval references, device identity, and human observations blank; those values must
 come from the actual lab/portable deployment and must not be invented.

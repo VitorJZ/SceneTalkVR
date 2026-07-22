@@ -59,7 +59,8 @@ Evidence files outside the repository:
 - Android build log: `E:\Temp\SceneTalkVR-03abae0-android-build.log`
 
 Fresh matrix artifacts and the regenerated Preflight report are committed in the repository. The
-detailed human procedure is `EXPERIMENT_V1_1_PICO_MANUAL_RELEASE_RUNBOOK.md`.
+detailed human procedures are `EXPERIMENT_V1_1_PICO_MANUAL_RELEASE_RUNBOOK.md` (English) and
+`EXPERIMENT_V1_1_PICO_MANUAL_RELEASE_RUNBOOK_ZH.md` (Chinese).
 
 ## APK artifact
 
