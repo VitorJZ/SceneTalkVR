@@ -15,12 +15,13 @@ namespace SceneTalkVR.Runtime
         private static readonly Vector2 ExitButtonInset = new Vector2(-18f, -18f);
         private static readonly Vector2 ExitButtonSize = new Vector2(110f, 44f);
         private static readonly Color ExitButtonColor = new Color(0.58f, 0.18f, 0.18f, 1f);
-        private static readonly Vector2 TaskGoalPanelPosition = new Vector2(-285f, 75f);
-        private static readonly Vector2 TaskGoalPanelSize = new Vector2(280f, 360f);
-        private const float DialoguePanelCenterX = 145f;
-        private const float DialogueContentCenterX = -55f;
-        private const float DialogueContentWidth = 400f;
-        private const float DialogueButtonCenterX = 210f;
+        private static readonly Vector2 TaskGoalPanelPosition = new Vector2(-245f, 135f);
+        private static readonly Vector2 TaskGoalPanelSize = new Vector2(360f, 230f);
+        private const float DialoguePanelCenterX = 0f;
+        private const float DialoguePanelWidth = 840f;
+        private const float DialogueContentCenterX = -65f;
+        private const float DialogueContentWidth = 650f;
+        private const float DialogueButtonCenterX = 350f;
 
         [SerializeField] private SceneTalkOrchestrator orchestrator;
         [SerializeField] private SceneTalkInteractionBootstrap interactionBootstrap;
@@ -53,6 +54,7 @@ namespace SceneTalkVR.Runtime
         private Button pilotButton;
         private Button settingsButton;
         private Button historyButton;
+        private Button quitButton;
         private Button fontMinusButton;
         private Button fontPlusButton;
         private Button uiMinusButton;
@@ -218,6 +220,7 @@ namespace SceneTalkVR.Runtime
             pilotButton = CreateButton(mainMenuPanel.transform, "PilotExperimentButton", "Pilot Experiment", new Vector2(0f, 42f), new Vector2(250f, 50f), new Color(0.18f, 0.48f, 0.58f, 1f));
             settingsButton = CreateButton(mainMenuPanel.transform, "SettingsButton", "Settings", new Vector2(0f, -18f), new Vector2(250f, 50f), new Color(0.24f, 0.36f, 0.42f, 1f));
             historyButton = CreateButton(mainMenuPanel.transform, "HistoryButton", "History", new Vector2(0f, -78f), new Vector2(250f, 50f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            quitButton = CreateButton(mainMenuPanel.transform, "QuitButton", "Quit", new Vector2(0f, -138f), new Vector2(250f, 50f), ExitButtonColor);
 
             historyListPanel = CreatePanel(root, "HistoryListPanel", Vector2.zero, new Vector2(820f, 500f), new Color(0.04f, 0.05f, 0.07f, 0.94f));
             CreateText(historyListPanel.transform, "Title", "Conversation History", new Vector2(0f, 210f), new Vector2(620f, 44f), 30, TextAnchor.MiddleCenter, Color.white);
@@ -334,7 +337,7 @@ namespace SceneTalkVR.Runtime
             loadingPanel = CreatePanel(root, "LoadingPanel", new Vector2(0f, 0f), new Vector2(540f, 220f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
             loadingText = CreateText(loadingPanel.transform, "LoadingText", "Loading scene and avatar...", new Vector2(0f, 0f), new Vector2(480f, 80f), 26, TextAnchor.MiddleCenter, Color.white);
 
-            subtitlePanel = CreatePanel(root, "SubtitlePanel", new Vector2(DialoguePanelCenterX, -136f), new Vector2(540f, 248f), new Color(0f, 0f, 0f, 0.62f));
+            subtitlePanel = CreatePanel(root, "SubtitlePanel", new Vector2(DialoguePanelCenterX, -136f), new Vector2(DialoguePanelWidth, 248f), new Color(0f, 0f, 0f, 0.62f));
             subtitlePanel.AddComponent<RectMask2D>();
             subtitlePanelRect = subtitlePanel.GetComponent<RectTransform>();
             
@@ -361,8 +364,9 @@ namespace SceneTalkVR.Runtime
             dialogueListenButton = CreateButton(subtitlePanel.transform, "DialogueListenButton", "Speak", new Vector2(DialogueButtonCenterX, -92f), new Vector2(110f, 40f), new Color(0.12f, 0.52f, 0.38f, 1f));
 
             taskGoalPanel = CreatePanel(root, "ReadOnlyTaskGoalPanel", TaskGoalPanelPosition, TaskGoalPanelSize, new Color(0.03f, 0.04f, 0.06f, 0.84f));
-            CreateText(taskGoalPanel.transform, "Title", "Task Goals", new Vector2(0f, 150f), new Vector2(240f, 36f), 22, TextAnchor.MiddleCenter, Color.white);
-            taskGoalText = CreateText(taskGoalPanel.transform, "GoalStateText", string.Empty, new Vector2(0f, -5f), new Vector2(240f, 270f), 16, TextAnchor.UpperLeft, new Color(0.86f, 0.92f, 1f, 1f));
+            CreateText(taskGoalPanel.transform, "Title", "Task Goals", new Vector2(0f, 90f), new Vector2(320f, 34f), 22, TextAnchor.MiddleCenter, Color.white);
+            taskGoalText = CreateText(taskGoalPanel.transform, "GoalStateText", string.Empty, new Vector2(0f, -18f), new Vector2(320f, 160f), 16, TextAnchor.UpperLeft, new Color(0.86f, 0.92f, 1f, 1f));
+            ConfigureDialogueText(taskGoalText);
             
             pilotCollectionUi = GetComponent<PilotCollectionParticipantUi>() ?? gameObject.AddComponent<PilotCollectionParticipantUi>();
             pilotCollectionUi.Configure(worldCanvas, orchestrator);
@@ -557,6 +561,12 @@ namespace SceneTalkVR.Runtime
             {
                 exitButton.onClick.RemoveAllListeners();
                 exitButton.onClick.AddListener(HandleGlobalExit);
+            }
+
+            if (quitButton != null)
+            {
+                quitButton.onClick.RemoveAllListeners();
+                quitButton.onClick.AddListener(QuitApplication);
             }
         }
 
@@ -776,7 +786,7 @@ namespace SceneTalkVR.Runtime
             // Keep assigned goals visible while the initial scene is loading so participants
             // can review the read-only task goals before their first speaking turn.
             RefreshGoalPanel(showDialogue || showLoading);
-            SetActive(exitButtonObject, true);
+            SetActive(exitButtonObject, !showMain);
 
             RefreshSettingsPanel(showSettings);
             RefreshHistoryList(showHistoryList);
@@ -1381,8 +1391,8 @@ namespace SceneTalkVR.Runtime
                     ? new Vector2(DialoguePanelCenterX, -194f)
                     : new Vector2(DialoguePanelCenterX, -136f);
                 subtitlePanelRect.sizeDelta = hideSubtitles
-                    ? new Vector2(540f, 132f)
-                    : new Vector2(540f, 248f);
+                    ? new Vector2(DialoguePanelWidth, 132f)
+                    : new Vector2(DialoguePanelWidth, 248f);
             }
 
             if (subtitleTextContainerRect != null)
@@ -1395,19 +1405,21 @@ namespace SceneTalkVR.Runtime
             {
                 var debugRect = experimentDebugText.GetComponent<RectTransform>();
                 debugRect.anchoredPosition = hideSubtitles
-                    ? new Vector2(DialogueContentCenterX, 48f)
+                    ? new Vector2(-100f, 48f)
                     : new Vector2(DialogueContentCenterX, 111f);
-                debugRect.sizeDelta = new Vector2(DialogueContentWidth, 22f);
+                debugRect.sizeDelta = hideSubtitles
+                    ? new Vector2(480f, 22f)
+                    : new Vector2(DialogueContentWidth, 22f);
             }
 
             if (correctionFeedbackText != null)
             {
                 var feedbackRect = correctionFeedbackText.GetComponent<RectTransform>();
                 feedbackRect.anchoredPosition = hideSubtitles
-                    ? new Vector2(DialogueContentCenterX, 16f)
+                    ? new Vector2(-100f, 16f)
                     : new Vector2(DialogueContentCenterX, -32f);
                 feedbackRect.sizeDelta = hideSubtitles
-                    ? new Vector2(DialogueContentWidth, 28f)
+                    ? new Vector2(480f, 28f)
                     : new Vector2(DialogueContentWidth, 36f);
             }
 
@@ -1415,25 +1427,29 @@ namespace SceneTalkVR.Runtime
             {
                 var correctionRect = correctionStatusText.GetComponent<RectTransform>();
                 correctionRect.anchoredPosition = hideSubtitles
-                    ? new Vector2(DialogueContentCenterX, -14f)
+                    ? new Vector2(-100f, -14f)
                     : new Vector2(DialogueContentCenterX, -77f);
-                correctionRect.sizeDelta = new Vector2(DialogueContentWidth, 28f);
+                correctionRect.sizeDelta = hideSubtitles
+                    ? new Vector2(480f, 28f)
+                    : new Vector2(DialogueContentWidth, 28f);
             }
 
             if (dialogueStatusText != null)
             {
                 var statusRect = dialogueStatusText.GetComponent<RectTransform>();
                 statusRect.anchoredPosition = hideSubtitles
-                    ? new Vector2(DialogueContentCenterX, -42f)
+                    ? new Vector2(-100f, -42f)
                     : new Vector2(DialogueContentCenterX, -102f);
-                statusRect.sizeDelta = new Vector2(DialogueContentWidth, 28f);
+                statusRect.sizeDelta = hideSubtitles
+                    ? new Vector2(480f, 28f)
+                    : new Vector2(DialogueContentWidth, 28f);
             }
 
             if (dialogueListenButton != null)
             {
                 var buttonRect = dialogueListenButton.GetComponent<RectTransform>();
                 buttonRect.anchoredPosition = hideSubtitles
-                    ? new Vector2(DialogueButtonCenterX, -32f)
+                    ? new Vector2(310f, -32f)
                     : new Vector2(DialogueButtonCenterX, -92f);
                 buttonRect.sizeDelta = hideSubtitles
                     ? new Vector2(110f, 38f)

@@ -53,7 +53,7 @@ namespace SceneTalkVR.Tests.PlayMode
         }
 
         [UnityTest] public IEnumerator T02_ArmedStartUsesRealMainMenuPathToModeSelection()
-        { Arm(out _); Assert.That(Active("InitialPanel"), Is.True); AssertExitOverlay(); Click("StartButton"); yield return null; Assert.That(Active("FormalModeSelectionPanel"), Is.True); Assert.That(Active("TaskSelectionPanel"), Is.False); Assert.That(Get(Get(collection, "RuntimeContext"), "qualification").ToString(), Is.EqualTo("Collection")); AssertExitOverlay(); }
+        { Arm(out _); Assert.That(Active("InitialPanel"), Is.True); AssertHomeNavigation(); Click("StartButton"); yield return null; Assert.That(Active("FormalModeSelectionPanel"), Is.True); Assert.That(Active("TaskSelectionPanel"), Is.False); Assert.That(Get(Get(collection, "RuntimeContext"), "qualification").ToString(), Is.EqualTo("Collection")); AssertExitOverlay(); }
 
         [UnityTest] public IEnumerator T03_ActualModeButtonLoadsPreassignedTaskAndReadOnlyGoals()
         {
@@ -61,9 +61,9 @@ namespace SceneTalkVR.Tests.PlayMode
             Click(Get(selected, "formalConditionCode") + "ModeButton"); yield return null;
             Assert.That(Get(collection, "CurrentTaskId"), Is.EqualTo("hotel_check_in")); Assert.That(Count(Get(Get(lifecycle, "GoalTracker"), "Goals")), Is.EqualTo(4));
             Assert.That(Active("ReadOnlyTaskGoalPanel"), Is.True); Assert.That(ButtonsUnder("ReadOnlyTaskGoalPanel"), Is.Empty);
-            AssertTaskAndDialogueColumns();
+            AssertTaskAboveFullWidthDialogue();
             SetHideDialogueSubtitles(true); yield return null;
-            AssertTaskAndDialogueColumns();
+            AssertTaskAboveFullWidthDialogue();
             SetHideDialogueSubtitles(false); yield return null;
         }
 
@@ -148,6 +148,7 @@ namespace SceneTalkVR.Tests.PlayMode
             Click("ExitButton"); yield return null;
 
             Assert.That(Active("InitialPanel"), Is.True);
+            AssertHomeNavigation();
             Assert.That((bool)Get(collection, "IsArmed"), Is.False);
             Assert.That(Get(assignment, "status").ToString(), Is.EqualTo("Aborted"));
             Assert.That(Get(activeCondition, "status").ToString(), Is.EqualTo("Aborted"));
@@ -183,21 +184,38 @@ namespace SceneTalkVR.Tests.PlayMode
         private static Type UserSettingsStoreType => Type.GetType("SceneTalkVR.Core.SceneTalkUserSettingsStore, Assembly-CSharp");
         private static void ResetUserSettings() => UserSettingsStoreType.GetMethod("ResetAll").Invoke(null, null);
         private static void SetHideDialogueSubtitles(bool hidden) => UserSettingsStoreType.GetMethod("SetHideDialogueSubtitles").Invoke(null, new object[] { hidden });
-        private static void AssertTaskAndDialogueColumns()
+        private static void AssertTaskAboveFullWidthDialogue()
         {
             var task = Rect("ReadOnlyTaskGoalPanel");
             var dialogue = Rect("SubtitlePanel");
             var canvas = Resources.FindObjectsOfTypeAll<Canvas>().First(x => x.gameObject.scene.IsValid() && x.gameObject.name.StartsWith("SceneTalkVR World UI", StringComparison.Ordinal));
             var canvasRect = (RectTransform)canvas.transform;
             var taskLeft = task.anchoredPosition.x + task.rect.xMin;
-            var taskRight = task.anchoredPosition.x + task.rect.xMax;
+            var taskTop = task.anchoredPosition.y + task.rect.yMax;
+            var taskBottom = task.anchoredPosition.y + task.rect.yMin;
             var dialogueLeft = dialogue.anchoredPosition.x + dialogue.rect.xMin;
             var dialogueRight = dialogue.anchoredPosition.x + dialogue.rect.xMax;
-            Assert.That(dialogueLeft - taskRight, Is.GreaterThanOrEqualTo(20f), "Task goals and dialogue must remain separate columns.");
+            var dialogueTop = dialogue.anchoredPosition.y + dialogue.rect.yMax;
+            var dialogueBottom = dialogue.anchoredPosition.y + dialogue.rect.yMin;
+            Assert.That(taskBottom - dialogueTop, Is.GreaterThanOrEqualTo(20f), "Task goals must remain above the dialogue panel.");
             Assert.That(taskLeft, Is.GreaterThanOrEqualTo(canvasRect.rect.xMin), "Task goals must remain inside the canvas.");
+            Assert.That(taskTop, Is.LessThanOrEqualTo(canvasRect.rect.yMax), "Task goals must remain inside the canvas.");
+            Assert.That(task.anchoredPosition.x, Is.LessThan(0f));
+            Assert.That(task.anchoredPosition.y, Is.GreaterThan(0f));
+            Assert.That(dialogueLeft, Is.GreaterThanOrEqualTo(canvasRect.rect.xMin), "Dialogue must remain inside the canvas.");
             Assert.That(dialogueRight, Is.LessThanOrEqualTo(canvasRect.rect.xMax), "Dialogue must remain inside the canvas.");
+            Assert.That(dialogueBottom, Is.GreaterThanOrEqualTo(canvasRect.rect.yMin), "Dialogue must remain inside the canvas.");
+            Assert.That(dialogue.rect.width, Is.GreaterThanOrEqualTo(800f), "Dialogue must use the full lower width.");
+            Assert.That(dialogue.anchoredPosition.y, Is.LessThan(0f));
         }
         private static RectTransform Rect(string name) => Resources.FindObjectsOfTypeAll<GameObject>().First(x => x.name == name && x.scene.IsValid()).GetComponent<RectTransform>();
+        private static void AssertHomeNavigation()
+        {
+            Assert.That(Active("QuitButton"), Is.True);
+            Assert.That(Button("QuitButton").GetComponentInChildren<TMP_Text>(true).text, Is.EqualTo("Quit"));
+            Assert.That(Button("QuitButton").transform.parent.gameObject.name, Is.EqualTo("InitialPanel"));
+            Assert.That(Active("ExitButton"), Is.False, "The home page must use Quit instead of the global Exit button.");
+        }
         private static void AssertExitOverlay()
         {
             var button = Button("ExitButton");
@@ -210,6 +228,7 @@ namespace SceneTalkVR.Tests.PlayMode
             Assert.That(rect.anchorMax, Is.EqualTo(Vector2.one));
             Assert.That(rect.anchoredPosition.x, Is.LessThan(0f));
             Assert.That(rect.anchoredPosition.y, Is.LessThan(0f));
+            Assert.That(Active("QuitButton"), Is.False);
         }
     }
 }
