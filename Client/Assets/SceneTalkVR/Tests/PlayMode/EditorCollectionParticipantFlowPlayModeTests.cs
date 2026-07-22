@@ -23,6 +23,7 @@ namespace SceneTalkVR.Tests.PlayMode
         public IEnumerator SetUp()
         {
             ForcePicoDeviceValidation(false);
+            ResetUserSettings();
             if (SceneManager.GetActiveScene().name != "SampleScene") { SceneManager.LoadScene("SampleScene"); yield return null; }
             yield return null;
             manager = Find("SceneTalkVR.Core.ExperimentConditionManager, Assembly-CSharp");
@@ -36,7 +37,7 @@ namespace SceneTalkVR.Tests.PlayMode
             Configure();
         }
 
-        [UnityTearDown] public IEnumerator TearDown() { CallVoid(collection, "EndRuntimeSession"); CallVoid(rehearsal, "ResetSession"); ForcePicoDeviceValidation(false); yield return null; }
+        [UnityTearDown] public IEnumerator TearDown() { CallVoid(collection, "EndRuntimeSession"); CallVoid(rehearsal, "ResetSession"); ForcePicoDeviceValidation(false); ResetUserSettings(); yield return null; }
 
         [UnityTest] public IEnumerator T01_UnarmedEditorStartCreatesNonCollectionRehearsalAndShowsModes()
         {
@@ -60,6 +61,10 @@ namespace SceneTalkVR.Tests.PlayMode
             Click(Get(selected, "formalConditionCode") + "ModeButton"); yield return null;
             Assert.That(Get(collection, "CurrentTaskId"), Is.EqualTo("hotel_check_in")); Assert.That(Count(Get(Get(lifecycle, "GoalTracker"), "Goals")), Is.EqualTo(4));
             Assert.That(Active("ReadOnlyTaskGoalPanel"), Is.True); Assert.That(ButtonsUnder("ReadOnlyTaskGoalPanel"), Is.Empty);
+            AssertTaskAndDialogueColumns();
+            SetHideDialogueSubtitles(true); yield return null;
+            AssertTaskAndDialogueColumns();
+            SetHideDialogueSubtitles(false); yield return null;
         }
 
         [UnityTest] public IEnumerator T04_HotelSpeechUpdatesGoalPanelAndOpensQuestionnaireExactlyOnce()
@@ -175,6 +180,24 @@ namespace SceneTalkVR.Tests.PlayMode
         private static bool Active(string name) { var go = Resources.FindObjectsOfTypeAll<GameObject>().FirstOrDefault(x => x.name == name && x.scene.IsValid()); return go != null && go.activeInHierarchy; }
         private static string TextOf(string name) { var go = Resources.FindObjectsOfTypeAll<GameObject>().First(x => x.name == name && x.scene.IsValid()); return string.Join("\n", go.GetComponentsInChildren<TMP_Text>(true).Select(x => x.text)); }
         private static Button[] ButtonsUnder(string name) { var go = Resources.FindObjectsOfTypeAll<GameObject>().First(x => x.name == name && x.scene.IsValid()); return go.GetComponentsInChildren<Button>(true); }
+        private static Type UserSettingsStoreType => Type.GetType("SceneTalkVR.Core.SceneTalkUserSettingsStore, Assembly-CSharp");
+        private static void ResetUserSettings() => UserSettingsStoreType.GetMethod("ResetAll").Invoke(null, null);
+        private static void SetHideDialogueSubtitles(bool hidden) => UserSettingsStoreType.GetMethod("SetHideDialogueSubtitles").Invoke(null, new object[] { hidden });
+        private static void AssertTaskAndDialogueColumns()
+        {
+            var task = Rect("ReadOnlyTaskGoalPanel");
+            var dialogue = Rect("SubtitlePanel");
+            var canvas = Resources.FindObjectsOfTypeAll<Canvas>().First(x => x.gameObject.scene.IsValid() && x.gameObject.name.StartsWith("SceneTalkVR World UI", StringComparison.Ordinal));
+            var canvasRect = (RectTransform)canvas.transform;
+            var taskLeft = task.anchoredPosition.x + task.rect.xMin;
+            var taskRight = task.anchoredPosition.x + task.rect.xMax;
+            var dialogueLeft = dialogue.anchoredPosition.x + dialogue.rect.xMin;
+            var dialogueRight = dialogue.anchoredPosition.x + dialogue.rect.xMax;
+            Assert.That(dialogueLeft - taskRight, Is.GreaterThanOrEqualTo(20f), "Task goals and dialogue must remain separate columns.");
+            Assert.That(taskLeft, Is.GreaterThanOrEqualTo(canvasRect.rect.xMin), "Task goals must remain inside the canvas.");
+            Assert.That(dialogueRight, Is.LessThanOrEqualTo(canvasRect.rect.xMax), "Dialogue must remain inside the canvas.");
+        }
+        private static RectTransform Rect(string name) => Resources.FindObjectsOfTypeAll<GameObject>().First(x => x.name == name && x.scene.IsValid()).GetComponent<RectTransform>();
         private static void AssertExitOverlay()
         {
             var button = Button("ExitButton");
