@@ -1,12 +1,12 @@
 # Experiment v1.1 Formal PICO Release Gate Status
 
-Generated: 2026-07-22 12:40 (Asia/Shanghai)
+Generated: 2026-07-22 15:35 (Asia/Shanghai)
 
 Release decision: **BLOCKED - do not use this build for formal participant collection.**
 
 The merged project, final-head regression suites, experiment matrices, Preflight, and an Android
 validation APK pass the available automated checks. The remaining gates require credential-owner
-action, approved real deployment profiles, a connected PICO, human visual/audio judgment, a live
+action, approved real deployment profiles, human PICO visual/audio judgment, a live
 voice chain, and research-owner sign-off. Desktop health and synthetic evidence do not prove those
 gates.
 
@@ -15,29 +15,30 @@ gates.
 - Merge commit: `5455f7700c7bd96407a4e0a066dca829137f0236`
 - Original merge-validation commit: `7becf92a678f776ec25982409fbc7cab49f65f1b`
 - Credential-redaction commit: `8a0759e51afa01cbf8c92a65bca7cabdb773fb3c`
-- Tested/APK source commit: `03abae066ad9e744e6ac48dc5db6adc1468ace46`
+- Batch-Preflight fix commit: `dd1c02f537234e8226b0dc7e9a2b042b77fd309c`
+- Tested/APK source and task/dialogue layout commit: `494cd924660ea2f19ca657c55466b3991f4eaeee`
 - Branch: `codex/integrate-experiment-v1.1`
 - Unity: `6000.3.16f1`
 - Remote push of the integration work: not performed
 
-The APK build metadata records `03abae0`. Unity's build/test-time rewrites of tracked assets were
+The current APK build metadata records `494cd92`. Unity's build/test-time rewrites of tracked assets were
 restored after evidence was collected.
 
 ## Automated evidence
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
-| Final-head Unity EditMode | PASS at `03abae0` | 373/373, 0 failed/skipped |
-| Final-head Unity PlayMode | PASS at `03abae0` | 41/41, 0 failed/skipped |
-| Final-head Python analysis | PASS at `03abae0` | 41/41 using documented `PYTHONPATH=src` layout |
-| Formal synthetic matrix | PASS | Fresh 16/16 at `8a0759e`; all cases unique, integrity `PASS` |
-| Pilot synthetic matrix | PASS | Fresh 9/9 at `8a0759e`; all cases unique, integrity `PASS` |
+| Candidate-head Unity EditMode | PASS at `494cd92` | 376/376, 0 failed/skipped |
+| Candidate-head Unity PlayMode | PASS at `494cd92` | 45/45, 0 failed/skipped; includes Formal/Pilot and shown/hidden-subtitle task/dialogue non-overlap assertions |
+| Candidate-head Python analysis | PASS at `494cd92` | 41/41 using documented `PYTHONPATH=src` layout |
+| Formal synthetic matrix | PASS | Fresh 16/16 at `494cd92`; all cases unique, integrity `PASS` |
+| Pilot synthetic matrix | PASS | Fresh 9/9 at `494cd92`; all cases unique, integrity `PASS` |
 | Scene and Editor Preflight | PASS/READY | 102 checks pass; no missing script; Formal Editor and Pilot Editor ready |
-| Tracked-worktree credential scan | PASS | 2,464 tracked text files scanned; no high-confidence finding |
+| Tracked-worktree credential scan | PASS | 2,475 tracked text files scanned; no high-confidence finding |
 | APK credential scan | PASS | Every APK ZIP entry scanned; no high-confidence credential finding |
 | Gateway offline contracts | PASS | Python compile, mock STT/TTS/WAV, response-envelope passthrough, missing-key guard |
 | Current service health only | PASS | WLAN health endpoints respond; no STT/TTS/LLM generation request sent |
-| Android Development APK | PASS | Unity: 0 errors, 41 warnings, 26.24 s warm build |
+| Android Development APK | PASS | Unity: 0 errors, 44 warnings, 5 min 39 s build |
 | APK identity/SDK | PASS | `com.scenetalkvr.demo`, min SDK 29, target SDK 36 |
 | APK permissions | PASS | `INTERNET` and `RECORD_AUDIO` present; runtime permission code present |
 | APK network policy | PASS | `usesCleartextTraffic=true`; referenced base config permits cleartext HTTP |
@@ -53,10 +54,11 @@ restored after evidence was collected.
 
 Evidence files outside the repository:
 
-- EditMode XML/log: `E:\Temp\SceneTalkVR-03abae0-editmode.xml`, `.log`
-- PlayMode XML/log: `E:\Temp\SceneTalkVR-03abae0-playmode.xml`, `.log`
-- Python JUnit XML: `E:\Temp\SceneTalkVR-03abae0-python.xml`
-- Android build log: `E:\Temp\SceneTalkVR-03abae0-android-build.log`
+- EditMode XML/log: `E:\Temp\SceneTalkVR-494cd92-editmode.xml`, `.log`
+- PlayMode XML/log: `E:\Temp\SceneTalkVR-494cd92-playmode.xml`, `.log`
+- Python JUnit XML: `E:\Temp\SceneTalkVR-494cd92-python.xml`
+- Android build log: `E:\Temp\SceneTalkVR-494cd92-android-build.log`
+- PICO screenshot/logcat: `E:\Temp\SceneTalkVR-494cd92-pico-main.png`, `-pico-logcat.txt`
 
 Fresh matrix artifacts and the regenerated Preflight report are committed in the repository. The
 detailed human procedures are `EXPERIMENT_V1_1_PICO_MANUAL_RELEASE_RUNBOOK.md` (English) and
@@ -64,12 +66,12 @@ detailed human procedures are `EXPERIMENT_V1_1_PICO_MANUAL_RELEASE_RUNBOOK.md` (
 
 ## APK artifact
 
-- Path: `E:\Temp\SceneTalkVR-03abae0-validation.apk`
-- File size: `132915686` bytes
-- SHA-256: `6ADBB8A04311BA5A6E9345E87E57D73B30B95B63FADD18630DD7A13077631727`
+- Path: `E:\Temp\SceneTalkVR-494cd92-layout-validation.apk`
+- File size: `155198166` bytes
+- SHA-256: `2C4D078E07DE8EC9B9D7F1E97D0D935D7562B62B5FB26E94EDF2F03FA522E0B5`
 - Build mode: Android Development APK
-- Installation: completed on an authorized PICO A8110 at 2026-07-22 12:39 (Asia/Shanghai)
-- Installed APK SHA-256: matches `6ADBB8A04311BA5A6E9345E87E57D73B30B95B63FADD18630DD7A13077631727`
+- Installation: completed on an authorized PICO A8110 at 2026-07-22 15:32 (Asia/Shanghai)
+- Installed APK SHA-256: matches `2C4D078E07DE8EC9B9D7F1E97D0D935D7562B62B5FB26E94EDF2F03FA522E0B5`
 - Install mode: `adb install -r`; existing application data was preserved and `RECORD_AUDIO` was
   already granted, so the first-run permission prompt remains untested
 - Device process state: `UnityPlayerActivity` is foreground after installation; no explicit launch,
@@ -80,7 +82,7 @@ flags, and network-security reference. `apksigner` and `zipalign` confirmed arti
 debuggable/debug-certificate result is intentionally recorded as a formal-signing blocker rather
 than being presented as a release signature.
 
-The 41 Unity warning records reduce to known categories: PICO platform `appID` is not configured,
+The 44 Unity warning records reduce to known categories: PICO platform `appID` is not configured,
 diagnostics symbols are not Full/SymbolTable, one Windows-only PICO library has Android importer
 metadata, and the PICO hand-outline shader reports GLES3 initialization warnings. No application
 code references PICO Platform services, so the empty `appID` did not block this validation build;
