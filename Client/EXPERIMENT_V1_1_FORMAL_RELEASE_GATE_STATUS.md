@@ -1,6 +1,6 @@
 # Experiment v1.1 Formal PICO Release Gate Status
 
-Generated: 2026-07-22 15:35 (Asia/Shanghai)
+Generated: 2026-07-22 16:18 (Asia/Shanghai)
 
 Release decision: **BLOCKED - do not use this build for formal participant collection.**
 
@@ -16,36 +16,37 @@ gates.
 - Original merge-validation commit: `7becf92a678f776ec25982409fbc7cab49f65f1b`
 - Credential-redaction commit: `8a0759e51afa01cbf8c92a65bca7cabdb773fb3c`
 - Batch-Preflight fix commit: `dd1c02f537234e8226b0dc7e9a2b042b77fd309c`
-- Tested/APK source and task/dialogue layout commit: `494cd924660ea2f19ca657c55466b3991f4eaeee`
+- Tested/APK source and stacked task/dialogue layout commit: `f1b82020855f26e26297c4447b562166f55a1429`
 - Branch: `codex/integrate-experiment-v1.1`
 - Unity: `6000.3.16f1`
 - Remote push of the integration work: not performed
 
-The current APK build metadata records `494cd92`. Unity's build/test-time rewrites of tracked assets were
+The current APK build metadata records `f1b8202`. Unity's build/test-time rewrites of tracked assets were
 restored after evidence was collected.
 
 ## Automated evidence
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
-| Candidate-head Unity EditMode | PASS at `494cd92` | 376/376, 0 failed/skipped |
-| Candidate-head Unity PlayMode | PASS at `494cd92` | 45/45, 0 failed/skipped; includes Formal/Pilot and shown/hidden-subtitle task/dialogue non-overlap assertions |
-| Candidate-head Python analysis | PASS at `494cd92` | 41/41 using documented `PYTHONPATH=src` layout |
-| Formal synthetic matrix | PASS | Fresh 16/16 at `494cd92`; all cases unique, integrity `PASS` |
-| Pilot synthetic matrix | PASS | Fresh 9/9 at `494cd92`; all cases unique, integrity `PASS` |
-| Scene and Editor Preflight | PASS/READY | 102 checks pass; no missing script; Formal Editor and Pilot Editor ready |
+| Candidate-head Unity EditMode | PASS at `f1b8202` | 376/376, 0 failed/skipped |
+| Candidate-head Unity PlayMode | PASS at `f1b8202` | 45/45, 0 failed/skipped; includes Formal/Pilot, Home Quit/Exit exclusivity, and shown/hidden-subtitle stacked-layout assertions |
+| Candidate-head Python analysis | PASS at `f1b8202` | 41/41 using documented `PYTHONPATH=src` layout |
+| Formal synthetic matrix | PASS | Fresh 16/16 at `f1b8202`; all cases unique, integrity `PASS` |
+| Pilot synthetic matrix | PASS | Fresh 9/9 at `f1b8202`; all cases unique, integrity `PASS` |
+| Locked matrix guards | PASS | Formal 16/16 and Pilot 9/9 remain `BLOCKED`, with zero unexpected PASS/FAIL |
+| Scene and Editor Preflight | PASS/READY | 102 checks pass; the only two failed checks are the expected missing `PicoLab`/`PicoPortable` profiles; no missing script; Formal Editor and Pilot Editor ready |
 | Tracked-worktree credential scan | PASS | 2,475 tracked text files scanned; no high-confidence finding |
-| APK credential scan | PASS | Every APK ZIP entry scanned; no high-confidence credential finding |
+| APK credential scan | PASS | 482 APK ZIP entries scanned; no high-confidence credential finding |
 | Gateway offline contracts | PASS | Python compile, mock STT/TTS/WAV, response-envelope passthrough, missing-key guard |
-| Current service health only | PASS | WLAN health endpoints respond; no STT/TTS/LLM generation request sent |
-| Android Development APK | PASS | Unity: 0 errors, 44 warnings, 5 min 39 s build |
+| Workstation service health only | PASS | `192.168.137.1:8787/health` returns Tencent; `:8788/health` reports an API key; no generation request sent |
+| Android Development APK | PASS | Unity: 0 errors, 44 warnings, 3 min 42 s build |
 | APK identity/SDK | PASS | `com.scenetalkvr.demo`, min SDK 29, target SDK 36 |
 | APK permissions | PASS | `INTERNET` and `RECORD_AUDIO` present; runtime permission code present |
 | APK network policy | PASS | `usesCleartextTraffic=true`; referenced base config permits cleartext HTTP |
 | APK ABI | PASS | ARM64-only IL2CPP, Unity OpenXR, and PICO native libraries |
 | APK integrity | PASS for validation | ZIP alignment and APK Signature Scheme v2 verification pass |
 | Formal release signing | BLOCKED | APK is debuggable and signed by the Android Debug certificate |
-| Configured PICO service URLs | BLOCKED | Both configured `192.168.137.1` health URLs time out from this workstation |
+| Configured PICO service URLs | PENDING DEVICE REQUEST | PICO is `192.168.137.223/24` and sees the host over LAN/SSDP; ICMP is blocked and the headset has no `nc`; no application-level health or generation request is captured |
 | PICO connection and APK installation | PASS (installation only) | Authorized PICO A8110 on Android 10; `adb install -r` succeeded; device APK SHA-256 matches the candidate |
 | Deployment profiles | BLOCKED | `PicoLab` and `PicoPortable` remain absent |
 | Exposed credential closure | BLOCKED HUMAN | Current head is redacted; old shared Git history still contains both values |
@@ -54,11 +55,11 @@ restored after evidence was collected.
 
 Evidence files outside the repository:
 
-- EditMode XML/log: `E:\Temp\SceneTalkVR-494cd92-editmode.xml`, `.log`
-- PlayMode XML/log: `E:\Temp\SceneTalkVR-494cd92-playmode.xml`, `.log`
-- Python JUnit XML: `E:\Temp\SceneTalkVR-494cd92-python.xml`
-- Android build log: `E:\Temp\SceneTalkVR-494cd92-android-build.log`
-- PICO screenshot/logcat: `E:\Temp\SceneTalkVR-494cd92-pico-main.png`, `-pico-logcat.txt`
+- EditMode XML/log: `E:\Temp\SceneTalkVR-f1b8202-editmode.xml`, `.log`
+- PlayMode XML/log: `E:\Temp\SceneTalkVR-f1b8202-playmode.xml`, `.log`
+- Python JUnit XML: `E:\Temp\SceneTalkVR-f1b8202-python.xml`
+- Android build log: `E:\Temp\SceneTalkVR-f1b8202-android-build.log`
+- PICO screenshot/logcat: `E:\Temp\SceneTalkVR-f1b8202-pico-home.png`, `-pico-logcat.txt`
 
 Fresh matrix artifacts and the regenerated Preflight report are committed in the repository. The
 detailed human procedures are `EXPERIMENT_V1_1_PICO_MANUAL_RELEASE_RUNBOOK.md` (English) and
@@ -66,16 +67,17 @@ detailed human procedures are `EXPERIMENT_V1_1_PICO_MANUAL_RELEASE_RUNBOOK.md` (
 
 ## APK artifact
 
-- Path: `E:\Temp\SceneTalkVR-494cd92-layout-validation.apk`
-- File size: `155198166` bytes
-- SHA-256: `2C4D078E07DE8EC9B9D7F1E97D0D935D7562B62B5FB26E94EDF2F03FA522E0B5`
+- Path: `E:\Temp\SceneTalkVR-f1b8202-stacked-layout-validation.apk`
+- File size: `155197600` bytes
+- SHA-256: `D383A6C2E1330598DD3A94479048F39A39AFB1C55D4F9A72B7EE1D0CF88D1607`
 - Build mode: Android Development APK
-- Installation: completed on an authorized PICO A8110 at 2026-07-22 15:32 (Asia/Shanghai)
-- Installed APK SHA-256: matches `2C4D078E07DE8EC9B9D7F1E97D0D935D7562B62B5FB26E94EDF2F03FA522E0B5`
+- Installation: completed on an authorized PICO A8110 at 2026-07-22 16:02 (Asia/Shanghai)
+- Installed APK SHA-256: matches `D383A6C2E1330598DD3A94479048F39A39AFB1C55D4F9A72B7EE1D0CF88D1607` (rechecked from `/data/app/.../base.apk`)
 - Install mode: `adb install -r`; existing application data was preserved and `RECORD_AUDIO` was
   already granted, so the first-run permission prompt remains untested
-- Device process state: `UnityPlayerActivity` is foreground after installation; no explicit launch,
-  UI interaction, service request, or runtime validation command was issued by this audit
+- Device process state: `UnityPlayerActivity` was explicitly launched. The automated screenshot is
+  black because the headset was asleep and is not accepted as visual evidence. No application service
+  request or human in-headset visual/audio judgment was performed.
 
 `aapt` and `apkanalyzer` independently confirmed the package, SDK levels, permissions, application
 flags, and network-security reference. `apksigner` and `zipalign` confirmed artifact integrity. The
@@ -108,10 +110,12 @@ The committed runtime configuration still contains:
 - Voice: `http://192.168.137.1:8787`
 - LLM: `http://192.168.137.1:8788/api/llm/chat/completions`
 
-At audit time the workstation WLAN address was `10.180.73.186`; it had no local
-`192.168.137.1` interface or matching route. Services listen on ports 8787/8788 and their health
-endpoints respond through the WLAN address, but this does not prove PICO reachability and does not
-authorize replacing the committed endpoint.
+At the latest audit, the workstation hotspot interface is `192.168.137.1/24`, the PICO WLAN address
+is `192.168.137.223/24`, and the two configured health URLs return HTTP 200 on the workstation.
+The PICO receives SSDP traffic from `192.168.137.1`, which proves a LAN path exists, but its firmware
+does not provide `nc`/`curl`/`wget` and ICMP receives no reply. Therefore TCP reachability and the
+real STT/LLM/TTS path remain unproven until the application itself completes a logged request. Do
+not use `adb reverse` as substitute evidence.
 
 `ExperimentDeploymentCatalog.asset` has only `EditorCollection`. A valid PICO profile requires a
 real non-loopback endpoint, positive timeout, non-mock providers, PICO target/policy flags, and a

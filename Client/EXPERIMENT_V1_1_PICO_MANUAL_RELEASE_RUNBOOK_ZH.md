@@ -7,6 +7,20 @@
 
 本文生成时的状态：**正式参与者采集 NO-GO（禁止开始）**。
 
+当前工程验证快照（仅用于定位待验候选，不是发布批准）：
+
+- 运行时代码与 APK 构建 SHA：`f1b82020855f26e26297c4447b562166f55a1429`
+- APK：`E:\Temp\SceneTalkVR-f1b8202-stacked-layout-validation.apk`
+- APK SHA-256：`D383A6C2E1330598DD3A94479048F39A39AFB1C55D4F9A72B7EE1D0CF88D1607`
+- 已安装设备：PICO `A8110`，Android 10；设备端 APK 哈希与上述哈希一致
+- 已验证：EditMode `376/376`、PlayMode `45/45`、Python `41/41`、Formal Synthetic
+  `16/16`、Pilot Synthetic `9/9`
+- 尚未解除：真实 PICO Profile、正式签名、凭据事件闭环、头显人工视觉、真人语音链路、
+  Formal 16、Pilot 9 和研究负责人 GO
+
+若运行时代码、场景、资源、配置或 APK 任一项发生变化，必须生成新的 APK 和哈希，并将
+本快照及全部人工证据切换到新候选；不得混用两个 SHA 的证据。
+
 ## 1. 候选版本与操作人员记录
 
 在仓库外创建证据目录，并记录以下信息：
@@ -139,6 +153,19 @@ $apk = '<已获批的候选 APK>'
 或拒绝；主权限流程测试不得预先授予权限。完成后使用 `dumpsys package` 确认实际权限
 状态。
 
+当前工程验证设备已显示 `RECORD_AUDIO: granted=true`。仅在不含参与者数据的 Rehearsal
+开始前，可按以下方式恢复“首次询问”前置状态，不必清空应用数据：
+
+```powershell
+& $adb shell pm revoke com.scenetalkvr.demo android.permission.RECORD_AUDIO
+& $adb shell am force-stop com.scenetalkvr.demo
+& $adb shell am start -n com.scenetalkvr.demo/com.unity3d.player.UnityPlayerActivity
+```
+
+先在头显中选择“拒绝”，确认应用明确提示权限问题且不会生成有效轮次；然后再次触发录音
+并选择“允许”，确认 `Speak -> End`、录音、STT 和后续状态恢复。不得用 `pm grant` 代替
+本次人工权限交互证据。
+
 ## 5. 强制人工视觉检查
 
 必须在头显内部检查，不能只看桌面镜像。每个页面都要保存截图或视频，并记录以下人工
@@ -153,6 +180,40 @@ $apk = '<已获批的候选 APK>'
 4. Pilot 参与者开始页、任务和目标面板、条件问卷及最终排序。
 5. 错误或 `technical-invalid` 状态及重试路径。
 6. 麦克风权限先拒绝、后允许时的行为。
+
+### 5.1 本次上下分区布局的强制检查
+
+Formal 与 Pilot 各进入一个真实“对话中”页面，分别在“显示字幕”和“隐藏字幕”设置下
+检查并截图，共四张：
+
+| 截图文件名 | 页面 | 字幕状态 |
+| --- | --- | --- |
+| `formal-dialogue-subtitles-on.png` | Formal 对话中 | 显示 |
+| `formal-dialogue-subtitles-off.png` | Formal 对话中 | 隐藏 |
+| `pilot-dialogue-subtitles-on.png` | Pilot 对话中 | 显示 |
+| `pilot-dialogue-subtitles-off.png` | Pilot 对话中 | 隐藏 |
+
+四种状态均必须同时满足：
+
+- `Task Goals` 任务栏完整位于左上区域；对话/状态面板横跨画布下部，两者边缘不得接触或重叠；
+- 任务标题、四个目标、完成状态均不被遮挡或裁切；长目标可以换行，但不得溢出面板；
+- `You`、`Avatar`、纠错反馈、状态文字和 `Speak/End` 按钮均留在下方面板内；
+- 下方对话框应接近画布完整宽度，长对话不能因为窄栏被过度换行或难以阅读；
+- 隐藏字幕后，下方面板可以变矮，但不得向上扩张覆盖任务栏；
+- 右上角 `Exit` 始终在最上层，不能遮挡任务栏、对话框、问卷或排名控件；
+- 所有中文均显示真实字形，不得出现方块、缺字或 fallback 字体尺寸突变；
+- 通过左右眼实际观察确认深度舒适、文字可读、控制器射线能够点击 `Speak/End` 和 `Exit`。
+
+每张图使用独立设备文件名，避免覆盖：
+
+```powershell
+$view = '<formal|pilot>-dialogue-subtitles-<on|off>'
+& $adb shell screencap -p "/sdcard/$view.png"
+& $adb pull "/sdcard/$view.png" "<evidence>\screenshots\$view.png"
+```
+
+自动测试仅证明 860×520 逻辑画布中任务栏位于对话框上方、垂直间距至少 20 px，且
+对话框宽度至少 800 px；它不能替代上述头显观察。
 
 可靠的截图采集命令：
 
@@ -217,7 +278,50 @@ $apk = '<已获批的候选 APK>'
 人工听取并记录：语音可懂度、削波、重复播放、空间方向、Avatar 口型和身体动画，以及
 视觉实体是否在正确边界出现、消失或切换。仅有日志顺序不足以构成音频证据。
 
+### 8.1 精确执行顺序
+
+1. 确认第 2 节凭据事件已经闭环，两个网关使用替代凭据；否则立即停止，不得发起真实请求。
+2. 在电脑上确认 `/health`：Voice 必须显示真实非 mock provider，LLM 必须显示
+   `hasApiKey=true`。这一步仍不证明 PICO 可达。
+3. 清空并持续保存本次候选日志：
+
+   ```powershell
+   & $adb logcat -c
+   & $adb logcat -v threadtime > '<evidence>\voice-chain-logcat.txt'
+   ```
+
+4. 在 PICO Device Validation/Rehearsal 中完成一个无反馈轮次。可使用语法正确且任务相关的
+   句子，例如 `My name is Alice, and I have a reservation for tonight.`；以保存的
+   `hasFeedback=false` 和事件序列为准，不能只凭预期判定。
+5. 完成一个有反馈轮次。可使用明显错误且任务相关的句子，例如
+   `I want book a room for two night.`；以保存的 `hasFeedback=true`、实际反馈音频和事件序列
+   为准。如果模型没有返回反馈，换用另一句明显错误表达，不能手工改日志。
+6. 每轮说完后不要重复点击 `Speak`；等待反馈和 Avatar 对话均播放完，再开始下一轮。
+7. 在独立 Rehearsal 尝试中制造一次受控失败：先停止 LLM Gateway，再说一句话；确认 UI
+   明确失败、记录 `TurnTechnicalInvalid`、对话闸门保持关闭且没有 Avatar 对话播放。随后
+   重启网关，通过健康检查后使用系统提供的 Retry，新尝试必须使用新的 attempt/run 标识，
+   失败尝试仍保留在 Bundle 中。不得在参与者正式会话中做此故障注入。
+8. 停止日志采集，记录两个网关服务端日志、PICO 日志、操作人员观察和对应 Bundle 路径。
+
+只有 PICO 发出的真实 STT、LLM、反馈 TTS 和对话 TTS 均成功，且人工听到正确顺序，才能
+将真人语音门槛记为 PASS。电脑端 `/health`、Synthetic 或 Mock 音频都不能替代该证据。
+
 ## 9. Bundle 导出与非修改式审计
+
+PICO Device Validation/Rehearsal 的默认设备根目录为：
+
+`/sdcard/Android/data/com.scenetalkvr.demo/files/SceneTalkVR/DeviceValidationSessions`
+
+完成应用内 `Export Bundle` 后，先列出实际 Session，再把所选 Session 的 `bundle` 拉到
+仓库外证据目录；不要直接分析设备上的源目录：
+
+```powershell
+$deviceRoot = '/sdcard/Android/data/com.scenetalkvr.demo/files/SceneTalkVR/DeviceValidationSessions'
+& $adb shell find $deviceRoot -maxdepth 2 -type d
+& $adb pull "$deviceRoot/<实际-session>/bundle" '<evidence>\bundle'
+```
+
+若没有 `bundle` 目录，说明应用内导出尚未完成，不得用 `raw` 目录冒充正式 Bundle。
 
 分析前，对源 Bundle 中每个文件计算哈希：
 
