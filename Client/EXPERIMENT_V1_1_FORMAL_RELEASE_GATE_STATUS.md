@@ -1,6 +1,6 @@
 # Experiment v1.1 Formal PICO Release Gate Status
 
-Generated: 2026-07-22 12:15 (Asia/Shanghai)
+Generated: 2026-07-22 12:40 (Asia/Shanghai)
 
 Release decision: **BLOCKED - do not use this build for formal participant collection.**
 
@@ -45,7 +45,7 @@ restored after evidence was collected.
 | APK integrity | PASS for validation | ZIP alignment and APK Signature Scheme v2 verification pass |
 | Formal release signing | BLOCKED | APK is debuggable and signed by the Android Debug certificate |
 | Configured PICO service URLs | BLOCKED | Both configured `192.168.137.1` health URLs time out from this workstation |
-| PICO connection | BLOCKED | `adb devices -l` has no authorized device |
+| PICO connection and APK installation | PASS (installation only) | Authorized PICO A8110 on Android 10; `adb install -r` succeeded; device APK SHA-256 matches the candidate |
 | Deployment profiles | BLOCKED | `PicoLab` and `PicoPortable` remain absent |
 | Exposed credential closure | BLOCKED HUMAN | Current head is redacted; old shared Git history still contains both values |
 | Final TMP/world-space visual review | PENDING HUMAN | Preserved screenshots do not prove final headset rendering |
@@ -68,7 +68,12 @@ detailed human procedures are `EXPERIMENT_V1_1_PICO_MANUAL_RELEASE_RUNBOOK.md` (
 - File size: `132915686` bytes
 - SHA-256: `6ADBB8A04311BA5A6E9345E87E57D73B30B95B63FADD18630DD7A13077631727`
 - Build mode: Android Development APK
-- Installation/device run: not performed; no authorized PICO is connected
+- Installation: completed on an authorized PICO A8110 at 2026-07-22 12:39 (Asia/Shanghai)
+- Installed APK SHA-256: matches `6ADBB8A04311BA5A6E9345E87E57D73B30B95B63FADD18630DD7A13077631727`
+- Install mode: `adb install -r`; existing application data was preserved and `RECORD_AUDIO` was
+  already granted, so the first-run permission prompt remains untested
+- Device process state: `UnityPlayerActivity` is foreground after installation; no explicit launch,
+  UI interaction, service request, or runtime validation command was issued by this audit
 
 `aapt` and `apkanalyzer` independently confirmed the package, SDK levels, permissions, application
 flags, and network-security reference. `apksigner` and `zipalign` confirmed artifact integrity. The
@@ -112,12 +117,13 @@ genuine approval evidence reference. Credentials must stay server-side.
 
 ## Required human completion
 
-Follow `EXPERIMENT_V1_1_PICO_MANUAL_RELEASE_RUNBOOK.md` exactly. The remaining decisions/actions are:
+Follow `EXPERIMENT_V1_1_PICO_MANUAL_RELEASE_RUNBOOK_ZH.md` (Chinese) or its English counterpart
+exactly. The remaining decisions/actions are:
 
 1. Revoke/rotate the exposed credentials and decide whether coordinated history rewriting is
    required.
 2. Approve the real lab/portable network and create genuine `PicoLab`/`PicoPortable` profiles.
-3. Connect and authorize a PICO, identify it, install the exact hashed APK, and capture device logs.
+3. Launch the installed APK on the authorized PICO and capture device logs and runtime evidence.
 4. Complete headset visual checks plus the Formal 16 and Pilot 9 rehearsal matrices.
 5. Run human microphone feedback/no-feedback/failure turns and verify Feedback First and audio/
    embodiment behavior.
