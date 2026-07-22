@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "1.0",
+  "stage": 8,
+  "branch": "experiment-v1.1-integration",
+  "baseCommit": "230eb65a2d72106cac4b1cebd50a4517f8eda19a",
+  "unityVersion": "6000.3.16f1",
+  "protocolVersion": "1.1.0-stage7",
+  "officialProtocolChanged": false,
+  "formalProtocolBlocked": true,
+  "releaseCandidateEligible": false,
+  "rcTagCreated": false,
+  "compile": {"status": "PASS", "errors": 0},
+  "console": {"status": "PASS", "errors": 0},
+  "sampleScene": {"missingScripts": 0, "missingReferences": 0, "status": "PASS"},
+  "packagePrefabScan": {
+    "status": "WARNING",
+    "missingScripts": 2,
+    "scope": "Packages/com.unity.xr.picoxr hand prefabs; not SampleScene",
+    "assets": ["leftHand.prefab", "rightHand.prefab"]
+  },
+  "preflight": {"executed": true, "formalBlockedAsExpected": true, "catalogBindingsPresent": true},
+  "projectTests": {
+    "unitySkillsPackageTestsExcluded": true,
+    "editMode": {"status": "PASS", "total": 132, "passed": 132, "failed": 0, "skipped": 0},
+    "playMode": {"status": "PASS", "unitySkillsCurrentMode": "bypass", "total": 6, "passed": 6, "failed": 0, "skipped": 0},
+    "minimumPlayMode": {"status": "PASS", "unitySkillsCurrentMode": "bypass", "observedSeconds": 10.024, "runtimeErrors": 0, "mainMenuVerifiedByProjectPlayModeTest": true, "mainMenuVisuallyVerified": true},
+    "optionalGameViewScreenshot": {"status": "PASS", "runtimeHealthy": true, "runtimeErrors": 0, "visualResult": "SceneTalkVR Start/Settings/Quit menu visible", "temporaryAssetCommitted": false}
+  },
+  "directedEditModeSuites": {
+    "taskCatalog": 25,
+    "feedbackFirst": 19,
+    "formalConditionCore": 4,
+    "assignmentGoals": 22,
+    "questionnaire": 19,
+    "pilot": 15,
+    "releaseReadiness": 11,
+    "stage8": 17
+  },
+  "decisionIntake": {"templateStatus": "DRAFT", "decisionCount": 11, "schemaValidated": true, "transactionTestsPassed": true},
+  "syntheticFormal": {"status": "PASS", "integrity": "PASS", "dataOrigin": "synthetic_dry_run", "collectionEligible": false},
+  "syntheticPilot": {"status": "PASS", "integrity": "PASS", "dataOrigin": "synthetic_dry_run", "collectionEligible": false, "humanoidPlaceholder": true},
+  "technicalInvalidRetry": {"status": "PASS", "oldLogsRetained": true, "newRunId": true},
+  "bundleChecksums": {"status": "PASS", "algorithm": "SHA-256"},
+  "realServiceTests": "NOT_RUN",
+  "picoTests": "NOT_RUN",
+  "participantCollectionReady": false,
+  "excludedLocalPaths": [
+    "Client/Packages/manifest.json",
+    "Client/Packages/packages-lock.json",
+    "Client/.agents/skills/"
+  ]
+}

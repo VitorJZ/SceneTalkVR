@@ -1,0 +1,21 @@
+{
+  "sampleOnly": true,
+  "developerTestAssignment": true,
+  "pilotProtocolVersion": "1.1.0-stage1",
+  "pilotAssignmentVersion": "1.0",
+  "taskCatalogVersion": "1.1-stage2.1",
+  "participantId": "PILOT-SAMPLE-001",
+  "sessionId": "SESSION-SAMPLE-001",
+  "sequenceId": "test-a-b-c",
+  "assignmentSeed": "125316837501820542",
+  "feedbackStyle": 1,
+  "feedbackStyleLabel": "explicit",
+  "voiceOnlyAudioPolicy": 2,
+  "voiceOnlyAudioPolicyLabel": "non_spatial_head_locked",
+  "conditions": [
+    {"conditionPosition": 0, "embodimentCondition": 0, "embodimentConditionLabel": "voice_only", "task": {"taskId": "pilot_restaurant_walk_in", "taskAssignmentId": "pta-sample-0"}, "status": 0},
+    {"conditionPosition": 1, "embodimentCondition": 1, "embodimentConditionLabel": "floating_orb", "task": {"taskId": "pilot_restaurant_ordering", "taskAssignmentId": "pta-sample-1"}, "status": 0},
+    {"conditionPosition": 2, "embodimentCondition": 2, "embodimentConditionLabel": "humanoid_agent", "task": {"taskId": "pilot_restaurant_wrong_dish", "taskAssignmentId": "pta-sample-2"}, "status": 0}
+  ],
+  "warning": "This mapping exists only as an auditable sample. It does not confirm the formal a/b/c mapping or either unresolved Pilot decision."
+}

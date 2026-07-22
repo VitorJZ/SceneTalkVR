@@ -1,0 +1,619 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Text;
+using SceneTalkVR.Runtime;
+using UnityEngine;
+
+namespace SceneTalkVR.Core
+{
+    public enum StudyEventType
+    {
+        AssignmentCreated, AssignmentLoaded, ConditionPrepared, ConditionStarted, TaskLoaded,
+        GoalCandidateSubmitted, GoalConfirmed, GoalRejected, TaskCompleted,
+        ConditionAwaitingQuestionnaire, QuestionnaireStarted, QuestionnairePageCompleted,
+        QuestionnaireSubmitted, QuestionnaireReopened, FinalRankingStarted, FinalRankingSubmitted,
+        InterviewStarted, InterviewCompleted, ConditionCompleted, ConditionTechnicalInvalid,
+        ConditionAborted, ExperimentCompleted
+        , GoalCollectionReset, GoalProgressChanged, GoalAutoConfirmed,
+        FormalConditionSelected, TaskLimitReachedWithoutCompletion,
+        ParticipantSessionArmed, FormalModeSelectionShown, FormalModeSelected, ConditionTaskResolved,
+        UserTranscriptFinalized, GoalEvaluationStarted, GoalEvaluationCompleted, GoalEvaluationFailed, AllGoalsConfirmed,
+        QuestionnaireOpened, QuestionnaireResponseChanged, ReturnedToModeSelection,
+        AllFormalConditionsCompleted, FinalRankingOpened
+    }
+
+    [Serializable]
+    public sealed class StudyEventRecord
+    {
+        public string schemaVersion = "1.0";
+        public string timestampUtc;
+        public string eventType;
+        public string participantId;
+        public string sessionId;
+        public string conditionRunId;
+        public string questionnaireLinkageKey;
+        public string sequenceId;
+        public int conditionPosition;
+        public int runAttempt;
+        public string formalConditionCode;
+        public string taskId;
+        public string taskAssignmentId;
+        public string goalId;
+        public string turnId;
+        public string actor;
+        public string reason;
+        public string technicalValidity;
+        public int completedGoalCount;
+        public int totalGoalCount;
+        public float taskCompletionRate;
+        public int turnsToCompletion;
+        public long conditionDurationMs;
+        public string completionReason;
+        public string runtimeMode;
+        public string dataOrigin;
+        public bool collectionEligible;
+        public bool developerTestAssignment;
+        public bool demoMode;
+        public string demoProtocolVersion;
+        public bool autoFilledForDemo;
+        public string flowMode;
+        public string runQualification;
+        public string protocolSnapshotId;
+        public string resourceSnapshotId;
+        public string goalConfirmationPolicy;
+        public string previousGoalState;
+        public string newGoalState;
+        public string formalConditionOrderPolicy;
+        public string taskAssignmentPolicy;
+        public int participantSelectionPosition;
+        public string evidenceTranscript;
+        public float confidence;
+        public string evaluatorVersion;
+        public string evaluatorSource;
+        public long evaluatorLatencyMs;
+        public string evaluationReason;
+        public string deploymentProfile;
+        public string primaryAttemptPolicy;
+    }
+
+    [DisallowMultipleComponent]
+    public sealed class ExperimentLifecycleCoordinator : MonoBehaviour, ISceneTalkSessionReset
+    {
+        [SerializeField] private ExperimentConditionManager conditionManager;
+        [SerializeField] private SceneTalkOrchestrator orchestrator;
+        [SerializeField] private int maxTurns;
+        [SerializeField] private float maxDurationMinutes;
+        private readonly GoalProgressTracker goalTracker = new GoalProgressTracker();
+        private ExperimentAssignment assignment;
+        private ConditionAssignment currentCondition;
+        private DateTime conditionStartedUtc;
+        private int conditionStartTurn;
+        private bool goalEventsSubscribed;
+        private bool taskCompletionObserved;
+        private readonly List<string> recentUserTurns = new List<string>();
+
+        public event Action QuestionnaireRequested;
+        public event Action QuestionnaireSubmitted;
+        public event Action<string> TaskLimitReached;
+
+        public ExperimentAssignment Assignment => assignment;
+        public ConditionAssignment CurrentConditionAssignment => currentCondition;
+        public GoalProgressTracker GoalTracker => goalTracker;
+        public bool IsDeveloperManualSession => assignment != null
+            && assignment.developerTestAssignment
+            && string.Equals(assignment.dataOrigin, "developer_manual", StringComparison.Ordinal);
+        public string ConditionRunId { get; private set; }
+        public string QuestionnaireLinkageKey { get; private set; }
+        public string CompletionReason { get; private set; }
+        public ExperimentTechnicalValidity TechnicalValidity { get; private set; } = ExperimentTechnicalValidity.Valid;
+        public long ConditionDurationMs => conditionStartedUtc == default ? 0 : (long)(DateTime.UtcNow - conditionStartedUtc).TotalMilliseconds;
+        public int TurnsToCompletion => conditionManager == null ? 0 : Mathf.Max(0, conditionManager.CurrentTurnIndex - conditionStartTurn);
+        public int MaximumTurns => maxTurns;
+        public float MaximumDurationMinutes => maxDurationMinutes;
+
+        private void Awake()
+        {
+            if (conditionManager == null) conditionManager = GetComponent<ExperimentConditionManager>();
+            if (orchestrator == null) orchestrator = GetComponent<SceneTalkOrchestrator>();
+            EnsureGoalSubscription();
+        }
+
+        private void OnDestroy()
+        {
+            if (goalEventsSubscribed)
+            {
+                goalTracker.GoalChanged -= OnGoalChanged;
+                goalTracker.OnAllGoalsConfirmed -= OnAllGoalsConfirmed;
+                goalTracker.OnGoalCollectionReset -= OnGoalCollectionReset;
+                goalTracker.OnGoalStateChanged -= OnGoalStateChanged;
+            }
+        }
+
+        public void Configure(ExperimentConditionManager manager, SceneTalkOrchestrator targetOrchestrator = null)
+        {
+            conditionManager = manager;
+            if (targetOrchestrator != null) orchestrator = targetOrchestrator;
+            EnsureGoalSubscription();
+        }
+
+        public void ConfigureRunLimits(int turns, float durationMinutes)
+        {
+            maxTurns = Mathf.Max(0, turns);
+            maxDurationMinutes = Mathf.Max(0f, durationMinutes);
+        }
+
+        public string[] RecordFinalUserTranscript(string transcript)
+        {
+            if (!string.IsNullOrWhiteSpace(transcript))
+            {
+                recentUserTurns.Add(transcript.Trim());
+                while (recentUserTurns.Count > 6) recentUserTurns.RemoveAt(0);
+            }
+            return recentUserTurns.ToArray();
+        }
+
+        private void EnsureGoalSubscription()
+        {
+            if (goalEventsSubscribed) return;
+            goalTracker.GoalChanged += OnGoalChanged;
+            goalTracker.OnAllGoalsConfirmed += OnAllGoalsConfirmed;
+            goalTracker.OnGoalCollectionReset += OnGoalCollectionReset;
+            goalTracker.OnGoalStateChanged += OnGoalStateChanged;
+            goalEventsSubscribed = true;
+        }
+
+        public bool LoadAssignment(ExperimentAssignment value, out string error)
+        {
+            if (value == null) { error = "assignment_missing"; return false; }
+            if (conditionManager == null) { error = "condition_manager_missing"; return false; }
+            var rehearsal = value.runQualification == ExperimentRunQualification.Rehearsal;
+            if (!ExperimentRuntimeContext.IsAllowed(value.flowMode, value.runQualification)) { error = "runtime_context_combination_invalid"; return false; }
+            if (rehearsal && (value.flowMode != ExperimentFlowMode.Formal || value.developerTestAssignment || value.collectionEligible || value.dataOrigin != "rehearsal"))
+            { error = "formal_rehearsal_isolation_invalid"; return false; }
+            if (conditionManager.IsFormalExperiment && !rehearsal && value.developerTestAssignment) { error = "formal_mode_rejects_developer_assignment"; return false; }
+            if (conditionManager.IsFormalExperiment && !rehearsal && !string.IsNullOrWhiteSpace(value.dataOrigin) && !value.collectionEligible) { error = "formal_mode_rejects_collection_ineligible_assignment"; return false; }
+            if (conditionManager.IsFormalExperiment && !rehearsal && !conditionManager.ValidateFormalProtocol(out error)) return false;
+            if (value.demoMode && (value.runtimeMode != ExperimentRuntimeMode.EditorDemoFormal || value.dataOrigin != "editor_demo"
+                || value.collectionEligible || !value.developerTestAssignment))
+            { error = "editor_demo_assignment_isolation_invalid"; return false; }
+            var expectedProtocolVersion = rehearsal || value.demoMode ? value.protocolVersion : conditionManager.ExperimentProtocol?.ProtocolVersion ?? string.Empty;
+            if (!ExperimentAssignmentAllocator.IsCompatible(value,
+                expectedProtocolVersion,
+                conditionManager.TaskCatalog?.CatalogVersion ?? string.Empty, out error))
+            {
+                value.status = AssignmentStatus.Incompatible;
+                ExperimentAssignmentAllocator.Save(value,
+                    ExperimentAssignmentAllocator.DefaultPath(value.participantId, value.experimentSessionId));
+                return false;
+            }
+            if (!ExperimentAssignmentAllocator.ValidateAssignment(value, conditionManager.TaskCatalog, out error)) return false;
+            assignment = value;
+            WriteEvent(StudyEventType.AssignmentLoaded, actor: "system");
+            return true;
+        }
+
+        public bool ResumeCondition(int position, IEnumerable<GoalProgressRecord> restoredGoals, out string error)
+        {
+            error = string.Empty;
+            if (assignment?.conditions == null || position < 0 || position >= assignment.conditions.Length)
+            { error = "condition_assignment_missing"; return false; }
+            var item = assignment.conditions[position];
+            if (item.status != ConditionRunStatus.Running && item.status != ConditionRunStatus.AwaitingQuestionnaire
+                && item.status != ConditionRunStatus.QuestionnaireInProgress)
+            { error = "condition_not_resumable:" + item.status; return false; }
+            currentCondition = item;
+            recentUserTurns.Clear();
+            ConditionRunId = item.latestConditionRunId ?? string.Empty;
+            QuestionnaireLinkageKey = string.IsNullOrWhiteSpace(ConditionRunId) ? string.Empty : "ql-" + ConditionRunId;
+            if (!conditionManager.ApplyFormalAssignment(item.formalConditionCode, item.task.taskId, out error,
+                assignment.participantId, assignment.experimentSessionId)) return false;
+            var task = conditionManager.TaskCatalog.Find(item.task.taskId);
+            goalTracker.RestoreGoals(task, CreateGoalContext(task), restoredGoals);
+            taskCompletionObserved = goalTracker.AreAllConfirmed;
+            conditionStartedUtc = DateTime.UtcNow;
+            conditionStartTurn = conditionManager.CurrentTurnIndex;
+            if (item.status == ConditionRunStatus.Running) orchestrator?.LoadAssignedTask(item.task.taskId);
+            return true;
+        }
+
+        public bool CreateOrLoadFormalAssignment(string participantId, string sessionId, AssignmentPolicy policy, out string error)
+        {
+            error = string.Empty;
+            if (conditionManager == null) { error = "condition_manager_missing"; return false; }
+            var path = ExperimentAssignmentAllocator.DefaultPath(participantId, sessionId);
+            var stored = ExperimentAssignmentAllocator.Load(path);
+            if (stored != null)
+            {
+                if (!LoadAssignment(stored, out error)) return false;
+                return true;
+            }
+            var allocator = new ExperimentAssignmentAllocator();
+            if (!allocator.TryCreateFormal(participantId, sessionId, conditionManager.ExperimentProtocol,
+                conditionManager.TaskCatalog, policy, out var created, out error)) return false;
+            created.developerTestAssignment = false;
+            created.dataOrigin = "participant_collection";
+            created.collectionEligible = true;
+            assignment = created;
+            ExperimentAssignmentAllocator.Save(assignment, path);
+            WriteEvent(StudyEventType.AssignmentCreated, actor: "system");
+            return true;
+        }
+
+        public bool PrepareCondition(int position, bool allowTechnicalRetry, out string error)
+        {
+            error = string.Empty;
+            if (assignment?.conditions == null || position < 0 || position >= assignment.conditions.Length) { error = "condition_assignment_missing"; return false; }
+            var next = assignment.conditions[position];
+            if (next.status == ConditionRunStatus.Completed || next.status == ConditionRunStatus.AwaitingQuestionnaire)
+            { error = "condition_already_completed"; return false; }
+            if (next.status == ConditionRunStatus.TechnicalInvalid && !allowTechnicalRetry)
+            { error = "technical_retry_requires_explicit_authorization"; return false; }
+
+            conditionManager.ResetConditionSessionBoundary();
+            recentUserTurns.Clear();
+            currentCondition = next;
+            assignment.status = AssignmentStatus.Active;
+            currentCondition.runAttempt++;
+            ConditionRunId = $"cr-{assignment.assignmentSeed}-{position}-{currentCondition.runAttempt}-{Guid.NewGuid():N}";
+            QuestionnaireLinkageKey = $"ql-{ConditionRunId}";
+            currentCondition.latestConditionRunId = ConditionRunId;
+            currentCondition.status = ConditionRunStatus.Preparing;
+            CompletionReason = string.Empty;
+            TechnicalValidity = ExperimentTechnicalValidity.Valid;
+            WriteEvent(StudyEventType.ConditionPrepared, actor: "system");
+            if (!conditionManager.ApplyFormalAssignment(currentCondition.formalConditionCode, currentCondition.task.taskId, out error,
+                assignment.participantId, assignment.experimentSessionId))
+            {
+                currentCondition.status = ConditionRunStatus.TechnicalInvalid;
+                WriteEvent(StudyEventType.ConditionTechnicalInvalid, reason: error, actor: "system", validity: ExperimentTechnicalValidity.TechnicalInvalid);
+                return false;
+            }
+            var task = conditionManager.TaskCatalog.Find(currentCondition.task.taskId);
+            taskCompletionObserved = false;
+            goalTracker.ResetGoals(task, CreateGoalContext(task));
+            WriteEvent(StudyEventType.TaskLoaded, actor: "system");
+            currentCondition.status = ConditionRunStatus.Running;
+            conditionStartedUtc = DateTime.UtcNow;
+            conditionStartTurn = conditionManager.CurrentTurnIndex;
+            WriteEvent(StudyEventType.ConditionStarted, actor: "system");
+            orchestrator?.LoadAssignedTask(currentCondition.task.taskId);
+            return true;
+        }
+
+        public bool PrepareDeveloperTaskSession(string taskId, out string error)
+        {
+            error = string.Empty;
+            if (conditionManager == null) { error = "condition_manager_missing"; return false; }
+            if (conditionManager.IsFormalExperiment) { error = "formal_mode_rejects_developer_manual_session"; return false; }
+            var task = conditionManager.TaskCatalog?.Find(taskId);
+            if (task == null) { error = $"task_catalog_missing:{taskId}"; return false; }
+            if (task.phase != ExperimentTaskPhase.Formal) { error = $"developer_manual_requires_formal_task:{taskId}"; return false; }
+
+            if (IsDeveloperManualSession && currentCondition?.status == ConditionRunStatus.Running)
+                Abort("developer_task_switched");
+            conditionManager.ResetConditionSessionBoundary();
+
+            var token = Guid.NewGuid().ToString("N");
+            var participantId = "developer_manual";
+            var sessionId = $"developer-manual-{DateTime.UtcNow:yyyyMMdd-HHmmss}-{token.Substring(0, 8)}";
+            var conditionCode = conditionManager.CurrentFormalCondition;
+            var taskAssignment = new TaskAssignment
+            {
+                taskId = task.taskId,
+                taskAssignmentId = $"developer-task-{token}"
+            };
+            currentCondition = new ConditionAssignment
+            {
+                conditionPosition = 0,
+                formalConditionCode = conditionCode,
+                formalConditionLabel = conditionCode.ToString(),
+                task = taskAssignment,
+                status = ConditionRunStatus.Preparing,
+                runAttempt = 1
+            };
+            assignment = new ExperimentAssignment
+            {
+                condition = conditionCode,
+                task = new ExperimentTaskReference { taskId = task.taskId, scenarioId = task.scenarioId },
+                sequenceId = "developer-manual",
+                conditionOrderIndex = 0,
+                participantId = participantId,
+                experimentSessionId = sessionId,
+                assignmentSeed = token,
+                assignmentVersion = ExperimentAssignmentAllocator.AssignmentVersion,
+                protocolVersion = conditionManager.ExperimentProtocol?.ProtocolVersion ?? string.Empty,
+                taskCatalogVersion = conditionManager.TaskCatalog?.CatalogVersion ?? string.Empty,
+                createdAtUtc = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture),
+                policy = AssignmentPolicy.Manual,
+                status = AssignmentStatus.Active,
+                developerTestAssignment = true,
+                dataOrigin = "developer_manual",
+                collectionEligible = false,
+                conditions = new[] { currentCondition }
+            };
+            ConditionRunId = $"developer-run-{token}";
+            QuestionnaireLinkageKey = $"developer-link-{token}";
+            currentCondition.latestConditionRunId = ConditionRunId;
+            CompletionReason = string.Empty;
+            TechnicalValidity = ExperimentTechnicalValidity.Valid;
+            WriteEvent(StudyEventType.AssignmentCreated, actor: "developer");
+            WriteEvent(StudyEventType.ConditionPrepared, actor: "developer");
+
+            if (!conditionManager.ApplyFormalAssignment(conditionCode, task.taskId, out error, participantId, sessionId))
+            {
+                currentCondition.status = ConditionRunStatus.TechnicalInvalid;
+                TechnicalValidity = ExperimentTechnicalValidity.TechnicalInvalid;
+                WriteEvent(StudyEventType.ConditionTechnicalInvalid, actor: "developer", reason: error,
+                    validity: ExperimentTechnicalValidity.TechnicalInvalid);
+                return false;
+            }
+
+            taskCompletionObserved = false;
+            goalTracker.ResetGoals(task, CreateGoalContext(task));
+            WriteEvent(StudyEventType.TaskLoaded, actor: "developer");
+            currentCondition.status = ConditionRunStatus.Running;
+            conditionStartedUtc = DateTime.UtcNow;
+            conditionStartTurn = conditionManager.CurrentTurnIndex;
+            WriteEvent(StudyEventType.ConditionStarted, actor: "developer");
+            return true;
+        }
+
+        public bool SubmitGoalCandidate(string goalId, string source, string turnId, string transcript, out string error) =>
+            goalTracker.SubmitGoalCandidate(goalId, source, new GoalEvidence { turnId = turnId, transcript = transcript }, out error);
+
+        public bool ConfirmGoalByExperimenter(string goalId, string experimenterId, string note, out string error) =>
+            goalTracker.ConfirmGoalByExperimenter(goalId, experimenterId, note, out error);
+
+        public bool RejectGoalByExperimenter(string goalId, string experimenterId, string reason, out string error) =>
+            goalTracker.RejectGoal(goalId, experimenterId, reason, out error);
+
+        public bool UndoGoalByExperimenter(string goalId, string experimenterId, string reason, out string error) =>
+            goalTracker.UndoGoal(goalId, experimenterId, reason, out error);
+
+        public bool ShouldEndForLimit(out string reason)
+        {
+            if (maxTurns > 0 && TurnsToCompletion >= maxTurns) { reason = "max_turns"; return true; }
+            if (maxDurationMinutes > 0f && ConditionDurationMs >= maxDurationMinutes * 60000f) { reason = "max_duration"; return true; }
+            reason = string.Empty;
+            return false;
+        }
+
+        public void NotifyTaskLimitReached(string reason)
+        {
+            if (currentCondition == null || currentCondition.status != ConditionRunStatus.Running || goalTracker.AreAllConfirmed) return;
+            CompletionReason = string.IsNullOrWhiteSpace(reason) ? "task_limit" : reason;
+            WriteEvent(StudyEventType.TaskLimitReachedWithoutCompletion, reason: CompletionReason, actor: "system");
+            TaskLimitReached?.Invoke(CompletionReason);
+        }
+
+        public void CompleteTask(string reason, string actor = "experimenter")
+        {
+            if (currentCondition == null || currentCondition.status != ConditionRunStatus.Running) return;
+            if (TechnicalValidity == ExperimentTechnicalValidity.TechnicalInvalid) return;
+            CompletionReason = string.IsNullOrWhiteSpace(reason) ? (goalTracker.AreAllConfirmed ? "all_goals_confirmed" : "experimenter_ended") : reason;
+            currentCondition.status = ConditionRunStatus.TaskCompleted;
+            WriteEvent(StudyEventType.TaskCompleted, reason: CompletionReason, actor: actor);
+            currentCondition.status = ConditionRunStatus.AwaitingQuestionnaire;
+            WriteEvent(StudyEventType.ConditionAwaitingQuestionnaire, reason: CompletionReason, actor: actor);
+            orchestrator?.PauseForQuestionnaireBoundary();
+            QuestionnaireRequested?.Invoke();
+        }
+
+        public bool BeginQuestionnaire(string conditionRunId, string linkageKey, out string error)
+        {
+            if (currentCondition == null || currentCondition.status != ConditionRunStatus.AwaitingQuestionnaire) { error = "condition_not_awaiting_questionnaire"; return false; }
+            if (conditionRunId != ConditionRunId || linkageKey != QuestionnaireLinkageKey) { error = "questionnaire_linkage_mismatch"; return false; }
+            if (TechnicalValidity == ExperimentTechnicalValidity.TechnicalInvalid) { error = "technical_invalid_condition"; return false; }
+            currentCondition.status = ConditionRunStatus.QuestionnaireInProgress;
+            WriteEvent(StudyEventType.QuestionnaireStarted, actor: "participant");
+            error = string.Empty; return true;
+        }
+
+        public bool CompleteQuestionnaireSubmission(string conditionRunId, string linkageKey, out string error, string actor = "participant")
+        {
+            if (!ValidateQuestionnaireSubmission(conditionRunId, linkageKey, out error)) return false;
+            currentCondition.status = ConditionRunStatus.QuestionnaireSubmitted;
+            WriteEvent(StudyEventType.QuestionnaireSubmitted, actor: actor);
+            currentCondition.status = ConditionRunStatus.Completed;
+            WriteEvent(StudyEventType.ConditionCompleted, reason: CompletionReason, actor: actor);
+            if (AllConditionsCompleted()) { assignment.status = AssignmentStatus.Completed; WriteEvent(StudyEventType.AllFormalConditionsCompleted, actor: actor); }
+            QuestionnaireSubmitted?.Invoke();
+            error = string.Empty; return true;
+        }
+
+        public bool ValidateQuestionnaireSubmission(string conditionRunId, string linkageKey, out string error)
+        {
+            if (currentCondition == null || currentCondition.status != ConditionRunStatus.QuestionnaireInProgress) { error = "questionnaire_not_in_progress"; return false; }
+            if (conditionRunId != ConditionRunId || linkageKey != QuestionnaireLinkageKey) { error = "questionnaire_linkage_mismatch"; return false; }
+            if (TechnicalValidity == ExperimentTechnicalValidity.TechnicalInvalid) { error = "technical_invalid_condition"; return false; }
+            error = string.Empty; return true;
+        }
+
+        [Obsolete("Questionnaires must submit through CompleteQuestionnaireSubmission with linkage validation.")]
+        public void CompleteQuestionnaireBoundary(string actor = "experimenter")
+        {
+            if (conditionManager != null && conditionManager.IsFormalExperiment) return;
+            if (currentCondition == null || currentCondition.status != ConditionRunStatus.AwaitingQuestionnaire) return;
+            currentCondition.status = ConditionRunStatus.Completed;
+            WriteEvent(StudyEventType.ConditionCompleted, reason: "developer_legacy_questionnaire_boundary", actor: actor);
+        }
+
+        public void RecordStudyEvent(StudyEventType type, string actor = "system", string reason = "") => WriteEvent(type, actor: actor, reason: reason);
+
+        public void RecordGoalEvaluationEvent(StudyEventType type, string turnId, string goalId,
+            string transcript, float confidence, string evaluatorVersion, string reason,
+            string evaluatorSource = "", long evaluatorLatencyMs = 0)
+        {
+            WriteEvent(type, goalId: goalId, turnId: turnId, actor: "system_goal_evaluator", reason: reason,
+                evidenceTranscript: transcript, confidence: confidence, evaluatorVersion: evaluatorVersion,
+                evaluationReason: reason, evaluatorSource: evaluatorSource, evaluatorLatencyMs: evaluatorLatencyMs);
+        }
+
+        public void MarkTechnicalInvalid(string reason)
+        {
+            if (currentCondition == null) return;
+            currentCondition.status = ConditionRunStatus.TechnicalInvalid;
+            CompletionReason = reason ?? "technical_failure";
+            TechnicalValidity = ExperimentTechnicalValidity.TechnicalInvalid;
+            WriteEvent(StudyEventType.ConditionTechnicalInvalid, reason: CompletionReason, actor: "experimenter", validity: ExperimentTechnicalValidity.TechnicalInvalid);
+        }
+
+        public void Abort(string reason)
+        {
+            if (currentCondition == null) return;
+            currentCondition.status = ConditionRunStatus.Aborted;
+            CompletionReason = reason ?? "aborted";
+            WriteEvent(StudyEventType.ConditionAborted, reason: CompletionReason, actor: "experimenter");
+        }
+
+        public void ResetSession()
+        {
+            goalTracker.ResetGoals(null);
+            recentUserTurns.Clear();
+            conditionStartedUtc = default;
+            conditionStartTurn = 0;
+            CompletionReason = string.Empty;
+            TechnicalValidity = ExperimentTechnicalValidity.Valid;
+            if (!IsDeveloperManualSession) return;
+            assignment = null;
+            currentCondition = null;
+            ConditionRunId = string.Empty;
+            QuestionnaireLinkageKey = string.Empty;
+        }
+
+        public void ClearAssignmentForRuntimeMode()
+        {
+            goalTracker.ResetGoals(null);
+            recentUserTurns.Clear();
+            assignment = null; currentCondition = null; ConditionRunId = string.Empty; QuestionnaireLinkageKey = string.Empty;
+            conditionStartedUtc = default; conditionStartTurn = 0; CompletionReason = string.Empty;
+            TechnicalValidity = ExperimentTechnicalValidity.Valid;
+        }
+
+        public void ClearCurrentConditionBoundary()
+        {
+            goalTracker.ResetGoals(null);
+            recentUserTurns.Clear();
+            currentCondition = null;
+            ConditionRunId = string.Empty;
+            QuestionnaireLinkageKey = string.Empty;
+            conditionStartedUtc = default;
+            conditionStartTurn = 0;
+            CompletionReason = string.Empty;
+            TechnicalValidity = ExperimentTechnicalValidity.Valid;
+            taskCompletionObserved = false;
+        }
+
+        private void OnGoalChanged(GoalProgressRecord goal, string action)
+        {
+            var type = action == "confirmed" ? StudyEventType.GoalConfirmed : action == "rejected" ? StudyEventType.GoalRejected : StudyEventType.GoalCandidateSubmitted;
+            WriteEvent(type, goal.goalId, goal.evidenceTurnId, action == "candidate" ? goal.candidateSource : goal.confirmedBy,
+                goal.rejectionReason, evidenceTranscript: goal.evidenceTranscript, confidence: goal.confidence,
+                evaluatorVersion: goal.evaluatorVersion, evaluationReason: goal.evaluationReason);
+        }
+
+        private void OnAllGoalsConfirmed(GoalProgressChangedEvent value)
+        {
+            if (taskCompletionObserved || value == null || currentCondition?.status != ConditionRunStatus.Running) return;
+            if (!string.Equals(value.conditionRunId, ConditionRunId, StringComparison.Ordinal)
+                || !string.Equals(value.taskAssignmentId, currentCondition.task?.taskAssignmentId, StringComparison.Ordinal)) return;
+            if (TechnicalValidity == ExperimentTechnicalValidity.TechnicalInvalid) return;
+            taskCompletionObserved = true;
+            WriteEvent(StudyEventType.AllGoalsConfirmed, actor: value.actor);
+            CompleteTask("all_goals_confirmed", value.actor == GoalProgressTracker.AutomaticConfirmationActor
+                ? GoalProgressTracker.AutomaticConfirmationActor : "system");
+        }
+
+        private void OnGoalCollectionReset(GoalProgressChangedEvent value)
+        {
+            WriteEvent(StudyEventType.GoalCollectionReset, actor: "system", reason: value?.taskId ?? string.Empty);
+        }
+
+        private void OnGoalStateChanged(GoalProgressChangedEvent value)
+        {
+            if (value == null || !string.Equals(value.conditionRunId, ConditionRunId, StringComparison.Ordinal)) return;
+            WriteEvent(StudyEventType.GoalProgressChanged, goalId: value.goalId, actor: value.actor,
+                reason: $"{value.oldState}->{value.newState};revision={value.revision}");
+            if (value.newState == GoalProgressState.Confirmed && value.actor == GoalProgressTracker.AutomaticConfirmationActor)
+                WriteEvent(StudyEventType.GoalAutoConfirmed, goalId: value.goalId, actor: value.actor,
+                    reason: "policy=automatic_validated_detection");
+        }
+
+        private GoalTrackingContext CreateGoalContext(ExperimentTaskDefinition task) => new GoalTrackingContext
+        {
+            participantId = assignment?.participantId ?? string.Empty,
+            sessionId = assignment?.experimentSessionId ?? string.Empty,
+            conditionRunId = ConditionRunId ?? string.Empty,
+            taskAssignmentId = currentCondition?.task?.taskAssignmentId ?? string.Empty,
+            taskId = task?.taskId ?? string.Empty,
+            confirmationPolicy = assignment != null && (assignment.runQualification == ExperimentRunQualification.Rehearsal
+                || assignment.runQualification == ExperimentRunQualification.Collection)
+                ? GoalConfirmationPolicy.AutomaticOnValidatedDetection
+                : GoalConfirmationPolicy.ExperimenterReview
+        };
+
+        private bool AllConditionsCompleted()
+        {
+            if (assignment?.conditions == null) return false;
+            foreach (var item in assignment.conditions) if (item.status != ConditionRunStatus.Completed) return false;
+            return true;
+        }
+
+        private void WriteEvent(StudyEventType type, string goalId = "", string turnId = "", string actor = "", string reason = "", ExperimentTechnicalValidity validity = ExperimentTechnicalValidity.Valid,
+            string evidenceTranscript = "", float confidence = 0f, string evaluatorVersion = "", string evaluationReason = "",
+            string evaluatorSource = "", long evaluatorLatencyMs = 0)
+        {
+            if (assignment == null) return;
+            var record = new StudyEventRecord
+            {
+                timestampUtc = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture), eventType = type.ToString(), participantId = assignment.participantId,
+                sessionId = assignment.experimentSessionId, conditionRunId = ConditionRunId ?? string.Empty,
+                questionnaireLinkageKey = QuestionnaireLinkageKey ?? string.Empty, sequenceId = assignment.sequenceId,
+                conditionPosition = currentCondition?.conditionPosition ?? -1, formalConditionCode = currentCondition?.formalConditionCode.ToString() ?? string.Empty,
+                runAttempt = currentCondition?.runAttempt ?? 0,
+                taskId = currentCondition?.task?.taskId ?? string.Empty, taskAssignmentId = currentCondition?.task?.taskAssignmentId ?? string.Empty,
+                goalId = goalId ?? string.Empty, turnId = turnId ?? string.Empty, actor = actor ?? string.Empty,
+                reason = reason ?? string.Empty, technicalValidity = validity.ToString(),
+                completedGoalCount = goalTracker.ConfirmedCount, totalGoalCount = goalTracker.Goals.Count,
+                taskCompletionRate = goalTracker.GetCompletionRate(), turnsToCompletion = TurnsToCompletion,
+                conditionDurationMs = ConditionDurationMs, completionReason = CompletionReason ?? string.Empty,
+                runtimeMode = assignment.runtimeMode.ToString(), dataOrigin = assignment.dataOrigin ?? string.Empty,
+                collectionEligible = assignment.collectionEligible, developerTestAssignment = assignment.developerTestAssignment,
+                demoMode = assignment.demoMode, demoProtocolVersion = assignment.demoProtocolVersion ?? string.Empty,
+                autoFilledForDemo = assignment.demoMode && (reason ?? string.Empty).IndexOf("autoFilledForDemo=true", StringComparison.Ordinal) >= 0,
+                flowMode = assignment.flowMode.ToString(), runQualification = assignment.runQualification.ToString(),
+                protocolSnapshotId = assignment.protocolSnapshotId ?? string.Empty, resourceSnapshotId = assignment.resourceSnapshotId ?? string.Empty
+                ,goalConfirmationPolicy = goalTracker.Context.confirmationPolicy.ToString(),
+                formalConditionOrderPolicy = assignment.formalConditionOrderPolicy ?? string.Empty,
+                taskAssignmentPolicy = assignment.taskAssignmentPolicy ?? string.Empty,
+                participantSelectionPosition = currentCondition?.participantSelectionPosition ?? -1
+                ,evidenceTranscript = evidenceTranscript ?? string.Empty, confidence = confidence,
+                evaluatorVersion = evaluatorVersion ?? string.Empty, evaluationReason = evaluationReason ?? string.Empty,
+                evaluatorSource = evaluatorSource ?? string.Empty, evaluatorLatencyMs = evaluatorLatencyMs,
+                deploymentProfile = assignment.deploymentProfile ?? string.Empty,
+                primaryAttemptPolicy = assignment.primaryAttemptPolicy ?? string.Empty
+            };
+            try
+            {
+                var folder = assignment.runQualification == ExperimentRunQualification.Collection && EditorCollectionSessionCoordinator.Active != null
+                    ? EditorCollectionSessionCoordinator.Active.CurrentDataFolder
+                    : assignment.runQualification == ExperimentRunQualification.Rehearsal && RehearsalSessionCoordinator.Active != null
+                    ? RehearsalSessionCoordinator.Active.CurrentDataFolder
+                    : assignment.demoMode && EditorDemoSessionCoordinator.Active != null
+                    ? EditorDemoSessionCoordinator.Active.CurrentDataFolder
+                    : Path.Combine(Application.persistentDataPath, "SceneTalkVR", "ExperimentLogs");
+                Directory.CreateDirectory(folder);
+                File.AppendAllText(Path.Combine(folder, $"{assignment.participantId}_{assignment.experimentSessionId}_study_events_v1.jsonl"),
+                    JsonUtility.ToJson(record) + Environment.NewLine, Encoding.UTF8);
+                var assignmentPath = assignment.runQualification == ExperimentRunQualification.Collection
+                    && EditorCollectionSessionCoordinator.Active != null
+                    ? Path.Combine(EditorCollectionSessionCoordinator.Active.CurrentDataFolder, "formal_assignment.json")
+                    : ExperimentAssignmentAllocator.DefaultPath(assignment.participantId, assignment.experimentSessionId);
+                ExperimentAssignmentAllocator.Save(assignment, assignmentPath);
+            }
+            catch (Exception ex) { Debug.LogWarning($"[Experiment] Study event write failed: {ex.Message}", this); }
+        }
+    }
+}

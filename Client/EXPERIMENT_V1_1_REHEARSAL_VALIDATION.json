@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1.0",
+  "generatedAtUtc": "2026-07-20T14:10:00Z",
+  "baselineCommit": "f31d832225f0026b0cb94e0384658503046c01e4",
+  "branch": "experiment-v1.1-integration",
+  "unity": {
+    "version": "6000.3.16f1",
+    "compile": { "status": "PASS", "errors": 0, "warnings": 10 },
+    "rehearsalEditMode": { "passed": 47, "total": 47 },
+    "rehearsalPlayMode": { "passed": 17, "total": 17 },
+    "projectEditMode": { "passed": 187, "total": 187 },
+    "projectPlayMode": { "passed": 25, "total": 25 },
+    "minimumPlayMode": { "durationSeconds": 10, "runtimeErrors": 0 },
+    "missingReferences": 0,
+    "missingScripts": 0
+  },
+  "python": { "pytest": "PASS", "passed": 38 },
+  "preflight": {
+    "formal": "REHEARSAL_BLOCKED",
+    "pilot": "REHEARSAL_BLOCKED",
+    "sharedBlockers": ["voice_gateway_unreachable:http://127.0.0.1:8787"],
+    "warnings": ["resources_not_collection_approved", "pico_not_validated"]
+  },
+  "liveRun": {
+    "formalCompleteRun": "BLOCKED_EXTERNAL_SERVICE",
+    "pilotCompleteRun": "BLOCKED_EXTERNAL_SERVICE",
+    "reason": "The configured real Voice Gateway on 127.0.0.1:8787 refused connections; real microphone/STT/TTS/LLM execution and real bundle audit were not claimed."
+  }
+}

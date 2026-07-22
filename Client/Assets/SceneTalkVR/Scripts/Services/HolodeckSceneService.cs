@@ -18,6 +18,7 @@ namespace SceneTalkVR.Runtime.Services
         [SerializeField] private bool useLocalBackend = true;
         [SerializeField] private string backendUrl = "http://localhost:8080/generate_scene";
         [SerializeField] private int timeoutSeconds = 300; // Holodeck can be very slow on first run
+        private bool formalModeLocked;
 
         public bool UseLocalBackend => useLocalBackend;
         public string BackendUrl => backendUrl;
@@ -33,8 +34,15 @@ namespace SceneTalkVR.Runtime.Services
             timeoutSeconds = Mathf.Max(1, timeout);
         }
 
+        public void ConfigureFormalModeLock(bool locked)
+        {
+            formalModeLocked = locked;
+            if (locked) useLocalBackend = false;
+        }
+
         public async Task<HolodeckResponse> GenerateLayoutAsync(string environmentDescription)
         {
+            if (formalModeLocked) throw new InvalidOperationException("Formal Mode forbids Holodeck generation.");
             if (!useLocalBackend)
             {
                 Debug.Log($"[HolodeckSceneService] Local backend disabled. Using mock layout for: {environmentDescription}");

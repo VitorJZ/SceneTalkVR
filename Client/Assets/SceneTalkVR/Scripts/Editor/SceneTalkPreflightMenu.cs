@@ -30,6 +30,13 @@ namespace SceneTalkVR.EditorTools
         private const string MainScenePath = "Assets/Scenes/SampleScene.unity";
         private const string ReportPath = "Assets/SceneTalkVR/Docs/VitorPreflightReport.md";
         private const string RuntimeConfigPath = "Assets/SceneTalkVR/RuntimeConfig/SceneTalkRuntimeConfig.asset";
+        private const string ExperimentProtocolPath = "Assets/SceneTalkVR/ExperimentProtocol/ExperimentV11Protocol.asset";
+        private const string ExperimentTaskCatalogPath = "Assets/SceneTalkVR/ExperimentProtocol/ExperimentTaskCatalog.asset";
+        private const string QuestionnaireCatalogPath = "Assets/SceneTalkVR/ExperimentProtocol/ExperimentQuestionnaireCatalog.asset";
+        private const string PilotPresentationCatalogPath = "Assets/SceneTalkVR/ExperimentProtocol/PilotPresentationCatalog.asset";
+        private const string VoiceProfileCatalogPath = "Assets/SceneTalkVR/ExperimentProtocol/ExperimentVoiceProfileCatalog.asset";
+        private const string DeploymentCatalogPath = "Assets/SceneTalkVR/ExperimentProtocol/ExperimentDeploymentCatalog.asset";
+        private const string EditorCollectionResourcePath = "Assets/SceneTalkVR/ExperimentProtocol/ExperimentEditorCollectionResources.asset";
         private const string AndroidPackageName = "com.scenetalkvr.demo";
         private const string PicoOpenXrDefine = "PICO_OPENXR_SDK";
         private const string OpenXrLoaderTypeName = "UnityEngine.XR.OpenXR.OpenXRLoader";
@@ -42,6 +49,13 @@ namespace SceneTalkVR.EditorTools
         [MenuItem("SceneTalkVR/Diagnostics/Run Preflight Check", false, 50)]
         public static void RunPreflightCheck()
         {
+            if (Application.isBatchMode
+                && SceneManager.GetActiveScene().path != MainScenePath
+                && File.Exists(ToAbsolutePath(MainScenePath)))
+            {
+                EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);
+            }
+
             var report = BuildReport();
             WriteReport(report);
             Debug.Log(report);
@@ -185,7 +199,10 @@ namespace SceneTalkVR.EditorTools
             AppendSection(report, "Client Scene");
             AppendCheck(report, File.Exists(ToAbsolutePath(MainScenePath)), $"Main scene exists: `{MainScenePath}`");
             AppendCheck(report, IsSceneInBuildSettings(MainScenePath), "Main scene is included in Build Settings");
+            AppendCheck(report, !EditorBuildSettings.scenes.Any(scene => scene.path.IndexOf("_Recovery/", StringComparison.OrdinalIgnoreCase) >= 0), "Recovery scenes are excluded from Build Settings");
             AppendCheck(report, SceneManager.GetActiveScene().path == MainScenePath, "Active scene is SampleScene");
+            AppendCheck(report, !EditorSceneManager.GetActiveScene().isDirty, "Active scene has no unsaved changes");
+            AppendCheck(report, !HasMissingScriptsInLoadedScene(), "Scene has no missing scripts");
 
             AppendSection(report, "Demo Rig");
             var orchestrators = FindAll<SceneTalkOrchestrator>();
@@ -219,6 +236,13 @@ namespace SceneTalkVR.EditorTools
 
             AppendSection(report, "PICO Real Service Routing");
             var runtimeConfig = AssetDatabase.LoadAssetAtPath<SceneTalkRuntimeConfig>(RuntimeConfigPath);
+            var protocol = AssetDatabase.LoadAssetAtPath<ExperimentV11ProtocolConfig>(ExperimentProtocolPath);
+            var taskCatalog = AssetDatabase.LoadAssetAtPath<ExperimentTaskCatalog>(ExperimentTaskCatalogPath);
+            var questionnaireCatalog = AssetDatabase.LoadAssetAtPath<QuestionnaireCatalog>(QuestionnaireCatalogPath);
+            var pilotPresentations = AssetDatabase.LoadAssetAtPath<PilotPresentationCatalog>(PilotPresentationCatalogPath);
+            var voiceProfiles = AssetDatabase.LoadAssetAtPath<ExperimentVoiceProfileCatalog>(VoiceProfileCatalogPath);
+            var deployments = AssetDatabase.LoadAssetAtPath<ExperimentDeploymentCatalog>(DeploymentCatalogPath);
+            var editorCollectionResources = AssetDatabase.LoadAssetAtPath<EditorCollectionResourceCatalog>(EditorCollectionResourcePath);
             var configAppliers = FindAll<SceneTalkRuntimeConfigApplier>();
             var voiceClients = FindAll<VoiceGatewayClient>();
             var holodeckServices = FindAll<HolodeckSceneService>();
@@ -229,7 +253,121 @@ namespace SceneTalkVR.EditorTools
                 : holodeckServices.FirstOrDefault() != null && holodeckServices.First().UseLocalBackend;
 
             AppendCheck(report, runtimeConfig != null, "SceneTalkRuntimeConfig asset exists");
+            AppendCheck(report, runtimeConfig != null && !EditorUtility.IsDirty(runtimeConfig), "RuntimeConfig asset has no unsaved changes");
+            AppendCheck(report, protocol != null, "Experiment v1.1 protocol asset exists");
+            AppendCheck(report, protocol != null && !EditorUtility.IsDirty(protocol), "Experiment protocol asset has no unsaved changes");
+            AppendCheck(report, experimentManagers.Length == 1 && experimentManagers[0].ExperimentProtocol == protocol, "ExperimentConditionManager is bound to the protocol asset");
+            AppendCheck(report, taskCatalog != null, "Experiment v1.1 Task Catalog asset exists");
+            AppendCheck(report, taskCatalog != null && !EditorUtility.IsDirty(taskCatalog), "Experiment Task Catalog asset has no unsaved changes");
+            AppendCheck(report, experimentManagers.Length == 1 && experimentManagers[0].TaskCatalog == taskCatalog, "ExperimentConditionManager is bound to the Task Catalog asset");
+            var taskCatalogError = taskCatalog == null ? "Task Catalog asset is missing" : string.Empty;
+            var taskCatalogValid = taskCatalog != null && taskCatalog.ValidateFormal(protocol, out taskCatalogError);
+            AppendCheck(report, taskCatalogValid, taskCatalogValid
+                ? "Formal Task Catalog is complete"
+                : $"Formal Task Catalog is blocked: {taskCatalogError}");
+            AppendCheck(report, questionnaireCatalog != null, "Experiment v1.1 Questionnaire Catalog asset exists");
+            AppendCheck(report, questionnaireCatalog != null && !EditorUtility.IsDirty(questionnaireCatalog), "Questionnaire Catalog asset has no unsaved changes");
+            AppendCheck(report, experimentManagers.Length == 1 && experimentManagers[0].QuestionnaireCatalog == questionnaireCatalog, "ExperimentConditionManager is bound to the Questionnaire Catalog asset");
+            var questionnaireError = questionnaireCatalog == null ? "Questionnaire Catalog asset is missing" : string.Empty;
+            var questionnaireValid = questionnaireCatalog != null && questionnaireCatalog.ValidateFormal(protocol, out questionnaireError);
+            AppendCheck(report, questionnaireValid, questionnaireValid
+                ? $"Questionnaire Catalog {questionnaireCatalog.CatalogVersion} is valid; Social Comfort follows protocol decision"
+                : $"Questionnaire Catalog is blocked: {questionnaireError}");
+            var socialValue = string.Empty;
+            var socialConfirmed = protocol != null && protocol.TryGetConfirmedDecision("formal_social_comfort", out socialValue);
+            AppendCheck(report, !socialConfirmed || !string.IsNullOrWhiteSpace(socialValue), socialConfirmed
+                ? $"Social Comfort protocol decision is confirmed as `{socialValue}`"
+                : "Social Comfort remains excluded because `formal_social_comfort` is unconfirmed");
+            AppendCheck(report, questionnaireCatalog?.Find("formal_condition_v1") != null,
+                "AwaitingQuestionnaire resolves to formal_condition_v1");
+
+            AppendSection(report, "Pilot Embodiment Readiness");
+            AppendCheck(report, pilotPresentations != null, "Pilot Presentation Catalog exists");
+            AppendCheck(report, experimentManagers.Length == 1 && experimentManagers[0].PilotPresentationCatalog == pilotPresentations,
+                "ExperimentConditionManager is bound to the Pilot Presentation Catalog");
+            var profiles = pilotPresentations?.Profiles?.Where(x => x != null).ToArray() ?? Array.Empty<PilotPresentationProfile>();
+            AppendCheck(report, profiles.Length == 3 && profiles.Select(x => x.embodimentCondition).Distinct().Count() == 3,
+                "Voice Only, Floating Orb, and Humanoid Agent profiles are unique");
+            var voiceOnly = pilotPresentations?.Find(PilotEmbodimentCondition.VoiceOnly);
+            var orb = pilotPresentations?.Find(PilotEmbodimentCondition.FloatingOrb);
+            var humanoid = pilotPresentations?.Find(PilotEmbodimentCondition.HumanoidAgent);
+            AppendCheck(report, voiceOnly != null && voiceOnly.visualMode == PilotVisualMode.None,
+                "Voice Only is an explicit no-visual condition, not a fallback");
+            AppendCheck(report, orb != null && orb.visualMode == PilotVisualMode.FloatingOrb && !orb.developerPlaceholder,
+                "Floating Orb has a non-placeholder fixed configuration");
+            AppendCheck(report, humanoid != null && humanoid.visualMode == PilotVisualMode.Humanoid && humanoid.visualPrefab != null && !humanoid.developerPlaceholder,
+                "Humanoid Agent has a non-placeholder prefab");
+            AppendCheck(report, profiles.Length == 3 && profiles.Select(x => x.voiceProfileKey).Distinct().Count() == 1,
+                "All Pilot embodiments share one voice profile");
+            var pilotTaskError = taskCatalog == null ? "Task Catalog asset is missing" : string.Empty;
+            var pilotTasksValid = taskCatalog != null && ExperimentTaskCatalog.ValidatePilotTasks(taskCatalog.GetTasks(ExperimentTaskPhase.Pilot).ToArray(), out pilotTaskError);
+            AppendCheck(report, pilotTasksValid, pilotTasksValid ? "Three Pilot restaurant tasks are complete and unique" : $"Pilot tasks blocked: {pilotTaskError}");
+            var pilotDecisionError = protocol == null ? "protocol asset is missing" : string.Empty;
+            var pilotDecisionsValid = protocol != null && protocol.TryResolvePilotDecisions(out _, out _, out pilotDecisionError);
+            AppendCheck(report, pilotDecisionsValid, pilotDecisionsValid ? "Pilot feedback style and Voice Only audio policy are confirmed" : $"Locked Pilot decisions blocked: {pilotDecisionError}");
+            var pilotSequenceError = protocol == null ? "protocol asset is missing" : string.Empty;
+            var pilotSequencesValid = protocol != null
+                && protocol.TryResolvePilotSequences(out var pilotSequences, out pilotSequenceError)
+                && pilotSequences.Length == 3
+                && pilotSequences.All(x => x != null && x.confirmed);
+            AppendCheck(report, pilotSequencesValid, pilotSequencesValid
+                ? "Pilot a/b/c sequence mapping is confirmed in the protocol asset"
+                : $"Pilot a/b/c sequence mapping is blocked: {pilotSequenceError}");
+            AppendCheck(report, questionnaireCatalog?.Find("pilot_condition_v1") != null, "Stage 5 pilot_condition_v1 resolves");
+            AppendCheck(report, questionnaireCatalog?.Find("pilot_final_v1") != null, "Stage 5 pilot_final_v1 resolves");
+            var lockedPilotError = pilotPresentations == null ? "presentation catalog missing" : string.Empty;
+            var lockedPilotValid = pilotPresentations != null && pilotPresentations.ValidateLocked(protocol, out lockedPilotError);
+            AppendCheck(report, lockedPilotValid, lockedPilotValid ? "Locked Pilot has no placeholder or unresolved configuration" : $"Locked Pilot remains blocked: {lockedPilotError}");
+            AppendCheck(report, protocol != null && !string.IsNullOrWhiteSpace(protocol.ProtocolVersion), "Experiment protocol version is non-empty");
+            AppendCheck(report, protocol != null && protocol.FormalModeLocked, "Experiment protocol marks Formal Mode as locked");
+            AppendSection(report, "Stage 7 Research Decisions and Evidence");
+            foreach (var decision in protocol?.RequiredDecisions ?? Array.Empty<ExperimentProtocolDecision>())
+            {
+                var confirmed = decision != null && decision.status == ProtocolDecisionStatus.Confirmed && !string.IsNullOrWhiteSpace(decision.confirmedValue)
+                    && !string.IsNullOrWhiteSpace(decision.confirmedBy) && !string.IsNullOrWhiteSpace(decision.confirmedAtUtc) && !string.IsNullOrWhiteSpace(decision.evidenceReference);
+                AppendCheck(report, confirmed, $"{decision?.decisionId ?? "<null>"}: value=`{decision?.confirmedValue ?? ""}`, confirmedBy=`{decision?.confirmedBy ?? ""}`, evidence=`{decision?.evidenceReference ?? ""}`");
+            }
+            AppendSection(report, "Stage 7 Collection Assets");
+            var dialogueVoiceKeys = taskCatalog?.GetTasks(ExperimentTaskPhase.Formal).Select(x => x.voiceProfileKey) ?? Enumerable.Empty<string>();
+            var voiceError = voiceProfiles == null ? "voice_profile_catalog_missing" : string.Empty;
+            var voiceValid = voiceProfiles != null && voiceProfiles.ValidateForLockedCollection(dialogueVoiceKeys, out voiceError);
+            AppendCheck(report, voiceValid, voiceValid ? "Voice Profile Catalog is approved and complete" : $"Voice profiles blocked: {voiceError}");
+            foreach (var deploymentId in new[] { ExperimentDeploymentProfileId.PicoLab, ExperimentDeploymentProfileId.PicoPortable })
+            {
+                var deploymentError = deployments == null ? "deployment_catalog_missing" : string.Empty;
+                var deploymentValid = deployments != null && deployments.ValidateForCollection(deploymentId, out deploymentError);
+                AppendCheck(report, deploymentValid, deploymentValid ? $"{deploymentId} deployment approved" : $"{deploymentId} blocked: {deploymentError}");
+            }
+            var avatarCatalog = FindAll<AvatarPresetResolver>().FirstOrDefault()?.Catalog;
+            foreach (var task in taskCatalog?.GetTasks(ExperimentTaskPhase.Formal) ?? new System.Collections.Generic.List<ExperimentTaskDefinition>())
+            {
+                var avatarError = avatarCatalog == null ? "avatar_catalog_missing" : string.Empty;
+                var avatarValid = avatarCatalog != null && avatarCatalog.ValidateEditorCollectionPreset(task.avatarPresetKey, out avatarError);
+                AppendCheck(report, avatarValid, avatarValid ? $"{task.taskId} exact formal avatar valid" : $"{task.taskId} avatar blocked: {avatarError}");
+                var texture = Resources.Load<Texture2D>(task.panoramaResourceKey);
+                AppendCheck(report, texture != null && texture.width == texture.height * 2 && texture.width >= 2048, texture == null ? $"{task.taskId} panorama missing" : $"{task.taskId} panorama is collection-grade 2:1 (actual {texture.width}x{texture.height})");
+            }
+            var formalProtocolError = protocol == null ? "protocol asset is missing" : string.Empty;
+            var formalProtocolValid = protocol != null && protocol.ValidateForFormalMode(out formalProtocolError);
+            AppendCheck(report, formalProtocolValid, formalProtocolValid
+                ? "Formal Mode decisions are confirmed"
+                : $"Formal Mode is blocked until protocol decisions are confirmed: {formalProtocolError}");
+            var editorResourceError = editorCollectionResources == null ? "editor_collection_resource_catalog_missing" : string.Empty;
+            var editorResourcesValid = editorCollectionResources != null
+                && editorCollectionResources.Validate(taskCatalog, voiceProfiles, deployments, out editorResourceError);
+            var editorDeploymentError = deployments == null ? "deployment_catalog_missing" : string.Empty;
+            var editorDeploymentValid = deployments != null
+                && deployments.ValidateForCollection(ExperimentDeploymentProfileId.EditorCollection, out editorDeploymentError);
+            AppendSection(report, "Deployment Readiness Summary");
+            AppendCheck(report, formalProtocolValid && taskCatalogValid && questionnaireValid && voiceValid
+                && editorResourcesValid && editorDeploymentValid,
+                formalProtocolValid && taskCatalogValid && questionnaireValid && voiceValid && editorResourcesValid && editorDeploymentValid
+                    ? "Editor Formal Collection: READY"
+                    : $"Editor Formal Collection: BLOCKED ({formalProtocolError};{editorResourceError};{editorDeploymentError})");
+            AppendCheck(report, lockedPilotValid, lockedPilotValid ? "Pilot Collection: READY" : $"Pilot Collection: BLOCKED ({lockedPilotError})");
+            report.AppendLine("- [INFO] PICO Deployment: NOT VALIDATED (does not block Editor Collection)");
             AppendCheck(report, configAppliers.Length >= 1, $"Scene has runtime config applier (found {configAppliers.Length})");
+            AppendCheck(report, HasRequiredSceneReferences(configAppliers, experimentManagers), "Required runtime, protocol, and avatar catalog references are assigned");
             AppendCheck(report, !string.IsNullOrWhiteSpace(effectiveVoiceUrl), "Voice gateway URL is configured");
             AppendCheck(report, !SceneTalkRuntimeConfig.IsLoopbackUrl(effectiveVoiceUrl), $"Voice gateway URL is not localhost for PICO: `{DisplayEndpoint(effectiveVoiceUrl)}`");
             AppendCheck(report, !usesHolodeckBackend || !string.IsNullOrWhiteSpace(effectiveHolodeckUrl), "Holodeck backend URL is configured when backend mode is enabled");
@@ -402,6 +540,11 @@ namespace SceneTalkVR.EditorTools
 
         private static string GetOpenXRFeatureId(OpenXRFeature feature)
         {
+            if (feature == null)
+            {
+                return string.Empty;
+            }
+
             var field = typeof(OpenXRFeature).GetField("featureIdInternal", BindingFlags.Instance | BindingFlags.NonPublic);
             return field?.GetValue(feature) as string ?? string.Empty;
         }
@@ -502,6 +645,41 @@ namespace SceneTalkVR.EditorTools
             }
 
             return false;
+        }
+
+        private static bool HasMissingScriptsInLoadedScene()
+        {
+            foreach (var root in SceneManager.GetActiveScene().GetRootGameObjects())
+            {
+                foreach (var component in root.GetComponentsInChildren<Component>(true))
+                {
+                    if (component == null)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static bool HasRequiredSceneReferences(
+            SceneTalkRuntimeConfigApplier[] configAppliers,
+            ExperimentConditionManager[] experimentManagers)
+        {
+            if (configAppliers.Length == 0 || experimentManagers.Length != 1 || experimentManagers[0].ExperimentProtocol == null)
+            {
+                return false;
+            }
+
+            var resolver = FindAll<AvatarPresetResolver>().FirstOrDefault();
+            if (resolver == null)
+            {
+                return false;
+            }
+
+            var resolverObject = new SerializedObject(resolver);
+            return resolverObject.FindProperty("catalog")?.objectReferenceValue != null;
         }
 
         private static bool EnsureAndroidDefine(string define)

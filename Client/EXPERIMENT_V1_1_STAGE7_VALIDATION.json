@@ -1,0 +1,27 @@
+{
+  "schemaVersion":"1.0",
+  "stage":7,
+  "baseCommit":"eae67af6b0f2fd2dbf55ce1e9cc08222fe9f11ec",
+  "generatedAtUtc":"2026-07-19T03:40:00Z",
+  "overall":"BLOCKED",
+  "editor":{
+    "compilation":{"status":"PASS","errors":0,"warnings":10,"finishedAtUtc":"2026-07-19T03:48:53.6789631Z"},
+    "stage6PostChangeFullEditMode":{"status":"FAIL_TOOLING_SCOPE","passed":176,"failed":2,"total":178,"detail":"Both failures are UnitySkills package NewCapabilitiesTests for invalid play capture duration bounds, not SceneTalkVR tests."},
+    "projectEditMode":{"status":"BLOCKED_UNITYSKILLS_MODE","detail":"Server reverted to Auto; test_run is NeverInSemi and returned MODE_FORBIDDEN."},
+    "playMode":{"status":"BLOCKED_UNITYSKILLS_MODE"},
+    "directedStage3To6":{"status":"BLOCKED_UNITYSKILLS_MODE"},
+    "minimalPlayMode":{"status":"BLOCKED_UNITYSKILLS_MODE"},
+    "preflight":{"status":"BLOCKED_EXPECTED","passedChecks":65,"failedChecks":34,"report":"Assets/SceneTalkVR/Docs/VitorPreflightReport.md","detail":"Formal/Pilot research, Avatar/Humanoid, voice, deployment, panorama and device prerequisites remain explicit failures."},
+    "console":{"status":"PASS","errorCount":0},
+    "missingReferences":{"status":"PASS","issueCount":0,"missingScripts":0,"missingReferences":0}
+  },
+  "mock":{
+    "stage7TestsAuthored":9,
+    "status":"COMPILED_NOT_EXECUTED"
+  },
+  "realServices":{"status":"NOT_RUN","reason":"No approved deployment/voice profiles or controlled LAN service evidence."},
+  "pico":{"status":"BLOCKED_DEVICE_UNAVAILABLE"},
+  "research":{"status":"BLOCKED_PENDING_RESEARCH_INPUT","confirmed":0,"required":11},
+  "assets":{"status":"BLOCKED_PENDING_ASSET","formalAvatarReady":0,"formalAvatarRequired":4,"pilotHumanoidReady":false,"approvedVoiceProfiles":0,"legacyPanoramasNeedingReplacement":3},
+  "releaseCandidate":{"eligible":false,"tagCreated":false}
+}

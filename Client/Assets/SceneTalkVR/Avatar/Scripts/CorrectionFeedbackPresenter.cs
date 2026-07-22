@@ -6,7 +6,7 @@ using UnityEngine;
 namespace SceneTalkVR.AvatarSystem
 {
     [DisallowMultipleComponent]
-    public sealed class CorrectionFeedbackPresenter : MonoBehaviour, ISceneTalkExperimentLockReceiver
+    public sealed class CorrectionFeedbackPresenter : MonoBehaviour, ISceneTalkExperimentLockReceiver, ISceneTalkSessionReset
     {
         private enum TencentVoiceType
         {
@@ -203,24 +203,62 @@ namespace SceneTalkVR.AvatarSystem
                 provider,
                 DialogueAvatarProvider,
                 StringComparison.OrdinalIgnoreCase);
-            var assistantAgentVoiceId = useDialogueAvatar
-                ? null
+            var rehearsal = RehearsalSessionCoordinator.Active;
+            var rehearsalFeedbackVoiceId = rehearsal != null && rehearsal.IsActive
+                ? rehearsal.ResolveVoiceId("rehearsal_feedback_voice") : string.Empty;
+            var assistantAgentVoiceId = useDialogueAvatar ? null
+                : !string.IsNullOrWhiteSpace(rehearsalFeedbackVoiceId) ? rehearsalFeedbackVoiceId
                 : ResolveAssistantAgentVoiceId();
+            var activePilotPresenter = !useDialogueAvatar ? PilotEmbodimentPresenter.Active : null;
+            var activePilotProfile = activePilotPresenter?.Profile;
+            var timing = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include);
+            var resolvedPilotVoiceId = string.Empty;
+            if (activePilotProfile != null && timing?.VoiceProfileCatalog != null
+                && timing.VoiceProfileCatalog.TryGet(activePilotProfile.voiceProfileKey, out var pilotVoiceProfile))
+                resolvedPilotVoiceId = pilotVoiceProfile.voiceId;
+            var actualActor = useDialogueAvatar ? "Avatar" : activePilotProfile?.feedbackActor ?? "Agent";
+            var actualVoice = rehearsal != null && rehearsal.IsActive ? "rehearsal_feedback_voice"
+                : !string.IsNullOrWhiteSpace(activePilotProfile?.voiceProfileKey)
+                ? activePilotProfile.voiceProfileKey
+                : string.IsNullOrWhiteSpace(assistantAgentVoiceId)
+                ? playbackContext.defaultVoiceId
+                : assistantAgentVoiceId;
+            var actualSpeed = activePilotProfile == null ? payload?.avatarRole?.speakingSpeed : activePilotProfile.speakingSpeed.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var actualVolume = activePilotPresenter?.AudioSource == null ? playbackContext.defaultAudioSource == null ? 1f : playbackContext.defaultAudioSource.volume : activePilotPresenter.AudioSource.volume;
             var playbackRequest = new AvatarSpeechPlaybackRequest
             {
                 text = text,
                 logLabel = useDialogueAvatar
                     ? "Correction feedback"
                     : "Assistant correction feedback",
-                voiceIdOverride = assistantAgentVoiceId
+                voiceIdOverride = !string.IsNullOrWhiteSpace(rehearsalFeedbackVoiceId) ? rehearsalFeedbackVoiceId
+                    : !string.IsNullOrWhiteSpace(resolvedPilotVoiceId) ? resolvedPilotVoiceId : assistantAgentVoiceId,
+                preparationStarted = () => timing?.RecordTimingEvent(ExperimentTimingEventType.CorrectionTtsStarted, feedbackText: text),
+                preparationReady = () => timing?.RecordTimingEvent(ExperimentTimingEventType.CorrectionTtsReady, feedbackText: text),
+                playbackStarted = () => timing?.RecordTimingEvent(
+                    ExperimentTimingEventType.CorrectionPlaybackStarted,
+                    actualPlaybackActor: actualActor,
+                    voiceProfile: actualVoice,
+                    speakingSpeed: actualSpeed,
+                    volume: actualVolume,
+                    feedbackText: text),
+                playbackEnded = () => timing?.RecordTimingEvent(
+                    ExperimentTimingEventType.CorrectionPlaybackEnded,
+                    actualPlaybackActor: actualActor,
+                    voiceProfile: actualVoice,
+                    speakingSpeed: actualSpeed,
+                    volume: actualVolume,
+                    feedbackText: text)
             };
 
             AvatarSpeechPlaybackResult playbackResult = null;
             if (useDialogueAvatar)
             {
                 Debug.Log($"[CorrectionFeedbackPresenter] Playing correction feedback via Dialogue Avatar: \"{text}\"");
-                playbackRequest.playbackStarted = beginDialogueAvatarSpeaking;
-                playbackRequest.playbackEnded = endDialogueAvatarSpeaking;
+                var timingStarted = playbackRequest.playbackStarted;
+                var timingEnded = playbackRequest.playbackEnded;
+                playbackRequest.playbackStarted = () => { timingStarted?.Invoke(); beginDialogueAvatarSpeaking?.Invoke(); };
+                playbackRequest.playbackEnded = () => { endDialogueAvatarSpeaking?.Invoke(); timingEnded?.Invoke(); };
                 yield return SpeechPlayer.Play(
                     playbackContext,
                     payload,
@@ -229,14 +267,32 @@ namespace SceneTalkVR.AvatarSystem
             }
             else
             {
+                var pilotPresenter = activePilotPresenter;
+                if (pilotPresenter != null && pilotPresenter.Profile != null)
+                {
+                    playbackRequest.voiceIdOverride = !string.IsNullOrWhiteSpace(rehearsalFeedbackVoiceId)
+                        ? rehearsalFeedbackVoiceId : !string.IsNullOrWhiteSpace(resolvedPilotVoiceId)
+                        ? resolvedPilotVoiceId : pilotPresenter.Profile.voiceProfileKey;
+                    playbackRequest.audioSourceOverride = pilotPresenter.AudioSource;
+                    var timingStarted = playbackRequest.playbackStarted;
+                    var timingEnded = playbackRequest.playbackEnded;
+                    playbackRequest.playbackStarted = () => { timingStarted?.Invoke(); pilotPresenter.BeginFeedback(); PilotWorkflowCoordinator.Active?.RecordFeedback(text, true); };
+                    playbackRequest.playbackEnded = () => { pilotPresenter.EndFeedback(); timingEnded?.Invoke(); PilotWorkflowCoordinator.Active?.RecordFeedback(text, false); };
+                    yield return SpeechPlayer.Play(playbackContext, payload, playbackRequest, value => playbackResult = value);
+                    pilotPresenter.EndFeedback();
+                }
+                else
+                {
                 var correctionAgent = ResolveCorrectionAgentPresenter(createCorrectionAgentIfMissing);
                 if (correctionAgent != null)
                 {
                     Debug.Log($"[CorrectionFeedbackPresenter] Playing correction feedback via Assistant Agent: \"{text}\"");
                     correctionAgent.SetVisible(true);
                     playbackRequest.audioSourceOverride = correctionAgent.AudioSource;
-                    playbackRequest.playbackStarted = correctionAgent.BeginSpeaking;
-                    playbackRequest.playbackEnded = correctionAgent.EndSpeaking;
+                    var timingStarted = playbackRequest.playbackStarted;
+                    var timingEnded = playbackRequest.playbackEnded;
+                    playbackRequest.playbackStarted = () => { timingStarted?.Invoke(); correctionAgent.BeginSpeaking(); };
+                    playbackRequest.playbackEnded = () => { correctionAgent.EndSpeaking(); timingEnded?.Invoke(); };
                     yield return SpeechPlayer.Play(
                         playbackContext,
                         payload,
@@ -262,6 +318,7 @@ namespace SceneTalkVR.AvatarSystem
                             playbackResult.fallbackLevel,
                             "missing_agent");
                     }
+                }
                 }
             }
 
@@ -297,6 +354,8 @@ namespace SceneTalkVR.AvatarSystem
             ResolveCorrectionAgentPresenter(false)?.HideImmediate();
         }
 
+        public void ResetSession() => ResetPresentation();
+
         private bool ShouldPlayCorrectionFeedback(CorrectionFeedbackData feedback)
         {
             if (!playCorrectionFeedback)
@@ -324,6 +383,15 @@ namespace SceneTalkVR.AvatarSystem
 
         private void ApplyAssistantVisibility()
         {
+            // Pilot embodiment presentation owns the shared agent's visibility.  The
+            // generic AssistantAgent policy must not force an Orb into Voice Only or
+            // Humanoid conditions (or keep the Orb visible between Pilot turns).
+            if (PilotWorkflowCoordinator.Active?.Assignment != null)
+            {
+                if (PilotEmbodimentPresenter.Active?.Profile == null)
+                    ResolveCorrectionAgentPresenter(false)?.HideImmediate();
+                return;
+            }
             var shouldShow = ShouldKeepAssistantVisible();
             var correctionAgent = ResolveCorrectionAgentPresenter(
                 shouldShow && createCorrectionAgentIfMissing);

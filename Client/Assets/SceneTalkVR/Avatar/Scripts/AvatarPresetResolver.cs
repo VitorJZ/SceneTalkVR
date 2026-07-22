@@ -7,6 +7,7 @@ namespace SceneTalkVR.AvatarSystem
     public sealed class AvatarPresetResolver : MonoBehaviour
     {
         [SerializeField] private AvatarCatalog catalog;
+        public AvatarCatalog Catalog => catalog;
         public AvatarResolutionResult Resolve(SpringScenePayload payload)
         {
             if (payload == null)
@@ -17,6 +18,15 @@ namespace SceneTalkVR.AvatarSystem
             if (catalog == null)
             {
                 return AvatarResolutionResult.Empty("Avatar catalog is not assigned.");
+            }
+
+            var requestedKey = payload.avatarRole == null ? string.Empty : payload.avatarRole.presetKey;
+            if (!string.IsNullOrWhiteSpace(requestedKey))
+            {
+                var exact = catalog.FindByKey(requestedKey);
+                if (exact != null && exact.IsUsable) return CreateResult(exact, "exact_task_key", string.Empty);
+                if (payload.avatarRole != null && !string.IsNullOrWhiteSpace(payload.avatarRole.presetKey))
+                    return AvatarResolutionResult.Empty($"Task requires unavailable avatar preset '{requestedKey}'.");
             }
 
             var scenarioEntry = catalog.FindByScenarioId(payload.taskType);

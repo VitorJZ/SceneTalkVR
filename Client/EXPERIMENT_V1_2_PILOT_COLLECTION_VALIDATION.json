@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "1.0",
+  "validatedAtUtc": "2026-07-21T00:00:00Z",
+  "branch": "experiment-v1.1-integration",
+  "startingCommit": "1b0fa91c05a8c2d1d0875f9c63b3885500b5e5c0",
+  "unityVersion": "6000.3.16f1",
+  "compile": { "status": "PASS", "consoleErrors": 0 },
+  "sceneValidation": { "status": "PASS", "missingScripts": 0, "missingReferences": 0 },
+  "editMode": { "status": "PASS", "passed": 318, "failed": 0, "jobId": "070b23ad3662411abf1611217aff44bb" },
+  "playMode": { "status": "PASS", "passed": 41, "failed": 0, "jobId": "c64bb9996c764170be7d318857b2245f" },
+  "pythonPytest": { "status": "PASS", "passed": 41, "failed": 0 },
+  "pilotPreflight": { "status": "READY", "blocked": 0 },
+  "manualRun": {
+    "status": "PASS_WITH_CONTROLLED_TRANSCRIPT",
+    "participantId": "PILOT-COLLECTION-VALIDATION-004",
+    "sessionId": "PILOT-VALIDATION-004",
+    "conditions": 3,
+    "tasks": 3,
+    "goalsConfirmed": 12,
+    "questionnaireResponses": 9,
+    "rankingRows": 3,
+    "bundleFiles": 13,
+    "checksum": "PASS",
+    "integrity": "PASS",
+    "liveMicrophoneCloudChainValidated": false,
+    "note": "Unity UI and lifecycle were exercised end-to-end; controlled final-transcript injection replaced live STT/TTS/LLM for deterministic goal completion."
+  },
+  "analysis": {
+    "status": "PASS",
+    "sessions": 1,
+    "assignments": 3,
+    "attempts": 3,
+    "conditionSummaries": 3,
+    "goals": 12,
+    "questionnaireItems": 9,
+    "rankingRows": 3,
+    "turns": 0,
+    "exclusions": 0
+  },
+  "formalRegression": "PASS",
+  "picoValidated": false
+}

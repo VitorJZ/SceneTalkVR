@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "1.0",
+  "taskCatalogVersion": "1.1-stage2.1",
+  "phase": "Pilot",
+  "sharedEnvironment": {
+    "environmentType": "restaurant",
+    "panoramaResourceKey": "SceneTalkVR/Textures/restaurant-360"
+  },
+  "tasks": [
+    {
+      "taskId": "pilot_restaurant_walk_in",
+      "scenarioId": "pilot_restaurant",
+      "displayName": "Walk-in Without Reservation",
+      "context": "Arriving at a restaurant without a reservation and asking whether a table is available.",
+      "goals": ["Explain that you do not have a reservation.", "State the number of diners.", "Ask whether a table is available.", "Ask how long the wait will be."],
+      "initialQuestion": "Good evening! Welcome to Riverside Restaurant. Do you have a reservation?",
+      "avatarRole": "restaurant host"
+    },
+    {
+      "taskId": "pilot_restaurant_ordering",
+      "scenarioId": "pilot_restaurant",
+      "displayName": "Ordering a Meal",
+      "context": "Looking at a restaurant menu and ordering a meal.",
+      "goals": ["Ask for a recommended dish.", "Order one main course.", "Explain a dietary requirement or food restriction.", "Order a drink."],
+      "initialQuestion": "Here is the menu. Would you like a recommendation, or are you ready to order?",
+      "avatarRole": "restaurant server"
+    },
+    {
+      "taskId": "pilot_restaurant_wrong_dish",
+      "scenarioId": "pilot_restaurant",
+      "displayName": "Wrong Dish Problem",
+      "context": "Politely resolving a problem after the restaurant server brings the wrong dish.",
+      "goals": ["Explain that the received dish is incorrect.", "State what was originally ordered.", "Ask for the dish to be replaced.", "Ask how long the replacement will take."],
+      "initialQuestion": "Here is your meal. Is everything all right with your order?",
+      "avatarRole": "restaurant server"
+    }
+  ]
+}

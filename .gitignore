@@ -10,6 +10,9 @@
 [Uu]ser[Ss]ettings/
 [Mm]emoryCaptures/
 
+# Unity crash-recovery scenes are local recovery artifacts, never experiment assets.
+Client/Assets/_Recovery/
+
 # Unity generated files
 *.csproj
 *.sln

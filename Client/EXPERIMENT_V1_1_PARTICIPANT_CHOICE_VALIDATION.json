@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "1.0",
+  "baselineHead": "5344fc12af03a624112f36d98b36cffe433957c7",
+  "unityVersion": "6000.3.16f1",
+  "compile": "PASS",
+  "consoleErrorsAfterCompile": 0,
+  "targetedEditMode": { "total": 19, "passed": 19, "failed": 0 },
+  "targetedPlayMode": { "total": 20, "passed": 20, "failed": 0 },
+  "fullEditMode": { "total": 444, "passed": 444, "failed": 0 },
+  "fullPlayMode": { "total": 28, "passed": 28, "failed": 0 },
+  "rehearsalFormalPreflight": { "blockers": 0, "warnings": 3 },
+  "rehearsalPilotPreflight": { "blockers": 0, "warnings": 2 },
+  "minimumPlayModeSeconds": 10,
+  "checks": {
+    "stableRandomBijection": "PASS",
+    "taskMappingHiddenFromParticipant": "PASS",
+    "participantSelectionPersisted": "PASS",
+    "doubleSelectionGuard": "PASS",
+    "goalRunIdentity": "PASS",
+    "automaticValidatedConfirmation": "PASS",
+    "singleCompletionObserver": "PASS",
+    "questionnaireAutoOpen": "PASS_BLACKBOX_SCREENSHOT",
+    "returnToModeSelection": "PASS_BLACKBOX_SCREENSHOT",
+    "legacyAssignmentNotReinterpreted": "PASS"
+  },
+  "pythonPytest": { "total": 38, "passed": 38, "failed": 0 },
+  "screenshots": {
+    "flow": "QA/RehearsalFlowScreenshots",
+    "panoramaPreviews": "QA/PanoramaPreviews"
+  },
+  "collectionEligible": false,
+  "picoValidated": false
+}

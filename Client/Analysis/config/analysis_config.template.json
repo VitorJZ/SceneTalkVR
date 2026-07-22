@@ -1,0 +1,14 @@
+{
+  "analysisVersion": "1.0",
+  "includeSyntheticForTesting": false,
+  "includeDemoForTesting": false,
+  "requireCollectionEligible": true,
+  "requireIntegrityPass": true,
+  "primaryAttemptPolicy": "latest_valid_completed_attempt",
+  "timingToleranceMs": 0,
+  "includeTranscriptText": false,
+  "includeInterviewTextInAggregate": false,
+  "allowedProtocolVersions": [],
+  "missingRequiredQuestionnaireAction": "exclude_condition",
+  "technicalInvalidAction": "retain_and_flag"
+}

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0",
+  "catalogVersionChanged": false,
+  "reason": "No newly validated panorama was installed",
+  "generatorCapability": "BLOCKED_GENERATOR_NOT_CAPABLE",
+  "assets": [
+    {"resourceKey":"SceneTalkVR/Textures/hotel-lobby-360","width":1024,"height":1024,"sha256":"21f961dde8ac86acb3e40e13fe0cdf609e95cab020ded487a1b33d358ab1bbe4","source":"legacy_unknown","nativeEquirectangularProvenance":false},
+    {"resourceKey":"SceneTalkVR/Textures/furniture-store-360","width":1024,"height":1024,"sha256":"1ff4b5ca3ebeb90ae7015efadcb321346b17a279fe7d655603fc1a1c4ce77e7a","source":"legacy_unknown","nativeEquirectangularProvenance":false},
+    {"resourceKey":"SceneTalkVR/Textures/gym-360","width":1024,"height":1024,"sha256":"500ef95025f9dc84b2644463c486df9d7584e04f55793e111be13717af793fd3","source":"legacy_unknown","nativeEquirectangularProvenance":false},
+    {"resourceKey":"SceneTalkVR/Textures/tourist-information-360","width":2048,"height":1024,"sha256":"a435540c0b0fc76256c61542baf93cfd412641acb1425d5e8822abf577c608cb","source":"legacy_siliconflow_unverified_projection","nativeEquirectangularProvenance":false},
+    {"resourceKey":"SceneTalkVR/Textures/restaurant-360","width":1024,"height":1024,"sha256":"69ce434f73f464df0a99b5c7083f6fd392b9d186bf4ab2c2cd1116c49c1e6a84","source":"legacy_unknown","nativeEquirectangularProvenance":false}
+  ],
+  "requiredImportContract": {"textureType":"Default","shape":"2D","sRGB":true,"alpha":"None","wrap":"Repeat","filter":"Trilinear","mipmaps":true,"maxTextureSize":4096,"androidFormat":"ASTC_6x6","androidMaxTextureSize":4096,"androidCompressionQuality":100}
+}

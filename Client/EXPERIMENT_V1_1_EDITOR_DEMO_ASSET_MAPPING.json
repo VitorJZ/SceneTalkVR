@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "1.0",
+  "mappingVersion": "1.0-editor-demo",
+  "formalAvatarMappings": [
+    {"taskId":"hotel_check_in","requestedKey":"barista_humanoid_v1","resolvedKey":"barista_humanoid_v1","demoPlaceholder":true,"semanticRoleApproved":false},
+    {"taskId":"furniture_shopping","requestedKey":"teacher_humanoid_v1","resolvedKey":"teacher_humanoid_v1","demoPlaceholder":true,"semanticRoleApproved":false},
+    {"taskId":"gym_membership","requestedKey":"barista_male_humanoid_v1","resolvedKey":"barista_male_humanoid_v1","demoPlaceholder":true,"semanticRoleApproved":false},
+    {"taskId":"tourist_assistance","requestedKey":"teacher_female_humanoid_v1","resolvedKey":"teacher_female_humanoid_v1","demoPlaceholder":true,"semanticRoleApproved":false}
+  ],
+  "pilot": {
+    "voiceOnly":{"visual":"none","audioPolicy":"non_spatial_head_locked","spatialBlend":0.0},
+    "floatingOrb":{"visualPrefabKey":"generated_orb_v1","collectionApproved":false},
+    "humanoid":{"visualPrefabKey":"teacher_female_humanoid_v1","demoPlaceholder":true,"collectionApproved":false,"orbFallbackAllowed":false}
+  },
+  "panoramas": [
+    {"taskId":"hotel_check_in","resourceKey":"SceneTalkVR/Textures/hotel-lobby-360","demoAccepted":true,"collectionApproved":false,"knownRisk":"non-standard 1:1"},
+    {"taskId":"furniture_shopping","resourceKey":"SceneTalkVR/Textures/furniture-store-360","demoAccepted":true,"collectionApproved":false,"knownRisk":"non-standard 1:1"},
+    {"taskId":"gym_membership","resourceKey":"SceneTalkVR/Textures/gym-360","demoAccepted":true,"collectionApproved":false,"knownRisk":"non-standard 1:1"},
+    {"taskId":"tourist_assistance","resourceKey":"SceneTalkVR/Textures/tourist-information-360","demoAccepted":true,"collectionApproved":false,"knownRisk":"demo-only 2:1 quality status"}
+  ],
+  "voice": {
+    "catalogVersion":"1.1-editor-demo-v1",
+    "dialogueProfile":"editor_demo_dialogue_voice",
+    "feedbackProfile":"editor_demo_feedback_voice",
+    "provider":"tencent","voiceId":"101050","language":"en-US","speakingSpeed":1.0,"volume":1.0,"pitch":1.0,"sampleRate":24000,
+    "approvedForEditorDemo":true,"approvedForCollection":false,"offlineDemoVoice":false
+  },
+  "deployment": {
+    "profileId":"EditorDemo","target":"UnityEditor","endpointHost":"127.0.0.1","networkRequired":true,
+    "loopbackAllowedForEditorDemo":true,"approvedForEditorDemo":true,"approvedForCollection":false,"collectionAllowed":false
+  }
+}

@@ -39,6 +39,7 @@ namespace SceneTalkVR.Core
         [Header("Panorama Defaults")]
         [SerializeField] private string panoramaModelName = "Tongyi-MAI/Z-Image";
         [SerializeField] private string panoramaImageSize = "1024x1024";
+        [NonSerialized] private bool formalModeRuntimeLock;
 
         public SceneTalkBrainRuntimeMode BrainMode => brainMode;
         public bool UseVoiceGatewaySpeech => useVoiceGatewaySpeech;
@@ -47,12 +48,14 @@ namespace SceneTalkVR.Core
         public bool UseDeveloperTextConsole => useDeveloperTextConsole;
         public string VoiceGatewayBaseUrl => NormalizeUrl(voiceGatewayBaseUrl);
         public bool HasVoiceGatewayBaseUrl => !string.IsNullOrWhiteSpace(VoiceGatewayBaseUrl);
-        public bool UseHolodeckBackend => useHolodeckBackend;
+        public bool UseHolodeckBackend => !formalModeRuntimeLock && useHolodeckBackend;
         public string HolodeckBackendUrl => NormalizeUrl(holodeckBackendUrl);
         public bool HasHolodeckBackendUrl => !string.IsNullOrWhiteSpace(HolodeckBackendUrl);
         public int HolodeckTimeoutSeconds => Mathf.Max(1, holodeckTimeoutSeconds);
-        public bool OnlyUsePanorama => onlyUsePanorama;
-        public bool ForceFallbackPanorama => forceFallbackPanorama;
+        public bool OnlyUsePanorama => formalModeRuntimeLock || onlyUsePanorama;
+        public bool ForceFallbackPanorama => formalModeRuntimeLock || forceFallbackPanorama;
+        public bool IsFormalModeRuntimeLocked => formalModeRuntimeLock;
+        public void ConfigureFormalModeRuntimeLock(bool enabled) => formalModeRuntimeLock = enabled;
         public bool EnableSpatialClipping => enableSpatialClipping;
         public int MaxSpawnCount => Mathf.Max(0, maxSpawnCount);
         public string DirectLlmApiUrl => NormalizeUrl(directLlmApiUrl);

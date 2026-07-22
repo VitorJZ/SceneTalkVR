@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "1.0",
+  "protocolVersion": "1.1.0-stage1",
+  "questionnaireCatalogVersion": "1.1-stage5.1",
+  "participantId": "PILOT-SAMPLE-001",
+  "sessionId": "SESSION-SAMPLE-001",
+  "sequenceId": "test-a-b-c",
+  "questionnaireId": "pilot_final_v1",
+  "rankings": [
+    {"rank": 1, "embodimentCondition": "floating_orb"},
+    {"rank": 2, "embodimentCondition": "humanoid_agent"},
+    {"rank": 3, "embodimentCondition": "voice_only"}
+  ],
+  "preferredEmbodimentCondition": "floating_orb",
+  "reason": "Sample open-ended reason; not participant data.",
+  "submittedAtUtc": "2026-07-19T02:30:00.0000000Z",
+  "sampleOnly": true
+}

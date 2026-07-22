@@ -1,0 +1,60 @@
+{
+  "stage": 3,
+  "protocol": "Experiment v1.1",
+  "baselineCommit": "65746985599236751b7a8dbfe82310816ca92df7",
+  "branch": "experiment-v1.1-integration",
+  "validatedUtc": "2026-07-17T13:00:00Z",
+  "unity": {
+    "version": "6000.3.16f1",
+    "existingEditorOnly": true,
+    "compile": { "status": "passed", "consoleErrors": 0 },
+    "editMode": { "status": "passed", "passed": 286, "failed": 0, "jobId": "89df073ce523463c8e85f52533d2af97" },
+    "stage3FocusedEditMode": { "status": "passed", "passed": 19, "failed": 0, "jobId": "e4ffe1412d3745cc9128b8b1b2deb0c6" },
+    "playMode": { "status": "passed", "passed": 2, "failed": 0, "jobId": "8b6f4e1b15834b949d513db0cff22577" },
+    "minimalPlayMode": { "status": "passed", "consoleErrors": 0 },
+    "preflight": {
+      "status": "expected_blockers_only",
+      "formalProtocolDecisionsBlocked": 5,
+      "formalAvatarPresetsBlocked": 4,
+      "newStage3Errors": 0
+    },
+    "picoClaimed": false
+  },
+  "feedbackFirst": {
+    "NE": "passed_fake_controlled_runtime",
+    "NR": "passed_fake_controlled_runtime",
+    "SE": "passed_fake_controlled_runtime",
+    "SR": "passed_fake_controlled_runtime",
+    "noFeedback": "passed",
+    "preparedDialogueBlocked": "passed",
+    "gateSingleOpen": "passed",
+    "duplicatePlaybackRejected": "passed",
+    "explicitProviderPairHash": "passed",
+    "recastProviderPairHash": "passed",
+    "agentDialogueLeakage": "passed",
+    "plannerTimeout": "passed_fake",
+    "dialogueTimeout": "passed_fake",
+    "correctionTtsFailure": "passed_fake",
+    "dialogueTtsFailure": "passed_fake",
+    "conditionReset": "passed",
+    "monotonicEvents": "passed",
+    "summaryRecomputation": "passed"
+  },
+  "stage2Regression": {
+    "formalCatalog": "passed",
+    "fourTasksOfflineStartup": "passed_playmode",
+    "imageGenerationInFormal": false,
+    "holodeckInFormal": false
+  },
+  "excludedLocalArtifacts": [
+    "Client/Packages/manifest.json",
+    "Client/Packages/packages-lock.json",
+    "Client/.agents/skills/"
+  ],
+  "knownLimitations": [
+    "Formal Mode intentionally remains blocked by five unresolved research decisions.",
+    "Formal task startup intentionally remains blocked by unavailable Avatar presets.",
+    "No PICO validation was performed.",
+    "Cloud-backed four-condition acoustic comparison was not used by automated tests; deterministic fakes isolate timing semantics."
+  ]
+}

@@ -1,0 +1,149 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6f18c731c34e4a31a7d52a780b93f504, type: 3}
+  m_Name: ExperimentV11Protocol
+  m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentV11ProtocolConfig
+  protocolVersion: 1.2.0-editor-collection
+  buildVersion: editor-collection-20260721
+  experimentPhase: 2
+  formalModeLocked: 1
+  protocolPurpose: ParticipantCollection
+  approvedForCollection: 1
+  approvalAuthority: ProjectLead
+  approvalEvidence: formal-editor-collection-directive-v1
+  protocolSnapshotId: protocol-1.2.0-editor-collection
+  formalConditionOrderPolicy: 2
+  formalTaskAssignmentPolicy: random_bijection_without_replacement
+  goalConfirmationPolicy: 1
+  questionnaireTransitionPolicy: 1
+  finalTransitionPolicy: open_final_ranking_after_four_conditions
+  primaryAttemptPolicy: latest_valid_completed_attempt
+  formalConditionCodes:
+  - NE
+  - NR
+  - SE
+  - SR
+  conditionSequenceDefinitions: []
+  formalTaskIds:
+  - hotel_check_in
+  - furniture_shopping
+  - gym_membership
+  - tourist_assistance
+  pilotTaskIds:
+  - pilot_restaurant_walk_in
+  - pilot_restaurant_ordering
+  - pilot_restaurant_wrong_dish
+  pilotEmbodimentOptions:
+  - voice_only
+  - floating_orb
+  - humanoid_agent
+  pilotSequenceDefinitions: []
+  feedbackTimingPolicy: feedback_first_then_dialogue; dialogue TTS may be prepared
+    before the playback gate opens
+  requiredDecisions:
+  - decisionId: condition_letter_mapping
+    question:
+    status: 1
+    confirmedValue: a=NE,b=NR,c=SE,d=SR
+    confirmedBy: ProjectLead
+    confirmedAtUtc: 2026-07-21T04:14:52.7985595Z
+    evidenceReference: formal-editor-collection-directive-v1
+    notes:
+  - decisionId: formal_task_no_replacement
+    question:
+    status: 1
+    confirmedValue: strict_without_replacement
+    confirmedBy: ProjectLead
+    confirmedAtUtc: 2026-07-21T04:14:52.7985595Z
+    evidenceReference: formal-editor-collection-directive-v1
+    notes:
+  - decisionId: formal_social_comfort
+    question:
+    status: 1
+    confirmedValue: excluded
+    confirmedBy: ProjectLead
+    confirmedAtUtc: 2026-07-21T04:14:52.7985595Z
+    evidenceReference: formal-editor-collection-directive-v1
+    notes:
+  - decisionId: pilot_feedback_style
+    question:
+    status: 1
+    confirmedValue: explicit
+    confirmedBy: ProjectLead
+    confirmedAtUtc: 2026-07-21T04:14:52.7985595Z
+    evidenceReference: formal-editor-collection-directive-v1
+    notes:
+  - decisionId: voice_only_spatial_audio
+    question:
+    status: 1
+    confirmedValue: non_spatial_head_locked
+    confirmedBy: ProjectLead
+    confirmedAtUtc: 2026-07-21T04:14:52.7985595Z
+    evidenceReference: formal-editor-collection-directive-v1
+    notes:
+  - decisionId: pilot_sequence_mapping
+    question:
+    status: 1
+    confirmedValue: a=voice_only,b=floating_orb,c=humanoid_agent
+    confirmedBy: ProjectLead
+    confirmedAtUtc: 2026-07-21T04:14:52.7985595Z
+    evidenceReference: formal-editor-collection-directive-v1
+    notes:
+  - decisionId: formal_max_turns
+    question:
+    status: 1
+    confirmedValue: 6
+    confirmedBy: ProjectLead
+    confirmedAtUtc: 2026-07-21T04:14:52.7985595Z
+    evidenceReference: formal-editor-collection-directive-v1
+    notes:
+  - decisionId: formal_max_duration
+    question:
+    status: 1
+    confirmedValue: 10 minutes
+    confirmedBy: ProjectLead
+    confirmedAtUtc: 2026-07-21T04:14:52.7985595Z
+    evidenceReference: formal-editor-collection-directive-v1
+    notes:
+  - decisionId: pilot_max_turns
+    question:
+    status: 1
+    confirmedValue: 5
+    confirmedBy: ProjectLead
+    confirmedAtUtc: 2026-07-21T04:14:52.7985595Z
+    evidenceReference: formal-editor-collection-directive-v1
+    notes:
+  - decisionId: pilot_max_duration
+    question:
+    status: 1
+    confirmedValue: 8 minutes
+    confirmedBy: ProjectLead
+    confirmedAtUtc: 2026-07-21T04:14:52.7985595Z
+    evidenceReference: formal-editor-collection-directive-v1
+    notes:
+  - decisionId: questionnaire_scale_anchors
+    question:
+    status: 1
+    confirmedValue: "1=Strongly disagree / \u975E\u5E38\u4E0D\u540C\u610F;7=Strongly
+      agree / \u975E\u5E38\u540C\u610F"
+    confirmedBy: ProjectLead
+    confirmedAtUtc: 2026-07-21T04:14:52.7985595Z
+    evidenceReference: formal-editor-collection-directive-v1
+    notes:
+  changeLog:
+  - changedAtUtc: 2026-07-21T04:14:52.7985595Z
+    changedBy: ProjectLead
+    previousProtocolVersion: 1.2.0-editor-collection
+    newProtocolVersion: 1.2.0-editor-collection
+    evidenceReference: formal-editor-collection-directive-v1
+    summary: Approved the Unity Editor participant-collection protocol and participant-choice
+      formal flow.

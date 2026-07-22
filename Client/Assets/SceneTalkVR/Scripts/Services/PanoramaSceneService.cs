@@ -40,6 +40,7 @@ namespace SceneTalkVR.Runtime.Services
 
         private GameObject skySphereInstance;
         public Texture2D LastAppliedTexture { get; private set; }
+        private bool formalModeLocked;
 
         public bool ForceUseFallback => forceUseFallback;
 
@@ -56,6 +57,7 @@ namespace SceneTalkVR.Runtime.Services
                 imageSize = runtimeImageSize.Trim();
             }
         }
+        public void ConfigureFormalModeLock(bool locked) => formalModeLocked = locked;
 
         private void Update()
         {
@@ -92,9 +94,12 @@ namespace SceneTalkVR.Runtime.Services
                 }
                 else
                 {
+                    if (formalModeLocked) throw new InvalidOperationException($"Formal Mode requires local panorama '{resourceName}'.");
                     Debug.LogWarning($"[PanoramaSceneService] Fixed local panorama '{resourceName}' not found in Resources. Using fallback.");
                 }
             }
+
+            if (formalModeLocked) throw new InvalidOperationException("Formal Mode forbids online panorama generation and fallback panoramas.");
 
             if (forceUseFallback)
             {
@@ -120,7 +125,7 @@ namespace SceneTalkVR.Runtime.Services
             {
                 // 1. Request generation
                 string imageUrl = await RequestGeneration(effectiveKey, enhancedPrompt);
-                Debug.Log($"[PanoramaSceneService] Image URL received: {imageUrl}");
+                Debug.Log("[PanoramaSceneService] Image generation completed; downloading the generated texture.");
 
                 // 2. Download texture
                 return await DownloadTexture(imageUrl);

@@ -1,0 +1,17 @@
+{
+  "analysisSchemaVersion": "1.0",
+  "analysisVersion": "1.0-test-only",
+  "analysisCodeVersion": "1.0.0",
+  "sourceBundle": "Stage9Evidence/final-sha/SyntheticBundles/stage9-final-sha_formal",
+  "sourceManifestHash": "8ce82114f2a7a0c94f00405d23dc4c8403f59dd4b97ef16b5954b1eded8a2591",
+  "analysisConfigHash": "0ed7881a28864b170d4d90a05120845f1297c02c4fdcdaed7622407773b9fbb7",
+  "outputContentHashExcludingRuntimeMetadata": "bcc4f53c5e803975b253ffa367bb7da49f58318cefb3584b6d77310804a5f776",
+  "dataOrigin": "synthetic_dry_run",
+  "collectionEligible": false,
+  "developerTestAssignment": true,
+  "primaryAttemptPolicy": "TEST_ONLY_LATEST_VALID",
+  "primaryAnalysisGenerated": true,
+  "containsFreeText": false,
+  "restrictedAccess": false,
+  "note": "Example produced only with explicit Synthetic test configuration. Default collection analysis rejects this bundle. Runtime timestamp and absolute paths are intentionally omitted from this sample."
+}

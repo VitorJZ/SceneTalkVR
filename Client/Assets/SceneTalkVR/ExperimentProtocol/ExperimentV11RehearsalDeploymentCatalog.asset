@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d96bab79c29fb79439b971b211928eca, type: 3}
+  m_Name: ExperimentV11RehearsalDeploymentCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentDeploymentCatalog
+  catalogVersion: 1.1-rehearsal-1
+  profiles:
+  - profileId: 5
+    voiceGatewayBaseUrl: http://127.0.0.1:8787
+    requestTimeoutSeconds: 30
+    sttProvider: voice_gateway_live_stt
+    ttsProvider: tencent
+    microphonePolicy: UnityEditor default microphone
+    networkRequired: 1
+    approvedForCollection: 0
+    approvedForEditorDemo: 0
+    loopbackAllowedForEditorDemo: 0
+    approvedForRehearsal: 1
+    loopbackAllowedForRehearsal: 1
+    collectionAllowed: 0
+    target: 0
+    loopbackAllowed: 0
+    picoRequired: 0
+    approvedForEditorCollection: 0
+    evidenceReference: scenetalkvr-rehearsal-baseline-v1

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "1.0",
+  "resourceSnapshotId": "v1.1-rehearsal-1-resources",
+  "approvedForRehearsal": true,
+  "approvedForCollection": false,
+  "formalAvatars": {
+    "hotel_check_in": "barista_humanoid_v1",
+    "furniture_shopping": "teacher_humanoid_v1",
+    "gym_membership": "barista_male_humanoid_v1",
+    "tourist_assistance": "teacher_female_humanoid_v1"
+  },
+  "pilotHumanoidPresetKey": "teacher_female_humanoid_v1",
+  "floatingOrbPrefabKey": "generated_orb_v1",
+  "panoramas": {
+    "hotel_check_in": "SceneTalkVR/Textures/hotel-lobby-360",
+    "furniture_shopping": "SceneTalkVR/Textures/furniture-store-360",
+    "gym_membership": "SceneTalkVR/Textures/gym-360",
+    "tourist_assistance": "SceneTalkVR/Textures/tourist-information-360",
+    "pilot_restaurant": "SceneTalkVR/Textures/restaurant-360"
+  },
+  "voiceProfiles": {
+    "rehearsal_dialogue_voice": { "provider": "tencent", "voiceId": "101050", "sampleRate": 24000 },
+    "rehearsal_feedback_voice": { "provider": "tencent", "voiceId": "101050", "sampleRate": 24000 }
+  },
+  "deployment": {
+    "profileId": "RehearsalEditor",
+    "voiceGatewayBaseUrl": "http://127.0.0.1:8787",
+    "loopbackAllowedForRehearsal": true,
+    "collectionAllowed": false
+  },
+  "knownRisks": [
+    "Formal avatar roles are operational rehearsal mappings and are not collection approved.",
+    "Panorama visual quality is accepted for rehearsal only.",
+    "PICO has not been validated for this resource snapshot."
+  ]
+}

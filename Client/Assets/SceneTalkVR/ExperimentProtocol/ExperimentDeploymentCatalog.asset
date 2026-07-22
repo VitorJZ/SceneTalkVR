@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d96bab79c29fb79439b971b211928eca, type: 3}
+  m_Name: ExperimentDeploymentCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentDeploymentCatalog
+  catalogVersion: 1.2-editor-collection
+  profiles:
+  - profileId: 6
+    voiceGatewayBaseUrl: http://127.0.0.1:8787
+    requestTimeoutSeconds: 30
+    sttProvider: voice_gateway_live_stt
+    ttsProvider: tencent
+    microphonePolicy: UnityEditor default microphone
+    networkRequired: 1
+    approvedForCollection: 1
+    approvedForEditorDemo: 0
+    loopbackAllowedForEditorDemo: 0
+    approvedForRehearsal: 0
+    loopbackAllowedForRehearsal: 0
+    collectionAllowed: 1
+    target: 1
+    loopbackAllowed: 1
+    picoRequired: 0
+    approvedForEditorCollection: 1
+    evidenceReference: formal-editor-collection-directive-v1

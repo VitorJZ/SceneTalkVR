@@ -1,0 +1,452 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4c7590b75c2b47d689fe3a3316a325f1, type: 3}
+  m_Name: ExperimentTaskCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentTaskCatalog
+  catalogVersion: 1.2.1-pilot-collection
+  tasks:
+  - taskId: hotel_check_in
+    scenarioId: hotel_check_in
+    displayName: Hotel Check-In
+    phase: 1
+    context: Checking in at a hotel and confirming accommodation details.
+    goals:
+    - goalId: reservation_name
+      text: Provide the reservation name.
+      evaluationIntent: reservation_name
+      deterministicPatterns:
+      - my name is
+      - booking is under
+      - reservation is under
+      - booked under
+      - the reservation should be in
+      - the booking is under
+      - it should be under the name
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    - goalId: breakfast
+      text: Ask whether breakfast is included.
+      evaluationIntent: breakfast
+      deterministicPatterns:
+      - breakfast included
+      - serve breakfast
+      - time is breakfast
+      - morning meal
+      - does the room price include breakfast
+      - does the room come with breakfast
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    - goalId: higher_floor
+      text: Ask whether a high-floor room can be arranged.
+      evaluationIntent: higher_floor
+      deterministicPatterns:
+      - higher floor
+      - upper floor
+      - room upstairs
+      - tenth floor
+      - put me higher up
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    - goalId: checkout_time
+      text: Ask about the check-out time.
+      evaluationIntent: checkout_time
+      deterministicPatterns:
+      - what time is checkout
+      - checkout time
+      - when do i need to check out
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    initialQuestion: Good afternoon! Welcome to City Hotel. How can I help you today?
+    environmentType: hotel_lobby
+    panoramaResourceKey: SceneTalkVR/Textures/hotel-lobby-360
+    avatarPresetKey: barista_humanoid_v1
+    avatarRole: hotel receptionist
+    voiceProfileKey: editor_collection_dialogue_voice
+    roleplayPrompt: Stay in the hotel check-in task. Do not change scene, avatar,
+      task, or condition.
+    spawnPosition: {x: 0, y: 0, z: 2}
+    spawnRotation: {x: 0, y: 180, z: 0}
+    developerPlaceholderAvatar: 0
+  - taskId: furniture_shopping
+    scenarioId: furniture_shopping
+    displayName: Furniture Shopping
+    phase: 1
+    context: Speaking with a furniture salesperson to purchase a desk.
+    goals:
+    - goalId: desk_size
+      text: Describe the desk size needed.
+      evaluationIntent: desk_size
+      deterministicPatterns:
+      - desk size
+      - dimensions
+      - centimeter
+      - centimeters
+      - 120 by 60
+      - how wide is the desk
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    - goalId: material
+      text: Ask about available materials.
+      evaluationIntent: material
+      deterministicPatterns:
+      - what material
+      - made of
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    - goalId: budget
+      text: State or ask about the maximum budget.
+      evaluationIntent: budget
+      deterministicPatterns:
+      - my budget
+      - spend up to
+      - price limit
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    - goalId: delivery
+      text: Ask whether home delivery is available.
+      evaluationIntent: delivery
+      deterministicPatterns:
+      - home delivery
+      - do you deliver
+      - bring it to my apartment
+      - deliver it to my home
+      - can you send it to my address
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    initialQuestion: Hello! Is there anything in particular you're looking for today?
+    environmentType: furniture_store
+    panoramaResourceKey: SceneTalkVR/Textures/furniture-store-360
+    avatarPresetKey: teacher_humanoid_v1
+    avatarRole: furniture salesperson
+    voiceProfileKey: editor_collection_dialogue_voice
+    roleplayPrompt: Stay in the furniture-shopping task. Do not change scene, avatar,
+      task, or condition.
+    spawnPosition: {x: 0, y: 0, z: 2}
+    spawnRotation: {x: 0, y: 180, z: 0}
+    developerPlaceholderAvatar: 0
+  - taskId: gym_membership
+    scenarioId: gym_membership
+    displayName: Gym Membership
+    phase: 1
+    context: Asking at a gym about membership and a training plan.
+    goals:
+    - goalId: fitness_goal
+      text: Explain a fitness goal.
+      evaluationIntent: fitness_goal
+      deterministicPatterns:
+      - my fitness goal
+      - want to lose weight
+      - want to build muscle
+      - improve my endurance
+      - build strength
+      - get fitter
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    - goalId: monthly_price
+      text: Ask about the monthly membership price.
+      evaluationIntent: monthly_price
+      deterministicPatterns:
+      - monthly membership
+      - per month
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    - goalId: suitable_workout
+      text: Ask about a suitable workout plan.
+      evaluationIntent: suitable_workout
+      deterministicPatterns:
+      - workout plan
+      - training plan
+      - exercise plan
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    - goalId: trial
+      text: Ask whether a free trial is available.
+      evaluationIntent: trial
+      deterministicPatterns:
+      - free trial
+      - trial available
+      - try the gym before joining
+      - test the gym first
+      - trial session
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    initialQuestion: Hi! Welcome to Active Gym. How can I help you today?
+    environmentType: gym
+    panoramaResourceKey: SceneTalkVR/Textures/gym-360
+    avatarPresetKey: barista_male_humanoid_v1
+    avatarRole: gym membership consultant
+    voiceProfileKey: editor_collection_dialogue_voice
+    roleplayPrompt: Stay in the gym-membership task. Do not change scene, avatar,
+      task, or condition.
+    spawnPosition: {x: 0, y: 0, z: 2}
+    spawnRotation: {x: 0, y: 180, z: 0}
+    developerPlaceholderAvatar: 0
+  - taskId: tourist_assistance
+    scenarioId: tourist_assistance
+    displayName: Tourist Assistance
+    phase: 1
+    context: Asking staff at a tourist information point for city-visit information.
+    goals:
+    - goalId: museum_route
+      text: Ask how to reach the city museum.
+      evaluationIntent: museum_route
+      deterministicPatterns:
+      - how do i get to the museum
+      - directions to the museum
+      - best route to the museum
+      - how can i reach the museum
+      - way to the museum
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    - goalId: ticket
+      text: Ask whether a ticket is required.
+      evaluationIntent: ticket
+      deterministicPatterns:
+      - need a ticket
+      - ticket required
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    - goalId: photography
+      text: Ask whether indoor photography is allowed.
+      evaluationIntent: photography
+      deterministicPatterns:
+      - take photos inside
+      - photography allowed
+      - use my camera
+      - take pictures inside
+      - photos allowed indoors
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    - goalId: nearby_attraction
+      text: Ask for another nearby attraction recommendation.
+      evaluationIntent: nearby_attraction
+      deterministicPatterns:
+      - nearby attraction
+      - another attraction
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    initialQuestion: Hello! Welcome to the tourist information center. How can I
+      help you today?
+    environmentType: tourist_information_point
+    panoramaResourceKey: SceneTalkVR/Textures/tourist-information-360
+    avatarPresetKey: teacher_female_humanoid_v1
+    avatarRole: tourist information officer
+    voiceProfileKey: editor_collection_dialogue_voice
+    roleplayPrompt: Stay in the tourist-assistance task. Do not change scene, avatar,
+      task, or condition.
+    spawnPosition: {x: 0, y: 0, z: 2}
+    spawnRotation: {x: 0, y: 180, z: 0}
+    developerPlaceholderAvatar: 0
+  - taskId: pilot_restaurant_walk_in
+    scenarioId: pilot_restaurant
+    displayName: Walk-in Without Reservation
+    phase: 0
+    context: Arriving at a restaurant without a reservation and asking whether a
+      table is available.
+    goals:
+    - goalId: no_reservation
+      text: Explain that you do not have a reservation.
+      evaluationIntent: no_reservation
+      deterministicPatterns:
+      - no reservation
+      - don't have a reservation
+      - do not have a reservation
+      - i did not book a table
+      - i have no booking
+      - we did not make a reservation
+      llmCriteria: Confirm only when the participant says they do not have a reservation.
+      minimumConfidence: 0.85
+    - goalId: party_size
+      text: State the number of diners.
+      evaluationIntent: party_size
+      deterministicPatterns:
+      - there are four of us
+      - party of
+      - people in our group
+      - we are a group of
+      - there are three of us
+      - table for three
+      - table for four
+      - table for two
+      llmCriteria: Confirm only when the participant states the party size.
+      minimumConfidence: 0.85
+    - goalId: table_availability
+      text: Ask whether a table is available.
+      evaluationIntent: table_availability
+      deterministicPatterns:
+      - table available
+      - have a table
+      - any tables
+      llmCriteria: Confirm only when the participant asks about table availability.
+      minimumConfidence: 0.85
+    - goalId: wait_time
+      text: Ask how long the wait will be.
+      evaluationIntent: wait_time
+      deterministicPatterns:
+      - how long is the wait
+      - waiting time
+      - how long do we have to wait
+      llmCriteria: Confirm only when the participant asks about the wait time.
+      minimumConfidence: 0.85
+    initialQuestion: Good evening! Welcome to Riverside Restaurant. Do you have a
+      reservation?
+    environmentType: restaurant
+    panoramaResourceKey: SceneTalkVR/Textures/restaurant-360
+    avatarPresetKey: barista_humanoid_v1
+    avatarRole: restaurant host
+    voiceProfileKey: restaurant_host_en
+    roleplayPrompt: Stay in the walk-in restaurant task. Do not change scene, role,
+      task, feedback style, or embodiment.
+    spawnPosition: {x: 0, y: 0, z: 2}
+    spawnRotation: {x: 0, y: 180, z: 0}
+    developerPlaceholderAvatar: 0
+  - taskId: pilot_restaurant_ordering
+    scenarioId: pilot_restaurant
+    displayName: Ordering a Meal
+    phase: 0
+    context: Looking at a restaurant menu and ordering a meal.
+    goals:
+    - goalId: recommendation
+      text: Ask for a recommended dish.
+      evaluationIntent: recommendation
+      deterministicPatterns:
+      - what do you recommend
+      - recommendation
+      - recommend a dish
+      - suggest something popular
+      - what is good here
+      - what would you recommend
+      llmCriteria: Confirm only when the participant asks for a recommendation.
+      minimumConfidence: 0.85
+    - goalId: main_course
+      text: Order one main course.
+      evaluationIntent: main_course
+      deterministicPatterns:
+      - i'd like the grilled chicken
+      - i would like the grilled chicken
+      - i'll have
+      - i will take the
+      - i would like the
+      - i will have the
+      llmCriteria: Confirm only when the participant orders a main course.
+      minimumConfidence: 0.85
+    - goalId: dietary_restriction
+      text: Explain a dietary requirement or food restriction.
+      evaluationIntent: dietary_restriction
+      deterministicPatterns:
+      - allergic to
+      - don't eat seafood
+      - do not eat seafood
+      - vegetarian
+      - i cannot eat
+      - i am allergic to
+      - i do not eat
+      llmCriteria: Confirm only when the participant states a dietary restriction.
+      minimumConfidence: 0.85
+    - goalId: drink
+      text: Order a drink.
+      evaluationIntent: drink
+      deterministicPatterns:
+      - glass of water
+      - i'd like a drink
+      - i would like a drink
+      - could i get some tea
+      - i would like water
+      - bring me a drink
+      llmCriteria: Confirm only when the participant orders a drink.
+      minimumConfidence: 0.85
+    initialQuestion: Here is the menu. Are you ready to order, or would you like
+      a recommendation?
+    environmentType: restaurant
+    panoramaResourceKey: SceneTalkVR/Textures/restaurant-360
+    avatarPresetKey: barista_humanoid_v1
+    avatarRole: restaurant server
+    voiceProfileKey: restaurant_host_en
+    roleplayPrompt: Stay in the meal-ordering task. Do not change scene, role, task,
+      feedback style, or embodiment.
+    spawnPosition: {x: 0, y: 0, z: 2}
+    spawnRotation: {x: 0, y: 180, z: 0}
+    developerPlaceholderAvatar: 0
+  - taskId: pilot_restaurant_wrong_dish
+    scenarioId: pilot_restaurant
+    displayName: Wrong Dish Problem
+    phase: 0
+    context: Politely resolving a problem after the restaurant server brings the
+      wrong dish.
+    goals:
+    - goalId: wrong_dish
+      text: Explain that the received dish is incorrect.
+      evaluationIntent: wrong_dish
+      deterministicPatterns:
+      - isn't what i ordered
+      - is not what i ordered
+      - wrong dish
+      - somebody else's order
+      - this is not my order
+      - you brought the wrong meal
+      llmCriteria: Confirm only when the participant says the dish is wrong.
+      minimumConfidence: 0.85
+    - goalId: original_order
+      text: State what was originally ordered.
+      evaluationIntent: original_order
+      deterministicPatterns:
+      - i ordered the beef pasta
+      - originally ordered
+      - my order was
+      llmCriteria: Confirm only when the participant states the original order.
+      minimumConfidence: 0.85
+    - goalId: replacement_request
+      text: Ask for the dish to be replaced.
+      evaluationIntent: replacement_request
+      deterministicPatterns:
+      - could you replace it
+      - replace this
+      - bring the correct dish
+      llmCriteria: Confirm only when the participant requests a replacement.
+      minimumConfidence: 0.85
+    - goalId: replacement_wait_time
+      text: Ask how long the replacement will take.
+      evaluationIntent: replacement_wait_time
+      deterministicPatterns:
+      - how long will the replacement take
+      - how long will it take
+      - replacement wait
+      llmCriteria: Confirm only when the participant asks how long replacement will
+        take.
+      minimumConfidence: 0.85
+    initialQuestion: Here is your meal. Is everything all right with your order?
+    environmentType: restaurant
+    panoramaResourceKey: SceneTalkVR/Textures/restaurant-360
+    avatarPresetKey: barista_humanoid_v1
+    avatarRole: restaurant server
+    voiceProfileKey: restaurant_host_en
+    roleplayPrompt: Stay in the wrong-dish resolution task. Do not change scene,
+      role, task, feedback style, or embodiment.
+    spawnPosition: {x: 0, y: 0, z: 2}
+    spawnRotation: {x: 0, y: 180, z: 0}
+    developerPlaceholderAvatar: 0

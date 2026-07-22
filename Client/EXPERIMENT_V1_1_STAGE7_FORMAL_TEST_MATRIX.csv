@@ -1,0 +1,17 @@
+condition,taskId,startup,correctionTurn,noCorrectionTurn,cleanup,blockingStatus,evidence
+NE,hotel_check_in,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,condition mapping and formal avatar/voice/panorama unavailable
+NE,furniture_shopping,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,condition mapping and formal avatar/voice/panorama unavailable
+NE,gym_membership,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,condition mapping and formal avatar/voice/panorama unavailable
+NE,tourist_assistance,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,condition mapping and formal avatar/voice unavailable
+NR,hotel_check_in,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,condition mapping and formal avatar/voice/panorama unavailable
+NR,furniture_shopping,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,condition mapping and formal avatar/voice/panorama unavailable
+NR,gym_membership,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,condition mapping and formal avatar/voice/panorama unavailable
+NR,tourist_assistance,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,condition mapping and formal avatar/voice unavailable
+SE,hotel_check_in,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,condition mapping and formal avatar/voice/panorama unavailable
+SE,furniture_shopping,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,condition mapping and formal avatar/voice/panorama unavailable
+SE,gym_membership,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,condition mapping and formal avatar/voice/panorama unavailable
+SE,tourist_assistance,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,condition mapping and formal avatar/voice unavailable
+SR,hotel_check_in,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,condition mapping and formal avatar/voice/panorama unavailable
+SR,furniture_shopping,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,condition mapping and formal avatar/voice/panorama unavailable
+SR,gym_membership,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,condition mapping and formal avatar/voice/panorama unavailable
+SR,tourist_assistance,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,condition mapping and formal avatar/voice unavailable

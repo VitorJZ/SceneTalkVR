@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0",
+  "protocolVersion": "1.1.0-stage1",
+  "questionnaireCatalogVersion": "1.1-stage5.1",
+  "participantId": "P-DEMO",
+  "sessionId": "S-DEMO",
+  "sequenceId": "test-s1",
+  "questionnaireId": "formal_final_v1",
+  "rankings": [
+    { "rank": 1, "conditionCode": "SE", "embodimentCondition": "" },
+    { "rank": 2, "conditionCode": "NE", "embodimentCondition": "" },
+    { "rank": 3, "conditionCode": "SR", "embodimentCondition": "" },
+    { "rank": 4, "conditionCode": "NR", "embodimentCondition": "" }
+  ],
+  "reason": "Example only: feedback ownership was clearer while dialogue continuity remained acceptable.",
+  "submittedAtUtc": "2026-07-17T15:00:00.0000000Z"
+}

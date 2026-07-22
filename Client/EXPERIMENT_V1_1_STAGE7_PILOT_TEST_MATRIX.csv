@@ -1,0 +1,10 @@
+embodiment,taskId,startup,correctionTurn,questionnaire,ranking,cleanup,blockingStatus,evidence
+voice_only,pilot_restaurant_walk_in,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,pilot mapping/style/audio policy and voice profile unavailable
+voice_only,pilot_restaurant_ordering,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,pilot mapping/style/audio policy and voice profile unavailable
+voice_only,pilot_restaurant_wrong_dish,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,pilot mapping/style/audio policy and voice profile unavailable
+floating_orb,pilot_restaurant_walk_in,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,pilot mapping/style and approved voice profile unavailable
+floating_orb,pilot_restaurant_ordering,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,pilot mapping/style and approved voice profile unavailable
+floating_orb,pilot_restaurant_wrong_dish,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,pilot mapping/style and approved voice profile unavailable
+humanoid_agent,pilot_restaurant_walk_in,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,pilot mapping/style voice and Humanoid unavailable
+humanoid_agent,pilot_restaurant_ordering,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,pilot mapping/style voice and Humanoid unavailable
+humanoid_agent,pilot_restaurant_wrong_dish,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,NOT_RUN,BLOCKED_PENDING_RESEARCH_INPUT;BLOCKED_PENDING_ASSET,pilot mapping/style voice and Humanoid unavailable

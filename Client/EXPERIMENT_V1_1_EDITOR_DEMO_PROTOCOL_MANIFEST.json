@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "1.0",
+  "demoProtocolVersion": "1.1-editor-demo-v1",
+  "protocolPurpose": "EditorDemonstration",
+  "researchApproved": false,
+  "collectionEligible": false,
+  "officialProtocolModified": false,
+  "decisions": [
+    {"decisionId":"condition_letter_mapping","value":"a=NE,b=NR,c=SE,d=SR","status":"DemoApproved"},
+    {"decisionId":"formal_task_no_replacement","value":"strict_without_replacement","status":"DemoApproved"},
+    {"decisionId":"formal_social_comfort","value":"excluded","status":"DemoApproved"},
+    {"decisionId":"pilot_feedback_style","value":"explicit","status":"DemoApproved"},
+    {"decisionId":"voice_only_spatial_audio","value":"non_spatial_head_locked","status":"DemoApproved"},
+    {"decisionId":"pilot_sequence_mapping","value":"a=voice_only,b=floating_orb,c=humanoid_agent","status":"DemoApproved"},
+    {"decisionId":"formal_max_turns","value":"6","status":"DemoApproved"},
+    {"decisionId":"formal_max_duration","value":"10 minutes","status":"DemoApproved"},
+    {"decisionId":"pilot_max_turns","value":"5","status":"DemoApproved"},
+    {"decisionId":"pilot_max_duration","value":"8 minutes","status":"DemoApproved"},
+    {"decisionId":"questionnaire_scale_anchors","value":"1 = Strongly disagree / 非常不同意; 7 = Strongly agree / 非常同意","status":"DemoApproved"}
+  ],
+  "decisionEvidence": {
+    "confirmedBy": "OpenAI project design decision for editor demonstration",
+    "evidenceReference": "editor-demo-protocol-v1",
+    "notes": "Not approved for research collection"
+  },
+  "formalSequences": ["a-b-c-d","b-c-d-a","c-d-a-b","d-a-b-c"],
+  "pilotSequences": ["a-b-c","b-c-a","c-a-b"]
+}

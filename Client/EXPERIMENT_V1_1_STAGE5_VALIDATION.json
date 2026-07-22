@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0",
+  "baselineCommit": "0a490e5cd0cb00f26fdce046ff851f424a7a5906",
+  "branch": "experiment-v1.1-integration",
+  "unityVersion": "6000.3.16f1",
+  "unityInstance": "Client@16ed13d125de1334",
+  "compile": { "passed": true, "consoleErrors": 0 },
+  "editMode": { "passed": 327, "failed": 0, "jobId": "d33055b0cbee442c8b168fe2d41fe3a2" },
+  "stage5Focused": { "passed": 19, "failed": 0, "jobId": "c1ca1b4f0ce74882b898b08989c18f41" },
+  "playMode": { "passed": 4, "failed": 0, "jobId": "ad351678b9f54616aa99fed9901b3269" },
+  "minimalPlayMode": { "mainMenuFound": true, "consoleErrors": 0 },
+  "preflight": {
+    "questionnaireCatalogExists": true,
+    "questionnaireCatalogBound": true,
+    "questionnaireCatalogValid": true,
+    "socialComfortExcludedWhileUnconfirmed": true,
+    "expectedFormalBlockersRemain": ["condition_letter_mapping", "pilot_feedback_style", "voice_only_spatial_audio", "formal_social_comfort", "formal_task_no_replacement", "formal_avatar_presets"]
+  },
+  "stage3TimingSchemaModified": false,
+  "picoValidated": false
+}

@@ -1,0 +1,67 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c92fb9994ad472840871d0e577668e1f, type: 3}
+  m_Name: ExperimentEditorCollectionResources
+  m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.EditorCollectionResourceCatalog
+  resourceSnapshotId: resources-1.2-editor-collection
+  avatarCatalog: {fileID: 11400000, guid: 0ebbc1a5d3f5f4343a2d5d400c37fbf1, type: 2}
+  formalAvatarMappings:
+  - taskId: hotel_check_in
+    requestedPresetKey: barista_humanoid_v1
+    approvedForEditorCollection: 1
+    approvedForCollection: 1
+    replaceableAsset: 1
+  - taskId: furniture_shopping
+    requestedPresetKey: teacher_humanoid_v1
+    approvedForEditorCollection: 1
+    approvedForCollection: 1
+    replaceableAsset: 1
+  - taskId: gym_membership
+    requestedPresetKey: barista_male_humanoid_v1
+    approvedForEditorCollection: 1
+    approvedForCollection: 1
+    replaceableAsset: 1
+  - taskId: tourist_assistance
+    requestedPresetKey: teacher_female_humanoid_v1
+    approvedForEditorCollection: 1
+    approvedForCollection: 1
+    replaceableAsset: 1
+  panoramas:
+  - taskId: hotel_check_in
+    panoramaResourceKey: SceneTalkVR/Textures/hotel-lobby-360
+    equirectangular: 1
+    approvedForEditorCollection: 1
+    approvedForCollection: 1
+    replaceableAsset: 1
+  - taskId: furniture_shopping
+    panoramaResourceKey: SceneTalkVR/Textures/furniture-store-360
+    equirectangular: 1
+    approvedForEditorCollection: 1
+    approvedForCollection: 1
+    replaceableAsset: 1
+  - taskId: gym_membership
+    panoramaResourceKey: SceneTalkVR/Textures/gym-360
+    equirectangular: 1
+    approvedForEditorCollection: 1
+    approvedForCollection: 1
+    replaceableAsset: 1
+  - taskId: tourist_assistance
+    panoramaResourceKey: SceneTalkVR/Textures/tourist-information-360
+    equirectangular: 1
+    approvedForEditorCollection: 1
+    approvedForCollection: 1
+    replaceableAsset: 1
+  splitFeedbackAgentKey: correction_agent_presenter_v1
+  splitFeedbackAgentApprovedForCollection: 1
+  pilotOrbKey: generated_orb_v1
+  pilotHumanoidKey: teacher_female_humanoid_v1
+  pilotResourcesApprovedForCollection: 1

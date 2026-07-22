@@ -1,0 +1,17 @@
+{
+  "matrixSchemaVersion": "1.0",
+  "evidenceCommit": "060889b3a2deede6654f95adbdf3d77a8d06bec3",
+  "protocolVersion": "1.1.0-stage7",
+  "taskCatalogVersion": "1.1.0-stage2",
+  "questionnaireCatalogVersion": "1.1-stage5.1",
+  "authoritativeFormat": "JSON",
+  "evidenceRoot": "Client/Library/SceneTalkVR/Stage9Evidence",
+  "runs": [
+    {"matrixType":"Formal","executionMode":"Synthetic","total":16,"passed":16,"failed":0,"blocked":0,"result":"EXPERIMENT_V1_1_STAGE9_FORMAL_MATRIX_RESULTS.json"},
+    {"matrixType":"Pilot","executionMode":"Synthetic","total":9,"passed":9,"failed":0,"blocked":0,"result":"EXPERIMENT_V1_1_STAGE9_PILOT_MATRIX_RESULTS.json"},
+    {"matrixType":"Formal","executionMode":"LockedCollection","total":16,"passed":0,"failed":0,"blocked":16,"result":"EXPERIMENT_V1_1_STAGE9_LOCKED_FORMAL_MATRIX.json"},
+    {"matrixType":"Pilot","executionMode":"LockedCollection","total":9,"passed":0,"failed":0,"blocked":9,"result":"EXPERIMENT_V1_1_STAGE9_LOCKED_PILOT_MATRIX.json"}
+  ],
+  "participantCollectionReady": false,
+  "releaseCandidateEligible": false
+}

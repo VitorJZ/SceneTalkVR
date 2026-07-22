@@ -1,0 +1,86 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c23b91387570f8746a0d7d2c9ac307b6, type: 3}
+  m_Name: ExperimentV11EditorDemoProtocol
+  m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentV11EditorDemoProtocol
+  demoProtocolVersion: 1.1-editor-demo-v1
+  protocolPurpose: 0
+  researchApproved: 0
+  collectionEligible: 0
+  decisions:
+  - decisionId: condition_letter_mapping
+    value: a=NE,b=NR,c=SE,d=SR
+    status: 0
+    confirmedBy: OpenAI project design decision for editor demonstration
+    evidenceReference: editor-demo-protocol-v1
+    notes: Not approved for research collection
+  - decisionId: formal_task_no_replacement
+    value: strict_without_replacement
+    status: 0
+    confirmedBy: OpenAI project design decision for editor demonstration
+    evidenceReference: editor-demo-protocol-v1
+    notes: Not approved for research collection
+  - decisionId: formal_social_comfort
+    value: excluded
+    status: 0
+    confirmedBy: OpenAI project design decision for editor demonstration
+    evidenceReference: editor-demo-protocol-v1
+    notes: Not approved for research collection
+  - decisionId: pilot_feedback_style
+    value: explicit
+    status: 0
+    confirmedBy: OpenAI project design decision for editor demonstration
+    evidenceReference: editor-demo-protocol-v1
+    notes: Not approved for research collection
+  - decisionId: voice_only_spatial_audio
+    value: non_spatial_head_locked
+    status: 0
+    confirmedBy: OpenAI project design decision for editor demonstration
+    evidenceReference: editor-demo-protocol-v1
+    notes: Not approved for research collection
+  - decisionId: pilot_sequence_mapping
+    value: a=voice_only,b=floating_orb,c=humanoid_agent
+    status: 0
+    confirmedBy: OpenAI project design decision for editor demonstration
+    evidenceReference: editor-demo-protocol-v1
+    notes: Not approved for research collection
+  - decisionId: formal_max_turns
+    value: 6
+    status: 0
+    confirmedBy: OpenAI project design decision for editor demonstration
+    evidenceReference: editor-demo-protocol-v1
+    notes: Not approved for research collection
+  - decisionId: formal_max_duration
+    value: 10 minutes
+    status: 0
+    confirmedBy: OpenAI project design decision for editor demonstration
+    evidenceReference: editor-demo-protocol-v1
+    notes: Not approved for research collection
+  - decisionId: pilot_max_turns
+    value: 5
+    status: 0
+    confirmedBy: OpenAI project design decision for editor demonstration
+    evidenceReference: editor-demo-protocol-v1
+    notes: Not approved for research collection
+  - decisionId: pilot_max_duration
+    value: 8 minutes
+    status: 0
+    confirmedBy: OpenAI project design decision for editor demonstration
+    evidenceReference: editor-demo-protocol-v1
+    notes: Not approved for research collection
+  - decisionId: questionnaire_scale_anchors
+    value: "1 = Strongly disagree / \u975E\u5E38\u4E0D\u540C\u610F; 7 = Strongly
+      agree / \u975E\u5E38\u540C\u610F"
+    status: 0
+    confirmedBy: OpenAI project design decision for editor demonstration
+    evidenceReference: editor-demo-protocol-v1
+    notes: Not approved for research collection

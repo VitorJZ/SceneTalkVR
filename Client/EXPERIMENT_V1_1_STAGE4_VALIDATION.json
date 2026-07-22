@@ -1,0 +1,55 @@
+{
+  "stage": 4,
+  "baselineCommit": "3f1829c436eb1a55f9c2976d972dd3adf512d444",
+  "branch": "experiment-v1.1-integration",
+  "unityVersion": "6000.3.16f1",
+  "existingEditorOnly": true,
+  "compile": { "status": "passed", "consoleErrors": 0 },
+  "editMode": { "status": "passed", "passed": 308, "failed": 0, "jobId": "b60e1eade4664ca39a46868d57d024e1" },
+  "stage4Focused": { "status": "passed", "passed": 22, "failed": 0, "jobId": "181578e68db9420a86e598c699352246" },
+  "playMode": { "status": "passed", "passed": 3, "failed": 0, "jobId": "974c63d37a5940208b75f0689361ce45" },
+  "minimalPlayMode": { "status": "passed", "consoleErrors": 0 },
+  "preflight": {
+    "status": "expected_blockers_only",
+    "unconfirmedResearchDecisions": 5,
+    "missingFormalAvatarPresets": 4,
+    "stage4RegressionErrors": 0
+  },
+  "assignment": {
+    "stableParticipantMapping": "passed",
+    "fourSequencesTestOnly": "passed",
+    "fourConditionsOnce": "passed",
+    "strictWithoutReplacement": "passed",
+    "conditionTaskBalance": "passed_400_participants",
+    "saveRestore": "passed",
+    "versionCompatibility": "passed",
+    "formalUnconfirmedMappingBlocked": "passed",
+    "formalUnconfirmedTaskPolicyBlocked": "passed",
+    "developerAssignmentRejectedByFormal": "passed"
+  },
+  "lifecycleAndGoals": {
+    "twoSequentialConditions": "passed_controlled_unity_components",
+    "boundaryReset": "passed",
+    "freshConditionRunId": "passed",
+    "goalStateReset": "passed",
+    "candidateNotConfirmed": "passed",
+    "experimenterOnlyConfirmation": "passed",
+    "confirmRejectStudyEvents": "passed",
+    "awaitingQuestionnaireBoundary": "passed",
+    "technicalRetryDoesNotOverwrite": "passed",
+    "maxTurnsAndDuration": "passed",
+    "readOnlyVrPanel": "passed_playmode"
+  },
+  "regression": {
+    "stage2FixedTasksOffline": "passed_playmode",
+    "stage3FeedbackFirst": "passed_editmode_and_playmode",
+    "stage3TimingSchemaChanged": false
+  },
+  "formalModeRemainsBlocked": true,
+  "picoClaimed": false,
+  "excludedLocalArtifacts": [
+    "Client/Packages/manifest.json",
+    "Client/Packages/packages-lock.json",
+    "Client/.agents/skills/"
+  ]
+}

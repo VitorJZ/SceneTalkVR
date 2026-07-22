@@ -580,6 +580,8 @@ namespace SceneTalkVR.Runtime
             currentTurn = StartCoroutine(RunFixedTaskStartup(taskId));
         }
 
+        public void LoadAssignedTask(string taskId) => ConfirmFixedTaskSelection(taskId);
+
         private IEnumerator RunFixedTaskStartup(string taskId)
         {
             LastScenePayload = null;
@@ -589,7 +591,41 @@ namespace SceneTalkVR.Runtime
             pendingHistorySessionId = Guid.NewGuid().ToString("N");
             if (manager != null)
             {
-                manager.StartConversation(pendingHistorySessionId, taskId);
+                if (!manager.IsFormalExperiment)
+                {
+                    manager.StartConversation(pendingHistorySessionId, taskId);
+                }
+
+                var definition = manager.TaskCatalog?.Find(taskId);
+                var lifecycle = manager.LifecycleCoordinator;
+                var rehearsalPrepared = RehearsalSessionCoordinator.Active != null
+                    && RehearsalSessionCoordinator.Active.IsTaskPrepared(taskId);
+                var collectionPrepared = EditorCollectionSessionCoordinator.Active != null
+                    && EditorCollectionSessionCoordinator.Active.IsTaskPrepared(taskId);
+                var pilotCollectionPrepared = PilotCollectionSessionCoordinator.Active != null
+                    && PilotCollectionSessionCoordinator.Active.IsTaskPrepared(taskId);
+                var demoPrepared = EditorDemoSessionCoordinator.Active != null
+                    && EditorDemoSessionCoordinator.Active.IsTaskPrepared(taskId);
+                var prepareDeveloperSession = !manager.IsFormalExperiment
+                    && !rehearsalPrepared
+                    && !collectionPrepared
+                    && !demoPrepared
+                    && !pilotCollectionPrepared
+                    && definition != null
+                    && definition.phase == ExperimentTaskPhase.Formal
+                    && lifecycle != null;
+                var assignmentError = string.Empty;
+                var prepared = collectionPrepared || rehearsalPrepared || demoPrepared || pilotCollectionPrepared || (prepareDeveloperSession
+                    ? lifecycle.PrepareDeveloperTaskSession(taskId, out assignmentError)
+                    : manager.LoadAssignedTask(taskId, out assignmentError));
+                if (collectionPrepared || rehearsalPrepared || demoPrepared || pilotCollectionPrepared) assignmentError = string.Empty;
+                if (!prepared)
+                {
+                    LastError = assignmentError;
+                    SetState(SceneTalkState.Error);
+                    currentTurn = null;
+                    yield break;
+                }
             }
             if (brainModule is ISceneTalkSessionReset brainReset)
             {
@@ -625,6 +661,10 @@ namespace SceneTalkVR.Runtime
                 dialogueReply = task.initialQuestion,
                 avatarRole = new AvatarRoleData
                 {
+                    presetKey = task.avatarPresetKey,
+                    voiceProfileKey = task.voiceProfileKey,
+                    spawnPosition = task.spawnPosition,
+                    spawnRotation = task.spawnRotation,
                     role = fallbackRole,
                     speakingSpeed = "medium",
                     accent = "american",
@@ -647,6 +687,24 @@ namespace SceneTalkVR.Runtime
                     layoutObjects = task.fallbackLayoutObjects ?? Array.Empty<LayoutObjectData>()
                 }
             };
+
+            if (EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsFormalDemo)
+            {
+                var demoAvatarKey = EditorDemoSessionCoordinator.Active.ResolveFormalAvatarKey(taskId);
+                if (!string.IsNullOrWhiteSpace(demoAvatarKey)) initialPayload.avatarRole.presetKey = demoAvatarKey;
+            }
+            if (RehearsalSessionCoordinator.Active != null && RehearsalSessionCoordinator.Active.IsFormal)
+            {
+                var rehearsalAvatarKey = RehearsalSessionCoordinator.Active.ResolveFormalAvatarKey(taskId);
+                if (!string.IsNullOrWhiteSpace(rehearsalAvatarKey)) initialPayload.avatarRole.presetKey = rehearsalAvatarKey;
+                initialPayload.avatarRole.voiceProfileKey = "rehearsal_dialogue_voice";
+            }
+            if (EditorCollectionSessionCoordinator.Active != null && EditorCollectionSessionCoordinator.Active.IsArmed)
+            {
+                var collectionAvatarKey = EditorCollectionSessionCoordinator.Active.ResolveFormalAvatarKey(taskId);
+                if (!string.IsNullOrWhiteSpace(collectionAvatarKey)) initialPayload.avatarRole.presetKey = collectionAvatarKey;
+                initialPayload.avatarRole.voiceProfileKey = "editor_collection_dialogue_voice";
+            }
 
             ApplyExperimentConditionToPayload(initialPayload);
             LastScenePayload = initialPayload;
@@ -817,10 +875,41 @@ namespace SceneTalkVR.Runtime
             ReturnToInitialMenu();
         }
 
+        public void PauseForQuestionnaireBoundary()
+        {
+            finishRequested = true;
+            CancelActiveSpeechCapture();
+            if (currentTurn != null)
+            {
+                StopCoroutine(currentTurn);
+                currentTurn = null;
+            }
+            IsSpeechRecording = false;
+            IsDialogueActive = false;
+            activeSpeechCaptureMode = SpeechCaptureMode.None;
+            IsAwaitingTurnReviewAction = false;
+            ClearCorrectionReviewState();
+            foreach (var module in FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (module == this || module is ExperimentLifecycleCoordinator || module is QuestionnaireRuntimeController
+                    || module is PilotWorkflowCoordinator) continue;
+                if (module is ISceneTalkSessionReset reset) reset.ResetSession();
+            }
+            foreach (var source in FindObjectsByType<AudioSource>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (source != null && source.isPlaying) source.Stop();
+            SetState(SceneTalkState.TurnReview);
+        }
+
         public void ReturnToInitialMenu()
         {
             finishRequested = true;
-            ResolveExperimentConditionManager(false)?.RecordUserAction("exit");
+            var manager = ResolveExperimentConditionManager(false);
+            manager?.RecordUserAction("exit");
+            var lifecycle = manager?.LifecycleCoordinator;
+            if (lifecycle?.CurrentConditionAssignment?.status == ConditionRunStatus.Running)
+            {
+                lifecycle.Abort("participant_exit");
+            }
             CancelActiveSpeechCapture();
 
             if (currentTurn != null)
@@ -851,6 +940,27 @@ namespace SceneTalkVR.Runtime
             CurrentHistoryPage = null;
             HistoryErrorMessage = string.Empty;
 
+            manager?.ResetConditionSessionBoundary();
+
+            SetState(SceneTalkState.Idle);
+        }
+
+        public void ResetForConditionSelection()
+        {
+            finishRequested = true;
+            CancelActiveSpeechCapture();
+            if (currentTurn != null) { StopCoroutine(currentTurn); currentTurn = null; }
+            LastTranscript = string.Empty;
+            LastScenePayload = null;
+            LastError = string.Empty;
+            ClearCorrectionReviewState();
+            IsDialogueActive = false;
+            IsSpeechRecording = false;
+            activeSpeechCaptureMode = SpeechCaptureMode.None;
+            ClearPresentedSceneIfSupported();
+            AvatarSessionReset?.ClearAvatar();
+            if (brainModule is ISceneTalkSessionReset brainReset) brainReset.ResetSession();
+            ResolveExperimentConditionManager(false)?.ResetConditionSessionBoundary();
             SetState(SceneTalkState.Idle);
         }
 
@@ -1005,6 +1115,7 @@ namespace SceneTalkVR.Runtime
 
             CompleteSpeechCaptureState();
             ResolveExperimentConditionManager(false)?.CompleteRecording();
+            ResolveExperimentConditionManager(false)?.RecordTimingEvent(ExperimentTimingEventType.UserSpeechEnded);
             RecordSpeechMetadataHelper(transcript);
 
             if (HandleErrorOrFinish(error, "Speech input failed."))
@@ -1127,6 +1238,7 @@ namespace SceneTalkVR.Runtime
 
             CompleteSpeechCaptureState();
             ResolveExperimentConditionManager(false)?.CompleteRecording();
+            ResolveExperimentConditionManager(false)?.RecordTimingEvent(ExperimentTimingEventType.UserSpeechEnded);
             RecordSpeechMetadataHelper(transcript);
 
             if (HandleErrorOrFinish(error, "Speech input failed."))
@@ -1137,6 +1249,10 @@ namespace SceneTalkVR.Runtime
 
             LastTranscript = transcript;
             RefreshUi();
+            var goalManager = ResolveExperimentConditionManager(false);
+            GoalEvaluationOrchestrator.StartActiveTaskGoalEvaluation(this,
+                goalManager?.LifecycleCoordinator, PilotWorkflowCoordinator.Active,
+                goalManager?.CurrentTurnId, transcript);
             SetState(SceneTalkState.Processing);
             AvatarReplyContext?.SetReplyContext(false);
             AvatarThinkingState?.SetThinking(true);
@@ -1525,6 +1641,13 @@ namespace SceneTalkVR.Runtime
 
         private bool ValidateGenerationModules()
         {
+            var experimentManager = ResolveExperimentConditionManager(false);
+            if (experimentManager != null && !experimentManager.ValidateFormalProtocol(out var protocolError))
+            {
+                EnterError($"Formal experiment protocol is invalid: {protocolError}");
+                return false;
+            }
+
             if (Brain == null)
             {
                 EnterError("Brain module is missing or does not implement ISceneTalkBrain.");
@@ -1729,6 +1852,11 @@ namespace SceneTalkVR.Runtime
         private void EnterTurnReviewState()
         {
             ResolveExperimentConditionManager(false)?.CompleteActiveTurn();
+            var lifecycle = ResolveExperimentConditionManager(false)?.LifecycleCoordinator;
+            if (lifecycle != null && lifecycle.ShouldEndForLimit(out var limitReason))
+            {
+                lifecycle.NotifyTaskLimitReached(limitReason);
+            }
             IsAwaitingTurnReviewAction = false;
             if (string.IsNullOrWhiteSpace(LastCorrectionStatus))
             {
@@ -1966,23 +2094,39 @@ namespace SceneTalkVR.Runtime
                 string brainError = null;
 
                 string accumulatedSubtitle = string.Empty;
-                yield return streamingBrain.GenerateSceneAndReplyStreaming(
-                    transcript,
-                    sentence => {
+                Action<string> sentenceReady = sentence => {
                         streamingVoice.EnqueueSentence(sentence);
                         accumulatedSubtitle += (string.IsNullOrEmpty(accumulatedSubtitle) ? "" : " ") + sentence;
                         if (replyLabel != null)
                         {
                             replyLabel.text = $"Avatar: {accumulatedSubtitle}";
                         }
-                    },
-                    payload => {
+                    };
+                Action<SpringScenePayload> generationComplete = payload => {
                         finalPayload = payload;
-                    },
-                    err => {
+                    };
+                Action<string> generationError = err => {
                         brainError = err;
-                    }
-                );
+                    };
+
+                if (streamingBrain is ISceneTalkFeedbackFirstStreamingBrain feedbackFirstBrain
+                    && streamingVoice is ISceneTalkFeedbackFirstStreamingAvatarVoice feedbackFirstVoice)
+                {
+                    yield return feedbackFirstBrain.GenerateFeedbackFirstStreaming(
+                        transcript,
+                        feedbackFirstVoice.ResolveCorrectionPlan,
+                        sentenceReady,
+                        generationComplete,
+                        generationError);
+                }
+                else
+                {
+                    yield return streamingBrain.GenerateSceneAndReplyStreaming(
+                        transcript,
+                        sentenceReady,
+                        generationComplete,
+                        generationError);
+                }
 
                 streamingVoice.SignalStreamingComplete();
 
@@ -2015,8 +2159,9 @@ namespace SceneTalkVR.Runtime
                 string dialogueContinuation = payload.dialogueReply;
                 string recastText = (payload.correctionFeedback != null) ? payload.correctionFeedback.recastText : string.Empty;
                 
-                string correctionRequestStartTime = System.DateTime.UtcNow.ToString("o");
-                string dialogueRequestStartTime = System.DateTime.UtcNow.ToString("o");
+                // Compatibility columns remain empty; the event JSONL is the authoritative clock.
+                string correctionRequestStartTime = string.Empty;
+                string dialogueRequestStartTime = string.Empty;
 
                 string firstTokenTime = (realLLM != null && realLLM.LastFirstTokenLatencyMs >= 0) 
                     ? realLLM.LastFirstTokenLatencyMs.ToString("F2") : "n/a";
@@ -2058,16 +2203,15 @@ namespace SceneTalkVR.Runtime
                 }
 
                 string correctionVoiceId = string.Empty;
-                string actualPlaybackSubject = "Avatar";
+                string actualPlaybackSubject = string.Empty;
                 if (hasCorrection && payload.correctionFeedback != null)
                 {
                     actualPlaybackSubject = (payload.correctionFeedback.provider == "assistant_agent") ? "Agent" : "Avatar";
-                    correctionVoiceId = (payload.correctionFeedback.provider == "assistant_agent") ? "WeJames" : "TencentVoice";
                 }
 
-                string timeoutReason = "none";
-                string fallbackReason = "none";
-                string failureReason = "none";
+                string timeoutReason = string.Empty;
+                string fallbackReason = voiceModule?.LastCorrectionPlaybackResult?.outcome ?? string.Empty;
+                string failureReason = voiceModule?.LastCorrectionPlaybackResult?.errorCode ?? string.Empty;
 
                 expManager.RecordDetailMetrics(
                     dialogueContinuation,

@@ -8,7 +8,15 @@ using UnityEngine.Serialization;
 
 namespace SceneTalkVR.AvatarSystem
 {
-    public sealed class AvatarPresentationVoiceModule : MonoBehaviour, ISceneTalkStreamingAvatarVoice, ISceneTalkAvatarReplyContext, ISceneTalkAvatarThinkingState, ISceneTalkAvatarSessionReset, ISceneTalkAvatarSessionPrepare, ISceneTalkCorrectionFeedbackProviderReceiver, ISceneTalkCorrectionAssistantEmbodimentReceiver
+    public sealed class AvatarPresentationVoiceModule : MonoBehaviour,
+        ISceneTalkFeedbackFirstStreamingAvatarVoice,
+        ISceneTalkAvatarReplyContext,
+        ISceneTalkAvatarThinkingState,
+        ISceneTalkAvatarSessionReset,
+        ISceneTalkAvatarSessionPrepare,
+        ISceneTalkCorrectionFeedbackProviderReceiver,
+        ISceneTalkCorrectionAssistantEmbodimentReceiver,
+        ISceneTalkSessionReset
     {
         [Header("Avatar Resolution")]
         [SerializeField] private AvatarPresetResolver resolver;
@@ -149,6 +157,29 @@ namespace SceneTalkVR.AvatarSystem
             }
         }
 
+        public void ResetSession()
+        {
+            ClearAvatar();
+            streamingSentenceQueue.Clear();
+            while (streamingPreparedQueue.Count > 0) streamingPreparedQueue.Dequeue()?.Release();
+            isStreamingFinished = true;
+            isStreamingPlaying = false;
+            isPreparingStream = false;
+            isDialogueGateOpen = false;
+            wasAnySentenceEnqueued = false;
+            correctionPlanResolvedEarly = false;
+            earlyCorrectionPlaying = false;
+            earlyCorrectionError = string.Empty;
+            feedbackFirstGate.Reset();
+            var source = BuildSpeechPlaybackContext().defaultAudioSource;
+            if (source != null)
+            {
+                source.Stop();
+                source.clip = null;
+            }
+            ResolveCorrectionFeedbackPresenter(false)?.ResetPresentation();
+        }
+
         public IEnumerator PresentReply(SpringScenePayload payload, Action onComplete, Action<string> onError)
         {
             if (payload == null)
@@ -174,52 +205,6 @@ namespace SceneTalkVR.AvatarSystem
                 correctionPresenter.SetPresentationActive(true);
             }
 
-            // If streaming was already used to play dialogue in real-time, just present correction and wait
-            if (isDialogueGateOpen && (isStreamingPlaying || (isStreamingFinished && streamingBasePayload != null)))
-            {
-                // Ensure avatar is loaded first if it is the first turn and wasn't loaded in PrepareStreaming
-                if (currentAvatar == null)
-                {
-                    string avatarLoadError = string.Empty;
-                    yield return EnsureAvatar(payload, msg => avatarLoadError = msg);
-                    isAvatarLoadingFinished = true;
-                    if (!string.IsNullOrEmpty(avatarLoadError) && !allowVoiceFallbackOnAvatarFailure)
-                    {
-                        onError?.Invoke(avatarLoadError);
-                        yield break;
-                    }
-                }
-                else
-                {
-                    isAvatarLoadingFinished = true;
-                }
-
-                // Wait for the streaming dialogue audio to finish speaking completely
-                while (isStreamingPlaying)
-                {
-                    yield return new WaitForSeconds(0.1f);
-                }
-
-                // Add a small natural pause between Avatar speech and Assistant Agent feedback
-                yield return new WaitForSeconds(0.5f);
-
-                var strPresenter = correctionPresenter
-                    ?? ResolveCorrectionFeedbackPresenter(createCorrectionFeedbackPresenterIfMissing);
-                if (strPresenter != null && payload.correctionFeedback != null && payload.correctionFeedback.hasFeedback)
-                {
-                    strPresenter.SetPresentationActive(true);
-                    yield return strPresenter.Present(
-                        payload,
-                        BuildSpeechPlaybackContext(),
-                        () => { }, // Do not trigger speaking animation
-                        () => { },
-                        value => LastCorrectionPlaybackResult = value);
-                }
-
-                onComplete?.Invoke();
-                yield break;
-            }
-
             var avatarError = string.Empty;
             if (isOpeningReply || currentAvatar == null)
             {
@@ -238,11 +223,33 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             // 1. Play Correction Feedback first (if any)
-            LastCorrectionPlaybackResult = null;
-            bool hasCorrection = payload.correctionFeedback != null && payload.correctionFeedback.hasFeedback;
-
-            if (hasCorrection && correctionPresenter != null)
+            while (earlyCorrectionPlaying)
             {
+                yield return null;
+            }
+            if (!string.IsNullOrWhiteSpace(earlyCorrectionError))
+            {
+                onError?.Invoke(earlyCorrectionError);
+                yield break;
+            }
+            if (!correctionPlanResolvedEarly)
+            {
+                LastCorrectionPlaybackResult = null;
+            }
+            if (!correctionPlanResolvedEarly && feedbackFirstGate.State != FeedbackFirstTurnState.Planning)
+            {
+                feedbackFirstGate.Reset();
+                isDialogueGateOpen = false;
+            }
+            bool hasCorrection = payload.correctionFeedback != null && payload.correctionFeedback.hasFeedback;
+            if (!correctionPlanResolvedEarly)
+            {
+                feedbackFirstGate.PlannerResolved(hasCorrection);
+            }
+
+            if (!correctionPlanResolvedEarly && hasCorrection && correctionPresenter != null)
+            {
+                feedbackFirstGate.FeedbackStarted();
                 LastCorrectionPlayStart = Time.realtimeSinceStartup;
                 correctionPresenter.SetPresentationActive(true);
                 yield return correctionPresenter.Present(
@@ -253,10 +260,24 @@ namespace SceneTalkVR.AvatarSystem
                     value => LastCorrectionPlaybackResult = value);
                 LastCorrectionPlayEnd = Time.realtimeSinceStartup;
 
+                var correctionFailed = LastCorrectionPlaybackResult == null
+                    || !string.Equals(LastCorrectionPlaybackResult.outcome, "played", StringComparison.OrdinalIgnoreCase);
+                var formalMode = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)?.IsFormalExperiment == true;
+                if (correctionFailed && formalMode)
+                {
+                    feedbackFirstGate.MarkTechnicalInvalid(LastCorrectionPlaybackResult?.errorCode ?? "correction_playback_failed");
+                    FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)
+                        ?.MarkTurnTechnicalInvalid("CorrectionPlayback", feedbackFirstGate.InvalidReason);
+                    onError?.Invoke(feedbackFirstGate.InvalidReason);
+                    yield break;
+                }
+
+                feedbackFirstGate.FeedbackEnded();
+
                 // Add a small natural pause (0.5 seconds) between Correction and Dialogue
                 yield return new WaitForSeconds(0.5f);
             }
-            else if (hasCorrection)
+            else if (!correctionPlanResolvedEarly && hasCorrection)
             {
                 LastCorrectionPlaybackResult = new CorrectionPlaybackResult
                 {
@@ -264,9 +285,21 @@ namespace SceneTalkVR.AvatarSystem
                     outcome = "failed",
                     errorCode = "presenter_missing"
                 };
+                var formalMode = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)?.IsFormalExperiment == true;
+                if (formalMode)
+                {
+                    feedbackFirstGate.MarkTechnicalInvalid("presenter_missing");
+                    FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)
+                        ?.MarkTurnTechnicalInvalid("CorrectionPlayback", "presenter_missing");
+                    onError?.Invoke("Correction feedback presenter is missing.");
+                    yield break;
+                }
+
+                feedbackFirstGate.FeedbackStarted();
+                feedbackFirstGate.FeedbackEnded();
             }
 
-            if (LastCorrectionPlaybackResult != null)
+            if (!correctionPlanResolvedEarly && LastCorrectionPlaybackResult != null)
             {
                 CorrectionPlaybackCompleted?.Invoke(LastCorrectionPlaybackResult);
             }
@@ -282,6 +315,14 @@ namespace SceneTalkVR.AvatarSystem
                 while (isStreamingPlaying || streamingPreparedQueue.Count > 0 || streamingSentenceQueue.Count > 0)
                 {
                     yield return new WaitForSeconds(0.1f);
+                }
+                if (!string.IsNullOrWhiteSpace(streamingError))
+                {
+                    feedbackFirstGate.MarkTechnicalInvalid(streamingError);
+                    FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)
+                        ?.MarkTurnTechnicalInvalid("DialoguePlayback", streamingError);
+                    onError?.Invoke(streamingError);
+                    yield break;
                 }
             }
             else
@@ -300,17 +341,37 @@ namespace SceneTalkVR.AvatarSystem
                     {
                         text = payload.dialogueReply,
                         logLabel = "Avatar reply",
-                        playbackStarted = () => BeginSpeechAnimation(isOpeningReply),
-                        playbackEnded = EndSpeechAnimation
+                        preparationStarted = RecordDialogueTtsStarted,
+                        preparationReady = RecordDialogueTtsReady,
+                        playbackStarted = () =>
+                        {
+                            feedbackFirstGate.DialogueStarted();
+                            RecordDialoguePlaybackEvent(ExperimentTimingEventType.DialoguePlaybackStarted);
+                            BeginSpeechAnimation(isOpeningReply);
+                        },
+                        playbackEnded = () =>
+                        {
+                            EndSpeechAnimation();
+                            feedbackFirstGate.DialogueEnded();
+                            RecordDialoguePlaybackEvent(ExperimentTimingEventType.DialoguePlaybackEnded);
+                        }
                     },
                     value => replyResult = value);
 
                 SetThinking(false);
                 EndSpeechAnimation();
 
-                if (replyResult != null && !string.IsNullOrWhiteSpace(replyResult.error))
+                var formalDialogueFallback = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)?.IsFormalExperiment == true
+                    && replyResult != null
+                    && !string.IsNullOrWhiteSpace(replyResult.fallbackLevel)
+                    && !string.Equals(replyResult.fallbackLevel, "none", StringComparison.OrdinalIgnoreCase);
+                if (replyResult != null && (!string.IsNullOrWhiteSpace(replyResult.error) || formalDialogueFallback))
                 {
-                    onError?.Invoke(replyResult.error);
+                    var dialogueFailure = !string.IsNullOrWhiteSpace(replyResult.error) ? replyResult.error : replyResult.fallbackLevel;
+                    feedbackFirstGate.MarkTechnicalInvalid(dialogueFailure);
+                    FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)
+                        ?.MarkTurnTechnicalInvalid("DialoguePlayback", dialogueFailure);
+                    onError?.Invoke(dialogueFailure);
                     yield break;
                 }
             }
@@ -370,6 +431,8 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             var resolution = resolver.Resolve(payload);
+            FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)
+                ?.RecordAvatarResolution(resolution == null ? string.Empty : resolution.avatarKey, resolution == null ? "resolver_null" : resolution.fallbackLevel);
             if (resolution == null || !resolution.HasPreset)
             {
                 onError?.Invoke(resolution == null ? "Avatar resolver returned null." : resolution.fallbackReason);
@@ -390,6 +453,7 @@ namespace SceneTalkVR.AvatarSystem
             var parent = avatarRoot != null ? avatarRoot : transform;
 
             AlignAvatarRootToPlacementAnchor();
+            ApplyFixedTaskPlacement(payload, parent);
 
             yield return loader.LoadAvatar(
                 resolution,
@@ -413,6 +477,18 @@ namespace SceneTalkVR.AvatarSystem
             Debug.Log(
                 $"[SceneTalkVR] Avatar resolved: key={resolution.avatarKey}, score={resolution.score}, fallback={resolution.fallbackLevel}",
                 this);
+        }
+
+        private static void ApplyFixedTaskPlacement(SpringScenePayload payload, Transform parent)
+        {
+            var role = payload == null ? null : payload.avatarRole;
+            if (parent == null || role == null || string.IsNullOrWhiteSpace(role.voiceProfileKey))
+            {
+                return;
+            }
+
+            parent.position = role.spawnPosition;
+            parent.rotation = Quaternion.Euler(role.spawnRotation);
         }
 
         private AvatarSpeechPlaybackContext BuildSpeechPlaybackContext()
@@ -738,8 +814,14 @@ namespace SceneTalkVR.AvatarSystem
         private string streamingError = null;
         private SpringScenePayload streamingBasePayload;
         private bool isDialogueGateOpen = false;
+        private readonly FeedbackFirstPlaybackGate feedbackFirstGate = new FeedbackFirstPlaybackGate();
         private bool isPreparingStream = false;
         private bool wasAnySentenceEnqueued = false;
+        private bool dialogueTtsStartedLogged;
+        private bool dialogueTtsReadyLogged;
+        private bool correctionPlanResolvedEarly;
+        private bool earlyCorrectionPlaying;
+        private string earlyCorrectionError;
 
         public float LastTtsReadyLatencyMs { get; private set; } = -1f;
         public float LastCorrectionPlayStart { get; private set; } = -1f;
@@ -789,9 +871,15 @@ namespace SceneTalkVR.AvatarSystem
             streamingError = null;
             streamingBasePayload = null;
             isDialogueGateOpen = false;
+            feedbackFirstGate.Reset();
             isPreparingStream = false;
             wasAnySentenceEnqueued = false;
             isAvatarLoadingFinished = false;
+            dialogueTtsStartedLogged = false;
+            dialogueTtsReadyLogged = false;
+            correctionPlanResolvedEarly = false;
+            earlyCorrectionPlaying = false;
+            earlyCorrectionError = string.Empty;
 
             LastTtsReadyLatencyMs = -1f;
             LastCorrectionPlayStart = -1f;
@@ -825,7 +913,98 @@ namespace SceneTalkVR.AvatarSystem
 
         public void OpenDialogueGate()
         {
-            isDialogueGateOpen = true;
+            var wasOpen = feedbackFirstGate.IsDialogueGateOpen;
+            if (!wasOpen && feedbackFirstGate.State == FeedbackFirstTurnState.Planning)
+            {
+                // Backward-compatible streaming callers do not expose a planner callback.
+                // Treat their explicit gate request as a resolved no-feedback plan.
+                feedbackFirstGate.PlannerResolved(false);
+            }
+            else if (!wasOpen)
+            {
+                feedbackFirstGate.OpenDialogueGate();
+            }
+
+            if (!wasOpen && feedbackFirstGate.IsDialogueGateOpen)
+            {
+                FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)
+                    ?.RecordTimingEvent(ExperimentTimingEventType.DialogueGateOpened);
+            }
+            isDialogueGateOpen = feedbackFirstGate.IsDialogueGateOpen;
+        }
+
+        public void ResolveCorrectionPlan(CorrectionFeedbackData feedback)
+        {
+            if (correctionPlanResolvedEarly) return;
+            correctionPlanResolvedEarly = true;
+            var payload = streamingBasePayload ?? new SpringScenePayload();
+            payload.correctionFeedback = feedback ?? new CorrectionFeedbackData { hasFeedback = false };
+            streamingBasePayload = payload;
+            feedbackFirstGate.PlannerResolved(payload.correctionFeedback.hasFeedback);
+            if (!payload.correctionFeedback.hasFeedback)
+            {
+                OpenDialogueGate();
+                return;
+            }
+            earlyCorrectionPlaying = true;
+            StartCoroutine(PresentEarlyCorrection(payload));
+        }
+
+        private IEnumerator PresentEarlyCorrection(SpringScenePayload payload)
+        {
+            var presenter = ResolveCorrectionFeedbackPresenter(createCorrectionFeedbackPresenterIfMissing);
+            if (presenter == null)
+            {
+                LastCorrectionPlaybackResult = new CorrectionPlaybackResult
+                {
+                    provider = payload?.correctionFeedback?.provider ?? string.Empty,
+                    outcome = "failed",
+                    errorCode = "presenter_missing"
+                };
+                var formalMode = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)?.IsFormalExperiment == true;
+                if (formalMode)
+                {
+                    earlyCorrectionError = "presenter_missing";
+                    feedbackFirstGate.MarkTechnicalInvalid(earlyCorrectionError);
+                    FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)
+                        ?.MarkTurnTechnicalInvalid("CorrectionPlayback", earlyCorrectionError);
+                }
+                else
+                {
+                    feedbackFirstGate.FeedbackStarted();
+                    feedbackFirstGate.FeedbackEnded();
+                }
+                CorrectionPlaybackCompleted?.Invoke(LastCorrectionPlaybackResult);
+                earlyCorrectionPlaying = false;
+                yield break;
+            }
+
+            feedbackFirstGate.FeedbackStarted();
+            LastCorrectionPlayStart = Time.realtimeSinceStartup;
+            presenter.SetPresentationActive(true);
+            yield return presenter.Present(
+                payload,
+                BuildSpeechPlaybackContext(),
+                () => BeginSpeechAnimation(false),
+                EndSpeechAnimation,
+                value => LastCorrectionPlaybackResult = value);
+            LastCorrectionPlayEnd = Time.realtimeSinceStartup;
+            var formal = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)?.IsFormalExperiment == true;
+            var correctionFailed = LastCorrectionPlaybackResult == null
+                || !string.Equals(LastCorrectionPlaybackResult.outcome, "played", StringComparison.OrdinalIgnoreCase);
+            if (formal && correctionFailed)
+            {
+                earlyCorrectionError = LastCorrectionPlaybackResult?.errorCode ?? "correction_playback_failed";
+                feedbackFirstGate.MarkTechnicalInvalid(earlyCorrectionError);
+                FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)
+                    ?.MarkTurnTechnicalInvalid("CorrectionPlayback", earlyCorrectionError);
+            }
+            else
+            {
+                feedbackFirstGate.FeedbackEnded();
+            }
+            CorrectionPlaybackCompleted?.Invoke(LastCorrectionPlaybackResult);
+            earlyCorrectionPlaying = false;
         }
 
         private IEnumerator EnsureAvatarCoroutine(SpringScenePayload payload)
@@ -858,7 +1037,9 @@ namespace SceneTalkVR.AvatarSystem
                     new AvatarSpeechPlaybackRequest
                     {
                         text = sentence,
-                        logLabel = $"Streaming sentence: {sentence}"
+                        logLabel = $"Streaming sentence: {sentence}",
+                        preparationStarted = RecordDialogueTtsStarted,
+                        preparationReady = RecordDialogueTtsReady
                     },
                     value => prepared = value);
 
@@ -897,6 +1078,8 @@ namespace SceneTalkVR.AvatarSystem
                 if (LastDialoguePlayStart < 0f)
                 {
                     LastDialoguePlayStart = Time.realtimeSinceStartup;
+                    feedbackFirstGate.DialogueStarted();
+                    RecordDialoguePlaybackEvent(ExperimentTimingEventType.DialoguePlaybackStarted);
                 }
 
                 BeginSpeechAnimation(isOpeningReply);
@@ -913,17 +1096,53 @@ namespace SceneTalkVR.AvatarSystem
                     prepared,
                     value => replyResult = value);
 
-                if (replyResult != null && !string.IsNullOrEmpty(replyResult.error))
+                var formalFallback = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)?.IsFormalExperiment == true
+                    && replyResult != null
+                    && !string.IsNullOrWhiteSpace(replyResult.fallbackLevel)
+                    && !string.Equals(replyResult.fallbackLevel, "none", StringComparison.OrdinalIgnoreCase);
+                if (replyResult != null && (!string.IsNullOrEmpty(replyResult.error) || formalFallback))
                 {
-                    streamingError = replyResult.error;
+                    streamingError = !string.IsNullOrWhiteSpace(replyResult.error) ? replyResult.error : replyResult.fallbackLevel;
                     break;
                 }
             }
 
             LastDialoguePlayEnd = Time.realtimeSinceStartup;
+            if (feedbackFirstGate.State == FeedbackFirstTurnState.DialogueSpeaking)
+            {
+                feedbackFirstGate.DialogueEnded();
+                RecordDialoguePlaybackEvent(ExperimentTimingEventType.DialoguePlaybackEnded);
+            }
             isStreamingPlaying = false;
             SetThinking(false);
             EndSpeechAnimation();
+        }
+
+        private void RecordDialogueTtsStarted()
+        {
+            if (dialogueTtsStartedLogged) return;
+            dialogueTtsStartedLogged = true;
+            FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)
+                ?.RecordTimingEvent(ExperimentTimingEventType.DialogueTtsStarted);
+        }
+
+        private void RecordDialogueTtsReady()
+        {
+            if (dialogueTtsReadyLogged) return;
+            dialogueTtsReadyLogged = true;
+            FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)
+                ?.RecordTimingEvent(ExperimentTimingEventType.DialogueFirstTtsReady);
+        }
+
+        private void RecordDialoguePlaybackEvent(ExperimentTimingEventType eventType)
+        {
+            var context = BuildSpeechPlaybackContext();
+            FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)
+                ?.RecordTimingEvent(
+                    eventType,
+                    actualPlaybackActor: "Avatar",
+                    voiceProfile: context.defaultVoiceId,
+                    volume: context.defaultAudioSource == null ? 1f : context.defaultAudioSource.volume);
         }
 
         #endregion

@@ -1,0 +1,19 @@
+{
+  "participantId": "stage4_test_participant",
+  "experimentSessionId": "stage4_test_session",
+  "sequenceId": "test-s1",
+  "assignmentSeed": "6ad42f10",
+  "assignmentVersion": "1.0",
+  "protocolVersion": "1.1.0-stage1",
+  "taskCatalogVersion": "1.1.0-stage2",
+  "createdAtUtc": "2026-07-17T14:00:00Z",
+  "policy": 1,
+  "status": 0,
+  "developerTestAssignment": true,
+  "conditions": [
+    { "conditionPosition": 0, "formalConditionCode": 0, "task": { "taskId": "hotel_check_in", "taskAssignmentId": "ta-6ad42f10-0" }, "status": 0, "latestConditionRunId": "", "runAttempt": 0 },
+    { "conditionPosition": 1, "formalConditionCode": 1, "task": { "taskId": "furniture_shopping", "taskAssignmentId": "ta-6ad42f10-1" }, "status": 0, "latestConditionRunId": "", "runAttempt": 0 },
+    { "conditionPosition": 2, "formalConditionCode": 2, "task": { "taskId": "gym_membership", "taskAssignmentId": "ta-6ad42f10-2" }, "status": 0, "latestConditionRunId": "", "runAttempt": 0 },
+    { "conditionPosition": 3, "formalConditionCode": 3, "task": { "taskId": "tourist_assistance", "taskAssignmentId": "ta-6ad42f10-3" }, "status": 0, "latestConditionRunId": "", "runAttempt": 0 }
+  ]
+}

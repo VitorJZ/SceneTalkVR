@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "1.0",
+  "resourceSnapshot": "ExperimentEditorCollectionResources.asset",
+  "deployment": {
+    "profileId": "editor_collection",
+    "target": "UnityEditor",
+    "endpoint": "127.0.0.1:8787",
+    "loopbackAllowed": true,
+    "approvedForCollection": true,
+    "picoRequired": false
+  },
+  "voice": {
+    "voiceId": "101050",
+    "language": "en-US",
+    "sampleRate": 24000,
+    "dialogueProfile": "editor_collection_dialogue_voice",
+    "feedbackProfile": "editor_collection_feedback_voice"
+  },
+  "formalTasks": {
+    "hotel_check_in": { "avatarPresetKey": "barista_humanoid_v1", "panoramaResourceKey": "SceneTalkVR/Textures/hotel-lobby-360", "panoramaSize": "2048x1024" },
+    "furniture_shopping": { "avatarPresetKey": "teacher_humanoid_v1", "panoramaResourceKey": "SceneTalkVR/Textures/furniture-store-360", "panoramaSize": "2048x1024" },
+    "gym_membership": { "avatarPresetKey": "barista_male_humanoid_v1", "panoramaResourceKey": "SceneTalkVR/Textures/gym-360", "panoramaSize": "2048x1024" },
+    "tourist_assistance": { "avatarPresetKey": "teacher_female_humanoid_v1", "panoramaResourceKey": "SceneTalkVR/Textures/tourist-information-360", "panoramaSize": "2048x1024" }
+  },
+  "pilot": {
+    "voice_only": { "visual": "none", "audio": "non_spatial_head_locked" },
+    "floating_orb": { "visualPrefabKey": "generated_orb_v1" },
+    "humanoid_agent": { "visualPrefabKey": "teacher_female_humanoid_v1" }
+  },
+  "approval": { "approvedForEditorCollection": true, "approvedForCollection": true, "replaceableAsset": true },
+  "panoramaGeneration": {
+    "mode": "built-in Codex imagegen skill",
+    "resampling": "uniform Lanczos resize from true 2:1 generated source; no square-image stretch",
+    "promptSummary": "Photorealistic empty true 360 equirectangular 2:1 interiors for a hotel lobby, furniture store and gym reception, seamless left/right boundary, no text or people."
+  }
+}

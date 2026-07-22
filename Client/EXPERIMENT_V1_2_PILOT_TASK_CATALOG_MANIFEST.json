@@ -1,0 +1,12 @@
+{
+  "catalogVersion": "1.2.1-pilot-collection",
+  "phase": "pilot",
+  "tasks": [
+    {"taskId":"pilot_restaurant_walk_in","openingQuestion":"Good evening! Welcome to Riverside Restaurant. Do you have a reservation?","goals":["no_reservation","party_size","table_availability","wait_time"]},
+    {"taskId":"pilot_restaurant_ordering","openingQuestion":"Here is the menu. Are you ready to order, or would you like a recommendation?","goals":["recommendation","main_course","dietary_restriction","drink"]},
+    {"taskId":"pilot_restaurant_wrong_dish","openingQuestion":"Here is your meal. Is everything all right with your order?","goals":["wrong_dish","original_order","replacement_request","replacement_wait_time"]}
+  ],
+  "sharedEnvironment": "restaurant_360_local",
+  "dialogueAvatarMapping": "pilot_restaurant_dialogue_avatar",
+  "compatibility": "Existing sessions read their persisted task/protocol snapshot; new sessions use this catalog version."
+}

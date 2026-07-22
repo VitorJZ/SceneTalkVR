@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1.0",
+  "catalogVersion": "1.1-stage5.1",
+  "scales": [
+    {"sectionId":"role_clarity","displayName":"Role Clarity","itemIds":["formal_rc_01","formal_rc_02"],"reverseItemIds":[]},
+    {"sectionId":"conversation_continuity","displayName":"Conversation Continuity","itemIds":["formal_cc_01","formal_cc_02","formal_cc_03"],"reverseItemIds":["formal_cc_02"]},
+    {"sectionId":"interest_enjoyment","displayName":"Interest / Enjoyment","itemIds":["formal_ie_01","formal_ie_02","formal_ie_03","formal_ie_04","formal_ie_05"],"reverseItemIds":["formal_ie_02"]},
+    {"sectionId":"pressure_tension","displayName":"Pressure / Tension","itemIds":["formal_pt_01","formal_pt_02"],"reverseItemIds":["formal_pt_01"]},
+    {"sectionId":"learning_support","displayName":"Learning Support","itemIds":["formal_ls_01","formal_ls_02","formal_ls_03","formal_ls_04"],"reverseItemIds":[]},
+    {"sectionId":"social_comfort","displayName":"Social Comfort","itemIds":["formal_social_01","formal_social_02","formal_social_03"],"reverseItemIds":["formal_social_02","formal_social_03"],"protocolDecisionDependency":"formal_social_comfort"},
+    {"sectionId":"acceptance","displayName":"Pilot Acceptance","itemIds":["pilot_accept_01"],"reverseItemIds":[]}
+  ]
+}

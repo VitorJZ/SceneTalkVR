@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0",
+  "catalogVersion": "1.1-stage5.1",
+  "asset": "Assets/SceneTalkVR/ExperimentProtocol/ExperimentQuestionnaireCatalog.asset",
+  "formalCondition": {
+    "questionnaireId": "formal_condition_v1",
+    "enabledItemCount": 16,
+    "sections": { "role_clarity": 2, "conversation_continuity": 3, "interest_enjoyment": 5, "pressure_tension": 2, "learning_support": 4 },
+    "scale": { "min": 1, "max": 7 },
+    "reverseItems": ["formal_cc_02", "formal_ie_02", "formal_pt_01"]
+  },
+  "socialComfort": { "itemCount": 3, "enabledByDefault": false, "protocolDecisionDependency": "formal_social_comfort" },
+  "pilot": { "questionnaireId": "pilot_condition_v1", "embodiments": ["voice_only", "floating_orb", "humanoid_agent"] },
+  "formalFinal": { "questionnaireId": "formal_final_v1", "rankingLabels": ["NE", "NR", "SE", "SR"] },
+  "pilotFinal": { "questionnaireId": "pilot_final_v1", "rankingLabels": ["voice_only", "floating_orb", "humanoid_agent"] },
+  "interview": { "questionnaireId": "formal_interview_v1", "entryMode": "experimenter" }
+}

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "1.0",
+  "protocolVersion": "1.2.0-editor-collection",
+  "protocolPurpose": "ParticipantCollection",
+  "approvedForCollection": true,
+  "approvalAuthority": "ProjectLead",
+  "approvalEvidence": "formal-editor-collection-directive-v1",
+  "formalConditionOrderPolicy": "participant_choice",
+  "formalTaskAssignmentPolicy": "random_bijection_without_replacement",
+  "goalConfirmationPolicy": "automatic_validated_detection",
+  "questionnaireTransitionPolicy": "return_to_mode_selection",
+  "finalTransitionPolicy": "open_final_ranking_after_four_conditions",
+  "primaryAttemptPolicy": "latest_valid_completed_attempt",
+  "formalConditions": ["NE", "NR", "SE", "SR"],
+  "formalTasks": ["hotel_check_in", "furniture_shopping", "gym_membership", "tourist_assistance"],
+  "decisions": {
+    "condition_letter_mapping": "a=NE,b=NR,c=SE,d=SR",
+    "formal_task_no_replacement": "strict_without_replacement",
+    "formal_social_comfort": "excluded",
+    "pilot_feedback_style": "explicit",
+    "voice_only_spatial_audio": "non_spatial_head_locked",
+    "pilot_sequence_mapping": "a=voice_only,b=floating_orb,c=humanoid_agent",
+    "formal_max_turns": "6",
+    "formal_max_duration": "10 minutes",
+    "pilot_max_turns": "5",
+    "pilot_max_duration": "8 minutes",
+    "questionnaire_scale_anchors": "1=Strongly disagree / 非常不同意;7=Strongly agree / 非常同意"
+  },
+  "decisionStatus": "Confirmed",
+  "confirmedBy": "ProjectLead",
+  "evidenceReference": "formal-editor-collection-directive-v1"
+}

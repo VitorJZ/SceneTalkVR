@@ -1,0 +1,5 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<project-test-results schema-version="1.1" commit="060889b3a2deede6654f95adbdf3d77a8d06bec3" unity="6000.3.16f1" protocol="1.1.0-stage7" total="146" passed="146" failed="0" skipped="0" duration="40.555" unityskills-package-tests-excluded="true">
+  <run mode="EditMode" total="139" passed="139" failed="0" skipped="0" duration="38.247" raw-unity-test-runner-xml="E:\UnityProjects\SceneTalkVR\Client\Library\SceneTalkVR\ProjectTestResults\060889b3a2deede6654f95adbdf3d77a8d06bec3_editmode_raw.xml" />
+  <run mode="PlayMode" total="7" passed="7" failed="0" skipped="0" duration="2.308" raw-unity-test-runner-xml="E:\UnityProjects\SceneTalkVR\Client\Library\SceneTalkVR\ProjectTestResults\060889b3a2deede6654f95adbdf3d77a8d06bec3_playmode_raw.xml" />
+</project-test-results>
