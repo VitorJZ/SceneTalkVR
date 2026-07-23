@@ -105,6 +105,8 @@ namespace SceneTalkVR.Runtime
                 EnsureQuitButton();
             }
 
+            EnsureWorldUiRenderer();
+
             if (Application.isPlaying && useHeadsetRelativeCanvas)
             {
                 StartCoroutine(RecenterCanvasAfterTracking());
@@ -420,6 +422,25 @@ namespace SceneTalkVR.Runtime
             }
 
             flowUiController.Configure(orchestrator, worldCanvas, this);
+        }
+
+        private void EnsureWorldUiRenderer()
+        {
+            worldCanvas = ResolveCanvas(worldCanvas);
+            if (worldCanvas == null)
+            {
+                return;
+            }
+
+            var renderer = worldCanvas.GetComponent<SceneTalkWorldUiRenderer>();
+            if (renderer == null)
+            {
+                renderer = worldCanvas.gameObject.AddComponent<SceneTalkWorldUiRenderer>();
+            }
+
+            // Apply after the flow controller has built its hierarchy so every
+            // runtime-created Image and TextMeshPro element is covered.
+            renderer.Apply();
         }
 
         private Button FindButtonByName(string buttonName)
