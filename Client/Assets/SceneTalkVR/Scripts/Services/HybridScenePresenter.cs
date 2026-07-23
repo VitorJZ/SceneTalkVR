@@ -66,8 +66,17 @@ namespace SceneTalkVR.Runtime.Services
                 && !string.IsNullOrWhiteSpace(payload.scene.skyboxUrl)
                 && payload.scene.skyboxUrl.StartsWith("history://", StringComparison.OrdinalIgnoreCase);
 
-            // 1. Generate Panorama Background
-            var panoTask = panoramaService.GenerateSkyboxAsync(payload.environmentType, payload.scene?.skyboxUrl);
+            // Panorama mode owns the background. Model-only mode must leave the
+            // scene free of runtime skybox objects and use explicit ambient light.
+            Task<Texture2D> panoTask = null;
+            if (onlyUsePanorama)
+            {
+                panoTask = panoramaService.GenerateSkyboxAsync(payload.environmentType, payload.scene?.skyboxUrl);
+            }
+            else
+            {
+                ConfigureModelLighting();
+            }
             
             // 2. Generate Holodeck 3D Layout (only if onlyUsePanorama is false)
             Task<HolodeckSceneService.HolodeckResponse> holodeckTask = null;
@@ -77,17 +86,18 @@ namespace SceneTalkVR.Runtime.Services
             }
 
             // Wait for tasks
-            while (!panoTask.IsCompleted || (holodeckTask != null && !holodeckTask.IsCompleted))
+            while ((panoTask != null && !panoTask.IsCompleted)
+                || (holodeckTask != null && !holodeckTask.IsCompleted))
             {
                 yield return null;
             }
 
-            // Apply Background
-            if (panoTask.IsCompletedSuccessfully)
+            // Apply the background only in panorama mode.
+            if (panoTask != null && panoTask.IsCompletedSuccessfully)
             {
                 panoramaService.ApplySkybox(panoTask.Result);
             }
-            else
+            else if (panoTask != null)
             {
                 Debug.LogWarning($"[HybridScenePresenter] Panorama failed: {panoTask.Exception?.Message}");
                 if (isHistorySnapshot)
@@ -117,6 +127,12 @@ namespace SceneTalkVR.Runtime.Services
             }
 
             onComplete?.Invoke();
+        }
+
+        private void ConfigureModelLighting()
+        {
+            panoramaService?.RestoreSceneEnvironment();
+            Debug.Log("[HybridScenePresenter] Model-only mode: panorama skipped; scene environment restored.", this);
         }
 
         public IEnumerator CaptureSceneSnapshot(
