@@ -788,6 +788,8 @@ namespace SceneTalkVR.EditorTools
         {
             canvas.renderMode = RenderMode.WorldSpace;
             canvas.worldCamera = interactionCamera;
+            canvas.overrideSorting = true;
+            canvas.sortingOrder = 1000;
             canvas.transform.position = new Vector3(0f, 1.5f, 1.4f);
             canvas.transform.rotation = Quaternion.identity;
             canvas.transform.localScale = Vector3.one * 0.005f;
