@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using SceneTalkVR.Core;
 using UnityEngine;
 using UnityEngine.Networking;
+using UnityEngine.Rendering;
 
 namespace SceneTalkVR.Runtime.Services
 {
@@ -39,10 +40,26 @@ namespace SceneTalkVR.Runtime.Services
         [SerializeField] private Material skySphereMaterial;
 
         private GameObject skySphereInstance;
+        private Material initialSkybox;
+        private AmbientMode initialAmbientMode;
+        private Color initialAmbientSkyColor;
+        private Color initialAmbientEquatorColor;
+        private Color initialAmbientGroundColor;
+        private float initialAmbientIntensity;
         public Texture2D LastAppliedTexture { get; private set; }
         private bool formalModeLocked;
 
         public bool ForceUseFallback => forceUseFallback;
+
+        private void Awake()
+        {
+            initialSkybox = RenderSettings.skybox;
+            initialAmbientMode = RenderSettings.ambientMode;
+            initialAmbientSkyColor = RenderSettings.ambientSkyColor;
+            initialAmbientEquatorColor = RenderSettings.ambientEquatorColor;
+            initialAmbientGroundColor = RenderSettings.ambientGroundColor;
+            initialAmbientIntensity = RenderSettings.ambientIntensity;
+        }
 
         public void ConfigureRuntime(bool forceFallback, string runtimeModelName, string runtimeImageSize)
         {
@@ -228,6 +245,23 @@ namespace SceneTalkVR.Runtime.Services
             ApplySkySphere(texture);
             DynamicGI.UpdateEnvironment();
             Debug.Log("[PanoramaSceneService] Background applied successfully.");
+        }
+
+        public void RestoreSceneEnvironment()
+        {
+            if (skySphereInstance != null)
+            {
+                skySphereInstance.SetActive(false);
+            }
+
+            RenderSettings.skybox = initialSkybox;
+            RenderSettings.ambientMode = initialAmbientMode;
+            RenderSettings.ambientSkyColor = initialAmbientSkyColor;
+            RenderSettings.ambientEquatorColor = initialAmbientEquatorColor;
+            RenderSettings.ambientGroundColor = initialAmbientGroundColor;
+            RenderSettings.ambientIntensity = initialAmbientIntensity;
+            LastAppliedTexture = null;
+            DynamicGI.UpdateEnvironment();
         }
 
         public bool TrySaveHistoryTexture(string sessionId, out string historyUri)
