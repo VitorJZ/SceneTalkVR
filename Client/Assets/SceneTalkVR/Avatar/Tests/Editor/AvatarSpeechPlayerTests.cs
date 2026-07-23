@@ -100,5 +100,35 @@ namespace SceneTalkVR.AvatarSystem.Tests
                 AvatarSpeechPlayer.ResolveVoiceId(context, payload),
                 Is.EqualTo(expectedVoiceId));
         }
+
+        [Test]
+        public void ResolveCorrectionVoiceIdOverride_DialogueAvatar_UsesAvatarVoice()
+        {
+            Assert.That(
+                CorrectionFeedbackPresenter.ResolveVoiceIdOverride(
+                    useDialogueAvatar: true,
+                    rehearsalFeedbackVoiceId: "feedback_voice",
+                    pilotVoiceId: "pilot_voice",
+                    assistantAgentVoiceId: "assistant_voice"),
+                Is.Null);
+        }
+
+        [TestCase("feedback_voice", "pilot_voice", "assistant_voice", "feedback_voice")]
+        [TestCase("", "pilot_voice", "assistant_voice", "pilot_voice")]
+        [TestCase("", "", "assistant_voice", "assistant_voice")]
+        public void ResolveCorrectionVoiceIdOverride_AssistantAgent_UsesIndependentVoice(
+            string rehearsalFeedbackVoiceId,
+            string pilotVoiceId,
+            string assistantAgentVoiceId,
+            string expectedVoiceId)
+        {
+            Assert.That(
+                CorrectionFeedbackPresenter.ResolveVoiceIdOverride(
+                    useDialogueAvatar: false,
+                    rehearsalFeedbackVoiceId,
+                    pilotVoiceId,
+                    assistantAgentVoiceId),
+                Is.EqualTo(expectedVoiceId));
+        }
     }
 }
