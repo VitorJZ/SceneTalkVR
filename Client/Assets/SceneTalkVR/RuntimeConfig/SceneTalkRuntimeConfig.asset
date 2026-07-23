@@ -27,5 +27,7 @@ MonoBehaviour:
   maxSpawnCount: 2
   directLlmApiUrl: http://192.168.137.1:8788/api/llm/chat/completions
   directLlmModelName: deepseek-chat
+  temperature: 0.7
+  maxNonGoalQuestionsPerTask: 3
   panoramaModelName: Tongyi-MAI/Z-Image
   panoramaImageSize: 1024x1024

@@ -36,6 +36,10 @@ namespace SceneTalkVR.Core
         [SerializeField] private string directLlmApiUrl = "https://models.sjtu.edu.cn/api/v1/chat/completions";
         [SerializeField] private string directLlmModelName = "deepseek-chat";
 
+        [Header("Avatar Dialogue Pacing")]
+        [Range(0f, 1f)] [SerializeField] private float temperature = 0.7f;
+        [Min(0)] [SerializeField] private int maxNonGoalQuestionsPerTask = 3;
+
         [Header("Panorama Defaults")]
         [SerializeField] private string panoramaModelName = "Tongyi-MAI/Z-Image";
         [SerializeField] private string panoramaImageSize = "1024x1024";
@@ -62,6 +66,8 @@ namespace SceneTalkVR.Core
         public string DirectLlmModelName => string.IsNullOrWhiteSpace(directLlmModelName)
             ? "deepseek-chat"
             : directLlmModelName.Trim();
+        public float Temperature => Mathf.Clamp01(temperature);
+        public int MaxNonGoalQuestionsPerTask => Mathf.Max(0, maxNonGoalQuestionsPerTask);
         public string PanoramaModelName => string.IsNullOrWhiteSpace(panoramaModelName)
             ? "Tongyi-MAI/Z-Image"
             : panoramaModelName.Trim();
@@ -105,6 +111,8 @@ namespace SceneTalkVR.Core
             enableSpatialClipping = true;
             maxSpawnCount = 2;
             holodeckTimeoutSeconds = 300;
+            temperature = 0.7f;
+            maxNonGoalQuestionsPerTask = 3;
             if (string.IsNullOrWhiteSpace(directLlmApiUrl))
             {
                 directLlmApiUrl = "https://models.sjtu.edu.cn/api/v1/chat/completions";

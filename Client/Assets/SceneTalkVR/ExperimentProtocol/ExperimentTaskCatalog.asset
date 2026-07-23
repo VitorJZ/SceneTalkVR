@@ -77,6 +77,13 @@ MonoBehaviour:
     voiceProfileKey: editor_collection_dialogue_voice
     roleplayPrompt: Stay in the hotel check-in task. Do not change scene, avatar,
       task, or condition.
+    nonGoalQuestions:
+    - questionId: hotel_journey_comfort
+      text: Did you have a comfortable journey here?
+    - questionId: hotel_first_city_visit
+      text: Is this your first visit to our city?
+    - questionId: hotel_settle_moment
+      text: Would you like a moment to get settled before we continue?
     spawnPosition: {x: 0, y: 0, z: 2}
     spawnRotation: {x: 0, y: 180, z: 0}
     developerPlaceholderAvatar: 0
@@ -138,6 +145,13 @@ MonoBehaviour:
     voiceProfileKey: editor_collection_dialogue_voice
     roleplayPrompt: Stay in the furniture-shopping task. Do not change scene, avatar,
       task, or condition.
+    nonGoalQuestions:
+    - questionId: furniture_room
+      text: Which room are you planning to furnish?
+    - questionId: furniture_atmosphere
+      text: What kind of atmosphere would you like the room to have?
+    - questionId: furniture_look
+      text: Do you prefer a simple look or something more decorative?
     spawnPosition: {x: 0, y: 0, z: 2}
     spawnRotation: {x: 0, y: 180, z: 0}
     developerPlaceholderAvatar: 0
@@ -199,6 +213,13 @@ MonoBehaviour:
     voiceProfileKey: editor_collection_dialogue_voice
     roleplayPrompt: Stay in the gym-membership task. Do not change scene, avatar,
       task, or condition.
+    nonGoalQuestions:
+    - questionId: gym_first_visit
+      text: Is this your first visit to our gym?
+    - questionId: gym_previous_use
+      text: Have you used a gym before?
+    - questionId: gym_time_of_day
+      text: What time of day do you usually prefer to exercise?
     spawnPosition: {x: 0, y: 0, z: 2}
     spawnRotation: {x: 0, y: 180, z: 0}
     developerPlaceholderAvatar: 0
@@ -259,6 +280,13 @@ MonoBehaviour:
     voiceProfileKey: editor_collection_dialogue_voice
     roleplayPrompt: Stay in the tourist-assistance task. Do not change scene, avatar,
       task, or condition.
+    nonGoalQuestions:
+    - questionId: tourist_first_visit
+      text: Is this your first visit to the city?
+    - questionId: tourist_stay_length
+      text: How many days will you be staying?
+    - questionId: tourist_enjoying_city
+      text: Are you enjoying the city so far?
     spawnPosition: {x: 0, y: 0, z: 2}
     spawnRotation: {x: 0, y: 180, z: 0}
     developerPlaceholderAvatar: 0
@@ -322,6 +350,13 @@ MonoBehaviour:
     voiceProfileKey: restaurant_host_en
     roleplayPrompt: Stay in the walk-in restaurant task. Do not change scene, role,
       task, feedback style, or embodiment.
+    nonGoalQuestions:
+    - questionId: walk_in_previous_visit
+      text: Have you dined with us before?
+    - questionId: walk_in_evening
+      text: How has your evening been so far?
+    - questionId: walk_in_found_restaurant
+      text: Did you find the restaurant easily?
     spawnPosition: {x: 0, y: 0, z: 2}
     spawnRotation: {x: 0, y: 180, z: 0}
     developerPlaceholderAvatar: 0
@@ -389,6 +424,13 @@ MonoBehaviour:
     voiceProfileKey: restaurant_host_en
     roleplayPrompt: Stay in the meal-ordering task. Do not change scene, role, task,
       feedback style, or embodiment.
+    nonGoalQuestions:
+    - questionId: ordering_evening
+      text: How has your evening been so far?
+    - questionId: ordering_new_cuisines
+      text: Do you usually enjoy trying new cuisines?
+    - questionId: ordering_menu_time
+      text: Would you like a little more time to look over the menu?
     spawnPosition: {x: 0, y: 0, z: 2}
     spawnRotation: {x: 0, y: 180, z: 0}
     developerPlaceholderAvatar: 0
@@ -447,6 +489,13 @@ MonoBehaviour:
     voiceProfileKey: restaurant_host_en
     roleplayPrompt: Stay in the wrong-dish resolution task. Do not change scene,
       role, task, feedback style, or embodiment.
+    nonGoalQuestions:
+    - questionId: wrong_dish_service_comfort
+      text: Has the service been comfortable for you so far?
+    - questionId: wrong_dish_extra_napkin
+      text: Would you like an extra napkin before we continue?
+    - questionId: wrong_dish_table_comfort
+      text: Is the table comfortable for you?
     spawnPosition: {x: 0, y: 0, z: 2}
     spawnRotation: {x: 0, y: 180, z: 0}
     developerPlaceholderAvatar: 0

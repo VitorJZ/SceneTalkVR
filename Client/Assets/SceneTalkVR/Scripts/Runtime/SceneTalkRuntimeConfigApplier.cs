@@ -127,6 +127,9 @@ namespace SceneTalkVR.Runtime
                 realLlmService.ConfigureApi(
                     ResolveServiceUrlForRuntime(config.DirectLlmApiUrl, 8788),
                     config.DirectLlmModelName);
+                realLlmService.ConfigureDialoguePacing(
+                    config.Temperature,
+                    config.MaxNonGoalQuestionsPerTask);
             }
         }
 
@@ -215,6 +218,8 @@ namespace SceneTalkVR.Runtime
                 + $"brain={config.BrainMode}, "
                 + $"voiceGateway={effectiveVoiceGatewayUrl}, "
                 + $"llm={effectiveLlmUrl}, "
+                + $"avatarPacingTemperature={config.Temperature:0.###}, "
+                + $"maxNonGoalQuestionsPerTask={config.MaxNonGoalQuestionsPerTask}, "
                 + $"holodeck={(config.UseHolodeckBackend ? config.HolodeckBackendUrl : "mock layout")}, "
                 + $"onlyUsePanorama={config.OnlyUsePanorama}, "
                 + $"forceFallbackPanorama={config.ForceFallbackPanorama}, "

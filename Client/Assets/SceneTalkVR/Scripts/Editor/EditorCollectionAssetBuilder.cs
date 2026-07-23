@@ -131,6 +131,7 @@ namespace SceneTalkVR.EditorTools
         {
             foreach (var task in catalog.Tasks.Where(x => x != null))
             {
+                task.nonGoalQuestions = NonGoalQuestions(task.taskId);
                 if (task.phase != ExperimentTaskPhase.Formal) continue;
                 task.avatarPresetKey = task.taskId == "hotel_check_in" ? "barista_humanoid_v1"
                     : task.taskId == "furniture_shopping" ? "teacher_humanoid_v1"
@@ -152,6 +153,26 @@ namespace SceneTalkVR.EditorTools
                 }
             }
             catalog.EditorSet("1.2.1-pilot-collection", catalog.Tasks.ToArray());
+        }
+
+        private static NonGoalQuestionDefinition[] NonGoalQuestions(string taskId)
+        {
+            string[][] values = taskId switch
+            {
+                "hotel_check_in" => new[] { new[] { "hotel_journey_comfort", "Did you have a comfortable journey here?" }, new[] { "hotel_first_city_visit", "Is this your first visit to our city?" }, new[] { "hotel_settle_moment", "Would you like a moment to get settled before we continue?" } },
+                "furniture_shopping" => new[] { new[] { "furniture_room", "Which room are you planning to furnish?" }, new[] { "furniture_atmosphere", "What kind of atmosphere would you like the room to have?" }, new[] { "furniture_look", "Do you prefer a simple look or something more decorative?" } },
+                "gym_membership" => new[] { new[] { "gym_first_visit", "Is this your first visit to our gym?" }, new[] { "gym_previous_use", "Have you used a gym before?" }, new[] { "gym_time_of_day", "What time of day do you usually prefer to exercise?" } },
+                "tourist_assistance" => new[] { new[] { "tourist_first_visit", "Is this your first visit to the city?" }, new[] { "tourist_stay_length", "How many days will you be staying?" }, new[] { "tourist_enjoying_city", "Are you enjoying the city so far?" } },
+                "pilot_restaurant_walk_in" => new[] { new[] { "walk_in_previous_visit", "Have you dined with us before?" }, new[] { "walk_in_evening", "How has your evening been so far?" }, new[] { "walk_in_found_restaurant", "Did you find the restaurant easily?" } },
+                "pilot_restaurant_ordering" => new[] { new[] { "ordering_evening", "How has your evening been so far?" }, new[] { "ordering_new_cuisines", "Do you usually enjoy trying new cuisines?" }, new[] { "ordering_menu_time", "Would you like a little more time to look over the menu?" } },
+                "pilot_restaurant_wrong_dish" => new[] { new[] { "wrong_dish_service_comfort", "Has the service been comfortable for you so far?" }, new[] { "wrong_dish_extra_napkin", "Would you like an extra napkin before we continue?" }, new[] { "wrong_dish_table_comfort", "Is the table comfortable for you?" } },
+                _ => Array.Empty<string[]>()
+            };
+            return values.Select(value => new NonGoalQuestionDefinition
+            {
+                questionId = value[0],
+                text = value[1]
+            }).ToArray();
         }
 
         private static string[][] Patterns(string taskId)

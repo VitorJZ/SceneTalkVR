@@ -23,6 +23,13 @@ namespace SceneTalkVR.Core
     }
 
     [Serializable]
+    public sealed class NonGoalQuestionDefinition
+    {
+        public string questionId;
+        [TextArea] public string text;
+    }
+
+    [Serializable]
     public sealed class ExperimentTaskDefinition
     {
         public string taskId;
@@ -38,6 +45,7 @@ namespace SceneTalkVR.Core
         public string avatarRole;
         public string voiceProfileKey;
         [TextArea] public string roleplayPrompt;
+        public NonGoalQuestionDefinition[] nonGoalQuestions = Array.Empty<NonGoalQuestionDefinition>();
         public Vector3 spawnPosition;
         public Vector3 spawnRotation;
         public bool developerPlaceholderAvatar;
@@ -159,6 +167,7 @@ namespace SceneTalkVR.Core
                 if (task == null || string.IsNullOrWhiteSpace(task.taskId) || !ids.Add(task.taskId)) issues.Add("pilot_task_id_missing_or_duplicate");
                 if (task?.goals == null || task.goals.Length != 4 || task.goals.Any(x => x == null || string.IsNullOrWhiteSpace(x.text))) issues.Add((task?.taskId ?? "<null>")+":pilot_goals_invalid");
                 if (task != null && (string.IsNullOrWhiteSpace(task.context) || string.IsNullOrWhiteSpace(task.initialQuestion) || string.IsNullOrWhiteSpace(task.roleplayPrompt))) issues.Add(task.taskId+":pilot_text_missing");
+                ValidateNonGoalQuestions(task, issues);
                 if (task != null && string.IsNullOrWhiteSpace(task.panoramaResourceKey)) issues.Add(task.taskId+":pilot_panorama_missing");
             }
             error=string.Join("; ",issues); return issues.Count==0;
@@ -191,7 +200,28 @@ namespace SceneTalkVR.Core
             if (string.IsNullOrWhiteSpace(task.avatarRole)) issues.Add($"{task.taskId}: avatarRole missing");
             if (string.IsNullOrWhiteSpace(task.voiceProfileKey)) issues.Add($"{task.taskId}: voiceProfileKey missing");
             if (string.IsNullOrWhiteSpace(task.roleplayPrompt)) issues.Add($"{task.taskId}: roleplayPrompt missing");
+            ValidateNonGoalQuestions(task, issues);
             if (string.IsNullOrWhiteSpace(task.avatarPresetKey) || task.developerPlaceholderAvatar) issues.Add($"{task.taskId}: formal avatar preset is unavailable or placeholder");
+        }
+
+        private static void ValidateNonGoalQuestions(ExperimentTaskDefinition task, List<string> issues)
+        {
+            if (task == null) return;
+            if (task.nonGoalQuestions == null || task.nonGoalQuestions.Length == 0)
+            {
+                issues.Add($"{task.taskId}: non-goal question bank missing");
+                return;
+            }
+
+            var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var question in task.nonGoalQuestions)
+            {
+                if (question == null || string.IsNullOrWhiteSpace(question.questionId)
+                    || string.IsNullOrWhiteSpace(question.text) || !ids.Add(question.questionId))
+                {
+                    issues.Add($"{task.taskId}: non-goal questions must have unique non-empty ids and text");
+                }
+            }
         }
 
 #if UNITY_EDITOR

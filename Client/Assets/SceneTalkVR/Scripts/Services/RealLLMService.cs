@@ -31,6 +31,10 @@ namespace SceneTalkVR.Runtime.Services
         [Tooltip("Feedback strictness: conservative (only severe errors), moderate (general errors), active (almost all errors)")]
         [SerializeField] private string feedbackSensitivity = "moderate"; // conservative | moderate | active
 
+        [Header("Avatar Dialogue Pacing")]
+        [Range(0f, 1f)] [SerializeField] private float temperature = 0.7f;
+        [Min(0)] [SerializeField] private int maxNonGoalQuestionsPerTask = 3;
+
         [Header("Prompts")]
         [TextArea(10, 20)]
         [SerializeField] private string systemPrompt = "You are a VR scene dispatcher and an English tutor. Based on the user's input, generate a JSON response that matches the following structure:\n" +
@@ -72,12 +76,23 @@ namespace SceneTalkVR.Runtime.Services
 
         private readonly List<OpenAiMessage> chatHistory = new List<OpenAiMessage>();
         private readonly List<string> sessionErrorHistory = new List<string>();
+        private readonly HashSet<string> askedNonGoalQuestionIds = new HashSet<string>(StringComparer.Ordinal);
+        private int nonGoalQuestionsAsked;
         private SceneTalkOrchestrator cachedOrchestrator;
         private CorrectionExperimentCondition currentCondition;
         public CorrectionExperimentCondition CurrentCondition => currentCondition;
         public string FeedbackSensitivity => string.IsNullOrWhiteSpace(feedbackSensitivity)
             ? "moderate"
             : feedbackSensitivity.Trim().ToLowerInvariant();
+        public float DialoguePacingTemperature => Mathf.Clamp01(temperature);
+        public int MaxNonGoalQuestionsPerTask => Mathf.Max(0, maxNonGoalQuestionsPerTask);
+        public int NonGoalQuestionsAsked => nonGoalQuestionsAsked;
+
+        private sealed class AvatarDialoguePacingDecision
+        {
+            public AvatarDialoguePacingData data = new AvatarDialoguePacingData();
+            public NonGoalQuestionDefinition question;
+        }
 
         private float lastSttConfidence = 1.0f;
         private bool lastSttConfidenceAvailable;
@@ -102,6 +117,12 @@ namespace SceneTalkVR.Runtime.Services
             }
         }
 
+        public void ConfigureDialoguePacing(float pacingTemperature, int maximumQuestionsPerTask)
+        {
+            temperature = Mathf.Clamp01(pacingTemperature);
+            maxNonGoalQuestionsPerTask = Mathf.Max(0, maximumQuestionsPerTask);
+        }
+
         public string GetSessionErrorSummary()
         {
             if (sessionErrorHistory.Count == 0) return "No errors detected in this session.";
@@ -122,7 +143,25 @@ namespace SceneTalkVR.Runtime.Services
 
         public void SetExperimentCondition(CorrectionExperimentCondition condition)
         {
+            if (HasPacingScopeChanged(currentCondition, condition))
+            {
+                nonGoalQuestionsAsked = 0;
+                askedNonGoalQuestionIds.Clear();
+            }
             currentCondition = ExperimentConditionManager.CloneCondition(condition);
+        }
+
+        private static bool HasPacingScopeChanged(
+            CorrectionExperimentCondition previous,
+            CorrectionExperimentCondition next)
+        {
+            if (previous == null || next == null)
+            {
+                return previous != next;
+            }
+
+            return !string.Equals(previous.sessionId, next.sessionId, StringComparison.Ordinal)
+                   || !string.Equals(previous.task?.taskId, next.task?.taskId, StringComparison.Ordinal);
         }
 
         public void RestoreConversationContext(LearningSessionDetail session)
@@ -140,6 +179,8 @@ namespace SceneTalkVR.Runtime.Services
 
             chatHistory.Clear();
             sessionErrorHistory.Clear();
+            nonGoalQuestionsAsked = 0;
+            askedNonGoalQuestionIds.Clear();
 
             var sceneContext = LearningMemoryService.ClonePayload(session.sceneSnapshot);
             chatHistory.Add(new OpenAiMessage
@@ -164,6 +205,16 @@ namespace SceneTalkVR.Runtime.Services
                 if (!string.IsNullOrWhiteSpace(turn.assistantText))
                 {
                     chatHistory.Add(new OpenAiMessage { role = "assistant", content = turn.assistantText });
+                }
+
+                if (turn.payload?.dialoguePacing?.triggered == true)
+                {
+                    nonGoalQuestionsAsked++;
+                    var restoredQuestionId = turn.payload.dialoguePacing.questionId;
+                    if (!string.IsNullOrWhiteSpace(restoredQuestionId))
+                    {
+                        askedNonGoalQuestionIds.Add(restoredQuestionId.Trim());
+                    }
                 }
 
                 var feedback = turn.payload?.correctionFeedback;
@@ -199,12 +250,13 @@ namespace SceneTalkVR.Runtime.Services
 
             CheckAndResetSession();
             formalDialogueLeakageDetected = false;
+            var pacingDecision = CreateAvatarDialoguePacingDecision(userText);
 
             var timing = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include);
             timing?.RecordTimingEvent(ExperimentTimingEventType.CorrectionRequestStarted);
             var correctionTask = ParseCorrectionFeedbackAsync(userText);
             timing?.RecordTimingEvent(ExperimentTimingEventType.DialogueRequestStarted);
-            var dialogueTask = ParseDialogueContinuationNonStreamingAsync(userText);
+            var dialogueTask = ParseDialogueContinuationNonStreamingAsync(userText, pacingDecision);
             var correctionReadyLogged = false;
             var dialogueReadyLogged = false;
 
@@ -255,6 +307,7 @@ namespace SceneTalkVR.Runtime.Services
                 timing?.RecordTimingEvent(ExperimentTimingEventType.DialogueFirstSentenceReady);
             }
             payload.correctionFeedback = feedback;
+            CommitAvatarDialoguePacing(payload, pacingDecision);
             ApplyExperimentConditionToPayload(payload);
             if (formalDialogueLeakageDetected)
             {
@@ -285,9 +338,11 @@ namespace SceneTalkVR.Runtime.Services
 
         public async Task<SpringScenePayload> ParseIntentAsync(string userInput)
         {
+            var pacingDecision = CreateAvatarDialoguePacingDecision(userInput);
             var feedback = await ParseCorrectionFeedbackAsync(userInput);
-            var payload = await ParseDialogueContinuationNonStreamingAsync(userInput);
+            var payload = await ParseDialogueContinuationNonStreamingAsync(userInput, pacingDecision);
             payload.correctionFeedback = feedback;
+            CommitAvatarDialoguePacing(payload, pacingDecision);
             ApplyExperimentConditionToPayload(payload);
             return payload;
         }
@@ -343,39 +398,283 @@ namespace SceneTalkVR.Runtime.Services
 
         #region Dialogue Multi-Turn Helpers
 
-        private async Task<CorrectionFeedbackData> ParseCorrectionFeedbackAsync(string userInput)
+        private AvatarDialoguePacingDecision CreateAvatarDialoguePacingDecision(string userInput)
         {
-            if (ShouldSuppressCorrectionByStt(out var suppressionReason))
+            var decision = new AvatarDialoguePacingDecision
             {
-                return BuildCorrectionFallback(suppressionReason);
+                data = new AvatarDialoguePacingData
+                {
+                    triggered = false,
+                    questionId = string.Empty,
+                    temperature = DialoguePacingTemperature,
+                    randomSample = -1f
+                }
+            };
+            var task = currentCondition?.task;
+            if (MaxNonGoalQuestionsPerTask <= 0
+                || task?.nonGoalQuestions == null
+                || task.nonGoalQuestions.Length == 0
+                || string.IsNullOrWhiteSpace(userInput))
+            {
+                return decision;
             }
 
-            var builder = new System.Text.StringBuilder();
+            var candidates = new List<NonGoalQuestionDefinition>();
+            var uniqueQuestionIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var question in task.nonGoalQuestions)
+            {
+                if (question != null && !string.IsNullOrWhiteSpace(question.questionId)
+                    && !string.IsNullOrWhiteSpace(question.text))
+                {
+                    var questionId = question.questionId.Trim();
+                    if (uniqueQuestionIds.Add(questionId)
+                        && !askedNonGoalQuestionIds.Contains(questionId))
+                    {
+                        candidates.Add(question);
+                    }
+                }
+            }
+            var effectiveQuestionLimit = Mathf.Min(MaxNonGoalQuestionsPerTask, uniqueQuestionIds.Count);
+            if (nonGoalQuestionsAsked >= effectiveQuestionLimit || candidates.Count == 0)
+            {
+                return decision;
+            }
+
+            var key = string.Join("|",
+                currentCondition?.sessionId ?? string.Empty,
+                task.taskId ?? string.Empty,
+                currentCondition?.turnIndex.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "0",
+                userInput.Trim());
+            decision.data.randomSample = StableUnitSample(key + "|trigger");
+            if (decision.data.randomSample >= DialoguePacingTemperature)
+            {
+                return decision;
+            }
+
+            var questionIndex = (int)(StableHash(key + "|question") % (uint)candidates.Count);
+            decision.question = candidates[questionIndex];
+            decision.data.triggered = true;
+            decision.data.questionId = decision.question.questionId.Trim();
+            return decision;
+        }
+
+        private string BuildAvatarDialogueSystemPrompt(
+            AvatarDialoguePacingDecision pacingDecision,
+            SpringScenePayload rolePayload = null)
+        {
+            var task = currentCondition?.task;
+            var role = rolePayload?.avatarRole?.role;
+            var speed = rolePayload?.avatarRole?.speakingSpeed;
+            var accent = rolePayload?.avatarRole?.accent;
+            var attitude = rolePayload?.avatarRole?.attitude;
+            var environment = rolePayload?.environmentType;
+            role = string.IsNullOrWhiteSpace(role) ? task?.fallbackAvatarRole ?? "tutor" : role;
+            speed = string.IsNullOrWhiteSpace(speed) ? "medium" : speed;
+            accent = string.IsNullOrWhiteSpace(accent) ? "american" : accent;
+            attitude = string.IsNullOrWhiteSpace(attitude) ? task?.fallbackAvatarAttitude ?? "friendly" : attitude;
+            environment = string.IsNullOrWhiteSpace(environment) ? task?.fallbackEnvironmentType ?? "classroom" : environment;
+
+            var triggered = pacingDecision?.data?.triggered == true
+                && pacingDecision.question != null
+                && !string.IsNullOrWhiteSpace(pacingDecision.question.text);
+            var builder = new StringBuilder();
+            builder.AppendLine("You are the in-scene character for an English oral-practice conversation.");
+            builder.AppendLine($"You are playing the role of a {role} in a {environment} environment.");
+            builder.AppendLine($"Your accent is {accent}, your attitude is {attitude}, and you speak at a {speed} speed.");
+            if (!string.IsNullOrWhiteSpace(task?.context))
+                builder.AppendLine($"Scene context: {task.context}");
+            if (!string.IsNullOrWhiteSpace(task?.roleplayPrompt))
+                builder.AppendLine($"Roleplay boundary: {task.roleplayPrompt}");
+
+            builder.AppendLine();
+            builder.AppendLine("The participant's private task goals are not part of your context.");
+            builder.AppendLine("Do not infer, enumerate, hint at, or proactively introduce a checklist, transaction step, requirement, or completion topic that the participant has not raised.");
+            builder.AppendLine("Never invent, assume, or confirm any specific task detail that the participant has not explicitly stated.");
+            builder.AppendLine("Respond naturally to the participant's latest statement in 1-3 concise sentences. Stay in role and in the current scene.");
+            builder.AppendLine("Do not provide language corrections, alternative phrasing, grammar tips, or comments on the participant's English.");
+            builder.AppendLine();
+            builder.AppendLine("PACING DIRECTIVE");
+            builder.AppendLine($"- pacingTriggered: {(triggered ? "true" : "false")}");
+            if (triggered)
+            {
+                builder.AppendLine("- Respond to the participant first, then ask exactly this question as the final sentence:");
+                builder.AppendLine($"  {pacingDecision.question.text.Trim()}");
+                builder.AppendLine("- Ask it once, verbatim, without explaining why.");
+                builder.AppendLine("- Do not add another question.");
+            }
+            else
+            {
+                builder.AppendLine("- Do not ask any question in this turn.");
+                builder.AppendLine("- Do not request, confirm, or solicit any information from the participant.");
+                builder.AppendLine("- Respond only to what the participant has already said, and end with a declarative sentence.");
+                builder.AppendLine("- Do not claim that any transaction or task step has occurred.");
+            }
+            builder.AppendLine();
+            builder.AppendLine("Return ONLY a valid JSON object with this schema:");
+            builder.AppendLine("{\"dialogueContinuation\":\"character's reply text\"}");
+            return builder.ToString();
+        }
+
+        private void CommitAvatarDialoguePacing(
+            SpringScenePayload payload,
+            AvatarDialoguePacingDecision decision)
+        {
+            if (payload == null) return;
+            var source = decision?.data;
+            payload.dialoguePacing = source == null
+                ? new AvatarDialoguePacingData
+                {
+                    temperature = DialoguePacingTemperature,
+                    randomSample = -1f
+                }
+                : new AvatarDialoguePacingData
+                {
+                    triggered = source.triggered,
+                    questionId = source.questionId ?? string.Empty,
+                    temperature = source.temperature,
+                    randomSample = source.randomSample
+                };
+            if (source?.triggered == true)
+            {
+                var questionId = source.questionId?.Trim();
+                if (!string.IsNullOrWhiteSpace(questionId) && askedNonGoalQuestionIds.Add(questionId))
+                {
+                    nonGoalQuestionsAsked++;
+                }
+            }
+        }
+
+        private static bool EnsureSelectedQuestionAtEnd(
+            SpringScenePayload payload,
+            AvatarDialoguePacingDecision decision)
+        {
+            if (payload == null || decision?.data?.triggered != true
+                || string.IsNullOrWhiteSpace(decision.question?.text))
+            {
+                return false;
+            }
+
+            var question = decision.question.text.Trim();
+            var reply = (payload.dialogueReply ?? payload.dialogueContinuation ?? string.Empty).Trim();
+            var selectedQuestionWasPresent = reply.IndexOf(question, StringComparison.Ordinal) >= 0;
+            var withoutSelectedQuestion = reply.Replace(question, string.Empty).Trim();
+            var statements = RemoveQuestionSentences(withoutSelectedQuestion);
+            if (string.IsNullOrWhiteSpace(statements))
+            {
+                statements = "I see.";
+            }
+
+            var combined = statements.Trim() + " " + question;
+            payload.dialogueReply = combined;
+            payload.dialogueContinuation = combined;
+            return !selectedQuestionWasPresent;
+        }
+
+        private static string RemoveQuestionSentences(string value)
+        {
+            var kept = new StringBuilder();
+            var keptCount = 0;
+            foreach (var sentence in SplitDialogueSentences(value))
+            {
+                if (sentence.TrimEnd().EndsWith("?", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (kept.Length > 0)
+                {
+                    kept.Append(' ');
+                }
+                kept.Append(sentence.Trim());
+                keptCount++;
+                if (keptCount >= 2)
+                {
+                    break;
+                }
+            }
+            return kept.ToString();
+        }
+
+        private static List<string> SplitDialogueSentences(string value)
+        {
+            var sentences = new List<string>();
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return sentences;
+            }
+
+            var start = 0;
+            for (var i = 0; i < value.Length; i++)
+            {
+                var character = value[i];
+                if (character != '.' && character != '!' && character != '?')
+                {
+                    continue;
+                }
+
+                var sentence = value.Substring(start, i - start + 1).Trim();
+                if (!string.IsNullOrWhiteSpace(sentence))
+                {
+                    sentences.Add(sentence);
+                }
+                start = i + 1;
+            }
+
+            if (start < value.Length)
+            {
+                var trailing = value.Substring(start).Trim();
+                if (!string.IsNullOrWhiteSpace(trailing))
+                {
+                    sentences.Add(trailing);
+                }
+            }
+            return sentences;
+        }
+
+        private static float StableUnitSample(string value) =>
+            (StableHash(value) & 0x00FFFFFFu) / 16777216f;
+
+        private static uint StableHash(string value)
+        {
+            unchecked
+            {
+                var hash = 2166136261u;
+                foreach (var character in value ?? string.Empty)
+                {
+                    hash ^= character;
+                    hash *= 16777619u;
+                }
+                return hash;
+            }
+        }
+
+        private string BuildCorrectionSystemPrompt()
+        {
+            var builder = new StringBuilder();
             builder.AppendLine("You are an English language tutor analyzing the user's speech in a VR oral practice context.");
             builder.AppendLine("Your ONLY job is to analyze the user's input for grammar, vocabulary, pronunciation, or expression errors.");
             builder.AppendLine("Do NOT continue the dialogue, do NOT act as the roleplay character, and do NOT generate any conversational replies.");
-            
+
             if (currentCondition != null)
             {
                 builder.AppendLine("\n=== EXPERIMENT & TASK CONTEXT ===");
                 builder.AppendLine($"- scenarioId: {currentCondition.scenarioId}");
                 builder.AppendLine($"- feedbackStyle: {currentCondition.style}");
                 builder.AppendLine($"- feedbackSensitivity: {feedbackSensitivity}");
-                if (currentCondition.task != null)
+                if (!string.IsNullOrWhiteSpace(currentCondition.task?.context))
                 {
-                    if (!string.IsNullOrWhiteSpace(currentCondition.task.context))
-                        builder.AppendLine($"- taskContext: {currentCondition.task.context}");
-                    if (currentCondition.task.goals != null && currentCondition.task.goals.Length > 0)
-                        builder.AppendLine($"- taskGoals: {string.Join("; ", currentCondition.task.goals)}");
+                    builder.AppendLine($"- taskContext: {currentCondition.task.context}");
                 }
+                builder.AppendLine("Use this context only to understand the scene. Private task goals, goal IDs, completion rules, and target phrases are intentionally excluded.");
             }
 
-            bool isRecast = currentCondition != null && string.Equals(currentCondition.style, "recast", StringComparison.OrdinalIgnoreCase);
+            var isRecast = currentCondition != null
+                           && string.Equals(currentCondition.style, "recast", StringComparison.OrdinalIgnoreCase);
 
             builder.AppendLine("\n=== LANGUAGE CORRECTION INSTRUCTIONS ===");
             builder.AppendLine("1. Detect at most ONE major error in the user's speech. If no clear error, set hasFeedback = false.");
             builder.AppendLine("2. Respect the feedback sensitivity level. Ignore minor repetitions or normal self-corrections.");
-            
+
             if (isRecast)
             {
                 builder.AppendLine("3. Generate unified feedback text under 'recast' style:");
@@ -419,8 +718,17 @@ namespace SceneTalkVR.Runtime.Services
             builder.AppendLine("  \"confidence\": 1.0,");
             builder.AppendLine("  \"rationaleTag\": \"short tag explanation\"");
             builder.AppendLine("}");
+            return builder.ToString();
+        }
 
-            string systemPrompt = builder.ToString();
+        private async Task<CorrectionFeedbackData> ParseCorrectionFeedbackAsync(string userInput)
+        {
+            if (ShouldSuppressCorrectionByStt(out var suppressionReason))
+            {
+                return BuildCorrectionFallback(suppressionReason);
+            }
+
+            string systemPrompt = BuildCorrectionSystemPrompt();
             string responseText = await SendChatRequest(
                 systemPrompt,
                 userInput,
@@ -456,51 +764,11 @@ namespace SceneTalkVR.Runtime.Services
             return feedback;
         }
 
-        private async Task<SpringScenePayload> ParseDialogueContinuationNonStreamingAsync(string userInput)
+        private async Task<SpringScenePayload> ParseDialogueContinuationNonStreamingAsync(
+            string userInput,
+            AvatarDialoguePacingDecision pacingDecision)
         {
-            var builder = new System.Text.StringBuilder();
-            
-            string role = "tutor";
-            string speed = "medium";
-            string accent = "american";
-            string attitude = "friendly";
-            string env = "classroom";
-
-            if (currentCondition != null && currentCondition.task != null)
-            {
-                env = currentCondition.task.fallbackEnvironmentType ?? env;
-                role = currentCondition.task.fallbackAvatarRole ?? role;
-                attitude = currentCondition.task.fallbackAvatarAttitude ?? attitude;
-            }
-
-            builder.AppendLine($"You are playing the role of a {role} in a {env} environment for English oral practice.");
-            builder.AppendLine($"Your accent is {accent}, your attitude is {attitude}, and you should speak at a {speed} speed.");
-            builder.AppendLine("Reply to the user's statement naturally and concisely (1-3 sentences). Keep the practice interactive and realistic.");
-            
-            if (currentCondition != null)
-            {
-                builder.AppendLine("\n=== TASK CONTEXT ===");
-                builder.AppendLine($"- scenarioId: {currentCondition.scenarioId}");
-                if (currentCondition.task != null)
-                {
-                    if (!string.IsNullOrWhiteSpace(currentCondition.task.context))
-                        builder.AppendLine($"- taskContext: {currentCondition.task.context}");
-                    if (currentCondition.task.goals != null && currentCondition.task.goals.Length > 0)
-                        builder.AppendLine($"- taskGoals: {string.Join("; ", currentCondition.task.goals)}");
-                }
-            }
-
-            builder.AppendLine("\n=== DIALOGUE INSTRUCTIONS ===");
-            builder.AppendLine("1. Continue the dialogue roleplay naturally and concisely.");
-            builder.AppendLine("2. CRITICAL: You are strictly forbidden from performing any language correction, grammar tips, or alternative phrasing.");
-            builder.AppendLine("3. Do NOT comment on the user's English. Just act in role!");
-            builder.AppendLine("4. Do NOT duplicate or include any grammatical corrections in your reply.");
-            builder.AppendLine("5. Output ONLY a valid JSON object matching this schema:");
-            builder.AppendLine("{");
-            builder.AppendLine("  \"dialogueContinuation\": \"character's reply text\"");
-            builder.AppendLine("}");
-
-            string systemPrompt = builder.ToString();
+            string systemPrompt = BuildAvatarDialogueSystemPrompt(pacingDecision);
 
             var messagesList = new System.Collections.Generic.List<OpenAiMessage>();
             if (chatHistory.Count == 0)
@@ -534,6 +802,7 @@ namespace SceneTalkVR.Runtime.Services
                         {
                             payload.dialogueReply = payload.dialogueContinuation;
                         }
+                        EnsureSelectedQuestionAtEnd(payload, pacingDecision);
                     }
                     return payload;
                 }
@@ -619,16 +888,7 @@ namespace SceneTalkVR.Runtime.Services
 
         private string BuildRoleplaySystemPrompt(SpringScenePayload initialPayload)
         {
-            string role = initialPayload.avatarRole?.role ?? "tutor";
-            string speed = initialPayload.avatarRole?.speakingSpeed ?? "medium";
-            string accent = initialPayload.avatarRole?.accent ?? "american";
-            string attitude = initialPayload.avatarRole?.attitude ?? "friendly";
-            string env = initialPayload.environmentType ?? "classroom";
-
-            return $"You are playing the role of a {role} in a {env} environment for English oral practice. " +
-                   $"Your accent is {accent}, your attitude is {attitude}, and you should speak at a {speed} speed. " +
-                   $"Reply to the user's statements naturally and concisely (1-3 sentences). Keep the practice interactive and realistic.\n\n" +
-                   BuildExperimentPromptInstructions(false);
+            return BuildAvatarDialogueSystemPrompt(null, initialPayload);
         }
 
         private string BuildExperimentPromptInstructions(bool includeScenePayload)
@@ -655,10 +915,6 @@ namespace SceneTalkVR.Runtime.Services
             }
 
             var task = currentCondition.task;
-            var goals = task == null || task.goals == null || task.goals.Length == 0
-                ? string.Empty
-                : string.Join("; ", task.goals);
-
             bool locked = IsExperimentLocked();
             string effectiveSensitivity = locked ? "moderate" : feedbackSensitivity;
             string historyCsv = (!locked && sessionErrorHistory.Count > 0) ? string.Join(", ", sessionErrorHistory) : "none";
@@ -687,40 +943,11 @@ namespace SceneTalkVR.Runtime.Services
                     builder.AppendLine($"- roleplayPrompt: {task.roleplayPrompt}");
                 }
                 builder.AppendLine("The task, scene, panorama, avatar identity, provider, and style are immutable. Continue only the in-task dialogue; never parse a new scene intent or output replacement scene/layout/avatar data.");
-                if (!string.IsNullOrWhiteSpace(goals))
-                {
-                    builder.AppendLine($"- taskGoals: {goals}");
-                }
-                if (!string.IsNullOrWhiteSpace(task.initialQuestion))
-                {
-                    builder.AppendLine($"- openingQuestion: {task.initialQuestion}");
-                }
             }
 
-            builder.AppendLine("\n=== SCENARIO-SPECIFIC GUIDANCE ===");
-            switch (currentCondition.scenarioId)
-            {
-                case "restaurant_reservation":
-                    builder.AppendLine("Acceptable short task phrases: 'Table for two, please.', 'For tomorrow at seven.', 'Do you have a table by the window?'. Do NOT over-correct these. Only correct clear grammar/vocab errors (e.g., missing articles like 'have table by window' -> 'have a table by the window', missing auxiliaries like 'I want reserve a table' -> 'I'd like to reserve a table') or impolite/abrupt phrasing.");
-                    builder.AppendLine("If feedbackProvider is assistant_agent: Your dialogueReply MUST NOT contain correction, grammar tips, alternative phrasing, or comments about the user's English.");
-                    break;
-                case "furniture_shopping":
-                    builder.AppendLine("Acceptable short task phrases: 'I'm looking for a wooden desk.', 'Do you deliver?', 'How much is this chair?'. Only correct clear errors like adverb-verb order (e.g. 'I very like this desk' -> 'I really like this desk'), wrong size/material vocabulary, or incorrect structures like 'I want make my room fitting' -> 'I want it to fit my room'.");
-                    builder.AppendLine("If feedbackProvider is assistant_agent: Your dialogueReply MUST NOT contain correction, grammar tips, alternative phrasing, or comments about the user's English.");
-                    break;
-                case "gym_membership":
-                    builder.AppendLine("Acceptable short task phrases: 'Do you have a monthly plan?', 'Is there a swimming pool?', 'Can I try one class?'. Only correct clear errors like question structure (e.g. 'How much cost the plan?' -> 'How much does the plan cost?') or verb patterns (e.g. 'I want make muscle' -> 'I want to build muscle').");
-                    builder.AppendLine("If feedbackProvider is assistant_agent: Your dialogueReply MUST NOT contain correction, grammar tips, alternative phrasing, or comments about the user's English.");
-                    break;
-                case "hotel_check_in":
-                    builder.AppendLine("Acceptable short task phrases: 'I have a reservation under Johnson.', 'When is check-out?', 'Could I get a quiet room?'. Only correct clear errors like missing articles (e.g. 'I have reservation' -> 'I have a reservation'), time questions (e.g. 'What time I must leave?' -> 'What time do I need to check out?'), or abrupt demands (e.g. 'Give me key' -> 'Could I get my key, please?').");
-                    builder.AppendLine("If feedbackProvider is assistant_agent: Your dialogueReply MUST NOT contain correction, grammar tips, alternative phrasing, or comments about the user's English.");
-                    break;
-                case "tourist_assistance":
-                    builder.AppendLine("Keep the conversation at the tourist information center. Help with directions to the city museum, tickets, photography rules, and one nearby attraction. Do not change location or staff identity.");
-                    builder.AppendLine("If feedbackProvider is assistant_agent: Your dialogueReply MUST NOT contain correction, grammar tips, alternative phrasing, or comments about the user's English.");
-                    break;
-            }
+            builder.AppendLine("\n=== SCENARIO GUIDANCE ===");
+            builder.AppendLine("Use the task context only to understand the scene. Do not infer or introduce private participant goals.");
+            builder.AppendLine("If feedbackProvider is assistant_agent: dialogueReply MUST NOT contain correction, grammar tips, alternative phrasing, or comments about the user's English.");
 
             builder.AppendLine("\n=== SPEECH CAPTURE METADATA ===");
             builder.AppendLine($"- recordingDurationMs: {lastRecordingDurationMs} ms");
@@ -879,20 +1106,7 @@ namespace SceneTalkVR.Runtime.Services
 
         private string BuildSafeTaskContinuation(SpringScenePayload payload)
         {
-            var scenario = currentCondition?.scenarioId ?? payload.taskType ?? string.Empty;
-            switch (scenario)
-            {
-                case "restaurant_reservation":
-                    return "Sure. What time would you like to come in?";
-                case "furniture_shopping":
-                    return "Got it. What size or style are you looking for?";
-                case "gym_membership":
-                    return "Okay. Are you interested in a monthly plan or a trial visit?";
-                case "hotel_check_in":
-                    return "Thank you. May I confirm the name on your reservation?";
-                default:
-                    return "I see. Could you tell me a little more?";
-            }
+            return "I see. Could you tell me a little more about that?";
         }
 
         private string BuildMinimalRecast(string correctedText)
@@ -1040,6 +1254,8 @@ namespace SceneTalkVR.Runtime.Services
                         Debug.Log("[RealLLMService] Orchestrator is Idle/Finished. Clearing chat history and session error history.");
                         chatHistory.Clear();
                         sessionErrorHistory.Clear();
+                        nonGoalQuestionsAsked = 0;
+                        askedNonGoalQuestionIds.Clear();
                     }
                 }
             }
@@ -1055,6 +1271,8 @@ namespace SceneTalkVR.Runtime.Services
             {
                 sessionErrorHistory.Clear();
             }
+            nonGoalQuestionsAsked = 0;
+            askedNonGoalQuestionIds.Clear();
             Debug.Log("[RealLLMService] Chat history and session error history cleared on explicit session reset.");
         }
 
@@ -1252,13 +1470,14 @@ namespace SceneTalkVR.Runtime.Services
             RefreshSttMetadata(isStreaming: true);
 
             CheckAndResetSession();
+            var pacingDecision = CreateAvatarDialoguePacingDecision(userText);
 
             var timing = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include);
             formalDialogueLeakageDetected = false;
             timing?.RecordTimingEvent(ExperimentTimingEventType.CorrectionRequestStarted);
             var correctionTask = ParseCorrectionFeedbackAsync(userText);
             timing?.RecordTimingEvent(ExperimentTimingEventType.DialogueRequestStarted);
-            var dialogueTask = ParseDialogueContinuationStreamingAsync(userText, onSentenceComplete);
+            var dialogueTask = ParseDialogueContinuationStreamingAsync(userText, pacingDecision, onSentenceComplete);
             var correctionReadyLogged = false;
 
             while (!correctionTask.IsCompleted || !dialogueTask.IsCompleted)
@@ -1297,6 +1516,7 @@ namespace SceneTalkVR.Runtime.Services
                 onCorrectionReady?.Invoke(feedback);
             }
             payload.correctionFeedback = feedback;
+            CommitAvatarDialoguePacing(payload, pacingDecision);
             ApplyExperimentConditionToPayload(payload);
             if (formalDialogueLeakageDetected)
             {
@@ -1323,51 +1543,12 @@ namespace SceneTalkVR.Runtime.Services
             onComplete?.Invoke(payload);
         }
 
-        private async Task<SpringScenePayload> ParseDialogueContinuationStreamingAsync(string userInput, Action<string> onSentenceComplete)
+        private async Task<SpringScenePayload> ParseDialogueContinuationStreamingAsync(
+            string userInput,
+            AvatarDialoguePacingDecision pacingDecision,
+            Action<string> onSentenceComplete)
         {
-            var builder = new System.Text.StringBuilder();
-            
-            string role = "tutor";
-            string speed = "medium";
-            string accent = "american";
-            string attitude = "friendly";
-            string env = "classroom";
-
-            if (currentCondition != null && currentCondition.task != null)
-            {
-                env = currentCondition.task.fallbackEnvironmentType ?? env;
-                role = currentCondition.task.fallbackAvatarRole ?? role;
-                attitude = currentCondition.task.fallbackAvatarAttitude ?? attitude;
-            }
-
-            builder.AppendLine($"You are playing the role of a {role} in a {env} environment for English oral practice.");
-            builder.AppendLine($"Your accent is {accent}, your attitude is {attitude}, and you speak at a {speed} speed.");
-            builder.AppendLine("Reply to the user's statement naturally and concisely (1-3 sentences). Keep the practice interactive and realistic.");
-            
-            if (currentCondition != null)
-            {
-                builder.AppendLine("\n=== TASK CONTEXT ===");
-                builder.AppendLine($"- scenarioId: {currentCondition.scenarioId}");
-                if (currentCondition.task != null)
-                {
-                    if (!string.IsNullOrWhiteSpace(currentCondition.task.context))
-                        builder.AppendLine($"- taskContext: {currentCondition.task.context}");
-                    if (currentCondition.task.goals != null && currentCondition.task.goals.Length > 0)
-                        builder.AppendLine($"- taskGoals: {string.Join("; ", currentCondition.task.goals)}");
-                }
-            }
-
-            builder.AppendLine("\n=== DIALOGUE INSTRUCTIONS ===");
-            builder.AppendLine("1. Continue the dialogue roleplay naturally and concisely.");
-            builder.AppendLine("2. CRITICAL: You are strictly forbidden from performing any language correction, grammar tips, or alternative phrasing.");
-            builder.AppendLine("3. Do NOT comment on the user's English. Just act in role!");
-            builder.AppendLine("4. Do NOT duplicate or include any grammatical corrections in your reply.");
-            builder.AppendLine("5. Output ONLY a valid JSON object matching this schema:");
-            builder.AppendLine("{");
-            builder.AppendLine("  \"dialogueContinuation\": \"character's reply text\"");
-            builder.AppendLine("}");
-
-            string systemPrompt = builder.ToString();
+            string systemPrompt = BuildAvatarDialogueSystemPrompt(pacingDecision);
 
             var messagesList = new System.Collections.Generic.List<OpenAiMessage>();
             if (chatHistory.Count == 0)
@@ -1387,6 +1568,7 @@ namespace SceneTalkVR.Runtime.Services
 
             var parser = new IncrementalJsonParser();
             bool firstSentence = false;
+            var holdForPacingSanitization = pacingDecision?.data?.triggered == true;
             string fullResponse = await SendChatRequestStreaming(messagesList.ToArray(), chunk =>
             {
                 var sentences = parser.Feed(chunk);
@@ -1399,7 +1581,10 @@ namespace SceneTalkVR.Runtime.Services
                         FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)
                             ?.RecordTimingEvent(ExperimentTimingEventType.DialogueFirstSentenceReady);
                     }
-                    onSentenceComplete?.Invoke(s);
+                    if (!holdForPacingSanitization)
+                    {
+                        onSentenceComplete?.Invoke(s);
+                    }
                 }
             });
 
@@ -1410,6 +1595,14 @@ namespace SceneTalkVR.Runtime.Services
                 if (string.IsNullOrEmpty(payload.dialogueReply) && !string.IsNullOrEmpty(payload.dialogueContinuation))
                 {
                     payload.dialogueReply = payload.dialogueContinuation;
+                }
+                EnsureSelectedQuestionAtEnd(payload, pacingDecision);
+                if (holdForPacingSanitization)
+                {
+                    foreach (var sentence in SplitDialogueSentences(payload.dialogueReply))
+                    {
+                        onSentenceComplete?.Invoke(sentence);
+                    }
                 }
             }
             return payload;

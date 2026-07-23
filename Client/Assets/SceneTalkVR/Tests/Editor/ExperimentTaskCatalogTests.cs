@@ -39,6 +39,60 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(ids.Distinct(StringComparer.OrdinalIgnoreCase).Count(), Is.EqualTo(ids.Length));
         }
 
+        [Test] public void AllTasks_HaveThreeUniqueNonGoalQuestionsThatDoNotCompleteGoals()
+        {
+            var allQuestionIds = Catalog.Tasks
+                .SelectMany(task => task.nonGoalQuestions ?? Array.Empty<NonGoalQuestionDefinition>())
+                .Select(question => question.questionId)
+                .ToArray();
+            Assert.That(allQuestionIds.Distinct(StringComparer.OrdinalIgnoreCase).Count(),
+                Is.EqualTo(allQuestionIds.Length),
+                "Question IDs must be unique across the full seven-task catalog.");
+
+            foreach (var task in Catalog.Tasks)
+            {
+                Assert.That(task.nonGoalQuestions, Has.Length.EqualTo(3), task.taskId);
+                Assert.That(task.nonGoalQuestions.All(question => question != null
+                    && !string.IsNullOrWhiteSpace(question.questionId)
+                    && !string.IsNullOrWhiteSpace(question.text)), Is.True, task.taskId);
+                Assert.That(task.nonGoalQuestions.Select(question => question.questionId)
+                    .Distinct(StringComparer.OrdinalIgnoreCase).Count(), Is.EqualTo(3), task.taskId);
+
+                foreach (var question in task.nonGoalQuestions)
+                {
+                    var result = new GoalAchievementEvaluator().Evaluate(new GoalEvaluationRequest
+                    {
+                        taskId = task.taskId,
+                        turnId = "question-bank-validation",
+                        userTranscript = question.text,
+                        currentGoalDefinitions = task.goals
+                    });
+                    Assert.That(result.evaluations.Any(evaluation => evaluation.achieved), Is.False,
+                        $"{task.taskId}:{question.questionId} overlaps a task goal");
+                }
+            }
+        }
+
+        [Test] public void ExperimentCsv_PacingColumnsRemainAlignedWithValues()
+        {
+            var recordType = typeof(ExperimentConditionManager).GetNestedType(
+                "ExperimentTurnLogRecord",
+                BindingFlags.NonPublic);
+            Assert.That(recordType, Is.Not.Null);
+            var header = (string)recordType.GetField(
+                "CsvHeader",
+                BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+            var record = Activator.CreateInstance(recordType, true);
+            var line = (string)recordType.GetMethod(
+                "ToCsvLine",
+                BindingFlags.Public | BindingFlags.Instance)?.Invoke(record, null);
+
+            Assert.That(header, Does.EndWith(
+                "avatarPacingTriggered,avatarPacingQuestionId,avatarPacingTemperature,avatarPacingRandomSample"));
+            Assert.That(line, Is.Not.Null);
+            Assert.That(line.Split(',').Length, Is.EqualTo(header.Split(',').Length));
+        }
+
         [TestCase("hotel_check_in",4)] [TestCase("furniture_shopping",4)] [TestCase("gym_membership",4)] [TestCase("tourist_assistance",4)]
         public void FormalTasks_HaveFourGoals(string id,int count)
         {
@@ -183,6 +237,8 @@ namespace SceneTalkVR.Tests.Editor
                 Assert.That(manager.CurrentTask.initialQuestion, Is.EqualTo(expected.initialQuestion));
                 Assert.That(manager.CurrentTask.panoramaResourceKey, Is.EqualTo(expected.panoramaResourceKey));
                 Assert.That(manager.CurrentTask.avatarPresetKey, Is.EqualTo(expected.avatarPresetKey));
+                Assert.That(manager.CurrentTask.nonGoalQuestions.Select(question => question.questionId),
+                    Is.EqualTo(expected.nonGoalQuestions.Select(question => question.questionId)));
                 Assert.That(manager.CurrentTask.fallbackLayoutObjects, Is.Empty);
             }
             finally
@@ -229,6 +285,11 @@ namespace SceneTalkVR.Tests.Editor
                 avatarRole = source.avatarRole,
                 voiceProfileKey = source.voiceProfileKey,
                 roleplayPrompt = source.roleplayPrompt,
+                nonGoalQuestions = source.nonGoalQuestions.Select(question => new NonGoalQuestionDefinition
+                {
+                    questionId = question.questionId,
+                    text = question.text
+                }).ToArray(),
                 spawnPosition = source.spawnPosition,
                 spawnRotation = source.spawnRotation,
                 developerPlaceholderAvatar = source.developerPlaceholderAvatar

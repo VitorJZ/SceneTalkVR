@@ -122,6 +122,16 @@ namespace SceneTalkVR.Core
         public AvatarRoleData avatarRole = new AvatarRoleData();
         public ScenePayload scene = new ScenePayload();
         public CorrectionFeedbackData correctionFeedback;
+        public AvatarDialoguePacingData dialoguePacing = new AvatarDialoguePacingData();
+    }
+
+    [Serializable]
+    public sealed class AvatarDialoguePacingData
+    {
+        public bool triggered;
+        public string questionId;
+        public float temperature;
+        public float randomSample = -1f;
     }
 
     [Serializable]
@@ -175,6 +185,7 @@ namespace SceneTalkVR.Core
         public string avatarPresetKey;
         public string voiceProfileKey;
         public string roleplayPrompt;
+        public NonGoalQuestionDefinition[] nonGoalQuestions = Array.Empty<NonGoalQuestionDefinition>();
         public Vector3 spawnPosition;
         public Vector3 spawnRotation;
         public bool developerPlaceholderAvatar;

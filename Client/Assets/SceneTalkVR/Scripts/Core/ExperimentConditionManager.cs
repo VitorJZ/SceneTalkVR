@@ -721,6 +721,11 @@ namespace SceneTalkVR.Core
             {
                 log.dialogueReply = NullToEmpty(payload.dialogueReply);
                 log.dialogueContinuation = NullToEmpty(payload.dialogueContinuation);
+                var pacing = payload.dialoguePacing;
+                log.avatarPacingTriggered = pacing != null && pacing.triggered;
+                log.avatarPacingQuestionId = NullToEmpty(pacing?.questionId);
+                log.avatarPacingTemperature = pacing?.temperature ?? 0f;
+                log.avatarPacingRandomSample = pacing?.randomSample ?? -1f;
                 if (feedback != null)
                 {
                     log.feedbackText = NullToEmpty(feedback.feedbackText);
@@ -1256,6 +1261,7 @@ namespace SceneTalkVR.Core
                 avatarPresetKey = definition.avatarPresetKey,
                 voiceProfileKey = definition.voiceProfileKey,
                 roleplayPrompt = definition.roleplayPrompt,
+                nonGoalQuestions = CopyNonGoalQuestions(definition.nonGoalQuestions),
                 spawnPosition = definition.spawnPosition,
                 spawnRotation = definition.spawnRotation,
                 developerPlaceholderAvatar = definition.developerPlaceholderAvatar,
@@ -1641,6 +1647,7 @@ namespace SceneTalkVR.Core
                 avatarPresetKey = source.avatarPresetKey,
                 voiceProfileKey = source.voiceProfileKey,
                 roleplayPrompt = source.roleplayPrompt,
+                nonGoalQuestions = CopyNonGoalQuestions(source.nonGoalQuestions),
                 spawnPosition = source.spawnPosition,
                 spawnRotation = source.spawnRotation,
                 developerPlaceholderAvatar = source.developerPlaceholderAvatar,
@@ -1657,6 +1664,28 @@ namespace SceneTalkVR.Core
 
             var copy = new string[values.Length];
             Array.Copy(values, copy, values.Length);
+            return copy;
+        }
+
+        private static NonGoalQuestionDefinition[] CopyNonGoalQuestions(NonGoalQuestionDefinition[] values)
+        {
+            if (values == null || values.Length == 0)
+            {
+                return Array.Empty<NonGoalQuestionDefinition>();
+            }
+
+            var copy = new NonGoalQuestionDefinition[values.Length];
+            for (var i = 0; i < values.Length; i++)
+            {
+                var value = values[i];
+                copy[i] = value == null
+                    ? null
+                    : new NonGoalQuestionDefinition
+                    {
+                        questionId = value.questionId,
+                        text = value.text
+                    };
+            }
             return copy;
         }
 
@@ -1939,9 +1968,13 @@ namespace SceneTalkVR.Core
             public string runQualification;
             public string protocolSnapshotId;
             public string resourceSnapshotId;
+            public bool avatarPacingTriggered;
+            public string avatarPacingQuestionId;
+            public float avatarPacingTemperature;
+            public float avatarPacingRandomSample = -1f;
 
             public const string CsvHeader =
-                "protocolVersion,buildVersion,gitCommit,activeBranch,experimentPhase,formalModeLocked,participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc,transcript,dialogueReply,feedbackText,originalText,correctedText,rationaleTag,sttConfidence,sttProvider,sttFallbackLevel,sttSuppressionReason,conditionOrderPosition,validationWarnings,selectedTaskId,taskCatalogVersion,taskId,taskPhase,taskName,taskContext,taskGoals,initialQuestion,sceneMode,whetherHolodeckCalled,whetherImageGenerationCalled,panoramaResourceKey,panoramaSource,avatarPresetKey,resolvedAvatarPresetKey,avatarFallbackLevel,voiceProfileKey,experimentProvider,experimentStyle,dialogueContinuation,recastText,correctionRequestStartTime,dialogueRequestStartTime,firstTokenTime,firstSentenceTime,ttsReadyTime,correctionPlayStartTime,correctionPlayEndTime,dialoguePlayStartTime,dialoguePlayEndTime,playbackOrder,userEndToFeedbackAudioMs,userEndToDialogueAudioMs,feedbackToDialogueGapMs,correctionVoiceId,actualPlaybackSubject,timeoutReason,fallbackReason,failureReason,assistantEmbodiment,sequenceId,conditionRunId,taskAssignmentId,assignmentVersion,questionnaireLinkageKey,completedGoalCount,totalGoalCount,taskCompletionRate,turnsToCompletion,completionReason,runtimeMode,dataOrigin,collectionEligible,developerTestAssignment,demoMode,demoProtocolVersion,flowMode,runQualification,protocolSnapshotId,resourceSnapshotId";
+                "protocolVersion,buildVersion,gitCommit,activeBranch,experimentPhase,formalModeLocked,participantId,sessionId,conditionId,scenarioId,turnId,turnIndex,provider,style,hasFeedback,errorType,correctionOutcome,correctionErrorCode,userAction,retryCount,recordingDurationMs,moduleFallback,timestampUtc,timestampUnixMs,completedAtUtc,transcript,dialogueReply,feedbackText,originalText,correctedText,rationaleTag,sttConfidence,sttProvider,sttFallbackLevel,sttSuppressionReason,conditionOrderPosition,validationWarnings,selectedTaskId,taskCatalogVersion,taskId,taskPhase,taskName,taskContext,taskGoals,initialQuestion,sceneMode,whetherHolodeckCalled,whetherImageGenerationCalled,panoramaResourceKey,panoramaSource,avatarPresetKey,resolvedAvatarPresetKey,avatarFallbackLevel,voiceProfileKey,experimentProvider,experimentStyle,dialogueContinuation,recastText,correctionRequestStartTime,dialogueRequestStartTime,firstTokenTime,firstSentenceTime,ttsReadyTime,correctionPlayStartTime,correctionPlayEndTime,dialoguePlayStartTime,dialoguePlayEndTime,playbackOrder,userEndToFeedbackAudioMs,userEndToDialogueAudioMs,feedbackToDialogueGapMs,correctionVoiceId,actualPlaybackSubject,timeoutReason,fallbackReason,failureReason,assistantEmbodiment,sequenceId,conditionRunId,taskAssignmentId,assignmentVersion,questionnaireLinkageKey,completedGoalCount,totalGoalCount,taskCompletionRate,turnsToCompletion,completionReason,runtimeMode,dataOrigin,collectionEligible,developerTestAssignment,demoMode,demoProtocolVersion,flowMode,runQualification,protocolSnapshotId,resourceSnapshotId,avatarPacingTriggered,avatarPacingQuestionId,avatarPacingTemperature,avatarPacingRandomSample";
 
             public string ToCsvLine()
             {
@@ -2029,7 +2062,10 @@ namespace SceneTalkVR.Core
                     taskCompletionRate.ToString("F4", CultureInfo.InvariantCulture), turnsToCompletion.ToString(CultureInfo.InvariantCulture), Csv(completionReason),
                     Csv(runtimeMode), Csv(dataOrigin), collectionEligible ? "true" : "false",
                     developerTestAssignment ? "true" : "false", demoMode ? "true" : "false", Csv(demoProtocolVersion),
-                    Csv(flowMode), Csv(runQualification), Csv(protocolSnapshotId), Csv(resourceSnapshotId));
+                    Csv(flowMode), Csv(runQualification), Csv(protocolSnapshotId), Csv(resourceSnapshotId),
+                    avatarPacingTriggered ? "true" : "false", Csv(avatarPacingQuestionId),
+                    avatarPacingTemperature.ToString("F4", CultureInfo.InvariantCulture),
+                    avatarPacingRandomSample.ToString("F4", CultureInfo.InvariantCulture));
             }
 
             private static string Csv(string value)
