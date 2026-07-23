@@ -24,7 +24,8 @@ public static class FixThirdPartyMaterials
         "TourOfficeScene",
         "FurnitureStoreScene",
         "GymScene",
-        "HotelLobbyScene"
+        "HotelLobbyScene",
+        "RestaurantScene"
     };
 
     [MenuItem("SceneTalkVR/Repair Third-Party URP Materials")]
@@ -89,7 +90,7 @@ public static class FixThirdPartyMaterials
 
         if (problems.Count == 0)
         {
-            Debug.Log("Third-party scene validation passed: all four roots and their renderer materials are valid.");
+            Debug.Log($"Third-party scene validation passed: all {SceneRootNames.Length} roots and their renderer materials are valid.");
             return;
         }
 
