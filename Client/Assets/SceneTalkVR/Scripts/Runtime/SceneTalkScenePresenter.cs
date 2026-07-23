@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace SceneTalkVR.Runtime
 {
-    public sealed class SceneTalkScenePresenter : MonoBehaviour, ISceneTalkScenePresenter, ISceneTalkSceneSnapshotProvider
+    public sealed class SceneTalkScenePresenter : MonoBehaviour, ISceneTalkScenePresenter, ISceneTalkSceneSnapshotProvider, ISceneTalkPresentedSceneClearer
     {
         [Serializable]
         private sealed class PrefabBinding
