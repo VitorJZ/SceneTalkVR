@@ -94,7 +94,16 @@ namespace SceneTalkVR.Runtime
         private void SetAnswer(string item,int value){coordinator.Workflow.Questionnaire.SetResponse(item,value.ToString(),out var error);questionnaireError.text=Humanize(error);RefreshAnswers();}
         private void RefreshAnswers(){var responses=coordinator?.Workflow?.Questionnaire?.ActiveSession?.responses??Array.Empty<QuestionnaireResponse>();foreach(var pair in answerButtons){var split=pair.Key.LastIndexOf(':');var item=pair.Key[..split];var value=pair.Key[(split+1)..];var selected=responses.Any(x=>x.itemId==item&&x.rawValue==value);pair.Value.GetComponent<Image>().color=selected?new Color(.12f,.68f,.34f,1):new Color(.12f,.38f,.62f,1);}}
         private void SubmitQuestionnaire(){if(!coordinator.SubmitQuestionnaire(out var error)){questionnaireError.text=Humanize(error);return;}questionnaireError.text="";}
-        private void SelectRank(PilotEmbodimentCondition condition,int rank){ranks[condition]=rank;foreach(var pair in rankButtons)pair.Value.GetComponent<Image>().color=pair.Key==condition+":"+rank?new Color(.12f,.68f,.34f,1):new Color(.12f,.38f,.62f,1);rankingError.text="";}
+        private void SelectRank(PilotEmbodimentCondition condition,int rank)
+        {
+            var previousRank=ranks[condition];
+            var occupied=ranks.FirstOrDefault(x=>x.Key!=condition&&x.Value==rank);
+            if(occupied.Value==rank)ranks[occupied.Key]=previousRank;
+            ranks[condition]=rank;
+            RefreshRankButtons();
+            rankingError.text="";
+        }
+        private void RefreshRankButtons(){foreach(var pair in rankButtons)pair.Value.GetComponent<Image>().color=ranks.Any(x=>pair.Key==x.Key+":"+x.Value)?new Color(.12f,.68f,.34f,1):new Color(.12f,.38f,.62f,1);}
         private void SelectPreferred(PilotEmbodimentCondition condition){preferred=condition;foreach(var button in ranking.GetComponentsInChildren<Button>(true).Where(x=>x.name.EndsWith("Preferred")))button.GetComponent<Image>().color=button.name.StartsWith(condition.ToString())?new Color(.12f,.68f,.34f,1):new Color(.12f,.38f,.62f,1);}
         private void SubmitRanking(){if(ranks.Values.Any(x=>x<1||x>3)||ranks.Values.Distinct().Count()!=3){rankingError.text="Use each rank exactly once.";return;}if(!preferred.HasValue){rankingError.text="Select the overall preferred feedback experience.";return;}if(string.IsNullOrWhiteSpace(reasonInput.text)){rankingError.text="Please provide a reason.";return;}var entries=ranks.Select(x=>new PreferenceRankEntry{embodimentCondition=PilotProtocolValues.Label(x.Key),rank=x.Value}).OrderBy(x=>x.rank).ToArray();var response=new PreferenceRankingResponse{rankings=entries,preferredEmbodimentCondition=PilotProtocolValues.Label(preferred.Value),reason=reasonInput.text.Trim()};if(!coordinator.SubmitFinalRanking(response,out var error))rankingError.text=Humanize(error);}
         private void Refresh()
