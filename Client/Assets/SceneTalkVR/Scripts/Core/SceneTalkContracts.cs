@@ -42,6 +42,11 @@ namespace SceneTalkVR.Core
         IEnumerator PresentScene(SpringScenePayload payload, Action onComplete, Action<string> onError);
     }
 
+    public interface ISceneTalkPresentedSceneClearer
+    {
+        void ClearPresentedScene();
+    }
+
     public interface ISceneTalkAvatarVoice
     {
         IEnumerator PresentReply(SpringScenePayload payload, Action onComplete, Action<string> onError);
