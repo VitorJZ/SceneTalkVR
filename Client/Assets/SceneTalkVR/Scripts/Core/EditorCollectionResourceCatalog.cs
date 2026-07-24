@@ -37,7 +37,7 @@ namespace SceneTalkVR.Core
         [SerializeField] private string splitFeedbackAgentKey = "correction_agent_presenter_v1";
         [SerializeField] private bool splitFeedbackAgentApprovedForCollection;
         [SerializeField] private string pilotOrbKey = "generated_orb_v1";
-        [SerializeField] private string pilotHumanoidKey = "teacher_female_humanoid_v1";
+        [SerializeField] private string pilotHumanoidKey = "correction_assistant_woman";
         [SerializeField] private bool pilotResourcesApprovedForCollection;
 
         public string ResourceSnapshotId => resourceSnapshotId?.Trim() ?? string.Empty;
@@ -77,7 +77,7 @@ namespace SceneTalkVR.Core
                     issues.Add("editor_collection_panorama_invalid:" + task.taskId);
             }
             if (!splitFeedbackAgentApprovedForCollection || string.IsNullOrWhiteSpace(SplitFeedbackAgentKey)) issues.Add("split_feedback_agent_unapproved");
-            if (!pilotResourcesApprovedForCollection || PilotOrbKey != "generated_orb_v1" || PilotHumanoidKey != "teacher_female_humanoid_v1") issues.Add("pilot_resources_unapproved");
+            if (!pilotResourcesApprovedForCollection || PilotOrbKey != "generated_orb_v1" || PilotHumanoidKey != "correction_assistant_woman") issues.Add("pilot_resources_unapproved");
             var voiceError = "editor_collection_voice_catalog_missing";
             if (voices == null || !voices.ValidateForLockedCollection(formal.Select(x => x.voiceProfileKey), out voiceError)) issues.Add(voiceError);
             var deploymentError = "editor_collection_deployment_catalog_missing";

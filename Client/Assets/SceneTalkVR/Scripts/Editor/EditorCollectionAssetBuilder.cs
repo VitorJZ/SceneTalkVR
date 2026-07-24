@@ -97,7 +97,7 @@ namespace SceneTalkVR.EditorTools
                 approvedForEditorCollection = true, approvedForCollection = true, replaceableAsset = true
             }).ToArray();
             resource.EditorSet("resources-1.2-editor-collection", avatarCatalog, mappings, panoramas,
-                "correction_agent_presenter_v1", "generated_orb_v1", "teacher_female_humanoid_v1");
+                "correction_agent_presenter_v1", "generated_orb_v1", "correction_assistant_woman");
 
             var pilotPresentations = AssetDatabase.LoadAssetAtPath<PilotPresentationCatalog>(PilotPresentationPath);
             ConfigurePilotPresentations(pilotPresentations);
@@ -227,7 +227,7 @@ namespace SceneTalkVR.EditorTools
 
         private static void ConfigurePilotPresentations(PilotPresentationCatalog catalog)
         {
-            var humanoid = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SceneTalkVR/Avatar/Prefabs/Humanoid/teacher_female_humanoid_v1.prefab");
+            var humanoid = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SceneTalkVR/Avatar/Prefabs/Humanoid/correction_assistant_woman.prefab");
             var animator = humanoid == null ? null : humanoid.GetComponentInChildren<Animator>(true)?.runtimeAnimatorController;
             catalog.EditorSet("1.2-editor-collection", new[]
             {
@@ -257,7 +257,7 @@ namespace SceneTalkVR.EditorTools
                     feedbackActor = "humanoid_feedback_agent", voiceProfileKey = "editor_collection_feedback_voice",
                     audioSourcePolicy = PilotAudioSourcePolicy.SpatialFixedSource, sourcePosition = new Vector3(.9f, 0f, 1.8f),
                     spatialBlend = 1f, minDistance = .2f, maxDistance = 4f, volume = 1f, speakingSpeed = 1f,
-                    subtitlePolicy = "feedback_only", visualPrefabKey = "teacher_female_humanoid_v1", visualPrefab = humanoid,
+                    subtitlePolicy = "feedback_only", visualPrefabKey = "correction_assistant_woman", visualPrefab = humanoid,
                     animatorController = animator, idleParameterOrState = "Idle", speakingParameterOrState = "Talking",
                     spawnRotation = new Vector3(0f, 180f, 0f), scale = Vector3.one, audioSourceRequired = true,
                     mobileReady = true, assetVersion = "editor-collection-1", approvedForCollection = true,

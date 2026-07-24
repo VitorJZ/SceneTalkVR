@@ -64,7 +64,7 @@ namespace SceneTalkVR.Tests.Editor
         { Assert.That(deployments.ValidateForCollection(ExperimentDeploymentProfileId.EditorCollection, out var error), Is.True, error); deployments.TryGet(ExperimentDeploymentProfileId.EditorCollection, out var profile); Assert.That(profile.target, Is.EqualTo(ExperimentDeploymentTarget.UnityEditor)); Assert.That(profile.EndpointHost, Is.EqualTo("127.0.0.1")); }
 
         [Test] public void T16_CurrentPilotResourcesRemainValid()
-        { Assert.That(pilot.ValidateLocked(protocol, out var error), Is.True, error); Assert.That(pilot.Find(PilotEmbodimentCondition.VoiceOnly).visualMode, Is.EqualTo(PilotVisualMode.None)); Assert.That(pilot.Find(PilotEmbodimentCondition.FloatingOrb).visualPrefabKey, Is.EqualTo("generated_orb_v1")); Assert.That(pilot.Find(PilotEmbodimentCondition.HumanoidAgent).visualPrefabKey, Is.EqualTo("teacher_female_humanoid_v1")); }
+        { Assert.That(pilot.ValidateLocked(protocol, out var error), Is.True, error); Assert.That(pilot.Find(PilotEmbodimentCondition.VoiceOnly).visualMode, Is.EqualTo(PilotVisualMode.None)); Assert.That(pilot.Find(PilotEmbodimentCondition.FloatingOrb).visualPrefabKey, Is.EqualTo("generated_orb_v1")); Assert.That(pilot.Find(PilotEmbodimentCondition.HumanoidAgent).visualPrefabKey, Is.EqualTo("correction_assistant_woman")); }
 
         [Test] public void T17_FormalAssignmentIsRandomBijectionAndCollectionIdentity()
         {
