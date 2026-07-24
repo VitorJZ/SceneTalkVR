@@ -5,6 +5,8 @@ Shader "SceneTalkVR/Controller/Always On Top"
         [PerRendererData] _MainTex ("Texture", 2D) = "white" {}
         _Color ("Tint", Color) = (1, 1, 1, 1)
         [Toggle] _UseVertexColor ("Use Vertex Color", Float) = 0
+        [Enum(UnityEngine.Rendering.BlendMode)] _SrcBlend ("Source Blend", Float) = 1
+        [Enum(UnityEngine.Rendering.BlendMode)] _DstBlend ("Destination Blend", Float) = 0
     }
 
     SubShader
@@ -20,7 +22,7 @@ Shader "SceneTalkVR/Controller/Always On Top"
         Lighting Off
         ZWrite Off
         ZTest Always
-        Blend SrcAlpha OneMinusSrcAlpha
+        Blend [_SrcBlend] [_DstBlend]
 
         Pass
         {
