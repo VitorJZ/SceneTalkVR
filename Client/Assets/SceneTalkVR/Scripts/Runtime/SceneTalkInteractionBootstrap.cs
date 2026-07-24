@@ -20,6 +20,9 @@ namespace SceneTalkVR.Runtime
     public sealed class SceneTalkInteractionBootstrap : MonoBehaviour
     {
         private const float DefaultCanvasScale = 0.005f;
+        private const string ControllerOverlayShaderName = "SceneTalkVR/Controller/Always On Top";
+        private const int ControllerVisualRenderQueue = 4990;
+        private const int ControllerRayRenderQueue = 5000;
 
         private enum ControllerTriggerOwner
         {
@@ -1013,7 +1016,12 @@ namespace SceneTalkVR.Runtime
                 return controllerVisualMaterial;
             }
 
-            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            var shader = Shader.Find(ControllerOverlayShaderName);
+            if (shader == null)
+            {
+                shader = Shader.Find("Universal Render Pipeline/Lit");
+            }
+
             if (shader == null)
             {
                 shader = Shader.Find("Standard");
@@ -1032,8 +1040,14 @@ namespace SceneTalkVR.Runtime
             controllerVisualMaterial = new Material(shader)
             {
                 name = "SceneTalkVR Controller Visual Base Material",
-                color = Color.white
+                color = Color.white,
+                renderQueue = ControllerVisualRenderQueue
             };
+            if (controllerVisualMaterial.HasProperty("_UseVertexColor"))
+            {
+                controllerVisualMaterial.SetFloat("_UseVertexColor", 0f);
+            }
+
             return controllerVisualMaterial;
         }
 
@@ -1044,7 +1058,12 @@ namespace SceneTalkVR.Runtime
                 return controllerRayMaterial;
             }
 
-            var shader = Shader.Find("Sprites/Default");
+            var shader = Shader.Find(ControllerOverlayShaderName);
+            if (shader == null)
+            {
+                shader = Shader.Find("Sprites/Default");
+            }
+
             if (shader == null)
             {
                 shader = Shader.Find("Unlit/Color");
@@ -1058,8 +1077,14 @@ namespace SceneTalkVR.Runtime
             controllerRayMaterial = new Material(shader)
             {
                 name = "SceneTalkVR Controller Ray Material",
-                color = controllerRayColor
+                color = Color.white,
+                renderQueue = ControllerRayRenderQueue
             };
+            if (controllerRayMaterial.HasProperty("_UseVertexColor"))
+            {
+                controllerRayMaterial.SetFloat("_UseVertexColor", 1f);
+            }
+
             return controllerRayMaterial;
         }
 
