@@ -105,30 +105,54 @@ namespace SceneTalkVR.AvatarSystem.Tests
         public void ResolveCorrectionVoiceIdOverride_DialogueAvatar_UsesAvatarVoice()
         {
             Assert.That(
-                CorrectionFeedbackPresenter.ResolveVoiceIdOverride(
+                CorrectionFeedbackPresenter.ResolveCorrectionVoiceIdOverride(
                     useDialogueAvatar: true,
                     rehearsalFeedbackVoiceId: "feedback_voice",
-                    pilotVoiceId: "pilot_voice",
+                    experimentFeedbackVoiceId: "experiment_voice",
                     assistantAgentVoiceId: "assistant_voice"),
                 Is.Null);
         }
 
-        [TestCase("feedback_voice", "pilot_voice", "assistant_voice", "feedback_voice")]
-        [TestCase("", "pilot_voice", "assistant_voice", "pilot_voice")]
+        [TestCase("feedback_voice", "experiment_voice", "assistant_voice", "feedback_voice")]
+        [TestCase("", "experiment_voice", "assistant_voice", "experiment_voice")]
         [TestCase("", "", "assistant_voice", "assistant_voice")]
-        public void ResolveCorrectionVoiceIdOverride_AssistantAgent_UsesIndependentVoice(
+        public void ResolveCorrectionVoiceIdOverride_AssistantAndPilotUseSharedExperimentVoice(
             string rehearsalFeedbackVoiceId,
-            string pilotVoiceId,
+            string experimentFeedbackVoiceId,
             string assistantAgentVoiceId,
             string expectedVoiceId)
         {
             Assert.That(
-                CorrectionFeedbackPresenter.ResolveVoiceIdOverride(
+                CorrectionFeedbackPresenter.ResolveCorrectionVoiceIdOverride(
                     useDialogueAvatar: false,
                     rehearsalFeedbackVoiceId,
-                    pilotVoiceId,
+                    experimentFeedbackVoiceId,
                     assistantAgentVoiceId),
                 Is.EqualTo(expectedVoiceId));
+        }
+
+        [TestCase("explicit")]
+        [TestCase("recast")]
+        public void ResolveExperimentFeedbackProfileKey_PilotAndFormalShareFormalProfile(string style)
+        {
+            var catalog = ScriptableObject.CreateInstance<ExperimentVoiceProfileCatalog>();
+            try
+            {
+                catalog.EditorSet(
+                    "test",
+                    "shared_correction_voice",
+                    "shared_correction_voice",
+                    "shared_correction_voice",
+                    new ExperimentVoiceProfile[0]);
+
+                Assert.That(
+                    CorrectionFeedbackPresenter.ResolveExperimentFeedbackProfileKey(catalog, style),
+                    Is.EqualTo("shared_correction_voice"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(catalog);
+            }
         }
     }
 }

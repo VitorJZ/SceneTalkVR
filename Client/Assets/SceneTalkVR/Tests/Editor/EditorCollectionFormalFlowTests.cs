@@ -143,8 +143,10 @@ namespace SceneTalkVR.Tests.Editor
             AssertVoice(catalog, "teacher_humanoid_v1", "male", "default_male_en");
             AssertVoice(catalog, "barista_male_humanoid_v1", "male", "default_male_en");
             AssertVoice(catalog, "teacher_female_humanoid_v1", "female", "default_female_en");
+            Assert.That(voices.FormalExplicitFeedbackProfileKey, Is.EqualTo(voices.FormalRecastFeedbackProfileKey));
+            Assert.That(voices.PilotSharedFeedbackProfileKey, Is.EqualTo(voices.FormalExplicitFeedbackProfileKey));
             Assert.That(voices.TryGet("editor_collection_feedback_voice", out var feedback), Is.True);
-            Assert.That(feedback.voiceId, Is.EqualTo("default_female_en"), "The shared Pilot feedback voice must match its female Humanoid presentation.");
+            Assert.That(feedback.voiceId, Is.EqualTo("502003"), "Pilot and Formal Assistant correction playback must share Zhi Xiao Min.");
         }
 
         private static void AssertVoice(AvatarCatalog catalog, string key, string gender, string voiceId)

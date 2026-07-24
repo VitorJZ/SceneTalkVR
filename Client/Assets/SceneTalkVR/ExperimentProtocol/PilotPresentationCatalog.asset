@@ -48,8 +48,8 @@ MonoBehaviour:
     audioSourcePolicy: 1
     sourcePosition: {x: 0.9, y: 1.45, z: 1.8}
     spatialBlend: 1
-    minDistance: 0.2
-    maxDistance: 4
+    minDistance: 3.2
+    maxDistance: 8
     volume: 1
     speakingSpeed: 1
     subtitlePolicy: feedback_only
@@ -75,8 +75,8 @@ MonoBehaviour:
     audioSourcePolicy: 1
     sourcePosition: {x: 0.9, y: 0, z: 1.8}
     spatialBlend: 1
-    minDistance: 0.2
-    maxDistance: 4
+    minDistance: 3.2
+    maxDistance: 8
     volume: 1
     speakingSpeed: 1
     subtitlePolicy: feedback_only

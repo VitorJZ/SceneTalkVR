@@ -67,6 +67,11 @@ namespace SceneTalkVR.AvatarSystem
                 return false;
             }
 
+            presenter.ConfigureAudioProfile(
+                value.volume,
+                value.spatialBlend,
+                value.minDistance,
+                value.maxDistance);
             profile = value;
             presenter.ShowImmediate();
             presenter.EndSpeaking();

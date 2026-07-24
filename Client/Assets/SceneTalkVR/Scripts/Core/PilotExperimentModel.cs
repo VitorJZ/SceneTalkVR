@@ -43,7 +43,7 @@ namespace SceneTalkVR.Core
     {
         public PilotEmbodimentCondition embodimentCondition; public PilotVisualMode visualMode; public string feedbackActor;
         public string voiceProfileKey; public PilotAudioSourcePolicy audioSourcePolicy; public Vector3 sourcePosition;
-        [Range(0,1)] public float spatialBlend; public float minDistance = .2f; public float maxDistance = 4f;
+        [Range(0,1)] public float spatialBlend; public float minDistance = 3.2f; public float maxDistance = 8f;
         public float volume = 1f; public float speakingSpeed = 1f; public string subtitlePolicy = "feedback_only";
         public int appearanceDelayMs; public int disappearanceDelayMs; public string visualPrefabKey; public GameObject visualPrefab;
         public RuntimeAnimatorController animatorController; public string idleParameterOrState; public string speakingParameterOrState;

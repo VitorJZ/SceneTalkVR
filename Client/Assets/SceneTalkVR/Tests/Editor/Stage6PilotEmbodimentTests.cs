@@ -50,6 +50,10 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(profiles.Select(x => x.volume).Distinct().Single(), Is.EqualTo(1));
             Assert.That(profiles.Select(x => x.subtitlePolicy).Distinct().Single(), Is.EqualTo("feedback_only"));
             Assert.That(profiles.All(x => x.appearanceDelayMs == 0), Is.True);
+            Assert.That(
+                profiles.Where(x => x.embodimentCondition != PilotEmbodimentCondition.VoiceOnly)
+                    .All(x => x.minDistance == 3.2f && x.maxDistance == 8f),
+                Is.True);
         }
 
         [TestCase(PilotAudioSourcePolicy.SpatialFixedSource)]
@@ -75,6 +79,8 @@ namespace SceneTalkVR.Tests.Editor
                 Assert.That(presenter.Configure(presentations.Find(PilotEmbodimentCondition.FloatingOrb), PilotAudioSourcePolicy.SpatialFixedSource, false, out var error), Is.True, error);
                 var agent = go.GetComponent<CorrectionAgentPresenter>();
                 Assert.That(agent, Is.Not.Null); Assert.That(agent.CurrentVisualMode, Is.EqualTo(CorrectionAgentPresenter.VisualMode.GeneratedAgent)); Assert.That(presenter.HasVisualEntity, Is.True);
+                Assert.That(presenter.AudioSource.minDistance, Is.EqualTo(3.2f).Within(0.0001f));
+                Assert.That(presenter.AudioSource.maxDistance, Is.EqualTo(8f).Within(0.0001f));
                 presenter.BeginFeedback(); Assert.That(presenter.HasVisualEntity, Is.True);
                 presenter.EndFeedback(); Assert.That(presenter.HasVisualEntity, Is.True);
                 presenter.ResetSession(); Assert.That(presenter.HasVisualEntity, Is.False);
