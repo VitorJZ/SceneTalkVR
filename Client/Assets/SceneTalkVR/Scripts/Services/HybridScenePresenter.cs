@@ -188,9 +188,31 @@ namespace SceneTalkVR.Runtime.Services
                 return false;
             }
 
-            target.gameObject.SetActive(true);
+            ActivateExclusiveStaticScenePath(root, target);
             Debug.Log($"[HybridScenePresenter] Activated authored scene '{target.name}' for environment '{payload?.environmentType}'.", this);
             return true;
+        }
+
+        private static void ActivateExclusiveStaticScenePath(Transform root, Transform target)
+        {
+            var path = new Stack<Transform>();
+            for (var current = target; current != null && current != root; current = current.parent)
+            {
+                path.Push(current);
+            }
+
+            var parent = root;
+            while (path.Count > 0)
+            {
+                for (var i = 0; i < parent.childCount; i++)
+                {
+                    parent.GetChild(i).gameObject.SetActive(false);
+                }
+
+                var next = path.Pop();
+                next.gameObject.SetActive(true);
+                parent = next;
+            }
         }
 
         private Transform ResolveStaticSceneContentRoot()
@@ -223,6 +245,9 @@ namespace SceneTalkVR.Runtime.Services
         {
             var value = (environmentType ?? string.Empty).Trim().ToLowerInvariant();
             var task = (taskType ?? string.Empty).Trim().ToLowerInvariant();
+            if (task == "pilot_restaurant_walk_in") return "PilotEnvironmentVariants/WalkInScene";
+            if (task == "pilot_restaurant_ordering") return "PilotEnvironmentVariants/OrderingScene";
+            if (task == "pilot_restaurant_wrong_dish") return "PilotEnvironmentVariants/WrongDishScene";
             if (value.Contains("hotel") || task.Contains("hotel")) return "HotelLobbyScene";
             if (value.Contains("furniture") || value.Contains("store") || task.Contains("furniture")) return "FurnitureStoreScene";
             if (value.Contains("gym") || task.Contains("gym")) return "GymScene";
