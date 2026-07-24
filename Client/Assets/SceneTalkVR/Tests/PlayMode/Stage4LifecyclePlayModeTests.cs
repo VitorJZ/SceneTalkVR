@@ -30,21 +30,21 @@ namespace SceneTalkVR.Tests.PlayMode
         };
 
         [UnityTest]
-        public IEnumerator EditorStartWithoutArmedCollection_ShowsFormalConditionSelection()
+        public IEnumerator NewExperimentStartsAtPilotFormalGate()
         {
             SceneManager.LoadScene("SampleScene", LoadSceneMode.Single);
             yield return null;
             yield return null;
 
-            InvokeButton("Formal Experiment");
+            InvokeButton("New Experiment");
             yield return null;
             Assert.That(FindActiveButton("Gym Membership"), Is.Null);
             var prompt = FindTransform("SessionNotPreparedPanel");
             Assert.That(prompt == null || !prompt.gameObject.activeInHierarchy, Is.True);
-            Assert.That(FindActiveButton("NE — Explicit feedback from partner"), Is.Not.Null);
-            Assert.That(FindActiveButton("NR — Recast feedback from partner"), Is.Not.Null);
-            Assert.That(FindActiveButton("SE — Explicit feedback from support agent"), Is.Not.Null);
-            Assert.That(FindActiveButton("SR — Recast feedback from support agent"), Is.Not.Null);
+            Assert.That(FindActiveButton("Pilot Experiment"), Is.Not.Null);
+            var formal = FindActiveButton("Formal Experiment");
+            Assert.That(formal, Is.Not.Null);
+            Assert.That(formal.interactable, Is.False);
         }
 
         [UnityTest]

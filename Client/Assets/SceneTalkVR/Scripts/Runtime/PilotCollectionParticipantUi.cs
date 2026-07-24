@@ -81,6 +81,7 @@ namespace SceneTalkVR.Runtime
             completion=Panel("PilotExperimentCompletionPanel",new Vector2(700,300));
             Label(completion.transform,"Title","Pilot Experiment Completed",new Vector2(0,65),new Vector2(620,50),30);
             Label(completion.transform,"Message","Thank you. You have completed the pilot study.",new Vector2(0,-20),new Vector2(600,80),22);
+            Button(completion.transform,"PilotCompletionContinueButton","Continue",new Vector2(0,-105),ContinueAfterCompletion,new Vector2(210,48));
 
             // Build under an active hierarchy so TMP initializes its font material
             // before SceneTalkWorldUiRenderer applies the overlay shader.
@@ -110,6 +111,7 @@ namespace SceneTalkVR.Runtime
         private void RefreshRankButtons(){foreach(var pair in rankButtons)pair.Value.GetComponent<Image>().color=ranks.Any(x=>pair.Key==x.Key+":"+x.Value)?new Color(.12f,.68f,.34f,1):new Color(.12f,.38f,.62f,1);}
         private void SelectPreferred(PilotEmbodimentCondition condition){preferred=condition;foreach(var button in ranking.GetComponentsInChildren<Button>(true).Where(x=>x.name.EndsWith("Preferred")))button.GetComponent<Image>().color=button.name.StartsWith(condition.ToString())?new Color(.12f,.68f,.34f,1):new Color(.12f,.38f,.62f,1);}
         private void SubmitRanking(){if(ranks.Values.Any(x=>x<1||x>3)||ranks.Values.Distinct().Count()!=3){rankingError.text="Use each rank exactly once.";return;}if(!preferred.HasValue){rankingError.text="Select the overall preferred feedback experience.";return;}if(string.IsNullOrWhiteSpace(reasonInput.text)){rankingError.text="Please provide a reason.";return;}var entries=ranks.Select(x=>new PreferenceRankEntry{embodimentCondition=PilotProtocolValues.Label(x.Key),rank=x.Value}).OrderBy(x=>x.rank).ToArray();var response=new PreferenceRankingResponse{rankings=entries,preferredEmbodimentCondition=PilotProtocolValues.Label(preferred.Value),reason=reasonInput.text.Trim()};if(!coordinator.SubmitFinalRanking(response,out var error))rankingError.text=Humanize(error);}
+        private void ContinueAfterCompletion(){var experiment=ExperimentSessionCoordinator.Active;if(experiment?.HasActiveExperiment==true)experiment.ContinueAfterPhaseCompletion();else coordinator?.EndSession();}
         private void Refresh()
         {
             if(setup==null)return;var stage=coordinator?.Stage??PilotParticipantStage.None;

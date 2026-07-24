@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using NUnit.Framework;
@@ -37,19 +38,16 @@ namespace SceneTalkVR.Tests.PlayMode
             Configure();
         }
 
-        [UnityTearDown] public IEnumerator TearDown() { CallVoid(collection, "EndRuntimeSession"); CallVoid(rehearsal, "ResetSession"); ForcePicoDeviceValidation(false); ResetUserSettings(); yield return null; }
+        [UnityTearDown] public IEnumerator TearDown() { CallVoid(collection, "EndRuntimeSession"); CallVoid(rehearsal, "ResetSession"); CallVoid(Find("SceneTalkVR.Core.ExperimentSessionCoordinator, Assembly-CSharp"), "ConfirmLeaveExperiment"); ForcePicoDeviceValidation(false); ResetUserSettings(); yield return null; }
 
-        [UnityTest] public IEnumerator T01_UnarmedEditorStartCreatesNonCollectionRehearsalAndShowsModes()
+        [UnityTest] public IEnumerator T01_UnarmedNewExperimentOpensPilotFormalMenuWithFormalLocked()
         {
             Click("StartButton"); yield return null;
-            rehearsal = Find("SceneTalkVR.Core.RehearsalSessionCoordinator, Assembly-CSharp");
             Assert.That(Active("SessionNotPreparedPanel"), Is.False);
             Assert.That(Active("TaskSelectionPanel"), Is.False);
-            Assert.That(Active("FormalModeSelectionPanel"), Is.True);
-            Assert.That((bool)Get(rehearsal, "IsFormal"), Is.True);
-            var runtime = Get(rehearsal, "RuntimeContext");
-            Assert.That(Get(runtime, "dataOrigin"), Is.EqualTo("rehearsal"));
-            Assert.That(Get(runtime, "collectionEligible"), Is.False);
+            Assert.That(Active("ExperimentMenuPanel"), Is.True);
+            Assert.That(Button("EnterPilotButton").interactable, Is.True);
+            Assert.That(Button("EnterFormalButton").interactable, Is.False);
         }
 
         [UnityTest] public IEnumerator T02_ArmedStartUsesRealMainMenuPathToModeSelection()
@@ -116,7 +114,12 @@ namespace SceneTalkVR.Tests.PlayMode
         [UnityTest] public IEnumerator T09_PicoDeviceValidation_FormalReachesInteractiveRankingAndCompletion()
         {
             ForcePicoDeviceValidation(true);
-            Click("StartButton"); yield return null; rehearsal = Find("SceneTalkVR.Core.RehearsalSessionCoordinator, Assembly-CSharp");
+            var flowUiType = Type.GetType("SceneTalkVR.Runtime.SceneTalkFlowUiController, Assembly-CSharp");
+            rehearsal = (Component)flowUiType.GetMethod("EnsureRuntimeRehearsalCoordinator", BindingFlags.Static | BindingFlags.NonPublic)
+                .Invoke(null, null);
+            var createArgs = new object[] { "PICO-PLAY", "PICO-SESSION-" + Guid.NewGuid().ToString("N"), null };
+            Assert.That((bool)rehearsal.GetType().GetMethod("CreateFormalSession").Invoke(rehearsal, createArgs), Is.True, createArgs[2] as string);
+            yield return null;
             var context = Get(rehearsal, "RuntimeContext"); Assert.That(Get(context, "deploymentProfile"), Is.EqualTo("pico_device_validation")); Assert.That((bool)Get(context, "collectionEligible"), Is.False);
             var assignment = Get(rehearsal, "FormalAssignment");
             foreach (var item in Conditions(assignment))
@@ -132,11 +135,21 @@ namespace SceneTalkVR.Tests.PlayMode
             }
             yield return null; Assert.That(Active("FormalFinalRankingPanel"), Is.True);
             AssertExitOverlay();
-            Click("NERank1"); Click("NRRank2"); Click("SERank3"); Click("SRRank4"); Click("NEPreferred"); Input("RankingReason").text = "Device validation ranking."; Click("RankingSubmitButton"); yield return null;
+            AssertSelectedRanks();
+            Click("NERank1"); AssertSelectedRanks("NERank1");
+            Click("NRRank2"); AssertSelectedRanks("NERank1", "NRRank2");
+            Click("NRRank1"); AssertSelectedRanks("NERank2", "NRRank1");
+            Click("NERank1"); Click("SERank3"); Click("SRRank4");
+            AssertSelectedRanks("NERank1", "NRRank2", "SERank3", "SRRank4");
+            Click("NEPreferred"); Input("RankingReason").text = "Device validation ranking."; Click("RankingSubmitButton"); yield return null;
             Assert.That(Active("FormalExperimentCompletionPanel"), Is.True); AssertExitOverlay(); Assert.That((bool)Get(rehearsal, "ExperimentCompleted"), Is.True); Assert.That((bool)Get(Get(rehearsal, "FormalAssignment"), "collectionEligible"), Is.False);
+            Click("FormalCompletionContinueButton"); yield return null;
+            Assert.That(Conditions(assignment).All(item => Get(item, "status").ToString() == "Completed"), Is.True);
+            Assert.That((bool)Get(rehearsal, "IsActive"), Is.False);
+            AssertHomeNavigation();
         }
 
-        [UnityTest] public IEnumerator T10_GlobalExitAbortsAndPersistsFormalCollectionSession()
+        [UnityTest] public IEnumerator T10_GlobalExitSuspendsAndPersistsFormalCollectionSession()
         {
             Arm(out var assignment); Click("StartButton"); yield return null;
             var selected = ConditionForTask(assignment, "hotel_check_in");
@@ -150,12 +163,13 @@ namespace SceneTalkVR.Tests.PlayMode
             Assert.That(Active("InitialPanel"), Is.True);
             AssertHomeNavigation();
             Assert.That((bool)Get(collection, "IsArmed"), Is.False);
-            Assert.That(Get(assignment, "status").ToString(), Is.EqualTo("Aborted"));
-            Assert.That(Get(activeCondition, "status").ToString(), Is.EqualTo("Aborted"));
+            Assert.That(Get(assignment, "status").ToString(), Is.EqualTo("Active"));
+            Assert.That(Get(activeCondition, "status").ToString(), Is.EqualTo("TechnicalInvalid"));
             var persisted = JsonUtility.FromJson(System.IO.File.ReadAllText(System.IO.Path.Combine(dataFolder, "formal_assignment.json")), assignment.GetType());
-            Assert.That(Get(persisted, "status").ToString(), Is.EqualTo("Aborted"));
+            Assert.That(Get(persisted, "status").ToString(), Is.EqualTo("Active"));
+            Assert.That(Get(Conditions(persisted).Single(x => (string)Get(Get(x, "task"), "taskId") == "hotel_check_in"), "status").ToString(), Is.EqualTo("TechnicalInvalid"));
             var events = System.IO.File.ReadAllText(System.IO.Path.Combine(dataFolder, "editor_collection_operator_events.jsonl"));
-            Assert.That(events, Does.Contain("ParticipantSessionExited"));
+            Assert.That(events, Does.Contain("ParticipantSessionSuspended"));
             Assert.That(events, Does.Contain("\"actor\":\"participant\""));
         }
 
@@ -174,10 +188,28 @@ namespace SceneTalkVR.Tests.PlayMode
         private static int Count(object value) { if (value is ICollection c) return c.Count; return (int)(value?.GetType().GetProperty("Count")?.GetValue(value) ?? 0); }
         private static Component Find(string type) => (Component)Resources.FindObjectsOfTypeAll(Type.GetType(type)).FirstOrDefault();
         private static object Asset(string path, Type type) { var adb = Type.GetType("UnityEditor.AssetDatabase, UnityEditor"); return adb.GetMethod("LoadAssetAtPath", new[] { typeof(string), typeof(Type) }).Invoke(null, new object[] { path, type }); }
-        private static Button Button(string name) => Resources.FindObjectsOfTypeAll<Button>().First(x => x.gameObject.name == name);
+        private static Button Button(string name)
+        {
+            if (name == "StartButton") name = "NewExperimentButton";
+            return Resources.FindObjectsOfTypeAll<Button>().First(x => x.gameObject.name == name);
+        }
         private static TMP_InputField Input(string name) => Resources.FindObjectsOfTypeAll<TMP_InputField>().First(x => x.gameObject.name == name);
         private static void ForcePicoDeviceValidation(bool value) { var type = Type.GetType("SceneTalkVR.Core.ExperimentRuntimePlatform, Assembly-CSharp"); type.GetProperty("ForcePicoDeviceValidationForTests").SetValue(null, value); }
         private static void Click(string name) => Button(name).onClick.Invoke();
+        private static void AssertSelectedRanks(params string[] selectedNames)
+        {
+            var selected = new HashSet<string>(selectedNames, StringComparer.Ordinal);
+            var buttons = Resources.FindObjectsOfTypeAll<Button>()
+                .Where(x => x.gameObject.scene.IsValid() && x.transform.parent != null && x.transform.parent.name == "FormalFinalRankingPanel")
+                .Where(x => x.name.Contains("Rank", StringComparison.Ordinal) && x.name != "RankingSubmitButton")
+                .ToArray();
+            Assert.That(buttons, Has.Length.EqualTo(16));
+            foreach (var button in buttons)
+            {
+                var color = button.GetComponent<Image>().color;
+                Assert.That(color.g > color.b, Is.EqualTo(selected.Contains(button.name)), button.name);
+            }
+        }
         private static bool Active(string name) { var go = Resources.FindObjectsOfTypeAll<GameObject>().FirstOrDefault(x => x.name == name && x.scene.IsValid()); return go != null && go.activeInHierarchy; }
         private static string TextOf(string name) { var go = Resources.FindObjectsOfTypeAll<GameObject>().First(x => x.name == name && x.scene.IsValid()); return string.Join("\n", go.GetComponentsInChildren<TMP_Text>(true).Select(x => x.text)); }
         private static Button[] ButtonsUnder(string name) { var go = Resources.FindObjectsOfTypeAll<GameObject>().First(x => x.name == name && x.scene.IsValid()); return go.GetComponentsInChildren<Button>(true); }

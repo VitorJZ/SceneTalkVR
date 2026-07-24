@@ -65,14 +65,10 @@ namespace SceneTalkVR.Runtime
         public LearningSessionPage CurrentHistoryPage { get; private set; }
         public LearningSessionDetail SelectedHistorySession { get; private set; }
         public string HistoryErrorMessage { get; private set; }
-        public bool IsHistoryAvailable
-        {
-            get
-            {
-                var manager = ResolveExperimentConditionManager(false);
-                return manager == null || !manager.IsFormalExperiment;
-            }
-        }
+        public bool IsHistoryAvailable => true;
+        public bool IsHistoryRecordingEnabled => true;
+        public bool CanContinueSelectedHistory => SelectedHistorySession?.summary?.CanContinue == true;
+        public bool CanDeleteSelectedHistory => SelectedHistorySession?.summary?.CanDelete == true;
         public SceneTalkBrainRuntimeMode CurrentBrainMode
         {
             get
@@ -267,6 +263,27 @@ namespace SceneTalkVR.Runtime
             SetState(SceneTalkState.Settings);
         }
 
+        internal void SetExperimentNavigationState(SceneTalkState state)
+        {
+            switch (state)
+            {
+                case SceneTalkState.ExperimentMenu:
+                case SceneTalkState.ExperimentPhase:
+                case SceneTalkState.ExperimentPhaseCompleted:
+                case SceneTalkState.ExperimentExitConfirm:
+                case SceneTalkState.ExperimentHistoryLoading:
+                case SceneTalkState.ExperimentHistoryList:
+                case SceneTalkState.ExperimentHistoryActions:
+                case SceneTalkState.ExperimentHistoryRecord:
+                case SceneTalkState.ExperimentHistoryConversationDetail:
+                case SceneTalkState.ExperimentHistoryQuestionnaireDetail:
+                case SceneTalkState.ExperimentHistoryDeleteConfirm:
+                case SceneTalkState.ExperimentHistoryError:
+                    SetState(state);
+                    break;
+            }
+        }
+
         public void CloseSettings()
         {
             if (CurrentState == SceneTalkState.Settings)
@@ -398,7 +415,7 @@ namespace SceneTalkVR.Runtime
 
         public void RequestDeleteSelectedHistory()
         {
-            if (CurrentState == SceneTalkState.HistoryDetail && SelectedHistorySession != null)
+            if (CurrentState == SceneTalkState.HistoryDetail && CanDeleteSelectedHistory)
             {
                 SetState(SceneTalkState.HistoryDeleteConfirm);
             }
@@ -415,7 +432,8 @@ namespace SceneTalkVR.Runtime
         public void ConfirmDeleteSelectedHistory()
         {
             if (CurrentState != SceneTalkState.HistoryDeleteConfirm
-                || SelectedHistorySession?.summary == null)
+                || SelectedHistorySession?.summary == null
+                || !CanDeleteSelectedHistory)
             {
                 return;
             }
@@ -440,7 +458,7 @@ namespace SceneTalkVR.Runtime
             if (CurrentState != SceneTalkState.HistoryDetail
                 || SelectedHistorySession == null
                 || currentTurn != null
-                || !IsHistoryAvailable)
+                || !CanContinueSelectedHistory)
             {
                 return;
             }
@@ -897,6 +915,8 @@ namespace SceneTalkVR.Runtime
             }
             foreach (var source in FindObjectsByType<AudioSource>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 if (source != null && source.isPlaying) source.Stop();
+            ResolveLearningMemoryService(false)?.EndActiveSession();
+            pendingHistorySessionId = string.Empty;
             SetState(SceneTalkState.TurnReview);
         }
 
@@ -960,6 +980,8 @@ namespace SceneTalkVR.Runtime
             ClearPresentedSceneIfSupported();
             AvatarSessionReset?.ClearAvatar();
             if (brainModule is ISceneTalkSessionReset brainReset) brainReset.ResetSession();
+            ResolveLearningMemoryService(false)?.EndActiveSession();
+            pendingHistorySessionId = string.Empty;
             ResolveExperimentConditionManager(false)?.ResetConditionSessionBoundary();
             SetState(SceneTalkState.Idle);
         }
@@ -1277,7 +1299,7 @@ namespace SceneTalkVR.Runtime
             RefreshUi();
             try
             {
-                if (IsHistoryAvailable)
+                if (IsHistoryRecordingEnabled)
                 {
                     ResolveLearningMemoryService(true).AppendTurn(transcript, payload);
                 }
@@ -1326,24 +1348,6 @@ namespace SceneTalkVR.Runtime
             }
 
             var snapshot = LearningMemoryService.ClonePayload(payload);
-            if (!IsHistoryAvailable)
-            {
-                ResolveLearningMemoryService(false)?.EndActiveSession();
-                pendingHistorySessionId = string.Empty;
-                try
-                {
-                    ConversationContextReceiver?.RestoreConversationContext(
-                        BuildTransientConversationContext(sessionId, snapshot, initialUserText));
-                    onComplete?.Invoke(snapshot);
-                }
-                catch (Exception exception)
-                {
-                    onError?.Invoke(exception.Message);
-                }
-
-                yield break;
-            }
-
             string captureError = null;
             if (SceneSnapshotProvider != null)
             {
@@ -1552,11 +1556,16 @@ namespace SceneTalkVR.Runtime
             }
 
             var realLlm = Brain as SceneTalkVR.Runtime.Services.RealLLMService;
+            var experimentLink = ExperimentHistoryService.Active?.CurrentConversationLink;
             return new ConversationSettingsSnapshot
             {
                 brainMode = CurrentBrainMode.ToString(),
                 feedbackSensitivity = realLlm == null ? "moderate" : realLlm.FeedbackSensitivity,
-                condition = condition
+                condition = condition,
+                experimentId = experimentLink?.experimentId ?? string.Empty,
+                experimentPhase = experimentLink?.phase.ToString() ?? string.Empty,
+                experimentAttemptId = experimentLink?.attemptId ?? string.Empty,
+                experimentRunId = experimentLink?.runId ?? string.Empty
             };
         }
 

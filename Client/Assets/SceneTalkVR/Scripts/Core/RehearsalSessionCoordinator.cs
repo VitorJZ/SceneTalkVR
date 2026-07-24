@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
+using SceneTalkVR.History;
 using SceneTalkVR.Runtime;
 using UnityEngine;
 
@@ -53,6 +54,8 @@ namespace SceneTalkVR.Core
         private bool resetInProgress;
         private string lastBundlePath;
         private bool lifecycleSubscribed;
+
+        public event Action<PreferenceRankingResponse> ExperimentCompletedWithRanking;
 
         public ExperimentRuntimeContext RuntimeContext { get; private set; }
         public bool IsActive => RuntimeContext != null && RuntimeContext.IsRehearsal;
@@ -173,6 +176,7 @@ namespace SceneTalkVR.Core
                 if (!pilotWorkflow.Prepare(next, items[next].status == PilotRunStatus.TechnicalInvalid, out error)) return false;
                 orchestrator.LoadAssignedTask(items[next].task.taskId);
             }
+            NotifyAttemptStarted();
             PersistAssignments(); WriteOperator("PrepareCurrentCondition"); RefreshUi(); return true;
         }
 
@@ -197,6 +201,7 @@ namespace SceneTalkVR.Core
             var retry = selected.status == ConditionRunStatus.TechnicalInvalid;
             currentPosition = position;
             if (!formalLifecycle.PrepareCondition(position, retry, out error)) { currentPosition = -1; return false; }
+            NotifyAttemptStarted();
             var order = FormalAssignment.participantSelectionOrder?.ToList() ?? new System.Collections.Generic.List<FormalConditionCode>();
             if (!order.Contains(code)) order.Add(code);
             FormalAssignment.participantSelectionOrder = order.ToArray();
@@ -232,7 +237,12 @@ namespace SceneTalkVR.Core
         {
             var ok = IsFormal ? questionnaire.Submit(out error)
                 : IsPilot ? pilotWorkflow.SubmitQuestionnaire(out error) : Fail(out error, "rehearsal_session_not_active");
-            if (ok) { PersistAssignments(); WriteOperator("CompleteQuestionnaireBoundary"); }
+            if (ok)
+            {
+                ExperimentSessionCoordinator.Active?.NotifyAttemptCompleted("questionnaire_submitted");
+                PersistAssignments();
+                WriteOperator("CompleteQuestionnaireBoundary");
+            }
             RefreshUi(); return ok;
         }
 
@@ -240,6 +250,7 @@ namespace SceneTalkVR.Core
         {
             if (IsFormal) formalLifecycle.MarkTechnicalInvalid(reason);
             else if (IsPilot) pilotWorkflow.MarkTechnicalInvalid("rehearsal_operator", reason);
+            ExperimentSessionCoordinator.Active?.NotifyAttemptTechnicalInvalid(reason);
             PersistAssignments(); WriteOperator("MarkTechnicalInvalid", detail: reason); RefreshUi();
         }
 
@@ -266,7 +277,9 @@ namespace SceneTalkVR.Core
             if (ok)
             {
                 rankingSubmitted = true; finalRankingVisible = false; experimentCompleted = true;
-                WriteOperator("SubmitFinalRanking"); RefreshUi();
+                WriteOperator("SubmitFinalRanking");
+                if (IsFormal) ExperimentCompletedWithRanking?.Invoke(response);
+                RefreshUi();
             }
             return ok;
         }
@@ -371,6 +384,48 @@ namespace SceneTalkVR.Core
             finally { resetInProgress = false; }
         }
 
+        public void EndRuntimeSession()
+        {
+            if (IsActive) WriteOperator("EndSession");
+            ResetRuntimeOnly();
+        }
+
+        public void SuspendSession(string reason)
+        {
+            reason = string.IsNullOrWhiteSpace(reason) ? "participant_exit_checkpoint" : reason.Trim();
+            if (!IsActive)
+            {
+                ResetSession();
+                return;
+            }
+
+            if (IsFormal)
+            {
+                var current = formalLifecycle?.CurrentConditionAssignment;
+                if (current != null
+                    && current.status != ConditionRunStatus.Completed
+                    && current.status != ConditionRunStatus.TechnicalInvalid
+                    && current.status != ConditionRunStatus.Aborted)
+                {
+                    formalLifecycle.MarkTechnicalInvalid(reason);
+                }
+            }
+            else if (IsPilot)
+            {
+                var current = pilotWorkflow?.Current;
+                if (current != null
+                    && current.status != PilotRunStatus.Completed
+                    && current.status != PilotRunStatus.TechnicalInvalid)
+                {
+                    pilotWorkflow.MarkTechnicalInvalid("ParticipantExitCheckpoint", reason);
+                }
+            }
+
+            PersistAssignments();
+            WriteOperator("ParticipantSessionSuspended", detail: "reason=" + reason);
+            ResetRuntimeOnly();
+        }
+
         private bool ValidateCommon(ExperimentFlowMode flow, out string error)
         {
             ResolveDependencies();
@@ -437,6 +492,7 @@ namespace SceneTalkVR.Core
         private void OnQuestionnaireSubmitted()
         {
             if (!IsFormal) return;
+            ExperimentSessionCoordinator.Active?.NotifyAttemptCompleted("questionnaire_submitted");
             PersistAssignments();
             currentPosition = -1;
             WriteOperator("ReturnToFormalModeSelection");
@@ -457,6 +513,45 @@ namespace SceneTalkVR.Core
             if (!IsActive) return; Directory.CreateDirectory(CurrentDataFolder);
             if (IsFormal && FormalAssignment != null) ExperimentAssignmentAllocator.Save(FormalAssignment, Path.Combine(CurrentDataFolder, "formal_assignment.json"));
             if (IsPilot && PilotAssignment != null) PilotAssignmentAllocator.Save(PilotAssignment, Path.Combine(CurrentDataFolder, "pilot_assignment.json"));
+        }
+
+        private void NotifyAttemptStarted()
+        {
+            if (IsFormal)
+            {
+                var current = formalLifecycle?.CurrentConditionAssignment;
+                if (current == null) return;
+                ExperimentSessionCoordinator.Active?.NotifyAttemptStarted(
+                    ExperimentPhaseKind.Formal,
+                    current.formalConditionCode.ToString(),
+                    current.task?.taskId,
+                    formalLifecycle.ConditionRunId,
+                    current.runAttempt);
+                return;
+            }
+
+            if (!IsPilot) return;
+            var pilot = pilotWorkflow?.Current;
+            if (pilot == null) return;
+            ExperimentSessionCoordinator.Active?.NotifyAttemptStarted(
+                ExperimentPhaseKind.Pilot,
+                PilotProtocolValues.Label(pilot.embodimentCondition),
+                pilot.task?.taskId,
+                pilotWorkflow.PilotRunId,
+                pilot.runAttempt);
+        }
+
+        private void ResetRuntimeOnly()
+        {
+            orchestrator?.ResetForConditionSelection();
+            questionnaire?.Service.Reset();
+            conditionManager?.ResetConditionSessionBoundary();
+            currentPosition = -1;
+            rankingSubmitted = interviewSaved = finalRankingVisible = experimentCompleted = false;
+            formalLifecycle?.ClearAssignmentForRuntimeMode();
+            pilotWorkflow?.ClearAssignmentForRuntimeMode();
+            RuntimeContext = null;
+            RefreshUi();
         }
 
         private void WriteOperator(string action, bool qa = false, string detail = "")

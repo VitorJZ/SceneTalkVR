@@ -11,6 +11,13 @@ namespace SceneTalkVR.Runtime
 {
     public sealed class SceneTalkFlowUiController : MonoBehaviour
     {
+        private sealed class ExperimentRecordEntry
+        {
+            public bool isConversation;
+            public string id;
+            public string label;
+        }
+
         private const string FlowRootName = "SceneTalkVR Flow UI";
         private static readonly Vector2 ExitButtonInset = new Vector2(-18f, -18f);
         private static readonly Vector2 ExitButtonSize = new Vector2(110f, 44f);
@@ -34,6 +41,15 @@ namespace SceneTalkVR.Runtime
         private GameObject historyDetailPanel;
         private GameObject historyDeletePanel;
         private GameObject historyErrorPanel;
+        private GameObject experimentMenuPanel;
+        private GameObject experimentExitConfirmPanel;
+        private GameObject experimentHistoryListPanel;
+        private GameObject experimentHistoryActionsPanel;
+        private GameObject experimentHistoryRecordPanel;
+        private GameObject experimentHistoryConversationPanel;
+        private GameObject experimentHistoryQuestionnairePanel;
+        private GameObject experimentHistoryDeletePanel;
+        private GameObject experimentHistoryErrorPanel;
         private GameObject settingsGeneralGroup;
         private GameObject requestPanel;
         private GameObject taskSelectionPanel;
@@ -85,6 +101,22 @@ namespace SceneTalkVR.Runtime
         private Button historyDeleteConfirmButton;
         private Button historyDeleteCancelButton;
         private Button historyErrorBackButton;
+        private Button experimentPilotButton;
+        private Button experimentFormalButton;
+        private Button experimentExitConfirmButton;
+        private Button experimentExitCancelButton;
+        private readonly Button[] experimentHistoryRowButtons = new Button[ExperimentHistoryService.DefaultPageSize];
+        private readonly string[] experimentHistoryRowIds = new string[ExperimentHistoryService.DefaultPageSize];
+        private Button experimentHistoryPreviousButton;
+        private Button experimentHistoryNextButton;
+        private Button experimentHistoryContinueButton;
+        private Button experimentHistoryViewButton;
+        private Button experimentHistoryDeleteButton;
+        private readonly Button[] experimentRecordEntryButtons = new Button[5];
+        private Button experimentRecordPreviousButton;
+        private Button experimentRecordNextButton;
+        private Button experimentHistoryDeleteConfirmButton;
+        private Button experimentHistoryDeleteCancelButton;
 
         private TMP_Text settingsTitleText;
         private TMP_Text settingsPageText;
@@ -101,9 +133,34 @@ namespace SceneTalkVR.Runtime
         private TMP_Text historyDetailBodyText;
         private TMP_Text historyDeleteMessageText;
         private TMP_Text historyErrorText;
+        private TMP_Text experimentMenuSummaryText;
+        private TMP_Text experimentMenuPilotStatusText;
+        private TMP_Text experimentMenuFormalStatusText;
+        private TMP_Text experimentMenuMessageText;
+        private TMP_Text experimentHistoryEmptyText;
+        private TMP_Text experimentHistoryPageText;
+        private TMP_Text experimentHistoryActionsSummaryText;
+        private TMP_Text experimentHistoryRecordText;
+        private TMP_Text experimentRecordEntriesPageText;
+        private TMP_Text experimentHistoryConversationSummaryText;
+        private TMP_Text experimentHistoryConversationBodyText;
+        private TMP_Text experimentHistoryQuestionnaireText;
+        private TMP_Text experimentHistoryDeleteMessageText;
+        private TMP_Text experimentHistoryErrorText;
         private ScrollRect historyDetailScrollRect;
         private RectTransform historyDetailContentRect;
+        private ScrollRect experimentRecordScrollRect;
+        private RectTransform experimentRecordContentRect;
+        private ScrollRect experimentConversationScrollRect;
+        private RectTransform experimentConversationContentRect;
+        private ScrollRect experimentQuestionnaireScrollRect;
+        private RectTransform experimentQuestionnaireContentRect;
         private string lastRenderedHistorySessionId;
+        private string lastRenderedExperimentRecordId;
+        private string lastRenderedExperimentConversationId;
+        private string lastRenderedExperimentQuestionnaireId;
+        private readonly List<ExperimentRecordEntry> experimentRecordEntries = new List<ExperimentRecordEntry>();
+        private int experimentRecordEntryPage;
         private TMP_Text requestTitleText;
         private TMP_Text requestStatusText;
         private TMP_Text requestTranscriptText;
@@ -214,13 +271,15 @@ namespace SceneTalkVR.Runtime
             CreateButton(sessionNotPreparedPanel.transform, "SessionNotPreparedBackButton", "Back", new Vector2(0f, -92f), new Vector2(160f, 44f), new Color(.24f, .36f, .42f, 1f))
                 .onClick.AddListener(() => { sessionPreparationBlocked = false; Refresh(); });
 
-            mainMenuPanel = CreatePanel(root, "InitialPanel", new Vector2(0f, 0f), new Vector2(430f, 430f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
-            CreateText(mainMenuPanel.transform, "Title", "SceneTalkVR", new Vector2(0f, 166f), new Vector2(360f, 54f), 34, TextAnchor.MiddleCenter, Color.white);
-            startButton = CreateButton(mainMenuPanel.transform, "StartButton", "Formal Experiment", new Vector2(0f, 102f), new Vector2(250f, 50f), new Color(0.16f, 0.38f, 0.68f, 1f));
-            pilotButton = CreateButton(mainMenuPanel.transform, "PilotExperimentButton", "Pilot Experiment", new Vector2(0f, 42f), new Vector2(250f, 50f), new Color(0.18f, 0.48f, 0.58f, 1f));
-            settingsButton = CreateButton(mainMenuPanel.transform, "SettingsButton", "Settings", new Vector2(0f, -18f), new Vector2(250f, 50f), new Color(0.24f, 0.36f, 0.42f, 1f));
-            historyButton = CreateButton(mainMenuPanel.transform, "HistoryButton", "History", new Vector2(0f, -78f), new Vector2(250f, 50f), new Color(0.24f, 0.36f, 0.42f, 1f));
-            quitButton = CreateButton(mainMenuPanel.transform, "QuitButton", "Quit", new Vector2(0f, -138f), new Vector2(250f, 50f), ExitButtonColor);
+            mainMenuPanel = CreatePanel(root, "InitialPanel", new Vector2(0f, 0f), new Vector2(430f, 500f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
+            CreateText(mainMenuPanel.transform, "Title", "SceneTalkVR", new Vector2(0f, 205f), new Vector2(360f, 54f), 34, TextAnchor.MiddleCenter, Color.white);
+            startButton = CreateButton(mainMenuPanel.transform, "NewExperimentButton", "New Experiment", new Vector2(0f, 132f), new Vector2(270f, 50f), new Color(0.16f, 0.38f, 0.68f, 1f));
+            pilotButton = CreateButton(mainMenuPanel.transform, "ExperimentHistoryButton", "Experiment History", new Vector2(0f, 70f), new Vector2(270f, 50f), new Color(0.18f, 0.48f, 0.58f, 1f));
+            historyButton = CreateButton(mainMenuPanel.transform, "HistoryButton", "History", new Vector2(0f, 8f), new Vector2(270f, 50f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            settingsButton = CreateButton(mainMenuPanel.transform, "SettingsButton", "Settings", new Vector2(0f, -54f), new Vector2(270f, 50f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            quitButton = CreateButton(mainMenuPanel.transform, "QuitButton", "Quit", new Vector2(0f, -116f), new Vector2(270f, 50f), ExitButtonColor);
+
+            BuildExperimentPanels(root);
 
             historyListPanel = CreatePanel(root, "HistoryListPanel", Vector2.zero, new Vector2(820f, 500f), new Color(0.04f, 0.05f, 0.07f, 0.94f));
             CreateText(historyListPanel.transform, "Title", "Conversation History", new Vector2(0f, 210f), new Vector2(620f, 44f), 30, TextAnchor.MiddleCenter, Color.white);
@@ -389,18 +448,190 @@ namespace SceneTalkVR.Runtime
             ApplyUserSettings(SceneTalkUserSettingsStore.Current);
         }
 
+        private void BuildExperimentPanels(Transform root)
+        {
+            experimentMenuPanel = CreatePanel(root, "ExperimentMenuPanel", Vector2.zero, new Vector2(820f, 500f), new Color(0.04f, 0.05f, 0.07f, 0.96f));
+            CreateText(experimentMenuPanel.transform, "Title", "Experiment", new Vector2(0f, 205f), new Vector2(700f, 48f), 31, TextAnchor.MiddleCenter, Color.white);
+            experimentMenuSummaryText = CreateText(experimentMenuPanel.transform, "Summary", string.Empty, new Vector2(0f, 153f), new Vector2(710f, 54f), 18, TextAnchor.MiddleCenter, new Color(.8f, .9f, 1f, 1f));
+            experimentPilotButton = CreateButton(experimentMenuPanel.transform, "EnterPilotButton", "Pilot Experiment", new Vector2(-155f, 58f), new Vector2(270f, 58f), new Color(.18f, .48f, .58f, 1f));
+            experimentMenuPilotStatusText = CreateText(experimentMenuPanel.transform, "PilotStatus", string.Empty, new Vector2(190f, 58f), new Vector2(300f, 56f), 18, TextAnchor.MiddleLeft, Color.white);
+            experimentFormalButton = CreateButton(experimentMenuPanel.transform, "EnterFormalButton", "Formal Experiment", new Vector2(-155f, -32f), new Vector2(270f, 58f), new Color(.16f, .38f, .68f, 1f));
+            experimentMenuFormalStatusText = CreateText(experimentMenuPanel.transform, "FormalStatus", string.Empty, new Vector2(190f, -32f), new Vector2(300f, 72f), 18, TextAnchor.MiddleLeft, Color.white);
+            CreateText(experimentMenuPanel.transform, "Hint", "Complete Pilot before Formal. Completed phases cannot be entered again.", new Vector2(0f, -117f), new Vector2(700f, 50f), 17, TextAnchor.MiddleCenter, new Color(.72f, .8f, .88f, 1f));
+            experimentMenuMessageText = CreateText(experimentMenuPanel.transform, "Message", string.Empty, new Vector2(0f, -180f), new Vector2(700f, 58f), 17, TextAnchor.MiddleCenter, new Color(1f, .58f, .42f, 1f));
+
+            experimentExitConfirmPanel = CreatePanel(root, "ExperimentExitConfirmPanel", Vector2.zero, new Vector2(680f, 320f), new Color(.04f, .05f, .07f, .98f));
+            CreateText(experimentExitConfirmPanel.transform, "Title", "Exit Experiment?", new Vector2(0f, 104f), new Vector2(580f, 48f), 30, TextAnchor.MiddleCenter, Color.white);
+            CreateText(experimentExitConfirmPanel.transform, "Message", "This experiment is not complete. Your history will be kept, and you can continue it later from Experiment History.", new Vector2(0f, 25f), new Vector2(580f, 100f), 19, TextAnchor.MiddleCenter, new Color(.84f, .9f, 1f, 1f));
+            experimentExitCancelButton = CreateButton(experimentExitConfirmPanel.transform, "ContinueExperimentButton", "Continue Experiment", new Vector2(-135f, -102f), new Vector2(230f, 48f), new Color(.12f, .52f, .38f, 1f));
+            experimentExitConfirmButton = CreateButton(experimentExitConfirmPanel.transform, "ConfirmExitExperimentButton", "Exit to Home", new Vector2(135f, -102f), new Vector2(210f, 48f), ExitButtonColor);
+
+            experimentHistoryListPanel = CreatePanel(root, "ExperimentHistoryListPanel", Vector2.zero, new Vector2(860f, 520f), new Color(.04f, .05f, .07f, .96f));
+            CreateText(experimentHistoryListPanel.transform, "Title", "Experiment History", new Vector2(0f, 220f), new Vector2(680f, 46f), 30, TextAnchor.MiddleCenter, Color.white);
+            experimentHistoryEmptyText = CreateText(experimentHistoryListPanel.transform, "Empty", "No experiment history yet.", new Vector2(0f, 10f), new Vector2(680f, 60f), 22, TextAnchor.MiddleCenter, new Color(.75f, .82f, .88f, 1f));
+            for (var i = 0; i < experimentHistoryRowButtons.Length; i++)
+            {
+                experimentHistoryRowButtons[i] = CreateButton(experimentHistoryListPanel.transform, "ExperimentHistoryRow" + (i + 1), string.Empty,
+                    new Vector2(0f, 150f - i * 70f), new Vector2(720f, 58f), new Color(.14f, .28f, .4f, 1f));
+                var label = experimentHistoryRowButtons[i].GetComponentInChildren<TMP_Text>();
+                if (label != null)
+                {
+                    label.alignment = TextAlignmentOptions.Left;
+                    label.enableAutoSizing = true;
+                    label.fontSizeMin = 13f;
+                    label.fontSizeMax = 18f;
+                }
+            }
+            experimentHistoryPreviousButton = CreateButton(experimentHistoryListPanel.transform, "ExperimentHistoryPreviousButton", "Previous", new Vector2(-250f, -225f), new Vector2(150f, 44f), new Color(.24f, .36f, .42f, 1f));
+            experimentHistoryPageText = CreateText(experimentHistoryListPanel.transform, "Page", "Page 1 / 1", new Vector2(0f, -225f), new Vector2(200f, 40f), 18, TextAnchor.MiddleCenter, Color.white);
+            experimentHistoryNextButton = CreateButton(experimentHistoryListPanel.transform, "ExperimentHistoryNextButton", "Next", new Vector2(250f, -225f), new Vector2(150f, 44f), new Color(.24f, .36f, .42f, 1f));
+
+            experimentHistoryActionsPanel = CreatePanel(root, "ExperimentHistoryActionsPanel", Vector2.zero, new Vector2(760f, 400f), new Color(.04f, .05f, .07f, .97f));
+            CreateText(experimentHistoryActionsPanel.transform, "Title", "Experiment Record", new Vector2(0f, 155f), new Vector2(650f, 46f), 29, TextAnchor.MiddleCenter, Color.white);
+            experimentHistoryActionsSummaryText = CreateText(experimentHistoryActionsPanel.transform, "Summary", string.Empty, new Vector2(0f, 66f), new Vector2(650f, 120f), 18, TextAnchor.MiddleCenter, new Color(.82f, .9f, 1f, 1f));
+            experimentHistoryContinueButton = CreateButton(experimentHistoryActionsPanel.transform, "ContinueExperimentRecordButton", "Continue", new Vector2(-220f, -102f), new Vector2(180f, 48f), new Color(.12f, .52f, .38f, 1f));
+            experimentHistoryViewButton = CreateButton(experimentHistoryActionsPanel.transform, "ViewExperimentRecordButton", "View Record", new Vector2(0f, -102f), new Vector2(180f, 48f), new Color(.16f, .38f, .68f, 1f));
+            experimentHistoryDeleteButton = CreateButton(experimentHistoryActionsPanel.transform, "DeleteExperimentRecordButton", "Delete", new Vector2(220f, -102f), new Vector2(180f, 48f), ExitButtonColor);
+
+            experimentHistoryRecordPanel = CreatePanel(root, "ExperimentHistoryRecordPanel", Vector2.zero, new Vector2(950f, 570f), new Color(.04f, .05f, .07f, .97f));
+            CreateText(experimentHistoryRecordPanel.transform, "Title", "Experiment Record Details", new Vector2(0f, 252f), new Vector2(780f, 42f), 28, TextAnchor.MiddleCenter, Color.white);
+            experimentHistoryRecordText = CreateScrollableText(experimentHistoryRecordPanel.transform, "ExperimentRecord", new Vector2(0f, 135f), new Vector2(830f, 180f), out experimentRecordScrollRect, out experimentRecordContentRect);
+            CreateText(experimentHistoryRecordPanel.transform, "EntriesTitle", "Conversations and Questionnaires", new Vector2(0f, 28f), new Vector2(760f, 30f), 18, TextAnchor.MiddleCenter, new Color(.78f, .88f, 1f, 1f));
+            for (var i = 0; i < experimentRecordEntryButtons.Length; i++)
+            {
+                var index = i;
+                experimentRecordEntryButtons[i] = CreateButton(experimentHistoryRecordPanel.transform, "ExperimentRecordEntry" + (i + 1), string.Empty,
+                    new Vector2(0f, -8f - i * 43f), new Vector2(790f, 36f), new Color(.14f, .28f, .4f, 1f));
+                var label = experimentRecordEntryButtons[i].GetComponentInChildren<TMP_Text>();
+                if (label != null) { label.alignment = TextAlignmentOptions.Left; label.fontSize = 15f; }
+                experimentRecordEntryButtons[i].onClick.AddListener(() => OpenExperimentRecordEntry(index));
+            }
+            experimentRecordPreviousButton = CreateButton(experimentHistoryRecordPanel.transform, "ExperimentRecordPreviousButton", "Previous", new Vector2(-220f, -252f), new Vector2(140f, 38f), new Color(.24f, .36f, .42f, 1f));
+            experimentRecordEntriesPageText = CreateText(experimentHistoryRecordPanel.transform, "EntriesPage", "Page 1 / 1", new Vector2(0f, -252f), new Vector2(180f, 34f), 16, TextAnchor.MiddleCenter, Color.white);
+            experimentRecordNextButton = CreateButton(experimentHistoryRecordPanel.transform, "ExperimentRecordNextButton", "Next", new Vector2(220f, -252f), new Vector2(140f, 38f), new Color(.24f, .36f, .42f, 1f));
+
+            experimentHistoryConversationPanel = CreatePanel(root, "ExperimentHistoryConversationDetailPanel", Vector2.zero, new Vector2(900f, 550f), new Color(.04f, .05f, .07f, .97f));
+            CreateText(experimentHistoryConversationPanel.transform, "Title", "Conversation Details", new Vector2(0f, 235f), new Vector2(760f, 42f), 28, TextAnchor.MiddleCenter, Color.white);
+            experimentHistoryConversationSummaryText = CreateText(experimentHistoryConversationPanel.transform, "Summary", string.Empty, new Vector2(0f, 174f), new Vector2(760f, 78f), 16, TextAnchor.MiddleCenter, new Color(.82f, .9f, 1f, 1f));
+            experimentHistoryConversationBodyText = CreateScrollableText(experimentHistoryConversationPanel.transform, "ExperimentConversation", new Vector2(0f, -40f), new Vector2(790f, 330f), out experimentConversationScrollRect, out experimentConversationContentRect);
+
+            experimentHistoryQuestionnairePanel = CreatePanel(root, "ExperimentHistoryQuestionnaireDetailPanel", Vector2.zero, new Vector2(900f, 550f), new Color(.04f, .05f, .07f, .97f));
+            CreateText(experimentHistoryQuestionnairePanel.transform, "Title", "Questionnaire Details", new Vector2(0f, 235f), new Vector2(760f, 42f), 28, TextAnchor.MiddleCenter, Color.white);
+            experimentHistoryQuestionnaireText = CreateScrollableText(experimentHistoryQuestionnairePanel.transform, "ExperimentQuestionnaire", new Vector2(0f, -5f), new Vector2(800f, 410f), out experimentQuestionnaireScrollRect, out experimentQuestionnaireContentRect);
+
+            experimentHistoryDeletePanel = CreatePanel(root, "ExperimentHistoryDeleteConfirmPanel", Vector2.zero, new Vector2(650f, 300f), new Color(.04f, .05f, .07f, .98f));
+            CreateText(experimentHistoryDeletePanel.transform, "Title", "Delete Experiment?", new Vector2(0f, 98f), new Vector2(560f, 46f), 29, TextAnchor.MiddleCenter, Color.white);
+            experimentHistoryDeleteMessageText = CreateText(experimentHistoryDeletePanel.transform, "Message", string.Empty, new Vector2(0f, 24f), new Vector2(560f, 88f), 18, TextAnchor.MiddleCenter, new Color(.84f, .9f, 1f, 1f));
+            experimentHistoryDeleteCancelButton = CreateButton(experimentHistoryDeletePanel.transform, "CancelExperimentDeleteButton", "Cancel", new Vector2(-115f, -93f), new Vector2(170f, 46f), new Color(.24f, .36f, .42f, 1f));
+            experimentHistoryDeleteConfirmButton = CreateButton(experimentHistoryDeletePanel.transform, "ConfirmExperimentDeleteButton", "Delete", new Vector2(115f, -93f), new Vector2(170f, 46f), ExitButtonColor);
+
+            experimentHistoryErrorPanel = CreatePanel(root, "ExperimentHistoryErrorPanel", Vector2.zero, new Vector2(680f, 270f), new Color(.04f, .05f, .07f, .98f));
+            CreateText(experimentHistoryErrorPanel.transform, "Title", "Experiment History Error", new Vector2(0f, 88f), new Vector2(580f, 44f), 28, TextAnchor.MiddleCenter, Color.white);
+            experimentHistoryErrorText = CreateText(experimentHistoryErrorPanel.transform, "Message", string.Empty, new Vector2(0f, -5f), new Vector2(570f, 120f), 18, TextAnchor.MiddleCenter, new Color(1f, .55f, .42f, 1f));
+        }
+
         private void BindButtons()
         {
             if (startButton != null)
             {
                 startButton.onClick.RemoveAllListeners();
-                startButton.onClick.AddListener(HandleParticipantStart);
+                startButton.onClick.AddListener(StartNewExperiment);
             }
 
             if (pilotButton != null)
             {
                 pilotButton.onClick.RemoveAllListeners();
-                pilotButton.onClick.AddListener(() => pilotCollectionUi?.OpenAutomaticParticipantFlow());
+                pilotButton.onClick.AddListener(OpenExperimentHistory);
+            }
+
+            if (experimentPilotButton != null)
+            {
+                experimentPilotButton.onClick.RemoveAllListeners();
+                experimentPilotButton.onClick.AddListener(EnterPilotExperiment);
+            }
+
+            if (experimentFormalButton != null)
+            {
+                experimentFormalButton.onClick.RemoveAllListeners();
+                experimentFormalButton.onClick.AddListener(EnterFormalExperiment);
+            }
+
+            if (experimentExitCancelButton != null)
+            {
+                experimentExitCancelButton.onClick.RemoveAllListeners();
+                experimentExitCancelButton.onClick.AddListener(() => GetExperimentCoordinator()?.CancelLeaveExperiment());
+            }
+
+            if (experimentExitConfirmButton != null)
+            {
+                experimentExitConfirmButton.onClick.RemoveAllListeners();
+                experimentExitConfirmButton.onClick.AddListener(() => GetExperimentCoordinator()?.ConfirmLeaveExperiment());
+            }
+
+            if (experimentHistoryPreviousButton != null)
+            {
+                experimentHistoryPreviousButton.onClick.RemoveAllListeners();
+                experimentHistoryPreviousButton.onClick.AddListener(() => GetExperimentCoordinator()?.OpenPreviousExperimentHistoryPage());
+            }
+
+            if (experimentHistoryNextButton != null)
+            {
+                experimentHistoryNextButton.onClick.RemoveAllListeners();
+                experimentHistoryNextButton.onClick.AddListener(() => GetExperimentCoordinator()?.OpenNextExperimentHistoryPage());
+            }
+
+            if (experimentHistoryContinueButton != null)
+            {
+                experimentHistoryContinueButton.onClick.RemoveAllListeners();
+                experimentHistoryContinueButton.onClick.AddListener(() => GetExperimentCoordinator()?.ContinueSelectedExperiment());
+            }
+
+            if (experimentHistoryViewButton != null)
+            {
+                experimentHistoryViewButton.onClick.RemoveAllListeners();
+                experimentHistoryViewButton.onClick.AddListener(() =>
+                {
+                    experimentRecordEntryPage = 0;
+                    GetExperimentCoordinator()?.ViewSelectedExperiment();
+                });
+            }
+
+            if (experimentHistoryDeleteButton != null)
+            {
+                experimentHistoryDeleteButton.onClick.RemoveAllListeners();
+                experimentHistoryDeleteButton.onClick.AddListener(() => GetExperimentCoordinator()?.RequestDeleteSelectedExperiment());
+            }
+
+            if (experimentHistoryDeleteCancelButton != null)
+            {
+                experimentHistoryDeleteCancelButton.onClick.RemoveAllListeners();
+                experimentHistoryDeleteCancelButton.onClick.AddListener(() => GetExperimentCoordinator()?.BackFromExperimentHistory());
+            }
+
+            if (experimentHistoryDeleteConfirmButton != null)
+            {
+                experimentHistoryDeleteConfirmButton.onClick.RemoveAllListeners();
+                experimentHistoryDeleteConfirmButton.onClick.AddListener(() => GetExperimentCoordinator()?.ConfirmDeleteSelectedExperiment());
+            }
+
+            if (experimentRecordPreviousButton != null)
+            {
+                experimentRecordPreviousButton.onClick.RemoveAllListeners();
+                experimentRecordPreviousButton.onClick.AddListener(() =>
+                {
+                    experimentRecordEntryPage = Mathf.Max(0, experimentRecordEntryPage - 1);
+                    RefreshExperimentHistoryRecord(true);
+                });
+            }
+
+            if (experimentRecordNextButton != null)
+            {
+                experimentRecordNextButton.onClick.RemoveAllListeners();
+                experimentRecordNextButton.onClick.AddListener(() =>
+                {
+                    experimentRecordEntryPage++;
+                    RefreshExperimentHistoryRecord(true);
+                });
             }
 
             if (settingsButton != null)
@@ -571,6 +802,59 @@ namespace SceneTalkVR.Runtime
         }
 
         public IReadOnlyList<ExperimentTaskDefinition> CurrentTaskOptions => taskButtonDefinitions;
+
+        private ExperimentSessionCoordinator GetExperimentCoordinator()
+        {
+            var coordinator = ExperimentSessionCoordinator.Active
+                ?? FindFirstObjectByType<ExperimentSessionCoordinator>(FindObjectsInactive.Include);
+            if (coordinator != null) return coordinator;
+            var manager = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include);
+            if (manager == null) return null;
+            coordinator = manager.GetComponent<ExperimentSessionCoordinator>()
+                ?? manager.gameObject.AddComponent<ExperimentSessionCoordinator>();
+            coordinator.Configure(manager, orchestrator);
+            return coordinator;
+        }
+
+        private void StartNewExperiment()
+        {
+            if (experimentMenuMessageText != null) experimentMenuMessageText.text = string.Empty;
+            if (EditorCollectionSessionCoordinator.Active?.IsArmed == true
+                && !EditorCollectionSessionCoordinator.Active.ParticipantStarted)
+            {
+                HandleParticipantStart();
+                return;
+            }
+            var coordinator = GetExperimentCoordinator();
+            if (coordinator == null) return;
+            if (!coordinator.StartNewExperiment(out var error))
+            {
+                experimentMenuMessageText.text = HumanizeExperimentError(error);
+            }
+        }
+
+        private void OpenExperimentHistory()
+        {
+            GetExperimentCoordinator()?.OpenExperimentHistory();
+        }
+
+        private void EnterPilotExperiment()
+        {
+            var coordinator = GetExperimentCoordinator();
+            if (coordinator == null) return;
+            if (experimentMenuMessageText != null) experimentMenuMessageText.text = string.Empty;
+            if (!coordinator.EnterPilot(out var error))
+                experimentMenuMessageText.text = HumanizeExperimentError(error);
+        }
+
+        private void EnterFormalExperiment()
+        {
+            var coordinator = GetExperimentCoordinator();
+            if (coordinator == null) return;
+            if (experimentMenuMessageText != null) experimentMenuMessageText.text = string.Empty;
+            if (!coordinator.EnterFormal(out var error))
+                experimentMenuMessageText.text = HumanizeExperimentError(error);
+        }
 
         public void ShowDeveloperTaskSelectionForQa()
         {
@@ -745,6 +1029,15 @@ namespace SceneTalkVR.Runtime
             var showHistoryDetail = state == SceneTalkState.HistoryDetail;
             var showHistoryDelete = state == SceneTalkState.HistoryDeleteConfirm;
             var showHistoryError = state == SceneTalkState.HistoryError;
+            var showExperimentMenu = state == SceneTalkState.ExperimentMenu;
+            var showExperimentExitConfirm = state == SceneTalkState.ExperimentExitConfirm;
+            var showExperimentHistoryList = state == SceneTalkState.ExperimentHistoryList;
+            var showExperimentHistoryActions = state == SceneTalkState.ExperimentHistoryActions;
+            var showExperimentHistoryRecord = state == SceneTalkState.ExperimentHistoryRecord;
+            var showExperimentHistoryConversation = state == SceneTalkState.ExperimentHistoryConversationDetail;
+            var showExperimentHistoryQuestionnaire = state == SceneTalkState.ExperimentHistoryQuestionnaireDetail;
+            var showExperimentHistoryDelete = state == SceneTalkState.ExperimentHistoryDeleteConfirm;
+            var showExperimentHistoryError = state == SceneTalkState.ExperimentHistoryError;
             var showRequest = !dialogueActive
                 && (!isFixedMode || state != SceneTalkState.Listening)
                 && (state == SceneTalkState.Listening
@@ -758,7 +1051,8 @@ namespace SceneTalkVR.Runtime
                 && (state == SceneTalkState.Processing
                     || state == SceneTalkState.SceneReady
                     || state == SceneTalkState.HistoryLoading
-                    || state == SceneTalkState.HistoryRestoring);
+                    || state == SceneTalkState.HistoryRestoring
+                    || state == SceneTalkState.ExperimentHistoryLoading);
             var showDialogue = !showFormalModeSelection && !showFinalRanking && (dialogueActive
                 || state == SceneTalkState.AvatarSpeaking
                 || state == SceneTalkState.CorrectionFeedbackSpeaking
@@ -779,6 +1073,15 @@ namespace SceneTalkVR.Runtime
             SetActive(historyDetailPanel, showHistoryDetail);
             SetActive(historyDeletePanel, showHistoryDelete);
             SetActive(historyErrorPanel, showHistoryError);
+            SetActive(experimentMenuPanel, showExperimentMenu);
+            SetActive(experimentExitConfirmPanel, showExperimentExitConfirm);
+            SetActive(experimentHistoryListPanel, showExperimentHistoryList);
+            SetActive(experimentHistoryActionsPanel, showExperimentHistoryActions);
+            SetActive(experimentHistoryRecordPanel, showExperimentHistoryRecord);
+            SetActive(experimentHistoryConversationPanel, showExperimentHistoryConversation);
+            SetActive(experimentHistoryQuestionnairePanel, showExperimentHistoryQuestionnaire);
+            SetActive(experimentHistoryDeletePanel, showExperimentHistoryDelete);
+            SetActive(experimentHistoryErrorPanel, showExperimentHistoryError);
             SetActive(requestPanel, showRequest);
             SetActive(taskSelectionPanel, showTaskSelection);
             SetActive(loadingPanel, showLoading);
@@ -793,6 +1096,14 @@ namespace SceneTalkVR.Runtime
             RefreshHistoryDetail(showHistoryDetail);
             RefreshHistoryDelete(showHistoryDelete);
             RefreshHistoryError(showHistoryError);
+            RefreshExperimentMenu(showExperimentMenu);
+            RefreshExperimentHistoryList(showExperimentHistoryList);
+            RefreshExperimentHistoryActions(showExperimentHistoryActions);
+            RefreshExperimentHistoryRecord(showExperimentHistoryRecord);
+            RefreshExperimentHistoryConversation(showExperimentHistoryConversation);
+            RefreshExperimentHistoryQuestionnaire(showExperimentHistoryQuestionnaire);
+            RefreshExperimentHistoryDelete(showExperimentHistoryDelete);
+            RefreshExperimentHistoryError(showExperimentHistoryError);
             RefreshRequestPanel(showRequest);
             RefreshLoadingPanel(showLoading);
             RefreshSubtitlePanel(showDialogue);
@@ -1034,6 +1345,278 @@ namespace SceneTalkVR.Runtime
             }
         }
 
+        private void RefreshExperimentMenu(bool isVisible)
+        {
+            if (!isVisible) return;
+            var coordinator = GetExperimentCoordinator();
+            var record = coordinator?.CurrentExperiment?.summary;
+            if (record == null)
+            {
+                if (experimentMenuSummaryText != null) experimentMenuSummaryText.text = "No active experiment.";
+                SetInteractable(experimentPilotButton, false);
+                SetInteractable(experimentFormalButton, false);
+                return;
+            }
+
+            if (experimentMenuSummaryText != null)
+                experimentMenuSummaryText.text = $"Participant: {record.participantId}  |  Updated: {FormatHistoryTime(record.updatedAtUnixMs)}";
+            if (experimentMenuPilotStatusText != null)
+                experimentMenuPilotStatusText.text = "Status: " + FriendlyPhaseStatus(record.pilotStatus);
+            if (experimentMenuFormalStatusText != null)
+            {
+                experimentMenuFormalStatusText.text = record.formalStatus == ExperimentPhaseStatus.Completed
+                    ? "Status: Completed"
+                    : record.pilotStatus != ExperimentPhaseStatus.Completed
+                        ? "Status: Locked\nComplete Pilot first"
+                        : string.IsNullOrWhiteSpace(record.preferredEmbodiment)
+                            ? "Status: Locked\nPilot preference missing"
+                            : "Status: " + FriendlyPhaseStatus(record.formalStatus);
+            }
+            SetInteractable(experimentPilotButton, coordinator.CanEnterPilot);
+            SetInteractable(experimentFormalButton, coordinator.CanEnterFormal);
+        }
+
+        private void RefreshExperimentHistoryList(bool isVisible)
+        {
+            if (!isVisible) return;
+            lastRenderedExperimentRecordId = string.Empty;
+            var page = GetExperimentCoordinator()?.CurrentHistoryPage ?? new ExperimentRecordPage();
+            var items = page.items ?? System.Array.Empty<ExperimentRecordSummary>();
+            SetActive(experimentHistoryEmptyText?.gameObject, items.Length == 0);
+            for (var i = 0; i < experimentHistoryRowButtons.Length; i++)
+            {
+                var button = experimentHistoryRowButtons[i];
+                var hasItem = i < items.Length;
+                SetActive(button?.gameObject, hasItem);
+                if (!hasItem || button == null)
+                {
+                    experimentHistoryRowIds[i] = string.Empty;
+                    continue;
+                }
+                var item = items[i];
+                SetButtonLabel(button,
+                    $"{item.participantId}    {FormatHistoryTime(item.updatedAtUnixMs)}\n"
+                    + $"Pilot: {FriendlyPhaseStatus(item.pilotStatus)}  |  Formal: {FriendlyPhaseStatus(item.formalStatus)}"
+                    + (string.IsNullOrWhiteSpace(item.preferredEmbodiment) ? string.Empty : $"  |  Preference: {item.preferredEmbodiment}"));
+                if (!string.Equals(experimentHistoryRowIds[i], item.experimentId, System.StringComparison.Ordinal))
+                {
+                    experimentHistoryRowIds[i] = item.experimentId;
+                    button.onClick.RemoveAllListeners();
+                    var id = item.experimentId;
+                    button.onClick.AddListener(() => GetExperimentCoordinator()?.SelectExperiment(id));
+                }
+            }
+            if (experimentHistoryPageText != null)
+                experimentHistoryPageText.text = $"Page {page.pageIndex + 1} / {page.TotalPages}";
+            SetInteractable(experimentHistoryPreviousButton, page.pageIndex > 0);
+            SetInteractable(experimentHistoryNextButton, page.pageIndex + 1 < page.TotalPages);
+        }
+
+        private void RefreshExperimentHistoryActions(bool isVisible)
+        {
+            if (!isVisible) return;
+            var summary = GetExperimentCoordinator()?.SelectedExperiment?.summary;
+            if (summary == null) return;
+            if (experimentHistoryActionsSummaryText != null)
+            {
+                experimentHistoryActionsSummaryText.text =
+                    $"Participant: {summary.participantId}\n"
+                    + $"Pilot: {FriendlyPhaseStatus(summary.pilotStatus)}  |  Formal: {FriendlyPhaseStatus(summary.formalStatus)}\n"
+                    + $"Updated: {FormatHistoryTime(summary.updatedAtUnixMs)}"
+                    + (string.IsNullOrWhiteSpace(summary.preferredEmbodiment) ? string.Empty : $"\nPilot preference: {summary.preferredEmbodiment}");
+            }
+            SetInteractable(experimentHistoryContinueButton, summary.CanContinue);
+            SetInteractable(experimentHistoryViewButton, true);
+            SetInteractable(experimentHistoryDeleteButton, true);
+        }
+
+        private void RefreshExperimentHistoryRecord(bool isVisible)
+        {
+            if (!isVisible) return;
+            var detail = GetExperimentCoordinator()?.SelectedExperiment;
+            if (detail?.summary == null) return;
+            var renderKey = detail.summary.experimentId + ":" + detail.summary.updatedAtUnixMs;
+            if (!string.Equals(lastRenderedExperimentRecordId, renderKey, System.StringComparison.Ordinal))
+            {
+                lastRenderedExperimentRecordId = renderKey;
+                SetScrollableText(experimentHistoryRecordText, experimentRecordContentRect, experimentRecordScrollRect,
+                    BuildExperimentRecordText(detail), 168f);
+                experimentRecordEntries.Clear();
+                foreach (var conversation in detail.conversations ?? System.Array.Empty<LearningSessionSummary>())
+                {
+                    experimentRecordEntries.Add(new ExperimentRecordEntry
+                    {
+                        isConversation = true,
+                        id = conversation.sessionId,
+                        label = $"Conversation [{conversation.experimentPhase}]  {conversation.title}  |  {conversation.turnCount} turns  |  {FormatHistoryTime(conversation.updatedAtUnixMs)}"
+                    });
+                }
+                foreach (var questionnaire in detail.questionnaires ?? System.Array.Empty<ExperimentQuestionnaireRecord>())
+                {
+                    var session = questionnaire.session;
+                    experimentRecordEntries.Add(new ExperimentRecordEntry
+                    {
+                        isConversation = false,
+                        id = questionnaire.questionnaireRecordId,
+                        label = $"Questionnaire [{questionnaire.phase}]  {session?.questionnaireId ?? "-"}  |  {session?.completionStatus}  |  {(session?.completionRate ?? 0f):P0}"
+                    });
+                }
+            }
+
+            var pages = Mathf.Max(1, Mathf.CeilToInt(experimentRecordEntries.Count / (float)experimentRecordEntryButtons.Length));
+            experimentRecordEntryPage = Mathf.Clamp(experimentRecordEntryPage, 0, pages - 1);
+            var offset = experimentRecordEntryPage * experimentRecordEntryButtons.Length;
+            for (var i = 0; i < experimentRecordEntryButtons.Length; i++)
+            {
+                var index = offset + i;
+                var hasItem = index < experimentRecordEntries.Count;
+                SetActive(experimentRecordEntryButtons[i]?.gameObject, hasItem);
+                if (hasItem) SetButtonLabel(experimentRecordEntryButtons[i], experimentRecordEntries[index].label);
+            }
+            if (experimentRecordEntriesPageText != null)
+                experimentRecordEntriesPageText.text = $"Page {experimentRecordEntryPage + 1} / {pages}";
+            SetInteractable(experimentRecordPreviousButton, experimentRecordEntryPage > 0);
+            SetInteractable(experimentRecordNextButton, experimentRecordEntryPage + 1 < pages);
+        }
+
+        private void RefreshExperimentHistoryConversation(bool isVisible)
+        {
+            if (!isVisible) return;
+            var detail = GetExperimentCoordinator()?.SelectedConversation;
+            if (detail?.summary == null) return;
+            if (experimentHistoryConversationSummaryText != null)
+            {
+                experimentHistoryConversationSummaryText.text =
+                    $"{detail.summary.title}  |  {detail.summary.experimentPhase}  |  {detail.summary.turnCount} turns\n"
+                    + $"Task: {detail.summary.taskType}  |  Updated: {FormatHistoryTime(detail.summary.updatedAtUnixMs)}";
+            }
+            if (string.Equals(lastRenderedExperimentConversationId, detail.summary.sessionId, System.StringComparison.Ordinal)) return;
+            lastRenderedExperimentConversationId = detail.summary.sessionId;
+            SetScrollableText(experimentHistoryConversationBodyText, experimentConversationContentRect,
+                experimentConversationScrollRect, BuildHistoryDetailText(detail), 318f);
+        }
+
+        private void RefreshExperimentHistoryQuestionnaire(bool isVisible)
+        {
+            if (!isVisible) return;
+            var questionnaire = GetExperimentCoordinator()?.SelectedQuestionnaire;
+            var recordId = questionnaire?.questionnaireRecordId;
+            if (questionnaire == null || string.Equals(lastRenderedExperimentQuestionnaireId, recordId, System.StringComparison.Ordinal)) return;
+            lastRenderedExperimentQuestionnaireId = recordId;
+            SetScrollableText(experimentHistoryQuestionnaireText, experimentQuestionnaireContentRect,
+                experimentQuestionnaireScrollRect, BuildQuestionnaireDetailText(questionnaire), 398f);
+        }
+
+        private void RefreshExperimentHistoryDelete(bool isVisible)
+        {
+            if (!isVisible || experimentHistoryDeleteMessageText == null) return;
+            var selected = GetExperimentCoordinator()?.SelectedExperiment?.summary;
+            experimentHistoryDeleteMessageText.text = selected == null
+                ? "The selected experiment is no longer available."
+                : $"Delete experiment for {selected.participantId} permanently?\nThis removes its database records and owned cached data.";
+        }
+
+        private void RefreshExperimentHistoryError(bool isVisible)
+        {
+            if (isVisible && experimentHistoryErrorText != null)
+                experimentHistoryErrorText.text = GetExperimentCoordinator()?.ErrorMessage ?? "Experiment history operation failed.";
+        }
+
+        private void OpenExperimentRecordEntry(int visibleIndex)
+        {
+            var index = experimentRecordEntryPage * experimentRecordEntryButtons.Length + visibleIndex;
+            if (index < 0 || index >= experimentRecordEntries.Count) return;
+            var entry = experimentRecordEntries[index];
+            if (entry.isConversation)
+            {
+                lastRenderedExperimentConversationId = string.Empty;
+                GetExperimentCoordinator()?.SelectExperimentConversation(entry.id);
+            }
+            else
+            {
+                lastRenderedExperimentQuestionnaireId = string.Empty;
+                GetExperimentCoordinator()?.SelectExperimentQuestionnaire(entry.id);
+            }
+        }
+
+        private static string BuildExperimentRecordText(ExperimentRecordDetail detail)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine($"Participant: {detail.summary.participantId}");
+            builder.AppendLine($"Overall: {detail.summary.status}  |  Created: {FormatHistoryTime(detail.summary.createdAtUnixMs)}");
+            if (!string.IsNullOrWhiteSpace(detail.summary.preferredEmbodiment))
+                builder.AppendLine("Pilot preferred embodiment: " + detail.summary.preferredEmbodiment);
+            foreach (var phase in new[] { ExperimentPhaseKind.Pilot, ExperimentPhaseKind.Formal })
+            {
+                var phaseRecord = detail.phases?.FirstOrDefault(item => item.phase == phase);
+                builder.AppendLine();
+                builder.AppendLine($"{phase.ToString().ToUpperInvariant()} — {phaseRecord?.status.ToString() ?? "Missing"}");
+                foreach (var attempt in (detail.attempts ?? System.Array.Empty<ExperimentAttemptRecord>()).Where(item => item.phase == phase))
+                {
+                    builder.Append($"Attempt {attempt.attemptIndex}: {ResolveText(attempt.conditionKey)} / {ResolveText(attempt.taskId)} — {attempt.status}");
+                    if (!string.IsNullOrWhiteSpace(attempt.completionReason)) builder.Append(" (" + attempt.completionReason + ")");
+                    builder.AppendLine();
+                }
+                var ranking = detail.rankings?.FirstOrDefault(item => item.phase == phase)?.response;
+                if (ranking != null)
+                {
+                    var ranked = (ranking.rankings ?? System.Array.Empty<PreferenceRankEntry>())
+                        .OrderBy(item => item.rank)
+                        .Select(item => $"{item.rank}. {(string.IsNullOrWhiteSpace(item.conditionCode) ? item.embodimentCondition : item.conditionCode)}");
+                    builder.AppendLine("Ranking: " + string.Join("  ", ranked));
+                    var preferred = string.IsNullOrWhiteSpace(ranking.preferredConditionCode)
+                        ? ranking.preferredEmbodimentCondition : ranking.preferredConditionCode;
+                    builder.AppendLine($"Preferred: {ResolveText(preferred)}  |  Reason: {ResolveText(ranking.reason)}");
+                }
+            }
+            return builder.ToString();
+        }
+
+        private static string BuildQuestionnaireDetailText(ExperimentQuestionnaireRecord record)
+        {
+            var session = record.session ?? new QuestionnaireSession();
+            var builder = new StringBuilder();
+            builder.AppendLine($"Phase: {record.phase}  |  Questionnaire: {ResolveText(session.questionnaireId)}");
+            builder.AppendLine($"Status: {session.completionStatus}  |  Completion: {session.completionRate:P0}  |  Missing: {session.hasMissing}");
+            builder.AppendLine($"Task: {ResolveText(session.taskId)}  |  Condition run: {ResolveText(session.conditionRunId)}");
+            builder.AppendLine();
+            builder.AppendLine("SECTION SCORES");
+            foreach (var score in session.sectionScores ?? System.Array.Empty<QuestionnaireScoreResult>())
+                builder.AppendLine($"{score.sectionId}: mean={score.mean:0.##}, answered={score.answeredCount}/{score.itemCount}, missing={score.hasMissing}");
+            builder.AppendLine();
+            builder.AppendLine("RESPONSES");
+            foreach (var prompt in record.prompts ?? System.Array.Empty<QuestionnairePromptSnapshot>())
+            {
+                var response = session.responses?.FirstOrDefault(item => item.itemId == prompt.itemId);
+                builder.AppendLine($"[{prompt.sectionId}] {ResolveText(prompt.promptEnglish)}");
+                if (!string.IsNullOrWhiteSpace(prompt.promptChinese)) builder.AppendLine(prompt.promptChinese);
+                builder.Append("Answer: " + ResolveText(response?.rawValue));
+                if (response?.hasScoredValue == true) builder.Append($"  |  Score: {response.scoredValue:0.##}");
+                builder.AppendLine();
+                builder.AppendLine();
+            }
+            return builder.ToString();
+        }
+
+        private static void SetScrollableText(TMP_Text text, RectTransform content, ScrollRect scroll, string value, float minimumHeight)
+        {
+            if (text == null || content == null || scroll == null) return;
+            text.text = value ?? string.Empty;
+            content.sizeDelta = new Vector2(-24f, Mathf.Max(minimumHeight, text.preferredHeight + 24f));
+            Canvas.ForceUpdateCanvases();
+            scroll.verticalNormalizedPosition = 1f;
+        }
+
+        private static string FriendlyPhaseStatus(ExperimentPhaseStatus status)
+        {
+            return status == ExperimentPhaseStatus.NotStarted ? "Not started" : status.ToString();
+        }
+
+        private static string HumanizeExperimentError(string error)
+        {
+            return string.IsNullOrWhiteSpace(error) ? string.Empty : error.Replace('_', ' ');
+        }
+
         private void RefreshHistoryList(bool isVisible)
         {
             if (!isVisible)
@@ -1064,7 +1647,10 @@ namespace SceneTalkVR.Runtime
                     $"{item.title}    {FormatHistoryTime(item.updatedAtUnixMs)}\n"
                     + $"{item.turnCount} turns  |  {item.correctionCount} corrections  |  "
                     + $"{ResolveCorrectionSourceDisplayName(item.correctionProvider)} / "
-                    + ResolveCorrectionStyleDisplayName(item.correctionStyle));
+                    + ResolveCorrectionStyleDisplayName(item.correctionStyle)
+                    + (item.IsExperimentConversation
+                        ? $"  |  Experiment {ShortHistoryId(item.experimentId)} / {item.experimentPhase}"
+                        : string.Empty));
 
                 if (!string.Equals(historyRowSessionIds[i], item.sessionId, System.StringComparison.Ordinal))
                 {
@@ -1103,6 +1689,9 @@ namespace SceneTalkVR.Runtime
             {
                 historyDetailSummaryText.text =
                     $"{detail.summary.title}\n"
+                    + (detail.summary.IsExperimentConversation
+                        ? $"Experiment: {detail.summary.experimentId}  |  Phase: {detail.summary.experimentPhase}\n"
+                        : string.Empty)
                     + $"Created {FormatHistoryTime(detail.summary.createdAtUnixMs)}  |  Updated {FormatHistoryTime(detail.summary.updatedAtUnixMs)}\n"
                     + $"Scenario: {detail.summary.scenarioId}  |  Environment: {detail.summary.environmentType}\n"
                     + $"Avatar: {scene?.avatarRole?.role ?? "-"} / {appearance?.genderPresentation ?? "unknown"}  |  "
@@ -1111,6 +1700,11 @@ namespace SceneTalkVR.Runtime
                     + $"Sensitivity: {detail.settings?.feedbackSensitivity ?? "moderate"}\n"
                     + $"Turns: {detail.summary.turnCount}  |  Corrections: {detail.summary.correctionCount}";
             }
+
+            SetInteractable(historyContinueButton, detail.summary.CanContinue);
+            SetInteractable(historyDeleteButton, detail.summary.CanDelete);
+            SetButtonLabel(historyContinueButton, detail.summary.CanContinue ? "Continue" : "Experiment only");
+            SetButtonLabel(historyDeleteButton, detail.summary.CanDelete ? "Delete" : "Experiment only");
 
             if (!string.Equals(
                     lastRenderedHistorySessionId,
@@ -1209,6 +1803,12 @@ namespace SceneTalkVR.Runtime
             return string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
         }
 
+        private static string ShortHistoryId(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return "-";
+            return value.Length <= 8 ? value : value.Substring(0, 8);
+        }
+
         private static string FormatHistoryTime(long unixMs)
         {
             if (unixMs <= 0)
@@ -1304,6 +1904,10 @@ namespace SceneTalkVR.Runtime
             if (orchestrator.CurrentState == SceneTalkState.HistoryLoading)
             {
                 loadingText.text = "Loading conversation history...";
+            }
+            else if (orchestrator.CurrentState == SceneTalkState.ExperimentHistoryLoading)
+            {
+                loadingText.text = "Loading experiment history...";
             }
             else if (orchestrator.CurrentState == SceneTalkState.HistoryRestoring)
             {
@@ -1592,6 +2196,31 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
+            if (orchestrator.CurrentState == SceneTalkState.ExperimentMenu)
+            {
+                GetExperimentCoordinator()?.RequestLeaveExperiment();
+                return;
+            }
+
+            if (orchestrator.CurrentState == SceneTalkState.ExperimentExitConfirm)
+            {
+                GetExperimentCoordinator()?.CancelLeaveExperiment();
+                return;
+            }
+
+            if (orchestrator.CurrentState == SceneTalkState.ExperimentHistoryLoading
+                || orchestrator.CurrentState == SceneTalkState.ExperimentHistoryList
+                || orchestrator.CurrentState == SceneTalkState.ExperimentHistoryActions
+                || orchestrator.CurrentState == SceneTalkState.ExperimentHistoryRecord
+                || orchestrator.CurrentState == SceneTalkState.ExperimentHistoryConversationDetail
+                || orchestrator.CurrentState == SceneTalkState.ExperimentHistoryQuestionnaireDetail
+                || orchestrator.CurrentState == SceneTalkState.ExperimentHistoryDeleteConfirm
+                || orchestrator.CurrentState == SceneTalkState.ExperimentHistoryError)
+            {
+                GetExperimentCoordinator()?.BackFromExperimentHistory();
+                return;
+            }
+
             orchestrator.ReturnToInitialMenu();
         }
 
@@ -1602,24 +2231,50 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
+            var experiment = GetExperimentCoordinator();
+            if (experiment?.HasActiveExperiment == true)
+            {
+                if (orchestrator.CurrentState == SceneTalkState.ExperimentPhaseCompleted)
+                {
+                    experiment.ContinueAfterPhaseCompletion();
+                    return;
+                }
+
+                var phaseRuntimeActive = PilotCollectionSessionCoordinator.Active?.Stage != PilotParticipantStage.None
+                    || EditorCollectionSessionCoordinator.Active?.IsArmed == true
+                    || RehearsalSessionCoordinator.Active?.IsActive == true;
+                if (phaseRuntimeActive || orchestrator.CurrentState == SceneTalkState.ExperimentPhase)
+                {
+                    experiment.ExitCurrentPhaseToMenu();
+                    return;
+                }
+
+                if (orchestrator.CurrentState == SceneTalkState.ExperimentMenu
+                    || orchestrator.CurrentState == SceneTalkState.ExperimentExitConfirm)
+                {
+                    ExitCurrentView();
+                    return;
+                }
+            }
+
             var pilot = PilotCollectionSessionCoordinator.Active;
             if (pilot != null && pilot.Stage != PilotParticipantStage.None)
             {
-                pilot.ExitAndEndSession("participant_exit");
+                pilot.SuspendAndEndSession("participant_exit_checkpoint");
                 return;
             }
 
             var collection = EditorCollectionSessionCoordinator.Active;
             if (collection?.IsArmed == true)
             {
-                collection.ExitAndEndRuntimeSession("participant_exit");
+                collection.SuspendAndEndRuntimeSession("participant_exit_checkpoint");
                 return;
             }
 
             var rehearsal = RehearsalSessionCoordinator.Active;
             if (rehearsal?.IsActive == true)
             {
-                rehearsal.ResetSession();
+                rehearsal.SuspendSession("participant_exit_checkpoint");
                 return;
             }
 
@@ -1752,6 +2407,35 @@ namespace SceneTalkVR.Runtime
             rectTransform.anchoredPosition = position;
             rectTransform.sizeDelta = size;
             return panel;
+        }
+
+        private static TMP_Text CreateScrollableText(
+            Transform parent,
+            string name,
+            Vector2 position,
+            Vector2 size,
+            out ScrollRect scrollRect,
+            out RectTransform contentRect)
+        {
+            var viewport = CreatePanel(parent, name + "Viewport", position, size, new Color(0f, 0f, 0f, .34f));
+            viewport.AddComponent<RectMask2D>();
+            scrollRect = viewport.AddComponent<ScrollRect>();
+            scrollRect.horizontal = false;
+            scrollRect.vertical = true;
+            scrollRect.movementType = ScrollRect.MovementType.Clamped;
+            scrollRect.scrollSensitivity = 34f;
+            var text = CreateText(viewport.transform, name + "Text", string.Empty, Vector2.zero,
+                new Vector2(size.x - 24f, size.y - 12f), 16, TextAnchor.UpperLeft, Color.white);
+            text.overflowMode = TextOverflowModes.Overflow;
+            contentRect = text.rectTransform;
+            contentRect.anchorMin = new Vector2(0f, 1f);
+            contentRect.anchorMax = new Vector2(1f, 1f);
+            contentRect.pivot = new Vector2(.5f, 1f);
+            contentRect.anchoredPosition = Vector2.zero;
+            contentRect.sizeDelta = new Vector2(-24f, size.y - 12f);
+            scrollRect.viewport = viewport.GetComponent<RectTransform>();
+            scrollRect.content = contentRect;
+            return text;
         }
 
         private static TMP_Text CreateText(

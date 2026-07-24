@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using SceneTalkVR.History;
 using SceneTalkVR.Runtime;
 using UnityEngine;
 
@@ -63,6 +64,7 @@ namespace SceneTalkVR.Core
         [SerializeField] private bool useConditionOrder;
         [SerializeField] private ExperimentConditionPreset manualCondition = ExperimentConditionPreset.AssistantAgentExplicit;
         [SerializeField] private AssistantEmbodimentPreset manualAssistantEmbodiment = AssistantEmbodimentPreset.SmallObject;
+        private string experimentAssistantEmbodimentOverride;
         [SerializeField] private FormalConditionCode formalCondition = FormalConditionCode.NE;
         [SerializeField] private string[] conditionOrder =
         {
@@ -122,7 +124,9 @@ namespace SceneTalkVR.Core
         public string CurrentFeedbackProvider => CurrentCondition?.provider ?? DialogueAvatarProvider;
         public string CurrentFeedbackStyle => CurrentCondition?.style ?? ExplicitStyle;
         public string CurrentAssistantEmbodiment => CurrentCondition?.assistantEmbodiment ?? NoAssistantEmbodiment;
-        public string ConfiguredAssistantEmbodiment => GetAssistantEmbodimentId(manualAssistantEmbodiment);
+        public string ConfiguredAssistantEmbodiment => string.IsNullOrWhiteSpace(experimentAssistantEmbodimentOverride)
+            ? GetAssistantEmbodimentId(manualAssistantEmbodiment)
+            : experimentAssistantEmbodimentOverride;
         public bool CanUseManualRuntimeCondition => !formalExperiment
             && !useConditionOrder
             && !HasActiveTurn
@@ -285,6 +289,18 @@ namespace SceneTalkVR.Core
             if (GetComponent<PilotWorkflowCoordinator>() == null)
             {
                 gameObject.AddComponent<PilotWorkflowCoordinator>();
+            }
+            if (GetComponent<PilotCollectionSessionCoordinator>() == null)
+            {
+                gameObject.AddComponent<PilotCollectionSessionCoordinator>();
+            }
+            if (GetComponent<ExperimentHistoryService>() == null)
+            {
+                gameObject.AddComponent<ExperimentHistoryService>();
+            }
+            if (GetComponent<ExperimentSessionCoordinator>() == null)
+            {
+                gameObject.AddComponent<ExperimentSessionCoordinator>();
             }
             EnsureSessionId();
             EnsureDefaultTaskDefinitions();
@@ -465,6 +481,27 @@ namespace SceneTalkVR.Core
             }
 
             return true;
+        }
+
+        public bool SetExperimentAssistantEmbodiment(string embodiment)
+        {
+            if (!TryNormalizeAssistantEmbodiment(embodiment, out var normalizedEmbodiment))
+            {
+                return false;
+            }
+
+            experimentAssistantEmbodimentOverride = normalizedEmbodiment;
+            RefreshCondition(false);
+            NotifyConditionChanged();
+            return true;
+        }
+
+        public void ClearExperimentAssistantEmbodiment()
+        {
+            if (string.IsNullOrWhiteSpace(experimentAssistantEmbodimentOverride)) return;
+            experimentAssistantEmbodimentOverride = string.Empty;
+            RefreshCondition(false);
+            NotifyConditionChanged();
         }
 
         public void AdvanceScenario()
@@ -652,7 +689,7 @@ namespace SceneTalkVR.Core
 
             if (avatarVoiceModule is ISceneTalkCorrectionAssistantEmbodimentReceiver embodimentReceiver)
             {
-                embodimentReceiver.SetCorrectionAssistantEmbodiment(ConfiguredAssistantEmbodiment);
+                embodimentReceiver.SetCorrectionAssistantEmbodiment(CurrentAssistantEmbodiment);
             }
         }
 
