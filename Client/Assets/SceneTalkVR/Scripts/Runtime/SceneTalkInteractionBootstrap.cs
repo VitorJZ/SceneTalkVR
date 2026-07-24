@@ -23,6 +23,8 @@ namespace SceneTalkVR.Runtime
         private const string ControllerOverlayShaderName = "SceneTalkVR/Controller/Always On Top";
         private const int ControllerVisualRenderQueue = 4990;
         private const int ControllerRayRenderQueue = 5000;
+        private const int ControllerVisualSortingOrder = 2000;
+        private const int ControllerRaySortingOrder = 2001;
 
         private enum ControllerTriggerOwner
         {
@@ -928,6 +930,7 @@ namespace SceneTalkVR.Runtime
             rayLine.numCornerVertices = 2;
             rayLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             rayLine.receiveShadows = false;
+            rayLine.sortingOrder = ControllerRaySortingOrder;
             rayLine.startColor = controllerRayColor;
             rayLine.endColor = controllerRayColor;
 
@@ -987,6 +990,7 @@ namespace SceneTalkVR.Runtime
             var renderer = primitive.GetComponent<Renderer>();
             if (renderer != null)
             {
+                renderer.sortingOrder = ControllerVisualSortingOrder;
                 renderer.sharedMaterial = CreateControllerVisualMaterial(color);
             }
 
@@ -1001,6 +1005,7 @@ namespace SceneTalkVR.Runtime
                 return null;
             }
 
+            color.a = 1f;
             var material = new Material(baseMaterial)
             {
                 name = "SceneTalkVR Controller Visual Material",
@@ -1047,6 +1052,10 @@ namespace SceneTalkVR.Runtime
             {
                 controllerVisualMaterial.SetFloat("_UseVertexColor", 0f);
             }
+            SetBlendMode(
+                controllerVisualMaterial,
+                UnityEngine.Rendering.BlendMode.One,
+                UnityEngine.Rendering.BlendMode.Zero);
 
             return controllerVisualMaterial;
         }
@@ -1084,8 +1093,28 @@ namespace SceneTalkVR.Runtime
             {
                 controllerRayMaterial.SetFloat("_UseVertexColor", 1f);
             }
+            SetBlendMode(
+                controllerRayMaterial,
+                UnityEngine.Rendering.BlendMode.SrcAlpha,
+                UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
 
             return controllerRayMaterial;
+        }
+
+        private static void SetBlendMode(
+            Material material,
+            UnityEngine.Rendering.BlendMode source,
+            UnityEngine.Rendering.BlendMode destination)
+        {
+            if (material == null ||
+                !material.HasProperty("_SrcBlend") ||
+                !material.HasProperty("_DstBlend"))
+            {
+                return;
+            }
+
+            material.SetInt("_SrcBlend", (int)source);
+            material.SetInt("_DstBlend", (int)destination);
         }
 
         private void DrawControllerRay(LineRenderer rayLine, Vector3 start, Vector3 end, bool hitCanvas)
