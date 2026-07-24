@@ -159,6 +159,13 @@ namespace SceneTalkVR.AvatarSystem
 
         public VisualMode CurrentVisualMode => visualMode;
 
+        public bool IsCurrentAppearanceConfigured => visualMode switch
+        {
+            VisualMode.PrefabAvatar => avatarPrefab != null,
+            VisualMode.HumanoidAvatar => humanoidPrefab != null,
+            _ => true
+        };
+
         public string AppearanceId => visualMode switch
         {
             VisualMode.GeneratedAgent => ExperimentConditionManager.OrbAssistantEmbodiment,

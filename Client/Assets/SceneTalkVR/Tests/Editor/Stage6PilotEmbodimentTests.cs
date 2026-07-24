@@ -11,6 +11,8 @@ namespace SceneTalkVR.Tests.Editor
 {
     public sealed class Stage6PilotEmbodimentTests
     {
+        private const string FormalCorrectionAssistantPrefabPath =
+            "Assets/SceneTalkVR/Avatar/Prefabs/Humanoid/correction_assistant_woman.prefab";
         private ExperimentV11ProtocolConfig protocol;
         private ExperimentTaskCatalog tasks;
         private PilotPresentationCatalog presentations;
@@ -50,27 +52,29 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(profiles.All(x => x.appearanceDelayMs == 0), Is.True);
         }
 
-        [TestCase(PilotAudioSourcePolicy.SpatialFixedSource, 1f)]
-        [TestCase(PilotAudioSourcePolicy.NonSpatialHeadLocked, 0f)]
-        public void VoiceOnly_IsExplicitNoVisual_AndAudioPolicySwitches(PilotAudioSourcePolicy policy, float expectedBlend)
+        [TestCase(PilotAudioSourcePolicy.SpatialFixedSource)]
+        [TestCase(PilotAudioSourcePolicy.NonSpatialHeadLocked)]
+        public void VoiceOnly_UsesFormalAudioOnlyMode(PilotAudioSourcePolicy policy)
         {
             var go = new GameObject("voice-only-test"); try
             {
                 var presenter = go.AddComponent<PilotEmbodimentPresenter>();
                 Assert.That(presenter.Configure(presentations.Find(PilotEmbodimentCondition.VoiceOnly), policy, false, out var error), Is.True, error);
                 presenter.BeginFeedback(); Assert.That(presenter.HasVisualEntity, Is.False); Assert.That(presenter.VisualEntityType, Is.EqualTo("none"));
-                Assert.That(presenter.AudioSource.spatialBlend, Is.EqualTo(expectedBlend));
+                Assert.That(go.GetComponent<CorrectionAgentPresenter>().CurrentVisualMode, Is.EqualTo(CorrectionAgentPresenter.VisualMode.AudioOnly));
+                Assert.That(presenter.AudioSource.spatialBlend, Is.Zero);
             }
             finally { UnityEngine.Object.DestroyImmediate(go); }
         }
 
-        [Test] public void FloatingOrb_RemainsVisibleAndReturnsToIdleUntilReset()
+        [Test] public void FloatingOrb_UsesFormalGeneratedOrbUntilReset()
         {
             var go = new GameObject("orb-test"); try
             {
                 var presenter = go.AddComponent<PilotEmbodimentPresenter>();
                 Assert.That(presenter.Configure(presentations.Find(PilotEmbodimentCondition.FloatingOrb), PilotAudioSourcePolicy.SpatialFixedSource, false, out var error), Is.True, error);
-                Assert.That(go.GetComponent<CorrectionAgentPresenter>(), Is.Not.Null); Assert.That(presenter.HasVisualEntity, Is.True);
+                var agent = go.GetComponent<CorrectionAgentPresenter>();
+                Assert.That(agent, Is.Not.Null); Assert.That(agent.CurrentVisualMode, Is.EqualTo(CorrectionAgentPresenter.VisualMode.GeneratedAgent)); Assert.That(presenter.HasVisualEntity, Is.True);
                 presenter.BeginFeedback(); Assert.That(presenter.HasVisualEntity, Is.True);
                 presenter.EndFeedback(); Assert.That(presenter.HasVisualEntity, Is.True);
                 presenter.ResetSession(); Assert.That(presenter.HasVisualEntity, Is.False);
@@ -78,19 +82,32 @@ namespace SceneTalkVR.Tests.Editor
             finally { UnityEngine.Object.DestroyImmediate(go); }
         }
 
-        [Test] public void Humanoid_UsesSpecifiedPrefab_AndLockedRejectsMissing()
+        [Test] public void Humanoid_UsesFormalPresenterPrefab_AndRejectsMissingFormalPrefab()
         {
-            var go = new GameObject("human-test"); var prefab = new GameObject("test-humanoid-prefab"); try
+            var go = new GameObject("human-test");
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(FormalCorrectionAssistantPrefabPath);
+            Assert.That(prefab, Is.Not.Null);
+            try
             {
+                var agent = go.AddComponent<CorrectionAgentPresenter>();
+                var agentSerialized = new SerializedObject(agent);
+                agentSerialized.FindProperty("humanoidPrefab").objectReferenceValue = prefab;
+                agentSerialized.ApplyModifiedPropertiesWithoutUndo();
                 var presenter = go.AddComponent<PilotEmbodimentPresenter>();
-                var good = Profile(PilotEmbodimentCondition.HumanoidAgent, PilotVisualMode.Humanoid); good.visualPrefab = prefab; good.visualPrefabKey = "test-human";
+                var good = Profile(PilotEmbodimentCondition.HumanoidAgent, PilotVisualMode.Humanoid);
                 Assert.That(presenter.Configure(good, PilotAudioSourcePolicy.SpatialFixedSource, true, out var error), Is.True, error);
-                presenter.BeginFeedback(); Assert.That(presenter.HasVisualEntity, Is.True); Assert.That(go.transform.Find("Pilot Humanoid Feedback Agent"), Is.Not.Null);
+                presenter.BeginFeedback(); Assert.That(presenter.HasVisualEntity, Is.True);
+                Assert.That(agent.CurrentVisualMode, Is.EqualTo(CorrectionAgentPresenter.VisualMode.HumanoidAvatar));
+                Assert.That(go.transform.Find("Correction Assistant Agent/Assistant Humanoid"), Is.Not.Null);
+                Assert.That(go.transform.Find("Pilot Humanoid Feedback Agent"), Is.Null);
+
+                agentSerialized.FindProperty("humanoidPrefab").objectReferenceValue = null;
+                agentSerialized.ApplyModifiedPropertiesWithoutUndo();
                 var missing = Profile(PilotEmbodimentCondition.HumanoidAgent, PilotVisualMode.Humanoid);
                 Assert.That(presenter.Configure(missing, PilotAudioSourcePolicy.SpatialFixedSource, true, out error), Is.False);
-                Assert.That(error, Is.EqualTo("humanoid_prefab_missing_or_placeholder"));
+                Assert.That(error, Is.EqualTo("formal_humanoid_prefab_missing"));
             }
-            finally { UnityEngine.Object.DestroyImmediate(go); UnityEngine.Object.DestroyImmediate(prefab); }
+            finally { UnityEngine.Object.DestroyImmediate(go); }
         }
 
         [Test] public void PlannerContext_ContainsStyleButNeverEmbodiment()

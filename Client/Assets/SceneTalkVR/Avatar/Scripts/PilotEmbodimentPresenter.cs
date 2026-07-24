@@ -7,71 +7,133 @@ namespace SceneTalkVR.AvatarSystem
     public sealed class PilotEmbodimentPresenter : MonoBehaviour, ISceneTalkSessionReset
     {
         public static PilotEmbodimentPresenter Active { get; private set; }
-        private PilotPresentationProfile profile;
-        private AudioSource audioSource;
-        private GameObject audioObject;
-        private CorrectionAgentPresenter orb;
-        private GameObject humanoid;
-        private Animator humanoidAnimator;
-        public PilotPresentationProfile Profile => profile;
-        public AudioSource AudioSource => audioSource;
-        public bool HasVisualEntity => orb != null && orb.TargetVisible || humanoid != null && humanoid.activeSelf;
-        public string VisualEntityType => profile == null ? "none" : profile.visualMode == PilotVisualMode.FloatingOrb ? "floating_orb" : profile.visualMode == PilotVisualMode.Humanoid ? "humanoid_agent" : "none";
 
-        public bool Configure(PilotPresentationProfile value, PilotAudioSourcePolicy voiceOnlyPolicy, bool lockedPilot, out string error)
+        private PilotPresentationProfile profile;
+        private CorrectionAgentPresenter correctionAgentPresenter;
+
+        public PilotPresentationProfile Profile => profile;
+        public AudioSource AudioSource => ResolvePresenter(false)?.AudioSource;
+        public bool HasVisualEntity => correctionAgentPresenter != null
+            && correctionAgentPresenter.CurrentVisualMode != CorrectionAgentPresenter.VisualMode.AudioOnly
+            && correctionAgentPresenter.TargetVisible;
+        public string VisualEntityType => profile == null
+            ? "none"
+            : profile.embodimentCondition == PilotEmbodimentCondition.FloatingOrb
+                ? "floating_orb"
+                : profile.embodimentCondition == PilotEmbodimentCondition.HumanoidAgent
+                    ? "humanoid_agent"
+                    : "none";
+
+        public bool Configure(
+            PilotPresentationProfile value,
+            PilotAudioSourcePolicy voiceOnlyPolicy,
+            bool lockedPilot,
+            out string error)
         {
-            ResetSession(); profile=value;
-            if(value==null){error="pilot_presentation_profile_missing";return false;}
-            if(value.embodimentCondition==PilotEmbodimentCondition.VoiceOnly && value.visualMode!=PilotVisualMode.None){error="voice_only_visual_forbidden";return false;}
-            if(value.embodimentCondition==PilotEmbodimentCondition.HumanoidAgent && lockedPilot && (value.visualPrefab==null||value.developerPlaceholder)){error="humanoid_prefab_missing_or_placeholder";return false;}
-            if(value.embodimentCondition==PilotEmbodimentCondition.FloatingOrb && lockedPilot && value.developerPlaceholder){error="orb_placeholder_forbidden";return false;}
-            EnsureAudio(value.embodimentCondition==PilotEmbodimentCondition.VoiceOnly?voiceOnlyPolicy:value.audioSourcePolicy);
-            if(value.visualMode==PilotVisualMode.FloatingOrb) { orb=gameObject.GetComponent<CorrectionAgentPresenter>()??gameObject.AddComponent<CorrectionAgentPresenter>(); orb.ShowImmediate(); orb.EndSpeaking(); }
-            else if(value.visualMode==PilotVisualMode.Humanoid && value.visualPrefab!=null)
+            ResetSession();
+            if (value == null)
             {
-                humanoid=Instantiate(value.visualPrefab,transform,false);humanoid.name="Pilot Humanoid Feedback Agent";humanoid.transform.localPosition=value.sourcePosition;humanoid.transform.localScale=value.scale;FaceHumanoidTowardParticipant(value.spawnRotation.y);humanoidAnimator=humanoid.GetComponentInChildren<Animator>();if(humanoidAnimator!=null&&value.animatorController!=null)humanoidAnimator.runtimeAnimatorController=value.animatorController;humanoid.SetActive(true);SetHumanoidSpeaking(false);
+                error = "pilot_presentation_profile_missing";
+                return false;
             }
-            Active=this; error="";return true;
+
+            if (!HasExpectedVisualMode(value))
+            {
+                error = "pilot_presentation_profile_visual_mode_mismatch";
+                return false;
+            }
+
+            if (lockedPilot
+                && value.embodimentCondition == PilotEmbodimentCondition.VoiceOnly
+                && voiceOnlyPolicy != PilotAudioSourcePolicy.NonSpatialHeadLocked)
+            {
+                error = "voice_only_audio_policy_mismatch";
+                return false;
+            }
+
+            var presenter = ResolvePresenter(true);
+            var appearanceId = ResolveAppearanceId(value.embodimentCondition);
+            if (!presenter.SetAppearanceId(appearanceId))
+            {
+                error = "formal_assistant_embodiment_unavailable";
+                return false;
+            }
+
+            if (!presenter.IsCurrentAppearanceConfigured)
+            {
+                error = value.embodimentCondition == PilotEmbodimentCondition.HumanoidAgent
+                    ? "formal_humanoid_prefab_missing"
+                    : "formal_assistant_appearance_missing";
+                return false;
+            }
+
+            profile = value;
+            presenter.ShowImmediate();
+            presenter.EndSpeaking();
+            Active = this;
+            error = string.Empty;
+            return true;
         }
 
         public void BeginFeedback()
         {
-            if(profile==null)return;
-            if(profile.visualMode!=PilotVisualMode.FloatingOrb)
-                GetComponent<CorrectionAgentPresenter>()?.HideImmediate();
-            if(orb!=null){orb.ShowImmediate();orb.BeginSpeaking();}
-            if(humanoid!=null){humanoid.SetActive(true);SetHumanoidSpeaking(true);}
-        }
-        public void EndFeedback(){if(orb!=null)orb.EndSpeaking();if(humanoid!=null)SetHumanoidSpeaking(false);}
-        public void ResetSession()
-        {
-            EndFeedback(); if(audioSource!=null){audioSource.Stop();audioSource.clip=null;}
-            if(humanoid!=null){if(Application.isPlaying)Destroy(humanoid);else DestroyImmediate(humanoid);humanoid=null;}
-            if(orb!=null)orb.HideImmediate();
-            GetComponent<CorrectionAgentPresenter>()?.HideImmediate();
-            orb=null; if(Active==this)Active=null; profile=null;
-        }
-        private void EnsureAudio(PilotAudioSourcePolicy policy)
-        {
-            if(audioObject==null){audioObject=new GameObject("Pilot Feedback Audio Source");audioObject.transform.SetParent(transform,false);audioSource=audioObject.AddComponent<AudioSource>();audioSource.playOnAwake=false;}
-            var spatial=policy==PilotAudioSourcePolicy.SpatialFixedSource; audioSource.spatialBlend=spatial?1f:0f;audioSource.minDistance=profile.minDistance;audioSource.maxDistance=profile.maxDistance;audioSource.volume=profile.volume;audioSource.dopplerLevel=0;
-            if(!spatial && Camera.main!=null){audioObject.transform.SetParent(Camera.main.transform,false);audioObject.transform.localPosition=Vector3.zero;}else{audioObject.transform.SetParent(transform,false);audioObject.transform.localPosition=profile.sourcePosition;}
-        }
-        private void SetHumanoidSpeaking(bool speaking)
-        {
-            if(humanoidAnimator==null||profile==null||string.IsNullOrWhiteSpace(profile.speakingParameterOrState))return;
-            foreach(var parameter in humanoidAnimator.parameters) if(parameter.name==profile.speakingParameterOrState&&parameter.type==AnimatorControllerParameterType.Bool){humanoidAnimator.SetBool(parameter.name,speaking);return;}
-            if(speaking)humanoidAnimator.Play(profile.speakingParameterOrState);
-            else if(!string.IsNullOrWhiteSpace(profile.idleParameterOrState))humanoidAnimator.Play(profile.idleParameterOrState);
+            if (profile == null) return;
+            var presenter = ResolvePresenter(false);
+            if (presenter == null) return;
+            presenter.ShowImmediate();
+            presenter.BeginSpeaking();
         }
 
-        private void FaceHumanoidTowardParticipant(float yawOffset)
+        public void EndFeedback()
         {
-            if(humanoid==null)return;
-            var camera=Camera.main;if(camera==null){humanoid.transform.localRotation=Quaternion.Euler(0f,yawOffset,0f);return;}
-            var direction=camera.transform.position-humanoid.transform.position;direction.y=0f;
-            if(direction.sqrMagnitude<.0001f)return;
-            humanoid.transform.rotation=Quaternion.Euler(0f,Quaternion.LookRotation(direction.normalized,Vector3.up).eulerAngles.y+yawOffset,0f);
+            ResolvePresenter(false)?.EndSpeaking();
+        }
+
+        public void ResetSession()
+        {
+            var presenter = ResolvePresenter(false);
+            if (presenter != null)
+            {
+                presenter.EndSpeaking();
+                var source = presenter.AudioSource;
+                source.Stop();
+                source.clip = null;
+                presenter.HideImmediate();
+            }
+
+            if (Active == this) Active = null;
+            profile = null;
+        }
+
+        private CorrectionAgentPresenter ResolvePresenter(bool createIfMissing)
+        {
+            if (correctionAgentPresenter == null)
+                correctionAgentPresenter = GetComponent<CorrectionAgentPresenter>();
+            if (correctionAgentPresenter == null && createIfMissing)
+                correctionAgentPresenter = gameObject.AddComponent<CorrectionAgentPresenter>();
+            return correctionAgentPresenter;
+        }
+
+        private static bool HasExpectedVisualMode(PilotPresentationProfile value)
+        {
+            return value.embodimentCondition switch
+            {
+                PilotEmbodimentCondition.VoiceOnly => value.visualMode == PilotVisualMode.None,
+                PilotEmbodimentCondition.FloatingOrb => value.visualMode == PilotVisualMode.FloatingOrb,
+                PilotEmbodimentCondition.HumanoidAgent => value.visualMode == PilotVisualMode.Humanoid,
+                _ => false
+            };
+        }
+
+        private static string ResolveAppearanceId(PilotEmbodimentCondition condition)
+        {
+            return condition switch
+            {
+                PilotEmbodimentCondition.VoiceOnly => ExperimentConditionManager.AudioOnlyAssistantEmbodiment,
+                PilotEmbodimentCondition.FloatingOrb => ExperimentConditionManager.OrbAssistantEmbodiment,
+                PilotEmbodimentCondition.HumanoidAgent => ExperimentConditionManager.HumanoidAssistantEmbodiment,
+                _ => ExperimentConditionManager.NoAssistantEmbodiment
+            };
         }
     }
 }

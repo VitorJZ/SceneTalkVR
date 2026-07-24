@@ -63,5 +63,5 @@ MonoBehaviour:
   splitFeedbackAgentKey: correction_agent_presenter_v1
   splitFeedbackAgentApprovedForCollection: 1
   pilotOrbKey: generated_orb_v1
-  pilotHumanoidKey: teacher_female_humanoid_v1
+  pilotHumanoidKey: correction_assistant_woman
   pilotResourcesApprovedForCollection: 1
