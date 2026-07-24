@@ -122,16 +122,19 @@ namespace SceneTalkVR.Tests.PlayMode
             yield return null;
             var context = Get(rehearsal, "RuntimeContext"); Assert.That(Get(context, "deploymentProfile"), Is.EqualTo("pico_device_validation")); Assert.That((bool)Get(context, "collectionEligible"), Is.False);
             var assignment = Get(rehearsal, "FormalAssignment");
+            var orchestrator = Find("SceneTalkVR.Runtime.SceneTalkOrchestrator, Assembly-CSharp");
             foreach (var item in Conditions(assignment))
             {
                 var select = rehearsal.GetType().GetMethod("SelectFormalCondition"); var selectArgs = new object[] { Get(item, "formalConditionCode"), null };
                 Assert.That((bool)select.Invoke(rehearsal, selectArgs), Is.True, selectArgs[1] as string);
+                Set(orchestrator, "LastTranscript", "Previous scene user utterance.");
                 OutCall(rehearsal, "CompleteCurrentGoalsForQa"); yield return null;
                 var service = Get(questionnaire, "Service"); var definition = Get(service, "Definition"); var catalog = Get(manager, "QuestionnaireCatalog"); var protocol = Get(manager, "ExperimentProtocol");
                 var enabled = ((IEnumerable)catalog.GetType().GetMethod("GetEnabledItems").Invoke(catalog, new[] { Get(definition, "questionnaireId"), protocol })).Cast<object>().ToArray();
                 foreach (var question in enabled.Where(x => (bool)Get(x, "required")))
                 { var setArgs = new object[] { Get(question, "itemId"), "4", null }; Assert.That((bool)service.GetType().GetMethod("SetResponse").Invoke(service, setArgs), Is.True, setArgs[2] as string); }
                 OutCall(questionnaire, "Submit"); yield return null;
+                Assert.That(Get(orchestrator, "LastTranscript"), Is.EqualTo(string.Empty));
             }
             yield return null; Assert.That(Active("FormalFinalRankingPanel"), Is.True);
             AssertExitOverlay();
@@ -185,6 +188,7 @@ namespace SceneTalkVR.Tests.PlayMode
         private static void OutCall(Component value, string method) { var args = new object[] { null }; Assert.That((bool)value.GetType().GetMethod(method).Invoke(value, args), Is.True, args[0] as string); }
         private static void CallVoid(Component value, string method) { value?.GetType().GetMethod(method)?.Invoke(value, null); }
         private static object Get(object value, string name) { if (value == null) return null; var t = value.GetType(); return t.GetProperty(name, BindingFlags.Public | BindingFlags.Instance)?.GetValue(value) ?? t.GetField(name, BindingFlags.Public | BindingFlags.Instance)?.GetValue(value); }
+        private static void Set(object value, string name, object propertyValue) { value.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance)?.SetValue(value, propertyValue); }
         private static int Count(object value) { if (value is ICollection c) return c.Count; return (int)(value?.GetType().GetProperty("Count")?.GetValue(value) ?? 0); }
         private static Component Find(string type) => (Component)Resources.FindObjectsOfTypeAll(Type.GetType(type)).FirstOrDefault();
         private static object Asset(string path, Type type) { var adb = Type.GetType("UnityEditor.AssetDatabase, UnityEditor"); return adb.GetMethod("LoadAssetAtPath", new[] { typeof(string), typeof(Type) }).Invoke(null, new object[] { path, type }); }

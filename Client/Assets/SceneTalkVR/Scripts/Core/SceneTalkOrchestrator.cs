@@ -602,6 +602,7 @@ namespace SceneTalkVR.Runtime
 
         private IEnumerator RunFixedTaskStartup(string taskId)
         {
+            LastTranscript = string.Empty;
             LastScenePayload = null;
             LastError = string.Empty;
 
