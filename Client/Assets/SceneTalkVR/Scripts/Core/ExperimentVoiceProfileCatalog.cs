@@ -57,6 +57,9 @@ namespace SceneTalkVR.Core
             if (string.IsNullOrWhiteSpace(CatalogVersion)) issues.Add("voice_catalog_version_missing");
             if (profiles == null || profiles.Length == 0) issues.Add("approved_voice_profiles_missing");
             if (profiles != null && profiles.Where(x => x != null).GroupBy(x => x.voiceProfileKey, StringComparer.OrdinalIgnoreCase).Any(g => string.IsNullOrWhiteSpace(g.Key) || g.Count() > 1)) issues.Add("voice_profile_key_missing_or_duplicate");
+            if (!string.Equals(FormalExplicitFeedbackProfileKey, FormalRecastFeedbackProfileKey, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(FormalExplicitFeedbackProfileKey, PilotSharedFeedbackProfileKey, StringComparison.OrdinalIgnoreCase))
+                issues.Add("formal_and_pilot_correction_voice_profile_must_be_shared");
             var required = new List<string> { FormalExplicitFeedbackProfileKey, FormalRecastFeedbackProfileKey, PilotSharedFeedbackProfileKey };
             if (dialogueProfileKeys != null) required.AddRange(dialogueProfileKeys);
             foreach (var key in required.Distinct(StringComparer.OrdinalIgnoreCase))

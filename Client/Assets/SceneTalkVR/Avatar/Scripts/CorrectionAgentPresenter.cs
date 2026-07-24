@@ -58,6 +58,10 @@ namespace SceneTalkVR.AvatarSystem
         [Header("Assistant Audio")]
         [SerializeField, Range(0f, 1f)] private float audioOnlySpatialBlend;
         [SerializeField, Range(0f, 1f)] private float embodiedSpatialBlend = 1f;
+        [SerializeField, Range(0f, 1f)] private float assistantVolume = 1f;
+        [SerializeField, Min(0.01f), Tooltip("Full-volume radius for Orb/Humanoid correction speech.")]
+        private float embodiedMinDistance = 3.2f;
+        [SerializeField, Min(0.02f)] private float embodiedMaxDistance = 8f;
 
         [Header("Generated Agent")]
         [SerializeField] private Transform agentRoot;
@@ -235,6 +239,28 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             return true;
+        }
+
+        public void ConfigureAudioProfile(
+            float volume,
+            float spatialBlend,
+            float minDistance,
+            float maxDistance)
+        {
+            assistantVolume = Mathf.Clamp01(volume);
+            if (IsAudioOnly)
+            {
+                audioOnlySpatialBlend = Mathf.Clamp01(spatialBlend);
+            }
+            else
+            {
+                embodiedSpatialBlend = Mathf.Clamp01(spatialBlend);
+                embodiedMinDistance = Mathf.Max(0.01f, minDistance);
+                embodiedMaxDistance = Mathf.Max(embodiedMinDistance + 0.01f, maxDistance);
+            }
+
+            EnsureAgent();
+            ConfigureVoiceSourceForMode();
         }
 
         private void Awake()
@@ -605,8 +631,6 @@ namespace SceneTalkVR.AvatarSystem
             audioSource.enabled = true;
             audioSource.playOnAwake = false;
             audioSource.rolloffMode = AudioRolloffMode.Linear;
-            audioSource.minDistance = 0.2f;
-            audioSource.maxDistance = 4f;
             audioSource.dopplerLevel = 0f;
         }
 
@@ -639,6 +663,9 @@ namespace SceneTalkVR.AvatarSystem
             voiceAnchor.localRotation = Quaternion.identity;
             voiceAnchor.localScale = Vector3.one;
             audioSource.spatialBlend = IsAudioOnly ? audioOnlySpatialBlend : embodiedSpatialBlend;
+            audioSource.volume = assistantVolume;
+            audioSource.minDistance = embodiedMinDistance;
+            audioSource.maxDistance = Mathf.Max(embodiedMinDistance + 0.01f, embodiedMaxDistance);
         }
 
         private void UpdateHumanoidPlacement()

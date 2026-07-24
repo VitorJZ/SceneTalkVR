@@ -196,6 +196,9 @@ namespace SceneTalkVR.AvatarSystem.Tests
                 Assert.That(voice, Is.Not.Null);
                 Assert.That(voice.transform.parent, Is.EqualTo(head));
                 Assert.That(voice.spatialBlend, Is.EqualTo(1f).Within(0.0001f));
+                Assert.That(voice.volume, Is.EqualTo(1f).Within(0.0001f));
+                Assert.That(voice.minDistance, Is.EqualTo(3.2f).Within(0.0001f));
+                Assert.That(voice.maxDistance, Is.EqualTo(8f).Within(0.0001f));
 
                 presenter.EndSpeaking();
                 Assert.That(animator.GetBool("IsTalking"), Is.False);

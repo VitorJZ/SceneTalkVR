@@ -58,7 +58,7 @@ namespace SceneTalkVR.EditorTools
 
             var voices = AssetDatabase.LoadAssetAtPath<ExperimentVoiceProfileCatalog>(VoicePath);
             var dialogue = Voice("editor_collection_dialogue_voice", "101050", VoiceSubtitlePolicy.AllSpeech);
-            var feedback = Voice("editor_collection_feedback_voice", "default_female_en", VoiceSubtitlePolicy.FeedbackOnly);
+            var feedback = Voice("editor_collection_feedback_voice", "502003", VoiceSubtitlePolicy.FeedbackOnly);
             voices.EditorSet("1.2-editor-collection", feedback.voiceProfileKey, feedback.voiceProfileKey,
                 feedback.voiceProfileKey, new[] { dialogue, feedback });
 
@@ -246,7 +246,7 @@ namespace SceneTalkVR.EditorTools
                     embodimentCondition = PilotEmbodimentCondition.FloatingOrb, visualMode = PilotVisualMode.FloatingOrb,
                     feedbackActor = "floating_orb_feedback_agent", voiceProfileKey = "editor_collection_feedback_voice",
                     audioSourcePolicy = PilotAudioSourcePolicy.SpatialFixedSource, sourcePosition = new Vector3(.9f, 1.45f, 1.8f),
-                    spatialBlend = 1f, minDistance = .2f, maxDistance = 4f, volume = 1f, speakingSpeed = 1f,
+                    spatialBlend = 1f, minDistance = 3.2f, maxDistance = 8f, volume = 1f, speakingSpeed = 1f,
                     subtitlePolicy = "feedback_only", visualPrefabKey = "generated_orb_v1", audioSourceRequired = true,
                     mobileReady = true, assetVersion = "editor-collection-1", approvedForCollection = true,
                     evidenceReference = "formal-editor-collection-directive-v1", developerPlaceholder = false
@@ -256,7 +256,7 @@ namespace SceneTalkVR.EditorTools
                     embodimentCondition = PilotEmbodimentCondition.HumanoidAgent, visualMode = PilotVisualMode.Humanoid,
                     feedbackActor = "humanoid_feedback_agent", voiceProfileKey = "editor_collection_feedback_voice",
                     audioSourcePolicy = PilotAudioSourcePolicy.SpatialFixedSource, sourcePosition = new Vector3(.9f, 0f, 1.8f),
-                    spatialBlend = 1f, minDistance = .2f, maxDistance = 4f, volume = 1f, speakingSpeed = 1f,
+                    spatialBlend = 1f, minDistance = 3.2f, maxDistance = 8f, volume = 1f, speakingSpeed = 1f,
                     subtitlePolicy = "feedback_only", visualPrefabKey = "correction_assistant_woman", visualPrefab = humanoid,
                     animatorController = animator, idleParameterOrState = "Idle", speakingParameterOrState = "Talking",
                     spawnRotation = new Vector3(0f, 180f, 0f), scale = Vector3.one, audioSourceRequired = true,
