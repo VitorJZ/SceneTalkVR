@@ -3,6 +3,7 @@ using System.Collections;
 using System.IO;
 using System.Linq;
 using System.Text;
+using SceneTalkVR.History;
 using SceneTalkVR.Runtime;
 using UnityEngine;
 
@@ -34,6 +35,8 @@ namespace SceneTalkVR.Core
         private PreferenceRankingResponse qaRankingDraft;
         private const string LastParticipantKey="SceneTalkVR.Pilot.LastParticipantId";
         private const string LastSessionKey="SceneTalkVR.Pilot.LastSessionId";
+
+        public event Action<PreferenceRankingResponse> ExperimentCompleted;
 
         public ExperimentRuntimeContext RuntimeContext { get; private set; }
         public PilotParticipantStage Stage { get; private set; }
@@ -161,6 +164,12 @@ namespace SceneTalkVR.Core
                 if(!rehearsal.PrepareCurrentCondition(out error))return false;
             }
             else if(!workflow.Prepare(currentPosition,retry,out error))return false;
+            ExperimentSessionCoordinator.Active?.NotifyAttemptStarted(
+                ExperimentPhaseKind.Pilot,
+                PilotProtocolValues.Label(workflow.Current.embodimentCondition),
+                workflow.Current.task.taskId,
+                workflow.PilotRunId,
+                workflow.Current.runAttempt);
             Persist();Stage=PilotParticipantStage.Dialogue;Write(retry?"PilotConditionRetryStarted":"PilotConditionStarted");orchestrator.LoadAssignedTask(workflow.Current.task.taskId);RefreshUi();return true;
         }
         public bool IsTaskPrepared(string taskId)=>IsArmed&&Stage==PilotParticipantStage.Dialogue&&workflow?.Current?.status==PilotRunStatus.Running&&string.Equals(workflow.Current.task?.taskId,taskId,StringComparison.OrdinalIgnoreCase);
@@ -173,6 +182,7 @@ namespace SceneTalkVR.Core
                 if(!rehearsal.SubmitQuestionnaire(out error))return false;
             }
             else if(!workflow.SubmitQuestionnaire(out error))return false;
+            ExperimentSessionCoordinator.Active?.NotifyAttemptCompleted("questionnaire_submitted");
             Persist();
             if(Assignment.conditions.All(x=>x.status==PilotRunStatus.Completed)){workflow.ResetPilotConditionBoundary();Stage=PilotParticipantStage.FinalRanking;}
             else Stage=PilotParticipantStage.Transition;
@@ -191,17 +201,30 @@ namespace SceneTalkVR.Core
                 ok=rehearsal.SubmitRanking(value,out error);
             }
             else ok=workflow.SubmitFinalRanking(value,out error);
-            if(!ok)return false;rankingSubmitted=true;File.WriteAllText(RankingSubmittedMarkerPath,value.submittedAtUtc,Encoding.UTF8);Stage=PilotParticipantStage.Completion;Write("PilotExperimentCompleted");RefreshUi();return true;
+            if(!ok)return false;rankingSubmitted=true;File.WriteAllText(RankingSubmittedMarkerPath,value.submittedAtUtc,Encoding.UTF8);Stage=PilotParticipantStage.Completion;Write("PilotExperimentCompleted");ExperimentCompleted?.Invoke(value);RefreshUi();return true;
         }
         public bool ExportBundle(out string error){if(IsDeviceValidation){if(rehearsal==null){error="device_validation_rehearsal_session_missing";return false;}var ok=rehearsal.ExportBundle(out error);lastBundlePath=rehearsal.LastBundlePath;return ok;}var result=PilotCollectionBundleExporter.Export(Path.GetDirectoryName(CurrentDataFolder),Assignment,manager.ExperimentProtocol,manager.QuestionnaireCatalog,rankingSubmitted,out lastBundlePath,out error);if(result)Write("PilotBundleExported",lastBundlePath);return result;}
         public bool AuditBundle(out string error){if(IsDeviceValidation){if(rehearsal==null){error="device_validation_rehearsal_session_missing";return false;}return rehearsal.AuditBundle(out error);}if(string.IsNullOrWhiteSpace(lastBundlePath)||!Directory.Exists(lastBundlePath)){error="pilot_bundle_missing";return false;}var report=SessionDataIntegrityAuditor.Audit(lastBundlePath,ParticipantId,SessionId);SessionDataIntegrityAuditor.WriteReport(report,lastBundlePath+"-manual-audit.json");error=report.result.ToString().ToUpperInvariant();return report.result!=DataIntegritySeverity.Fail;}
-        public void MarkTechnicalInvalid(string reason){if(!IsArmed)return;workflow.MarkTechnicalInvalid("experiment_operator",reason);Persist();Stage=PilotParticipantStage.TaskIntroduction;Write("PilotTechnicalInvalid",reason);RefreshUi();}
+        public void MarkTechnicalInvalid(string reason){if(!IsArmed)return;workflow.MarkTechnicalInvalid("experiment_operator",reason);ExperimentSessionCoordinator.Active?.NotifyAttemptTechnicalInvalid(reason);Persist();Stage=PilotParticipantStage.TaskIntroduction;Write("PilotTechnicalInvalid",reason);RefreshUi();}
         public bool Retry(out string error){if(workflow?.Current?.status!=PilotRunStatus.TechnicalInvalid){error="pilot_retry_not_available";return false;}Stage=PilotParticipantStage.TaskIntroduction;return BeginCurrentTask(out error);}
-        public void EndSession(){Write("PilotSessionEnded");if(IsDeviceValidation)rehearsal?.ResetSession();ResetRuntime();RuntimeContext=null;rehearsal=null;Stage=PilotParticipantStage.None;RefreshUi();}
+        public void EndSession(){Write("PilotSessionEnded");if(IsDeviceValidation)rehearsal?.EndRuntimeSession();ResetRuntime();RuntimeContext=null;rehearsal=null;Stage=PilotParticipantStage.None;RefreshUi();}
         public void ExitAndEndSession(string reason)
         {
             reason=string.IsNullOrWhiteSpace(reason)?"participant_exit":reason.Trim();
             if(IsArmed){workflow?.AbortCurrent(reason);Persist();Write("PilotSessionExited","reason="+reason,false,"participant");}
+            EndSession();
+        }
+
+        public void SuspendAndEndSession(string reason)
+        {
+            reason=string.IsNullOrWhiteSpace(reason)?"participant_exit_checkpoint":reason.Trim();
+            if(IsArmed&&workflow?.Current!=null&&workflow.Current.status!=PilotRunStatus.Completed
+                &&workflow.Current.status!=PilotRunStatus.TechnicalInvalid)
+            {
+                workflow.MarkTechnicalInvalid("ParticipantExitCheckpoint",reason);
+                Persist();
+                Write("PilotSessionSuspended","reason="+reason,false,"participant");
+            }
             EndSession();
         }
 

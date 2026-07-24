@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
+using SceneTalkVR.History;
 using SceneTalkVR.Runtime;
 using UnityEngine;
 
@@ -66,6 +67,8 @@ namespace SceneTalkVR.Core
         private bool experimentCompleted;
         private bool subscribed;
         private string lastBundlePath;
+
+        public event Action<PreferenceRankingResponse> ExperimentCompletedWithRanking;
 
         public ExperimentRuntimeContext RuntimeContext { get; private set; }
         public bool IsArmed => RuntimeContext != null && RuntimeContext.IsCollection && RuntimeContext.flowMode == ExperimentFlowMode.Formal;
@@ -204,6 +207,12 @@ namespace SceneTalkVR.Core
             var retry = selected.status == ConditionRunStatus.TechnicalInvalid;
             currentPosition = position;
             if (!lifecycle.PrepareCondition(position, retry, out error)) { currentPosition = -1; return false; }
+            ExperimentSessionCoordinator.Active?.NotifyAttemptStarted(
+                ExperimentPhaseKind.Formal,
+                code.ToString(),
+                selected.task.taskId,
+                lifecycle.ConditionRunId,
+                selected.runAttempt);
             var order = Assignment.participantSelectionOrder?.ToList() ?? new System.Collections.Generic.List<FormalConditionCode>();
             if (!order.Contains(code)) order.Add(code);
             Assignment.participantSelectionOrder = order.ToArray();
@@ -227,6 +236,7 @@ namespace SceneTalkVR.Core
         {
             if (!IsArmed) return;
             lifecycle.MarkTechnicalInvalid(reason);
+            ExperimentSessionCoordinator.Active?.NotifyAttemptTechnicalInvalid(reason);
             PersistAssignment();
             WriteOperator("ConditionTechnicalInvalid", reason);
             RefreshUi();
@@ -282,6 +292,7 @@ namespace SceneTalkVR.Core
             experimentCompleted = true;
             lifecycle.RecordStudyEvent(StudyEventType.ExperimentCompleted, "participant");
             WriteOperator("ExperimentCompleted");
+            ExperimentCompletedWithRanking?.Invoke(response);
             RefreshUi();
             return true;
         }
@@ -345,6 +356,29 @@ namespace SceneTalkVR.Core
             RefreshUi();
         }
 
+        public void SuspendAndEndRuntimeSession(string reason)
+        {
+            reason = string.IsNullOrWhiteSpace(reason) ? "participant_exit_checkpoint" : reason.Trim();
+            if (!IsArmed)
+            {
+                EndRuntimeSession();
+                return;
+            }
+
+            var current = lifecycle?.CurrentConditionAssignment;
+            if (current != null && current.status != ConditionRunStatus.Completed
+                && current.status != ConditionRunStatus.TechnicalInvalid)
+            {
+                lifecycle.MarkTechnicalInvalid(reason);
+                PersistGoalSnapshot();
+                PersistAssignment();
+            }
+            WriteOperator("ParticipantSessionSuspended", "reason=" + reason, actor: "participant");
+            ResetRuntimeOnly();
+            RuntimeContext = null;
+            RefreshUi();
+        }
+
         private void OnQuestionnaireRequested()
         {
             if (!IsArmed) return;
@@ -362,6 +396,7 @@ namespace SceneTalkVR.Core
         private void OnQuestionnaireSubmitted()
         {
             if (!IsArmed) return;
+            ExperimentSessionCoordinator.Active?.NotifyAttemptCompleted("questionnaire_submitted");
             PersistGoalSnapshot();
             PersistAssignment();
             orchestrator.ResetForConditionSelection();

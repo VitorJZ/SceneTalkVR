@@ -9,6 +9,12 @@ namespace SceneTalkVR.History
         public string brainMode;
         public string feedbackSensitivity;
         public CorrectionExperimentCondition condition;
+        public string experimentId;
+        public string experimentPhase;
+        public string experimentAttemptId;
+        public string experimentRunId;
+
+        public bool IsExperimentConversation => !string.IsNullOrWhiteSpace(experimentId);
     }
 
     [Serializable]
@@ -40,6 +46,14 @@ namespace SceneTalkVR.History
         public long updatedAtUnixMs;
         public int turnCount;
         public int correctionCount;
+        public string experimentId;
+        public string experimentPhase;
+        public string experimentAttemptId;
+        public string experimentRunId;
+
+        public bool IsExperimentConversation => !string.IsNullOrWhiteSpace(experimentId);
+        public bool CanContinue => !IsExperimentConversation;
+        public bool CanDelete => !IsExperimentConversation;
     }
 
     [Serializable]

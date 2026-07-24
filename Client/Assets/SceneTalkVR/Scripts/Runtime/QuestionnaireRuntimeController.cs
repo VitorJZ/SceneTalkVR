@@ -71,6 +71,7 @@ namespace SceneTalkVR.Runtime
             { error = "questionnaire_not_editable"; return false; }
             ActiveSession.currentPage = Mathf.Max(0, pageIndex);
             lifecycle.RecordStudyEvent(StudyEventType.QuestionnairePageCompleted, "participant", "page:" + pageIndex);
+            QuestionnaireChanged?.Invoke(ActiveSession);
             error = string.Empty; return true;
         }
 

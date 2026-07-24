@@ -88,7 +88,22 @@ namespace SceneTalkVR.Runtime
             completionPanel.GetComponent<RectTransform>().sizeDelta = new Vector2(700, 300);
             Label(completionPanel.transform, "Title", "Experiment Completed", new Vector2(0, 66), new Vector2(620, 54), 32);
             completionMessage = Label(completionPanel.transform, "Message", "Thank you. Please contact the experimenter.\nYour session is ready for bundle export and integrity audit.", new Vector2(0, -28), new Vector2(620, 110), 21);
+            Button(completionPanel.transform, "FormalCompletionContinueButton", "Continue", new Vector2(0, -112), ContinueAfterCompletion, new Vector2(210, 46));
             completionPanel.SetActive(false);
+        }
+
+        private void ContinueAfterCompletion()
+        {
+            var experiment = ExperimentSessionCoordinator.Active;
+            if (experiment?.HasActiveExperiment == true)
+            {
+                experiment.ContinueAfterPhaseCompletion();
+                return;
+            }
+            if (EditorCollectionSessionCoordinator.Active?.IsArmed == true)
+                EditorCollectionSessionCoordinator.Active.EndRuntimeSession();
+            else if (RehearsalSessionCoordinator.Active?.IsActive == true)
+                RehearsalSessionCoordinator.Active.EndRuntimeSession();
         }
 
         public void Submit()

@@ -85,7 +85,16 @@ namespace SceneTalkVR.AvatarSystem.Tests.Editor
                 var flowUi = host.AddComponent<SceneTalkFlowUiController>();
                 flowUi.Configure(orchestrator, canvasObject.GetComponent<Canvas>(), null);
 
+                Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/InitialPanel/NewExperimentButton"), Is.Not.Null);
+                Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/InitialPanel/ExperimentHistoryButton"), Is.Not.Null);
                 Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/InitialPanel/HistoryButton"), Is.Not.Null);
+                Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/InitialPanel/SettingsButton"), Is.Not.Null);
+                Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/InitialPanel/QuitButton"), Is.Not.Null);
+                Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/ExperimentMenuPanel/EnterPilotButton"), Is.Not.Null);
+                Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/ExperimentMenuPanel/EnterFormalButton"), Is.Not.Null);
+                Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/ExperimentHistoryListPanel/ExperimentHistoryRow1"), Is.Not.Null);
+                Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/ExperimentHistoryActionsPanel/ViewExperimentRecordButton"), Is.Not.Null);
+                Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/ExperimentHistoryDeleteConfirmPanel/ConfirmExperimentDeleteButton"), Is.Not.Null);
                 Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/HistoryListPanel/PreviousButton"), Is.Not.Null);
                 Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/HistoryListPanel/NextButton"), Is.Not.Null);
                 Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/HistoryListPanel/BackButton"), Is.Not.Null);
@@ -94,6 +103,7 @@ namespace SceneTalkVR.AvatarSystem.Tests.Editor
                 Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/HistoryDetailPanel/BackButton"), Is.Not.Null);
                 Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/HistoryDeletePanel/ConfirmDeleteButton"), Is.Not.Null);
                 Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/HistoryErrorPanel/BackButton"), Is.Not.Null);
+                Assert.That(canvasObject.transform.Find("ExitButton"), Is.Not.Null);
             }
             finally
             {
@@ -102,7 +112,7 @@ namespace SceneTalkVR.AvatarSystem.Tests.Editor
         }
 
         [Test]
-        public void FormalExperimentDisablesHistoryEntry()
+        public void FormalExperimentStillRecordsAndOpensHistory()
         {
             var manager = host.AddComponent<ExperimentConditionManager>();
             var serializedManager = new SerializedObject(manager);
@@ -111,17 +121,19 @@ namespace SceneTalkVR.AvatarSystem.Tests.Editor
             manager.RefreshCondition(false);
 
             var memory = host.AddComponent<LearningMemoryService>();
+            memory.ConfigureStoreForTests(new SqliteLearningMemoryStore(databasePath));
             var orchestrator = host.AddComponent<SceneTalkOrchestrator>();
             var storeField = typeof(LearningMemoryService).GetField(
                 "store",
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
             orchestrator.OpenHistory();
 
-            Assert.That(orchestrator.IsHistoryAvailable, Is.False);
-            Assert.That(orchestrator.CurrentState, Is.EqualTo(SceneTalkState.Idle));
+            Assert.That(orchestrator.IsHistoryAvailable, Is.True);
+            Assert.That(orchestrator.IsHistoryRecordingEnabled, Is.True);
+            Assert.That(orchestrator.CurrentState, Is.EqualTo(SceneTalkState.HistoryList));
             Assert.That(memory, Is.Not.Null);
             Assert.That(storeField, Is.Not.Null);
-            Assert.That(storeField.GetValue(memory), Is.Null);
+            Assert.That(storeField.GetValue(memory), Is.Not.Null);
         }
 
         private static SpringScenePayload CreatePayload()

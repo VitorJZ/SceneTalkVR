@@ -11,9 +11,6 @@ namespace SceneTalkVR.History
     public sealed class LearningMemoryService : MonoBehaviour, IDisposable
     {
         public const int DefaultPageSize = 5;
-        private const string HistoryRelativeFolder = "SceneTalkVR/History";
-        private const string DatabaseFileName = "scenetalk_history.sqlite3";
-
         private ILearningMemoryStore store;
         private int activeNextSequenceIndex = 1;
         private string historyRootOverride;
@@ -25,12 +22,10 @@ namespace SceneTalkVR.History
         public string LastError { get; private set; }
 
         public string HistoryRootPath => string.IsNullOrWhiteSpace(historyRootOverride)
-            ? Path.Combine(
-                Application.persistentDataPath,
-                HistoryRelativeFolder.Replace('/', Path.DirectorySeparatorChar))
+            ? HistoryStoragePaths.RootPath
             : historyRootOverride;
 
-        private string DatabasePath => Path.Combine(HistoryRootPath, DatabaseFileName);
+        private string DatabasePath => Path.Combine(HistoryRootPath, HistoryStoragePaths.DatabaseFileName);
         private string AssetsRootPath => Path.Combine(HistoryRootPath, "Assets");
 
         private void OnDestroy()
@@ -123,7 +118,11 @@ namespace SceneTalkVR.History
                     createdAtUnixMs = now,
                     updatedAtUnixMs = now,
                     turnCount = hasInitialUserTurn ? 1 : 0,
-                    correctionCount = hasInitialUserTurn && firstTurn.HasCorrection ? 1 : 0
+                    correctionCount = hasInitialUserTurn && firstTurn.HasCorrection ? 1 : 0,
+                    experimentId = settings?.experimentId ?? string.Empty,
+                    experimentPhase = settings?.experimentPhase ?? string.Empty,
+                    experimentAttemptId = settings?.experimentAttemptId ?? string.Empty,
+                    experimentRunId = settings?.experimentRunId ?? string.Empty
                 },
                 settings = CloneSettings(settings),
                 sceneSnapshot = payload,
@@ -235,6 +234,13 @@ namespace SceneTalkVR.History
             if (string.Equals(sessionId, ActiveSessionId, StringComparison.Ordinal))
             {
                 throw new InvalidOperationException("The active history session cannot be deleted.");
+            }
+
+            var existing = store.GetSession(sessionId);
+            if (existing?.summary?.IsExperimentConversation == true)
+            {
+                throw new InvalidOperationException(
+                    "Experiment conversations can only be deleted through Experiment History.");
             }
 
             var deleted = store.DeleteSession(sessionId);
