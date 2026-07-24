@@ -10,7 +10,7 @@ namespace SceneTalkVR.Runtime.Services
     /// <summary>
     /// Hybrid scene presenter that combines Panorama backgrounds and Holodeck 3D layouts.
     /// </summary>
-    public sealed class HybridScenePresenter : MonoBehaviour, ISceneTalkScenePresenter, ISceneTalkSceneSnapshotProvider
+    public sealed class HybridScenePresenter : MonoBehaviour, ISceneTalkScenePresenter, ISceneTalkSceneSnapshotProvider, ISceneTalkPresentedSceneClearer
     {
         [Header("Services")]
         [SerializeField] private PanoramaSceneService panoramaService;
@@ -27,6 +27,11 @@ namespace SceneTalkVR.Runtime.Services
 
         [Header("Render Mode")]
         [SerializeField] private bool onlyUsePanorama = true;
+
+        [Header("Static Scene Content")]
+        [Tooltip("When enabled, use the authored scene roots under SceneContentRoot instead of generating a panorama.")]
+        [SerializeField] private bool useStaticSceneContent = true;
+        [SerializeField] private Transform staticSceneContentRoot;
 
         [Header("Safe Spatial Bounds (Clipper)")]
         [SerializeField] private bool enableSpatialClipping = true;
@@ -62,32 +67,53 @@ namespace SceneTalkVR.Runtime.Services
             ClearScene();
             lastResolvedLayout.Clear();
 
+            var staticSceneLoaded = useStaticSceneContent && TryActivateStaticScene(payload);
+
             var isHistorySnapshot = payload.scene != null
                 && !string.IsNullOrWhiteSpace(payload.scene.skyboxUrl)
                 && payload.scene.skyboxUrl.StartsWith("history://", StringComparison.OrdinalIgnoreCase);
 
-            // 1. Generate Panorama Background
-            var panoTask = panoramaService.GenerateSkyboxAsync(payload.environmentType, payload.scene?.skyboxUrl);
+            // Panorama mode owns the background. Model-only mode must leave the
+            // scene free of runtime skybox objects and use explicit ambient light.
+            Task<Texture2D> panoTask = null;
+            if (staticSceneLoaded)
+            {
+                // Authored scene content owns the visual environment. Do not make
+                // a network or local panorama request for the same task.
+                ConfigureStaticSceneLighting();
+            }
+            else if (onlyUsePanorama)
+            {
+                if (panoramaService != null)
+                {
+                    panoTask = panoramaService.GenerateSkyboxAsync(payload.environmentType, payload.scene?.skyboxUrl);
+                }
+            }
+            else
+            {
+                ConfigureModelLighting();
+            }
             
             // 2. Generate Holodeck 3D Layout (only if onlyUsePanorama is false)
             Task<HolodeckSceneService.HolodeckResponse> holodeckTask = null;
-            if (!onlyUsePanorama && !isHistorySnapshot)
+            if (!staticSceneLoaded && !onlyUsePanorama && !isHistorySnapshot && holodeckService != null)
             {
                 holodeckTask = holodeckService.GenerateLayoutAsync(payload.environmentType);
             }
 
             // Wait for tasks
-            while (!panoTask.IsCompleted || (holodeckTask != null && !holodeckTask.IsCompleted))
+            while ((panoTask != null && !panoTask.IsCompleted)
+                || (holodeckTask != null && !holodeckTask.IsCompleted))
             {
                 yield return null;
             }
 
-            // Apply Background
-            if (panoTask.IsCompletedSuccessfully)
+            // Apply the background only in panorama mode.
+            if (panoTask != null && panoTask.IsCompletedSuccessfully)
             {
                 panoramaService.ApplySkybox(panoTask.Result);
             }
-            else
+            else if (panoTask != null)
             {
                 Debug.LogWarning($"[HybridScenePresenter] Panorama failed: {panoTask.Exception?.Message}");
                 if (isHistorySnapshot)
@@ -98,7 +124,7 @@ namespace SceneTalkVR.Runtime.Services
             }
 
             // Apply 3D Objects (only if onlyUsePanorama is false)
-            if (!onlyUsePanorama && holodeckTask != null)
+            if (!staticSceneLoaded && !onlyUsePanorama && holodeckTask != null)
             {
                 if (holodeckTask.IsCompletedSuccessfully)
                 {
@@ -111,12 +137,98 @@ namespace SceneTalkVR.Runtime.Services
                     yield break;
                 }
             }
-            else if (!onlyUsePanorama && isHistorySnapshot)
+            else if (!staticSceneLoaded && !onlyUsePanorama && isHistorySnapshot)
             {
                 InstantiateSnapshotObjects(payload.scene?.layoutObjects);
             }
 
             onComplete?.Invoke();
+        }
+
+        private void ConfigureModelLighting()
+        {
+            panoramaService?.RestoreSceneEnvironment();
+            Debug.Log("[HybridScenePresenter] Model-only mode: panorama skipped; scene environment restored.", this);
+        }
+
+        private void ConfigureStaticSceneLighting()
+        {
+            panoramaService?.RestoreSceneEnvironment();
+            Debug.Log("[HybridScenePresenter] Authored static scene active; panorama generation skipped.", this);
+        }
+
+        public void ClearPresentedScene()
+        {
+            ClearScene();
+            SetAllStaticScenesActive(false);
+            panoramaService?.RestoreSceneEnvironment();
+        }
+
+        private bool TryActivateStaticScene(SpringScenePayload payload)
+        {
+            var sceneName = ResolveStaticSceneName(payload?.environmentType, payload?.taskType);
+            if (string.IsNullOrWhiteSpace(sceneName))
+            {
+                SetAllStaticScenesActive(false);
+                return false;
+            }
+
+            var root = ResolveStaticSceneContentRoot();
+            if (root == null)
+            {
+                Debug.LogWarning("[HybridScenePresenter] SceneContentRoot was not found; falling back to panorama mode.", this);
+                return false;
+            }
+
+            SetAllStaticScenesActive(false);
+            var target = root.Find(sceneName);
+            if (target == null)
+            {
+                Debug.LogWarning($"[HybridScenePresenter] Static scene root '{sceneName}' was not found under '{root.name}'.", this);
+                return false;
+            }
+
+            target.gameObject.SetActive(true);
+            Debug.Log($"[HybridScenePresenter] Activated authored scene '{target.name}' for environment '{payload?.environmentType}'.", this);
+            return true;
+        }
+
+        private Transform ResolveStaticSceneContentRoot()
+        {
+            if (staticSceneContentRoot != null)
+            {
+                return staticSceneContentRoot;
+            }
+
+            var rootObject = GameObject.Find("SceneContentRoot");
+            staticSceneContentRoot = rootObject != null ? rootObject.transform : null;
+            return staticSceneContentRoot;
+        }
+
+        private void SetAllStaticScenesActive(bool active)
+        {
+            var root = ResolveStaticSceneContentRoot();
+            if (root == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < root.childCount; i++)
+            {
+                root.GetChild(i).gameObject.SetActive(active);
+            }
+        }
+
+        private static string ResolveStaticSceneName(string environmentType, string taskType)
+        {
+            var value = (environmentType ?? string.Empty).Trim().ToLowerInvariant();
+            var task = (taskType ?? string.Empty).Trim().ToLowerInvariant();
+            if (value.Contains("hotel") || task.Contains("hotel")) return "HotelLobbyScene";
+            if (value.Contains("furniture") || value.Contains("store") || task.Contains("furniture")) return "FurnitureStoreScene";
+            if (value.Contains("gym") || task.Contains("gym")) return "GymScene";
+            if (value.Contains("tourist") || value.Contains("information") || task.Contains("tourist")) return "TourOfficeScene";
+            if (value.Contains("restaurant") || task.Contains("restaurant")) return "RestaurantScene";
+            return null;
         }
 
         public IEnumerator CaptureSceneSnapshot(
@@ -133,6 +245,18 @@ namespace SceneTalkVR.Runtime.Services
 
             var snapshot = SceneTalkVR.History.LearningMemoryService.ClonePayload(payload);
             snapshot.scene ??= new ScenePayload();
+            var staticSceneName = ResolveStaticSceneName(snapshot.environmentType, snapshot.taskType);
+            if (useStaticSceneContent && !string.IsNullOrWhiteSpace(staticSceneName))
+            {
+                snapshot.scene.skyboxUrl = $"static://{staticSceneName}";
+                if (lastResolvedLayout.Count > 0)
+                {
+                    snapshot.scene.layoutObjects = lastResolvedLayout.ToArray();
+                }
+
+                onComplete?.Invoke(snapshot);
+                yield break;
+            }
             var sourceUrl = snapshot.scene.skyboxUrl ?? string.Empty;
             var requiresCachedPanorama = !sourceUrl.StartsWith("demo://", StringComparison.OrdinalIgnoreCase)
                 && !sourceUrl.StartsWith("history://", StringComparison.OrdinalIgnoreCase);

@@ -1697,7 +1697,7 @@ namespace SceneTalkVR.Runtime
 
         private void ClearPresentedSceneIfSupported()
         {
-            if (scenePresenterModule is SceneTalkScenePresenter presenter)
+            if (scenePresenterModule is ISceneTalkPresentedSceneClearer presenter)
             {
                 presenter.ClearPresentedScene();
             }
