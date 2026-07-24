@@ -72,11 +72,17 @@ namespace SceneTalkVR.History
             return store.GetExperiment(experimentId);
         }
 
-        public ExperimentRecordDetail CreateExperiment(string participantId, string experimentId = null)
+        public ExperimentRecordDetail CreateExperiment(
+            ExperimentKind kind,
+            string participantId,
+            string sessionId,
+            string assistantEmbodimentSnapshot = null,
+            string experimentId = null)
         {
             EnsureInitialized();
             var id = string.IsNullOrWhiteSpace(experimentId) ? Guid.NewGuid().ToString("N") : experimentId.Trim();
             var participant = string.IsNullOrWhiteSpace(participantId) ? "participant" : participantId.Trim();
+            var session = string.IsNullOrWhiteSpace(sessionId) ? id : sessionId.Trim();
             var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var detail = new ExperimentRecordDetail
             {
@@ -84,30 +90,13 @@ namespace SceneTalkVR.History
                 {
                     experimentId = id,
                     participantId = participant,
+                    sessionId = session,
+                    kind = kind,
                     status = ExperimentRecordStatus.InProgress,
-                    pilotStatus = ExperimentPhaseStatus.NotStarted,
-                    formalStatus = ExperimentPhaseStatus.NotStarted,
+                    assistantEmbodimentSnapshot = assistantEmbodimentSnapshot ?? string.Empty,
                     createdAtUnixMs = now,
+                    startedAtUnixMs = now,
                     updatedAtUnixMs = now
-                },
-                phases = new[]
-                {
-                    new ExperimentPhaseRecord
-                    {
-                        experimentId = id,
-                        phase = ExperimentPhaseKind.Pilot,
-                        sessionId = id + "-pilot",
-                        status = ExperimentPhaseStatus.NotStarted,
-                        updatedAtUnixMs = now
-                    },
-                    new ExperimentPhaseRecord
-                    {
-                        experimentId = id,
-                        phase = ExperimentPhaseKind.Formal,
-                        sessionId = id + "-formal",
-                        status = ExperimentPhaseStatus.NotStarted,
-                        updatedAtUnixMs = now
-                    }
                 }
             };
             store.CreateExperiment(detail);
@@ -124,7 +113,6 @@ namespace SceneTalkVR.History
         }
 
         public ExperimentAttemptRecord BeginAttempt(
-            ExperimentPhaseKind phase,
             string conditionKey,
             string taskId,
             string runId,
@@ -138,7 +126,6 @@ namespace SceneTalkVR.History
             {
                 attemptId = Guid.NewGuid().ToString("N"),
                 experimentId = ActiveExperimentId,
-                phase = phase,
                 conditionKey = conditionKey ?? string.Empty,
                 taskId = taskId ?? string.Empty,
                 runId = runId ?? string.Empty,
@@ -147,13 +134,15 @@ namespace SceneTalkVR.History
                 startedAtUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
             };
             store.UpsertAttempt(attempt);
-            SetPhaseStatus(phase, ExperimentPhaseStatus.InProgress);
+            SetStatus(ExperimentRecordStatus.InProgress);
+            var experiment = store.GetExperiment(ActiveExperimentId)
+                ?? throw new InvalidOperationException("The active experiment was not found.");
             CurrentConversationLink = new ExperimentConversationLink
             {
                 experimentId = ActiveExperimentId,
-                phase = phase,
                 attemptId = attempt.attemptId,
-                runId = attempt.runId
+                runId = attempt.runId,
+                kind = experiment.summary.kind
             };
             return attempt;
         }
@@ -188,46 +177,29 @@ namespace SceneTalkVR.History
                 attempt.endedAtUnixMs = now;
                 store.UpsertAttempt(attempt);
             }
-            foreach (var phase in detail.phases ?? Array.Empty<ExperimentPhaseRecord>())
-            {
-                if (phase.status != ExperimentPhaseStatus.InProgress) continue;
-                phase.status = ExperimentPhaseStatus.Suspended;
-                phase.updatedAtUnixMs = now;
-                store.UpsertPhase(phase);
-                if (phase.phase == ExperimentPhaseKind.Pilot) detail.summary.pilotStatus = phase.status;
-                else detail.summary.formalStatus = phase.status;
-            }
+            if (detail.summary.status != ExperimentRecordStatus.Completed)
+                detail.summary.status = ExperimentRecordStatus.Suspended;
             detail.summary.updatedAtUnixMs = now;
             store.UpdateExperiment(detail.summary);
             CurrentConversationLink = null;
         }
 
-        public void SetPhaseStatus(ExperimentPhaseKind phase, ExperimentPhaseStatus status, string dataRootPath = null)
+        public void SetStatus(ExperimentRecordStatus status, string dataRootPath = null)
         {
             EnsureInitialized();
             var detail = store.GetExperiment(ActiveExperimentId)
                 ?? throw new InvalidOperationException("The active experiment was not found.");
-            var item = detail.phases.First(x => x.phase == phase);
             var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            item.status = status;
-            item.updatedAtUnixMs = now;
-            if (!string.IsNullOrWhiteSpace(dataRootPath)) item.dataRootPath = Path.GetFullPath(dataRootPath);
-            if (status == ExperimentPhaseStatus.InProgress && item.startedAtUnixMs <= 0) item.startedAtUnixMs = now;
-            if (status == ExperimentPhaseStatus.Completed) item.completedAtUnixMs = now;
-            store.UpsertPhase(item);
-
-            detail.summary.pilotStatus = phase == ExperimentPhaseKind.Pilot ? status : detail.summary.pilotStatus;
-            detail.summary.formalStatus = phase == ExperimentPhaseKind.Formal ? status : detail.summary.formalStatus;
-            detail.summary.status = detail.summary.pilotStatus == ExperimentPhaseStatus.Completed
-                && detail.summary.formalStatus == ExperimentPhaseStatus.Completed
-                ? ExperimentRecordStatus.Completed
-                : ExperimentRecordStatus.InProgress;
+            detail.summary.status = status;
+            if (!string.IsNullOrWhiteSpace(dataRootPath))
+                detail.summary.dataRootPath = Path.GetFullPath(dataRootPath);
+            if (detail.summary.startedAtUnixMs <= 0) detail.summary.startedAtUnixMs = now;
+            if (status == ExperimentRecordStatus.Completed) detail.summary.completedAtUnixMs = now;
             detail.summary.updatedAtUnixMs = now;
             store.UpdateExperiment(detail.summary);
         }
 
         public void RecordQuestionnaire(
-            ExperimentPhaseKind phase,
             string attemptId,
             QuestionnaireSession session,
             QuestionnaireCatalog catalog,
@@ -250,7 +222,6 @@ namespace SceneTalkVR.History
             store.UpsertQuestionnaire(new ExperimentQuestionnaireRecord
             {
                 experimentId = ActiveExperimentId,
-                phase = phase,
                 attemptId = attemptId ?? string.Empty,
                 session = Clone(session),
                 prompts = prompts
@@ -258,25 +229,16 @@ namespace SceneTalkVR.History
             TouchExperiment();
         }
 
-        public void RecordRanking(ExperimentPhaseKind phase, PreferenceRankingResponse response)
+        public void RecordRanking(PreferenceRankingResponse response)
         {
             if (response == null || string.IsNullOrWhiteSpace(ActiveExperimentId)) return;
             EnsureInitialized();
             store.UpsertRanking(new ExperimentRankingRecord
             {
                 experimentId = ActiveExperimentId,
-                phase = phase,
                 response = Clone(response)
             });
-            if (phase != ExperimentPhaseKind.Pilot)
-            {
-                TouchExperiment();
-                return;
-            }
-            var detail = store.GetExperiment(ActiveExperimentId);
-            detail.summary.preferredEmbodiment = response.preferredEmbodimentCondition ?? string.Empty;
-            detail.summary.updatedAtUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            store.UpdateExperiment(detail.summary);
+            TouchExperiment();
         }
 
         public bool DeleteExperiment(string experimentId, IEnumerable<string> allowedRoots)
@@ -292,8 +254,7 @@ namespace SceneTalkVR.History
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Select(Path.GetFullPath)
                 .ToArray();
-            foreach (var phase in detail.phases ?? Array.Empty<ExperimentPhaseRecord>())
-                DeleteOwnedDirectory(phase.dataRootPath, roots);
+            DeleteOwnedDirectory(detail.summary.dataRootPath, roots);
             var historyAssetsRoot = Path.Combine(HistoryStoragePaths.RootPath, "Assets");
             var historyRoots = roots.Concat(new[] { Path.GetFullPath(historyAssetsRoot) }).ToArray();
             foreach (var conversation in detail.conversations ?? Array.Empty<LearningSessionSummary>())

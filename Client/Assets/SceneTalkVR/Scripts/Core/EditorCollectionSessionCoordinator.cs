@@ -67,6 +67,7 @@ namespace SceneTalkVR.Core
         private bool experimentCompleted;
         private bool subscribed;
         private string lastBundlePath;
+        private string requestedAssistantEmbodimentSnapshot;
 
         public event Action<PreferenceRankingResponse> ExperimentCompletedWithRanking;
 
@@ -75,6 +76,8 @@ namespace SceneTalkVR.Core
         public bool ParticipantStarted => participantStarted;
         public bool AwaitingParticipantConditionChoice => IsArmed && participantStarted && currentPosition < 0
             && !finalRankingVisible && !experimentCompleted && Assignment?.status != AssignmentStatus.Completed;
+        public bool HasActiveDialogueCondition => IsArmed && currentPosition >= 0
+            && lifecycle?.CurrentConditionAssignment?.status == ConditionRunStatus.Running;
         public bool FinalRankingVisible => finalRankingVisible;
         public bool ExperimentCompleted => experimentCompleted;
         public ExperimentAssignment Assignment => lifecycle?.Assignment;
@@ -86,6 +89,7 @@ namespace SceneTalkVR.Core
         public string ParticipantId => RuntimeContext?.participantId ?? string.Empty;
         public string SessionId => RuntimeContext?.sessionId ?? string.Empty;
         public string LastBundlePath => lastBundlePath ?? string.Empty;
+        public string AssistantEmbodimentSnapshot => Assignment?.assistantEmbodimentSnapshot ?? string.Empty;
         public static string CollectionRoot => Path.Combine(Application.persistentDataPath, "SceneTalkVR", "EditorCollectionSessions");
         public string CurrentDataFolder => string.IsNullOrWhiteSpace(ParticipantId) || string.IsNullOrWhiteSpace(SessionId)
             ? CollectionRoot : Path.Combine(CollectionRoot, Safe(ParticipantId) + "_" + Safe(SessionId), "raw");
@@ -118,6 +122,11 @@ namespace SceneTalkVR.Core
             Subscribe();
         }
 
+        public void SetAssistantEmbodimentSnapshot(string value)
+        {
+            requestedAssistantEmbodimentSnapshot = value?.Trim() ?? string.Empty;
+        }
+
         public bool ArmParticipantSession(string participantId, string sessionId, bool resume, out string error)
         {
             error = string.Empty;
@@ -136,6 +145,12 @@ namespace SceneTalkVR.Core
             if (!conditionManager.ValidateFormalProtocol(out error)) return false;
             if (!TryApplyConfirmedRunLimits(out error)) return false;
 
+            var requestedSnapshot = string.IsNullOrWhiteSpace(requestedAssistantEmbodimentSnapshot)
+                ? conditionManager.ConfiguredAssistantEmbodiment
+                : requestedAssistantEmbodimentSnapshot;
+            if (!conditionManager.SetExperimentAssistantEmbodiment(requestedSnapshot))
+            { error = "formal_assistant_embodiment_unavailable"; return false; }
+
             ResetRuntimeOnly();
             RuntimeContext = ExperimentRuntimeContext.CreateEditorCollection(participantId, sessionId,
                 protocol.ProtocolSnapshotId, resources.ResourceSnapshotId);
@@ -145,6 +160,12 @@ namespace SceneTalkVR.Core
             if (resume)
             {
                 if (stored == null) { error = "editor_collection_assignment_missing"; return FailArm(); }
+                if (string.IsNullOrWhiteSpace(stored.assistantEmbodimentSnapshot))
+                { error = "formal_assistant_embodiment_snapshot_missing"; return FailArm(); }
+                if (!string.IsNullOrWhiteSpace(requestedAssistantEmbodimentSnapshot)
+                    && !string.Equals(stored.assistantEmbodimentSnapshot, requestedSnapshot, StringComparison.Ordinal))
+                { error = "formal_assistant_embodiment_snapshot_changed"; return FailArm(); }
+                conditionManager.SetExperimentAssistantEmbodiment(stored.assistantEmbodimentSnapshot);
                 if (!ValidateCollectionAssignment(stored, out error) || !lifecycle.LoadAssignment(stored, out error)) return FailArm();
                 currentPosition = Array.FindIndex(stored.conditions, x => x.status == ConditionRunStatus.Running
                     || x.status == ConditionRunStatus.AwaitingQuestionnaire || x.status == ConditionRunStatus.QuestionnaireInProgress);
@@ -154,7 +175,9 @@ namespace SceneTalkVR.Core
                 if (stored != null) { error = "session_already_exists_use_resume"; return FailArm(); }
                 var allocator = new ExperimentAssignmentAllocator();
                 if (!allocator.TryCreateEditorCollection(ParticipantId, SessionId, protocol, taskCatalog,
-                    resources.ResourceSnapshotId, out var created, out error) || !lifecycle.LoadAssignment(created, out error)) return FailArm();
+                    resources.ResourceSnapshotId, out var created, out error)) return FailArm();
+                created.assistantEmbodimentSnapshot = requestedSnapshot;
+                if (!lifecycle.LoadAssignment(created, out error)) return FailArm();
                 currentPosition = -1;
                 PersistAssignment();
             }
@@ -208,7 +231,6 @@ namespace SceneTalkVR.Core
             currentPosition = position;
             if (!lifecycle.PrepareCondition(position, retry, out error)) { currentPosition = -1; return false; }
             ExperimentSessionCoordinator.Active?.NotifyAttemptStarted(
-                ExperimentPhaseKind.Formal,
                 code.ToString(),
                 selected.task.taskId,
                 lifecycle.ConditionRunId,
@@ -240,6 +262,29 @@ namespace SceneTalkVR.Core
             PersistAssignment();
             WriteOperator("ConditionTechnicalInvalid", reason);
             RefreshUi();
+        }
+
+        public bool ReturnToModeSelectionFromDialogue(string reason, out string error)
+        {
+            if (!HasActiveDialogueCondition)
+            {
+                error = "formal_dialogue_not_active";
+                return false;
+            }
+
+            reason = string.IsNullOrWhiteSpace(reason) ? "participant_return_to_selection" : reason.Trim();
+            lifecycle.MarkTechnicalInvalid(reason);
+            PersistGoalSnapshot();
+            PersistAssignment();
+            orchestrator.ResetForConditionSelection();
+            lifecycle.ClearCurrentConditionBoundary();
+            currentPosition = -1;
+            lifecycle.RecordStudyEvent(StudyEventType.ReturnedToModeSelection, "participant", reason);
+            lifecycle.RecordStudyEvent(StudyEventType.FormalModeSelectionShown, "system");
+            WriteOperator("ParticipantReturnedToModeSelection", "reason=" + reason, actor: "participant");
+            RefreshUi();
+            error = string.Empty;
+            return true;
         }
 
         public bool ConfirmGoalByExperimenter(string goalId, string experimenterId, string note, out string error)
@@ -320,6 +365,7 @@ namespace SceneTalkVR.Core
             WriteOperator("ParticipantSessionDisarmed");
             ResetRuntimeOnly();
             RuntimeContext = null;
+            requestedAssistantEmbodimentSnapshot = string.Empty;
             RefreshUi();
         }
 
@@ -412,6 +458,7 @@ namespace SceneTalkVR.Core
         {
             finalRankingVisible = true;
             lifecycle.RecordStudyEvent(StudyEventType.FinalRankingOpened, "system");
+            ExperimentSessionCoordinator.Active?.NotifyRankingOpened();
             RefreshUi();
         }
 
@@ -496,7 +543,8 @@ namespace SceneTalkVR.Core
                 || value.runQualification != ExperimentRunQualification.Collection
                 || value.dataOrigin != "participant_collection" || !value.collectionEligible
                 || value.developerTestAssignment || value.demoMode || value.synthetic
-                || value.deploymentProfile != "editor_collection")
+                || value.deploymentProfile != "editor_collection"
+                || string.IsNullOrWhiteSpace(value.assistantEmbodimentSnapshot))
             { error = "editor_collection_assignment_invalid"; return false; }
             return ExperimentAssignmentAllocator.ValidateAssignment(value, taskCatalog, out error);
         }

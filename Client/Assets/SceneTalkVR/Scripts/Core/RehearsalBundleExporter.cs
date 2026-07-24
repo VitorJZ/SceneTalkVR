@@ -39,6 +39,7 @@ namespace SceneTalkVR.Core
                 resourceSnapshotId = resources.ResourceSnapshotId,
                 taskCatalogVersion = isFormal ? formal.taskCatalogVersion : pilot.taskCatalogVersion,
                 questionnaireCatalogVersion = "1.1-stage5.1", assignmentVersion = isFormal ? formal.assignmentVersion : pilot.pilotAssignmentVersion,
+                assistantEmbodimentSnapshot = isFormal ? formal.assistantEmbodimentSnapshot : string.Empty,
                 formalConditionOrderPolicy = isFormal ? formal.formalConditionOrderPolicy : string.Empty,
                 taskAssignmentPolicy = isFormal ? formal.taskAssignmentPolicy : string.Empty,
                 goalConfirmationPolicy = isFormal ? formal.goalConfirmationPolicy : string.Empty,

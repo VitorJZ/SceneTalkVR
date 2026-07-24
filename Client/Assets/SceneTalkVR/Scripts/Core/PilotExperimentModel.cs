@@ -26,7 +26,7 @@ namespace SceneTalkVR.Core
 
     [Serializable] public sealed class PilotSequenceDefinition { public string sequenceId; public PilotEmbodimentCondition[] conditions = Array.Empty<PilotEmbodimentCondition>(); public bool confirmed; }
     [Serializable] public sealed class PilotTaskAssignment { public string taskId; public string taskAssignmentId; }
-    [Serializable] public sealed class PilotConditionAssignment { public int conditionPosition; public PilotEmbodimentCondition embodimentCondition; public string embodimentConditionLabel; public PilotTaskAssignment task = new PilotTaskAssignment(); public PilotRunStatus status = PilotRunStatus.Assigned; public string latestPilotRunId; public int runAttempt; }
+    [Serializable] public sealed class PilotConditionAssignment { public int conditionPosition; public PilotEmbodimentCondition embodimentCondition; public string embodimentConditionLabel; public PilotTaskAssignment task = new PilotTaskAssignment(); public PilotRunStatus status = PilotRunStatus.Assigned; public string latestPilotRunId; public int runAttempt; public int participantSelectionPosition = -1; public string selectedAtUtc; }
     [Serializable] public sealed class PilotAssignment
     {
         public string pilotProtocolVersion; public string pilotAssignmentVersion; public string taskCatalogVersion;
@@ -34,7 +34,7 @@ namespace SceneTalkVR.Core
         public string createdAtUtc; public bool developerTestAssignment; public string dataOrigin; public bool collectionEligible; public PilotFeedbackStyleChoice feedbackStyle; public string feedbackStyleLabel;
         public ExperimentRuntimeMode runtimeMode; public bool demoMode; public string demoProtocolVersion;
         public ExperimentFlowMode flowMode; public ExperimentRunQualification runQualification; public string protocolSnapshotId; public string resourceSnapshotId;
-        public PilotAudioSourcePolicy voiceOnlyAudioPolicy; public string voiceOnlyAudioPolicyLabel; public PilotConditionAssignment[] conditions = Array.Empty<PilotConditionAssignment>();
+        public PilotAudioSourcePolicy voiceOnlyAudioPolicy; public string voiceOnlyAudioPolicyLabel; public PilotEmbodimentCondition[] participantSelectionOrder = Array.Empty<PilotEmbodimentCondition>(); public PilotConditionAssignment[] conditions = Array.Empty<PilotConditionAssignment>();
     }
     [Serializable] public struct PilotRunContext { public string participantId; public string sessionId; public string pilotRunId; public PilotEmbodimentCondition embodimentCondition; public string taskId; public PilotFeedbackStyleChoice feedbackStyle; }
 
@@ -54,7 +54,7 @@ namespace SceneTalkVR.Core
 
     public sealed class PilotAssignmentAllocator
     {
-        public const string Version="1.2-collection";
+        public const string Version="2.0-participant-choice";
         public bool TryCreateCollection(string participantId,string sessionId,ExperimentV11ProtocolConfig protocol,
             ExperimentTaskCatalog tasks,PilotPresentationCatalog presentations,string resourceSnapshotId,
             out PilotAssignment assignment,out string error)

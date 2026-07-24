@@ -18,8 +18,8 @@ MonoBehaviour:
     displayName: Barista Humanoid v1 - Quaternius Animated Woman
     priority: 80
     prefab: {fileID: 1872998247441980805, guid: ba253876361a342949527e1350c3a960, type: 3}
-    addressableKey:
-    semanticRole:
+    addressableKey: 
+    semanticRole: 
     voiceProfileKey: editor_collection_dialogue_voice
     voiceId: default_female_en
     animatorController: {fileID: 22100000, guid: 2dc12d134bd5c46318272bb0f04ae20c, type: 2}
@@ -76,8 +76,8 @@ MonoBehaviour:
     displayName: Teacher Humanoid v1 - Quaternius Business Man
     priority: 80
     prefab: {fileID: 5799682958458321345, guid: 37325c6c640e440b99fd3686afd1e05d, type: 3}
-    addressableKey:
-    semanticRole:
+    addressableKey: 
+    semanticRole: 
     voiceProfileKey: editor_collection_dialogue_voice
     voiceId: default_male_en
     animatorController: {fileID: 9100000, guid: 2b78b31307ad14184a55d4c154c482a1, type: 2}
@@ -134,8 +134,8 @@ MonoBehaviour:
     displayName: Barista Male Humanoid v1 - Quaternius Casual Character
     priority: 80
     prefab: {fileID: 7316973250779560681, guid: ea51f8798fb594caeb2576986eac044f, type: 3}
-    addressableKey:
-    semanticRole:
+    addressableKey: 
+    semanticRole: 
     voiceProfileKey: editor_collection_dialogue_voice
     voiceId: default_male_en
     animatorController: {fileID: 22100000, guid: e701c7253667c43fb9ad90ba766a12ce, type: 2}
@@ -191,8 +191,8 @@ MonoBehaviour:
     displayName: Teacher Female Humanoid v1 - Quaternius Suit
     priority: 80
     prefab: {fileID: 996461390545780520, guid: f996e4fd27273468099629141107f6ed, type: 3}
-    addressableKey:
-    semanticRole:
+    addressableKey: 
+    semanticRole: 
     voiceProfileKey: editor_collection_dialogue_voice
     voiceId: default_female_en
     animatorController: {fileID: 22100000, guid: 7ef0b5dcf11c2460eaee00cd1498f325, type: 2}

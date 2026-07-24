@@ -11,7 +11,6 @@ namespace SceneTalkVR.History
         ExperimentRecordDetail GetExperiment(string experimentId);
         void CreateExperiment(ExperimentRecordDetail detail);
         void UpdateExperiment(ExperimentRecordSummary summary);
-        void UpsertPhase(ExperimentPhaseRecord phase);
         void UpsertAttempt(ExperimentAttemptRecord attempt);
         void UpsertQuestionnaire(ExperimentQuestionnaireRecord questionnaire);
         void UpsertRanking(ExperimentRankingRecord ranking);

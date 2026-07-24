@@ -151,10 +151,7 @@ namespace SceneTalkVR.Runtime
         }
 
         public bool CanChangeCorrectionAssistantEmbodimentSetting => CanChangeCorrectionSetting
-            && string.Equals(
-                CorrectionProviderSetting,
-                ExperimentConditionManager.AssistantAgentProvider,
-                StringComparison.OrdinalIgnoreCase);
+            && ResolveExperimentConditionManager(false)?.CanUseManualAssistantEmbodiment == true;
 
         public string CorrectionSettingLockReason
         {
@@ -186,6 +183,8 @@ namespace SceneTalkVR.Runtime
         private ExperimentConditionManager subscribedExperimentConditionManager;
         private SpeechCaptureMode activeSpeechCaptureMode = SpeechCaptureMode.None;
         private string pendingHistorySessionId;
+        private bool experimentExitConfirmationActive;
+        private SceneTalkState? deferredStateDuringExperimentExit;
 
         private ISceneTalkSpeechInput SpeechInput => speechInputModule as ISceneTalkSpeechInput;
         private ISceneTalkManualSpeechInput ManualSpeechInput => speechInputModule as ISceneTalkManualSpeechInput;
@@ -233,7 +232,8 @@ namespace SceneTalkVR.Runtime
 
         private void Awake()
         {
-            ResolveExperimentConditionManager(true);
+            var manager = ResolveExperimentConditionManager(true);
+            manager?.TrySetManualAssistantEmbodiment(SceneTalkUserSettingsStore.Current.assistantEmbodiment);
             ResolveLearningMemoryService(true);
             RefreshUi();
         }
@@ -265,12 +265,20 @@ namespace SceneTalkVR.Runtime
 
         internal void SetExperimentNavigationState(SceneTalkState state)
         {
+            if (state == SceneTalkState.ExperimentExitConfirm)
+            {
+                experimentExitConfirmationActive = true;
+                deferredStateDuringExperimentExit = null;
+                SetState(state);
+                return;
+            }
+
             switch (state)
             {
-                case SceneTalkState.ExperimentMenu:
+                case SceneTalkState.ExperimentSelection:
                 case SceneTalkState.ExperimentPhase:
-                case SceneTalkState.ExperimentPhaseCompleted:
-                case SceneTalkState.ExperimentExitConfirm:
+                case SceneTalkState.ExperimentRanking:
+                case SceneTalkState.ExperimentCompleted:
                 case SceneTalkState.ExperimentHistoryLoading:
                 case SceneTalkState.ExperimentHistoryList:
                 case SceneTalkState.ExperimentHistoryActions:
@@ -282,6 +290,16 @@ namespace SceneTalkVR.Runtime
                     SetState(state);
                     break;
             }
+        }
+
+        internal void RestoreAfterExperimentExit(SceneTalkState state)
+        {
+            if (CurrentState != SceneTalkState.ExperimentExitConfirm) return;
+            var restoreState = deferredStateDuringExperimentExit ?? (state == SceneTalkState.ExperimentExitConfirm
+                ? SceneTalkState.ExperimentSelection
+                : state);
+            ClearExperimentExitConfirmation();
+            SetState(restoreState);
         }
 
         public void CloseSettings()
@@ -536,6 +554,7 @@ namespace SceneTalkVR.Runtime
                     ? ExperimentConditionManager.HumanoidAssistantEmbodiment
                     : ExperimentConditionManager.AudioOnlyAssistantEmbodiment;
             manager.TrySetManualAssistantEmbodiment(next);
+            SceneTalkUserSettingsStore.SetAssistantEmbodiment(next);
         }
 
         public void StartPractice()
@@ -922,6 +941,7 @@ namespace SceneTalkVR.Runtime
 
         public void ReturnToInitialMenu()
         {
+            ClearExperimentExitConfirmation();
             finishRequested = true;
             var manager = ResolveExperimentConditionManager(false);
             manager?.RecordUserAction("exit");
@@ -967,6 +987,7 @@ namespace SceneTalkVR.Runtime
 
         public void ResetForConditionSelection()
         {
+            ClearExperimentExitConfirmation();
             finishRequested = true;
             CancelActiveSpeechCapture();
             if (currentTurn != null) { StopCoroutine(currentTurn); currentTurn = null; }
@@ -1563,7 +1584,7 @@ namespace SceneTalkVR.Runtime
                 feedbackSensitivity = realLlm == null ? "moderate" : realLlm.FeedbackSensitivity,
                 condition = condition,
                 experimentId = experimentLink?.experimentId ?? string.Empty,
-                experimentPhase = experimentLink?.phase.ToString() ?? string.Empty,
+                experimentKind = experimentLink?.kind.ToString() ?? string.Empty,
                 experimentAttemptId = experimentLink?.attemptId ?? string.Empty,
                 experimentRunId = experimentLink?.runId ?? string.Empty
             };
@@ -2051,9 +2072,23 @@ namespace SceneTalkVR.Runtime
 
         private void SetState(SceneTalkState state)
         {
+            if (experimentExitConfirmationActive
+                && CurrentState == SceneTalkState.ExperimentExitConfirm
+                && state != SceneTalkState.ExperimentExitConfirm)
+            {
+                deferredStateDuringExperimentExit = state;
+                return;
+            }
+
             CurrentState = state;
             stateChanged.Invoke(state);
             RefreshUi();
+        }
+
+        private void ClearExperimentExitConfirmation()
+        {
+            experimentExitConfirmationActive = false;
+            deferredStateDuringExperimentExit = null;
         }
 
         private void RefreshUi()

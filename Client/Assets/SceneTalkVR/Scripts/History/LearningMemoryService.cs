@@ -120,7 +120,7 @@ namespace SceneTalkVR.History
                     turnCount = hasInitialUserTurn ? 1 : 0,
                     correctionCount = hasInitialUserTurn && firstTurn.HasCorrection ? 1 : 0,
                     experimentId = settings?.experimentId ?? string.Empty,
-                    experimentPhase = settings?.experimentPhase ?? string.Empty,
+                    experimentKind = settings?.experimentKind ?? string.Empty,
                     experimentAttemptId = settings?.experimentAttemptId ?? string.Empty,
                     experimentRunId = settings?.experimentRunId ?? string.Empty
                 },

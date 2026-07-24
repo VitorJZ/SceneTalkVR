@@ -16,6 +16,7 @@ namespace SceneTalkVR.Core
         public float fontScale = 1f;
         public float uiScale = 1f;
         public bool hideDialogueSubtitles;
+        public string assistantEmbodiment = ExperimentConditionManager.OrbAssistantEmbodiment;
 
         public static SceneTalkUserSettings CreateDefault()
         {
@@ -28,7 +29,8 @@ namespace SceneTalkVR.Core
             {
                 fontScale = fontScale,
                 uiScale = uiScale,
-                hideDialogueSubtitles = hideDialogueSubtitles
+                hideDialogueSubtitles = hideDialogueSubtitles,
+                assistantEmbodiment = assistantEmbodiment
             };
         }
 
@@ -36,6 +38,10 @@ namespace SceneTalkVR.Core
         {
             fontScale = ClampToStep(fontScale, MinFontScale, MaxFontScale, FontScaleStep);
             uiScale = ClampToStep(uiScale, MinUiScale, MaxUiScale, UiScaleStep);
+            if (assistantEmbodiment != ExperimentConditionManager.AudioOnlyAssistantEmbodiment
+                && assistantEmbodiment != ExperimentConditionManager.OrbAssistantEmbodiment
+                && assistantEmbodiment != ExperimentConditionManager.HumanoidAssistantEmbodiment)
+                assistantEmbodiment = ExperimentConditionManager.OrbAssistantEmbodiment;
         }
 
         private static float ClampToStep(float value, float min, float max, float step)
@@ -96,6 +102,14 @@ namespace SceneTalkVR.Core
         {
             var settings = Current.Clone();
             settings.hideDialogueSubtitles = hidden;
+            settings.Normalize();
+            Save(settings);
+        }
+
+        public static void SetAssistantEmbodiment(string value)
+        {
+            var settings = Current.Clone();
+            settings.assistantEmbodiment = value;
             settings.Normalize();
             Save(settings);
         }

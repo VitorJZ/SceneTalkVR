@@ -6,21 +6,14 @@ namespace SceneTalkVR.History
     public enum ExperimentRecordStatus
     {
         InProgress,
+        Suspended,
         Completed
     }
 
-    public enum ExperimentPhaseKind
+    public enum ExperimentKind
     {
         Pilot,
         Formal
-    }
-
-    public enum ExperimentPhaseStatus
-    {
-        NotStarted,
-        InProgress,
-        Suspended,
-        Completed
     }
 
     public enum ExperimentAttemptStatus
@@ -36,9 +29,9 @@ namespace SceneTalkVR.History
     public sealed class ExperimentConversationLink
     {
         public string experimentId;
-        public ExperimentPhaseKind phase;
         public string attemptId;
         public string runId;
+        public ExperimentKind kind;
 
         public bool IsValid => !string.IsNullOrWhiteSpace(experimentId)
             && !string.IsNullOrWhiteSpace(attemptId);
@@ -49,27 +42,17 @@ namespace SceneTalkVR.History
     {
         public string experimentId;
         public string participantId;
-        public ExperimentRecordStatus status;
-        public ExperimentPhaseStatus pilotStatus;
-        public ExperimentPhaseStatus formalStatus;
-        public string preferredEmbodiment;
-        public long createdAtUnixMs;
-        public long updatedAtUnixMs;
-
-        public bool CanContinue => status != ExperimentRecordStatus.Completed;
-    }
-
-    [Serializable]
-    public sealed class ExperimentPhaseRecord
-    {
-        public string experimentId;
-        public ExperimentPhaseKind phase;
         public string sessionId;
-        public ExperimentPhaseStatus status;
+        public ExperimentKind kind;
+        public ExperimentRecordStatus status;
+        public string assistantEmbodimentSnapshot;
         public string dataRootPath;
+        public long createdAtUnixMs;
         public long startedAtUnixMs;
         public long completedAtUnixMs;
         public long updatedAtUnixMs;
+
+        public bool CanContinue => status != ExperimentRecordStatus.Completed;
     }
 
     [Serializable]
@@ -77,7 +60,6 @@ namespace SceneTalkVR.History
     {
         public string attemptId;
         public string experimentId;
-        public ExperimentPhaseKind phase;
         public string conditionKey;
         public string taskId;
         public string runId;
@@ -104,7 +86,6 @@ namespace SceneTalkVR.History
     {
         public string questionnaireRecordId;
         public string experimentId;
-        public ExperimentPhaseKind phase;
         public string attemptId;
         public QuestionnaireSession session = new QuestionnaireSession();
         public QuestionnairePromptSnapshot[] prompts = Array.Empty<QuestionnairePromptSnapshot>();
@@ -114,7 +95,6 @@ namespace SceneTalkVR.History
     public sealed class ExperimentRankingRecord
     {
         public string experimentId;
-        public ExperimentPhaseKind phase;
         public PreferenceRankingResponse response = new PreferenceRankingResponse();
     }
 
@@ -122,7 +102,6 @@ namespace SceneTalkVR.History
     public sealed class ExperimentRecordDetail
     {
         public ExperimentRecordSummary summary = new ExperimentRecordSummary();
-        public ExperimentPhaseRecord[] phases = Array.Empty<ExperimentPhaseRecord>();
         public ExperimentAttemptRecord[] attempts = Array.Empty<ExperimentAttemptRecord>();
         public LearningSessionSummary[] conversations = Array.Empty<LearningSessionSummary>();
         public ExperimentQuestionnaireRecord[] questionnaires = Array.Empty<ExperimentQuestionnaireRecord>();

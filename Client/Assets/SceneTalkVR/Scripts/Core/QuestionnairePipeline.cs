@@ -262,8 +262,9 @@ namespace SceneTalkVR.Core
             SaveDraft(); SessionChanged?.Invoke(ActiveSession); error = string.Empty; return true;
         }
 
-        public string DraftPath => ActiveSession == null ? string.Empty : Path.Combine(DefaultFolder,
-            $"{Safe(ActiveSession.participantId)}_{Safe(ActiveSession.sessionId)}_{Safe(ActiveSession.questionnaireLinkageKey)}_questionnaire_draft.json");
+        public string DraftPath => ActiveSession == null
+            ? string.Empty
+            : ResolveDraftPath(DefaultFolder, ActiveSession.questionnaireLinkageKey);
         public static string DefaultFolder => EditorCollectionSessionCoordinator.Active != null && EditorCollectionSessionCoordinator.Active.IsArmed
             ? EditorCollectionSessionCoordinator.Active.CurrentDataFolder
             : RehearsalSessionCoordinator.Active != null && RehearsalSessionCoordinator.Active.IsActive
@@ -271,6 +272,10 @@ namespace SceneTalkVR.Core
             : EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsDemoMode
             ? EditorDemoSessionCoordinator.Active.CurrentDataFolder
             : Path.Combine(Application.persistentDataPath, "SceneTalkVR", "ExperimentLogs");
+
+        public static string ResolveDraftPath(string folder, string questionnaireLinkageKey) => Path.Combine(
+            folder,
+            $"questionnaire_{Safe(questionnaireLinkageKey)}_draft.json");
 
         private QuestionnaireResponse CreateResponse(QuestionnaireItem item) => new QuestionnaireResponse
         {

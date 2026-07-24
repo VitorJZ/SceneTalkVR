@@ -30,6 +30,7 @@ namespace SceneTalkVR.Runtime.Services
         [Header("Feedback Strategy")]
         [Tooltip("Feedback strictness: conservative (only severe errors), moderate (general errors), active (almost all errors)")]
         [SerializeField] private string feedbackSensitivity = "moderate"; // conservative | moderate | active
+        [SerializeField] private CorrectionPolicySettings correctionPolicy = new CorrectionPolicySettings();
 
         [Header("Avatar Dialogue Pacing")]
         [Range(0f, 1f)] [SerializeField] private float temperature = 0.7f;
@@ -84,6 +85,8 @@ namespace SceneTalkVR.Runtime.Services
         public string FeedbackSensitivity => string.IsNullOrWhiteSpace(feedbackSensitivity)
             ? "moderate"
             : feedbackSensitivity.Trim().ToLowerInvariant();
+        public CorrectionPolicySettings CorrectionPolicy =>
+            CorrectionPolicySettings.CloneNormalized(correctionPolicy);
         public float DialoguePacingTemperature => Mathf.Clamp01(temperature);
         public int MaxNonGoalQuestionsPerTask => Mathf.Max(0, maxNonGoalQuestionsPerTask);
         public int NonGoalQuestionsAsked => nonGoalQuestionsAsked;
@@ -115,6 +118,11 @@ namespace SceneTalkVR.Runtime.Services
             {
                 modelName = runtimeModelName.Trim();
             }
+        }
+
+        public void ConfigureCorrectionPolicy(CorrectionPolicySettings runtimePolicy)
+        {
+            correctionPolicy = CorrectionPolicySettings.CloneNormalized(runtimePolicy);
         }
 
         public void ConfigureDialoguePacing(float pacingTemperature, int maximumQuestionsPerTask)
@@ -652,7 +660,7 @@ namespace SceneTalkVR.Runtime.Services
         {
             var builder = new StringBuilder();
             builder.AppendLine("You are an English language tutor analyzing the user's speech in a VR oral practice context.");
-            builder.AppendLine("Your ONLY job is to analyze the user's input for grammar, vocabulary, pronunciation, or expression errors.");
+            builder.AppendLine("Your ONLY job is to analyze the user's input for clear grammar, vocabulary, or expression errors that are audible in spoken language.");
             builder.AppendLine("Do NOT continue the dialogue, do NOT act as the roleplay character, and do NOT generate any conversational replies.");
 
             if (currentCondition != null)
@@ -660,7 +668,7 @@ namespace SceneTalkVR.Runtime.Services
                 builder.AppendLine("\n=== EXPERIMENT & TASK CONTEXT ===");
                 builder.AppendLine($"- scenarioId: {currentCondition.scenarioId}");
                 builder.AppendLine($"- feedbackStyle: {currentCondition.style}");
-                builder.AppendLine($"- feedbackSensitivity: {feedbackSensitivity}");
+                builder.AppendLine($"- feedbackSensitivity: {(IsExperimentLocked() ? "moderate" : FeedbackSensitivity)}");
                 if (!string.IsNullOrWhiteSpace(currentCondition.task?.context))
                 {
                     builder.AppendLine($"- taskContext: {currentCondition.task.context}");
@@ -674,10 +682,14 @@ namespace SceneTalkVR.Runtime.Services
             builder.AppendLine("\n=== LANGUAGE CORRECTION INSTRUCTIONS ===");
             builder.AppendLine("1. Detect at most ONE major error in the user's speech. If no clear error, set hasFeedback = false.");
             builder.AppendLine("2. Respect the feedback sensitivity level. Ignore minor repetitions or normal self-corrections.");
+            builder.AppendLine("3. Treat the user input as an ASR transcript. Ignore capitalization, punctuation, whitespace, apostrophes, hyphens, quotation marks, and other writing-format differences because they are not audible language errors.");
+            builder.AppendLine("4. Do NOT evaluate pronunciation from transcript text. If a possible issue could instead be ASR confusion involving a homophone, personal name, proper noun, or uncertain transcription, set hasFeedback = false.");
+            builder.AppendLine("5. Correct only when the proposed correction changes the words actually spoken, a grammatical relationship, or meaning.");
+            builder.AppendLine("6. Accept natural conversational ellipsis and concise service phrases. Do NOT expand a correct utterance merely to make it fuller or more formal. Phrases such as 'table for two please', 'I'd like a quiet room', 'don't you have a monthly plan', and 'when is check-out' must receive no feedback when their only differences are writing format or optional conversational wording.");
 
             if (isRecast)
             {
-                builder.AppendLine("3. Generate unified feedback text under 'recast' style:");
+                builder.AppendLine("7. Generate unified feedback text under 'recast' style:");
                 builder.AppendLine("   * Both Avatar and Agent MUST use the exact same recastText.");
                 builder.AppendLine("   * Recast text must be a natural confirmation or model utterance suitable for BOTH the main character and helper agent.");
                 builder.AppendLine("   * Recast text MUST use the SECOND person ('you', 'your', 'you'd like') from the speaker's perspective to confirm or recast what the user said. NEVER use the first person ('I', 'my', 'I'd like').");
@@ -690,15 +702,15 @@ namespace SceneTalkVR.Runtime.Services
             }
             else
             {
-                builder.AppendLine("3. Generate unified feedback text under 'explicit' style:");
+                builder.AppendLine("7. Generate unified feedback text under 'explicit' style:");
                 builder.AppendLine("   * Both Avatar and Agent MUST use the exact same explicit feedbackText.");
                 builder.AppendLine("   * You MUST use this exact format: 'Grammar tip: [one short rule]. Try: \"[correct expression]\".'");
                 builder.AppendLine("   * Example: 'Grammar tip: Use \"really\" before a verb, not \"very.\" Try: \"I really like this furniture.\"'");
                 builder.AppendLine("   * You MUST set recastText = \"\".");
             }
 
-            builder.AppendLine("4. Keep the text brief and natural for VR spoken TTS.");
-            builder.AppendLine("5. Output ONLY a valid JSON object matching this schema:");
+            builder.AppendLine("8. Keep the text brief and natural for VR spoken TTS.");
+            builder.AppendLine("9. Output ONLY a valid JSON object matching this schema:");
             builder.AppendLine("{");
             builder.AppendLine("  \"hasFeedback\": true/false,");
             builder.AppendLine("  \"errorType\": \"grammar|unnatural|vocabulary|incomplete|unknown\",");
@@ -725,7 +737,9 @@ namespace SceneTalkVR.Runtime.Services
         {
             if (ShouldSuppressCorrectionByStt(out var suppressionReason))
             {
-                return BuildCorrectionFallback(suppressionReason);
+                return FinalizeCorrectionFeedback(
+                    userInput,
+                    BuildCorrectionFallback(suppressionReason));
             }
 
             string systemPrompt = BuildCorrectionSystemPrompt();
@@ -755,13 +769,7 @@ namespace SceneTalkVR.Runtime.Services
                 throw new Exception("Correction Planner returned malformed JSON content.");
             }
 
-            if (feedback.hasFeedback && currentCondition != null && string.Equals(currentCondition.style, "recast", StringComparison.OrdinalIgnoreCase))
-            {
-                feedback.recastText = string.IsNullOrEmpty(feedback.recastText) ? feedback.feedbackText : feedback.recastText;
-                feedback.feedbackText = feedback.recastText;
-            }
-
-            return feedback;
+            return FinalizeCorrectionFeedback(userInput, feedback);
         }
 
         private async Task<SpringScenePayload> ParseDialogueContinuationNonStreamingAsync(
@@ -916,6 +924,7 @@ namespace SceneTalkVR.Runtime.Services
 
             var task = currentCondition.task;
             bool locked = IsExperimentLocked();
+            var policy = CorrectionPolicy;
             string effectiveSensitivity = locked ? "moderate" : feedbackSensitivity;
             string historyCsv = (!locked && sessionErrorHistory.Count > 0) ? string.Join(", ", sessionErrorHistory) : "none";
 
@@ -955,13 +964,16 @@ namespace SceneTalkVR.Runtime.Services
             builder.AppendLine(lastSttConfidenceAvailable
                 ? $"- sttConfidence: {lastSttConfidence}"
                 : "- sttConfidence: unavailable");
-            if (lastSttConfidenceAvailable && lastSttConfidence < 0.5f)
+            if (lastSttConfidenceAvailable
+                && lastSttConfidence < policy.LowSttConfidenceThreshold)
             {
-                builder.AppendLine("CRITICAL: STT/ASR confidence is extremely low. Do NOT perform any grammar correction (set hasFeedback = false) because the errors are likely STT recognition failures. Respond politely asking the user to repeat.");
+                builder.AppendLine($"CRITICAL: STT/ASR confidence is below {policy.LowSttConfidenceThreshold:0.##}. Do NOT perform any grammar correction (set hasFeedback = false) because the errors are likely STT recognition failures. Respond politely asking the user to repeat.");
             }
-            if (lastRecordingDurationMs > 0 && lastRecordingDurationMs < 500f)
+            if (policy.ShortRecordingThresholdMs > 0
+                && lastRecordingDurationMs > 0
+                && lastRecordingDurationMs < policy.ShortRecordingThresholdMs)
             {
-                builder.AppendLine("CRITICAL: The user recording was too short (under 500ms), probably a misclick or accidental cancel. Do NOT perform grammar correction (set hasFeedback = false). Respond politely asking the user to repeat.");
+                builder.AppendLine($"CRITICAL: The user recording was too short (under {policy.ShortRecordingThresholdMs}ms), probably a misclick or accidental cancel. Do NOT perform grammar correction (set hasFeedback = false). Respond politely asking the user to repeat.");
             }
 
             builder.AppendLine("\n=== LANGUAGE CORRECTION INSTRUCTIONS ===");
@@ -1020,6 +1032,102 @@ namespace SceneTalkVR.Runtime.Services
             return builder.ToString();
         }
 
+        private CorrectionFeedbackData FinalizeCorrectionFeedback(
+            string userInput,
+            CorrectionFeedbackData feedback)
+        {
+            if (feedback == null)
+            {
+                feedback = BuildCorrectionFallback("correction_feedback_missing");
+            }
+
+            feedback.provider = currentCondition != null
+                                && string.Equals(
+                                    currentCondition.provider,
+                                    ExperimentConditionManager.AssistantAgentProvider,
+                                    StringComparison.OrdinalIgnoreCase)
+                ? ExperimentConditionManager.AssistantAgentProvider
+                : ExperimentConditionManager.DialogueAvatarProvider;
+            feedback.style = currentCondition != null
+                             && string.Equals(
+                                 currentCondition.style,
+                                 ExperimentConditionManager.RecastStyle,
+                                 StringComparison.OrdinalIgnoreCase)
+                ? ExperimentConditionManager.RecastStyle
+                : ExperimentConditionManager.ExplicitStyle;
+
+            if (ShouldSuppressCorrectionByStt(out var sttSuppressionReason))
+            {
+                ClearCorrectionContent(feedback);
+                feedback.rationaleTag = AppendRationale(
+                    feedback.rationaleTag,
+                    sttSuppressionReason);
+                return feedback;
+            }
+
+            if (!feedback.hasFeedback)
+            {
+                ClearCorrectionContent(feedback);
+                return feedback;
+            }
+
+            var normalizedErrorType = string.IsNullOrWhiteSpace(feedback.errorType)
+                ? string.Empty
+                : feedback.errorType.Trim().ToLowerInvariant();
+            if (string.IsNullOrEmpty(normalizedErrorType) || !ValidErrorTypes.Contains(normalizedErrorType))
+            {
+                normalizedErrorType = "unknown";
+                feedback.rationaleTag = AppendRationale(
+                    feedback.rationaleTag,
+                    "invalid_error_type_repaired");
+            }
+            feedback.errorType = normalizedErrorType;
+
+            if (CorrectionPolicyEvaluator.ApplyNonAudibleDifferenceFilter(
+                    correctionPolicy,
+                    userInput,
+                    feedback))
+            {
+                return feedback;
+            }
+
+            if (string.Equals(
+                    feedback.style,
+                    ExperimentConditionManager.RecastStyle,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                feedback.recastText = string.IsNullOrWhiteSpace(feedback.recastText)
+                    ? feedback.feedbackText
+                    : feedback.recastText;
+                feedback.feedbackText = feedback.recastText;
+                if (CorrectionTextGuards.ViolatesRecastPurity(feedback.recastText))
+                {
+                    feedback.recastText = BuildMinimalRecast(feedback.correctedText);
+                    feedback.feedbackText = feedback.recastText;
+                    feedback.rationaleTag = AppendRationale(
+                        feedback.rationaleTag,
+                        "recast_purity_repaired");
+                }
+            }
+            else
+            {
+                feedback.recastText = string.Empty;
+            }
+
+            return feedback;
+        }
+
+        private static void ClearCorrectionContent(CorrectionFeedbackData feedback)
+        {
+            feedback.hasFeedback = false;
+            feedback.errorType = "none";
+            feedback.originalText = string.Empty;
+            feedback.correctedText = string.Empty;
+            feedback.feedbackText = string.Empty;
+            feedback.recastText = string.Empty;
+            feedback.targetSpan = string.Empty;
+        }
+
         private static readonly System.Collections.Generic.HashSet<string> ValidErrorTypes = new System.Collections.Generic.HashSet<string>
         {
             "grammar",
@@ -1035,6 +1143,11 @@ namespace SceneTalkVR.Runtime.Services
         public void SetExperimentLocked(bool locked)
         {
             isLocked = locked;
+            if (isLocked)
+            {
+                feedbackSensitivity = "moderate";
+                correctionPolicy = CorrectionPolicySettings.CloneNormalized(correctionPolicy);
+            }
         }
 
         private bool IsExperimentLocked()
@@ -1045,8 +1158,11 @@ namespace SceneTalkVR.Runtime.Services
         private bool ShouldSuppressCorrectionByStt(out string sttSuppressionReason)
         {
             sttSuppressionReason = string.Empty;
+            var policy = CorrectionPolicy;
 
-            if (lastRecordingDurationMs > 0 && lastRecordingDurationMs < 500)
+            if (policy.ShortRecordingThresholdMs > 0
+                && lastRecordingDurationMs > 0
+                && lastRecordingDurationMs < policy.ShortRecordingThresholdMs)
             {
                 sttSuppressionReason = "short_recording_suppressed";
                 return true;
@@ -1054,7 +1170,7 @@ namespace SceneTalkVR.Runtime.Services
 
             if (lastSttConfidenceAvailable
                 && lastSttConfidence >= 0
-                && lastSttConfidence < 0.5f)
+                && lastSttConfidence < policy.LowSttConfidenceThreshold)
             {
                 sttSuppressionReason = "low_confidence_suppressed";
                 return true;
@@ -1151,6 +1267,7 @@ namespace SceneTalkVR.Runtime.Services
                 feedback.originalText = "";
                 feedback.correctedText = "";
                 feedback.feedbackText = "";
+                feedback.recastText = "";
                 feedback.targetSpan = "";
             }
             else

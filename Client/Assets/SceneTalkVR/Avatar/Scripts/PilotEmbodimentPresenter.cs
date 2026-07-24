@@ -52,7 +52,7 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             var presenter = ResolvePresenter(true);
-            var appearanceId = ResolveAppearanceId(value.embodimentCondition);
+            var appearanceId = AppearanceIdFor(value.embodimentCondition);
             if (!presenter.SetAppearanceId(appearanceId))
             {
                 error = "formal_assistant_embodiment_unavailable";
@@ -130,7 +130,7 @@ namespace SceneTalkVR.AvatarSystem
             };
         }
 
-        private static string ResolveAppearanceId(PilotEmbodimentCondition condition)
+        public static string AppearanceIdFor(PilotEmbodimentCondition condition)
         {
             return condition switch
             {

@@ -11,7 +11,7 @@ namespace SceneTalkVR.Core
     public sealed class ExperimentAssignmentAllocator
     {
         public const string AssignmentVersion = "1.0";
-        public const string ParticipantChoiceAssignmentVersion = "2.0";
+        public const string ParticipantChoiceAssignmentVersion = "3.0";
 
         public bool TryCreateFormal(
             string participantId,

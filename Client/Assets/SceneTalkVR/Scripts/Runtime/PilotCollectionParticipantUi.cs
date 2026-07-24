@@ -12,17 +12,18 @@ namespace SceneTalkVR.Runtime
     public sealed class PilotCollectionParticipantUi : MonoBehaviour
     {
         private Canvas canvas; private PilotCollectionSessionCoordinator coordinator; private SceneTalkOrchestrator orchestrator;
-        private GameObject setup,instructions,introduction,transition,questionnaire,ranking,completion;
+        private GameObject setup,selection,introduction,questionnaire,ranking,completion;
         private TMP_InputField participantInput,sessionInput,reasonInput; private TMP_Text setupError,introductionText,questionnaireError,rankingError;
         private readonly Dictionary<string,Button> answerButtons=new(); private readonly Dictionary<PilotEmbodimentCondition,int> ranks=new();
         private readonly Dictionary<string,Button> rankButtons=new(); private PilotEmbodimentCondition? preferred;
+        private readonly Dictionary<PilotEmbodimentCondition,Button> appearanceButtons=new(); private readonly Dictionary<PilotEmbodimentCondition,TMP_Text> appearanceStatuses=new();
         private string questionnaireLinkage; private int builtTaskPosition=-2;
 
         public void Configure(Canvas targetCanvas,SceneTalkOrchestrator targetOrchestrator)
         {
             canvas=targetCanvas;orchestrator=targetOrchestrator;EnsureCoordinator();Build();
         }
-        public void ResetForCanvasRebuild(){setup=instructions=introduction=transition=questionnaire=ranking=completion=null;participantInput=sessionInput=reasonInput=null;setupError=introductionText=questionnaireError=rankingError=null;answerButtons.Clear();rankButtons.Clear();ranks.Clear();questionnaireLinkage="";builtTaskPosition=-2;}
+        public void ResetForCanvasRebuild(){setup=selection=introduction=questionnaire=ranking=completion=null;participantInput=sessionInput=reasonInput=null;setupError=introductionText=questionnaireError=rankingError=null;answerButtons.Clear();rankButtons.Clear();appearanceButtons.Clear();appearanceStatuses.Clear();ranks.Clear();questionnaireLinkage="";builtTaskPosition=-2;}
         public void OpenSetup(){EnsureCoordinator();coordinator.OpenSetup();Refresh();}
         public void OpenAutomaticParticipantFlow(){EnsureCoordinator();if(coordinator==null)return;if(!coordinator.OpenOrCreateAutomaticParticipantSession(out var error))Debug.LogError("[PilotCollection] "+error,this);Refresh();}
         private void Awake(){EnsureCoordinator();}
@@ -48,20 +49,16 @@ namespace SceneTalkVR.Runtime
             Button(setup.transform,"ResumePilotSessionButton","Resume Pilot Session",new Vector2(175,-105),()=>Arm(true),new Vector2(260,48));
             Button(setup.transform,"PilotSetupBackButton","Back",new Vector2(0,-180),()=>coordinator.EndSession(),new Vector2(180,44));
 
-            instructions=Panel("PilotInstructionsPanel",new Vector2(760,500));
-            Label(instructions.transform,"Title","Pilot Instructions",new Vector2(0,200),new Vector2(650,46),29);
-            Label(instructions.transform,"Body","You will complete three short restaurant speaking tasks.\n\nDuring each task, language feedback may be presented in a different way.\nPlease focus on completing the communication goals shown on the screen.\n\nAfter each task, you will answer a short questionnaire.\nAfter all three tasks, you will rank the three feedback experiences.",new Vector2(0,25),new Vector2(650,290),20);
-            Button(instructions.transform,"BeginPilotButton","Begin Pilot",new Vector2(125,-205),()=>coordinator.BeginPilot(),new Vector2(210,48));
-            Button(instructions.transform,"PilotInstructionsBackButton","Back",new Vector2(-125,-205),()=>coordinator.EndSession(),new Vector2(180,48));
+            selection=Panel("PilotAppearanceSelectionPanel",new Vector2(820,520));
+            Label(selection.transform,"Title","Choose an Agent Appearance",new Vector2(0,210),new Vector2(720,46),29);
+            Label(selection.transform,"Body","Complete all three appearances in any order. Completed appearances cannot be selected again.",new Vector2(0,166),new Vector2(700,50),17);
+            var appearanceValues=new[]{PilotEmbodimentCondition.VoiceOnly,PilotEmbodimentCondition.FloatingOrb,PilotEmbodimentCondition.HumanoidAgent};
+            for(var i=0;i<appearanceValues.Length;i++){var value=appearanceValues[i];var y=92-i*112;appearanceButtons[value]=Button(selection.transform,value+"AppearanceButton",Friendly(value),new Vector2(0,y),()=>SelectAppearance(value),new Vector2(420,58));appearanceStatuses[value]=Label(selection.transform,value+"AppearanceStatus","Available",new Vector2(0,y-46),new Vector2(420,28),15);}
 
             introduction=Panel("PilotConditionTaskIntroductionPanel",new Vector2(790,530));
             Label(introduction.transform,"Title","Restaurant Speaking Task",new Vector2(0,220),new Vector2(690,44),28);
             introductionText=Label(introduction.transform,"TaskContent","",new Vector2(0,20),new Vector2(680,350),19,TextAnchor.UpperLeft);
             Button(introduction.transform,"PilotTaskContinueButton","Continue",new Vector2(0,-224),BeginTask,new Vector2(210,48));
-
-            transition=Panel("PilotNeutralTransitionPanel",new Vector2(650,300));
-            Label(transition.transform,"Message","This part is complete.\n\nPlease take a short break before continuing.",new Vector2(0,45),new Vector2(550,130),24);
-            Button(transition.transform,"PilotTransitionContinueButton","Continue",new Vector2(0,-92),()=>coordinator.ContinueAfterTransition(),new Vector2(210,48));
 
             questionnaire=Panel("PilotQuestionnairePanel",new Vector2(940,570));
             Label(questionnaire.transform,"Title","Questionnaire / 问卷",new Vector2(0,238),new Vector2(820,42),28);
@@ -89,6 +86,7 @@ namespace SceneTalkVR.Runtime
         }
         private void Arm(bool resume){var ok=resume?coordinator.ResumeSession(participantInput.text,sessionInput.text,out var error):coordinator.CreateSession(participantInput.text,sessionInput.text,out error);if(ok)sessionInput.text=coordinator.SessionId;setupError.text=ok?"":Humanize(error);}
         private void BeginTask(){if(!coordinator.BeginCurrentTask(out var error))Debug.LogError("[PilotCollection] "+error,this);}
+        private void SelectAppearance(PilotEmbodimentCondition value){if(!coordinator.SelectEmbodiment(value,out var error))Debug.LogWarning("[PilotCollection] "+error,this);Refresh();}
         private void BuildQuestionnaire()
         {
             var service=coordinator?.Workflow?.Questionnaire;var session=service?.ActiveSession;if(session==null||questionnaireLinkage==session.questionnaireLinkageKey)return;
@@ -111,16 +109,19 @@ namespace SceneTalkVR.Runtime
         private void RefreshRankButtons(){foreach(var pair in rankButtons)pair.Value.GetComponent<Image>().color=ranks.Any(x=>pair.Key==x.Key+":"+x.Value)?new Color(.12f,.68f,.34f,1):new Color(.12f,.38f,.62f,1);}
         private void SelectPreferred(PilotEmbodimentCondition condition){preferred=condition;foreach(var button in ranking.GetComponentsInChildren<Button>(true).Where(x=>x.name.EndsWith("Preferred")))button.GetComponent<Image>().color=button.name.StartsWith(condition.ToString())?new Color(.12f,.68f,.34f,1):new Color(.12f,.38f,.62f,1);}
         private void SubmitRanking(){if(ranks.Values.Any(x=>x<1||x>3)||ranks.Values.Distinct().Count()!=3){rankingError.text="Use each rank exactly once.";return;}if(!preferred.HasValue){rankingError.text="Select the overall preferred feedback experience.";return;}if(string.IsNullOrWhiteSpace(reasonInput.text)){rankingError.text="Please provide a reason.";return;}var entries=ranks.Select(x=>new PreferenceRankEntry{embodimentCondition=PilotProtocolValues.Label(x.Key),rank=x.Value}).OrderBy(x=>x.rank).ToArray();var response=new PreferenceRankingResponse{rankings=entries,preferredEmbodimentCondition=PilotProtocolValues.Label(preferred.Value),reason=reasonInput.text.Trim()};if(!coordinator.SubmitFinalRanking(response,out var error))rankingError.text=Humanize(error);}
-        private void ContinueAfterCompletion(){var experiment=ExperimentSessionCoordinator.Active;if(experiment?.HasActiveExperiment==true)experiment.ContinueAfterPhaseCompletion();else coordinator?.EndSession();}
+        private void ContinueAfterCompletion(){var experiment=ExperimentSessionCoordinator.Active;if(experiment?.HasActiveExperiment==true)experiment.ContinueAfterExperimentCompletion();else coordinator?.EndSession();}
         private void Refresh()
         {
             if(setup==null)return;var stage=coordinator?.Stage??PilotParticipantStage.None;
-            Set(setup,stage==PilotParticipantStage.Setup);Set(instructions,stage==PilotParticipantStage.Instructions);Set(introduction,stage==PilotParticipantStage.TaskIntroduction);Set(transition,stage==PilotParticipantStage.Transition);Set(questionnaire,stage==PilotParticipantStage.Questionnaire);Set(ranking,stage==PilotParticipantStage.FinalRanking);Set(completion,stage==PilotParticipantStage.Completion);
+            var exitConfirmationVisible=orchestrator?.CurrentState==SceneTalkState.ExperimentExitConfirm;
+            Set(setup,!exitConfirmationVisible&&stage==PilotParticipantStage.Setup);Set(selection,!exitConfirmationVisible&&stage==PilotParticipantStage.AppearanceSelection);Set(introduction,!exitConfirmationVisible&&stage==PilotParticipantStage.TaskIntroduction);Set(questionnaire,!exitConfirmationVisible&&stage==PilotParticipantStage.Questionnaire);Set(ranking,!exitConfirmationVisible&&stage==PilotParticipantStage.FinalRanking);Set(completion,!exitConfirmationVisible&&stage==PilotParticipantStage.Completion);
+            if(stage==PilotParticipantStage.AppearanceSelection)RefreshAppearanceSelection();
             if(stage==PilotParticipantStage.TaskIntroduction&&builtTaskPosition!=coordinator.CurrentPosition){builtTaskPosition=coordinator.CurrentPosition;var task=coordinator.CurrentTask;if(task!=null)introductionText.text=task.displayName+"\n\n"+task.context+"\n\nCommunication goals:\n"+string.Join("\n",task.goals.Select(x=>"• "+x.text));}
             if(stage==PilotParticipantStage.Questionnaire){BuildQuestionnaire();RefreshAnswers();questionnaire.transform.SetAsLastSibling();}
             if(stage==PilotParticipantStage.FinalRanking)ranking.transform.SetAsLastSibling();if(stage==PilotParticipantStage.Completion)completion.transform.SetAsLastSibling();
             if(stage!=PilotParticipantStage.None)GetComponent<SceneTalkFlowUiController>()?.BringExitButtonToFront();
         }
+        private void RefreshAppearanceSelection(){foreach(var pair in appearanceButtons){var item=coordinator?.Assignment?.conditions?.FirstOrDefault(x=>x.embodimentCondition==pair.Key);var selectable=item!=null&&(item.status==PilotRunStatus.Assigned||item.status==PilotRunStatus.TechnicalInvalid);pair.Value.interactable=selectable;if(appearanceStatuses.TryGetValue(pair.Key,out var label))label.text=item==null?"Unavailable":item.status==PilotRunStatus.Completed?"Completed":item.status==PilotRunStatus.TechnicalInvalid?"Retry available":selectable?"Available":"In progress";}}
         private GameObject Panel(string name,Vector2 size){var go=new GameObject(name,typeof(RectTransform));go.transform.SetParent(canvas.transform,false);go.AddComponent<Image>().color=new Color(.035f,.05f,.08f,.98f);go.GetComponent<RectTransform>().sizeDelta=size;return go;}
         private static GameObject Node(Transform parent,string name){var go=new GameObject(name,typeof(RectTransform));go.transform.SetParent(parent,false);return go;}
         private static TMP_Text Label(Transform parent,string name,string value,Vector2 pos,Vector2 size,int font,TextAnchor anchor=TextAnchor.MiddleCenter){var go=Node(parent,name);var text=go.AddComponent<TextMeshProUGUI>();text.text=value;text.color=Color.white;text.fontSize=font;text.alignment=ToTmpAlignment(anchor);text.textWrappingMode=TextWrappingModes.Normal;text.overflowMode=TextOverflowModes.Overflow;text.rectTransform.anchoredPosition=pos;text.rectTransform.sizeDelta=size;return text;}

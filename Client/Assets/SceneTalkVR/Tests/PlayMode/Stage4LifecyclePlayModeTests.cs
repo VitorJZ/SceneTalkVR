@@ -30,21 +30,22 @@ namespace SceneTalkVR.Tests.PlayMode
         };
 
         [UnityTest]
-        public IEnumerator NewExperimentStartsAtPilotFormalGate()
+        public IEnumerator HomeShowsIndependentPilotAndFormalEntryPoints()
         {
             SceneManager.LoadScene("SampleScene", LoadSceneMode.Single);
             yield return null;
             yield return null;
 
-            InvokeButton("New Experiment");
-            yield return null;
+            Assert.That(FindActiveButton("New Experiment"), Is.Null);
             Assert.That(FindActiveButton("Gym Membership"), Is.Null);
             var prompt = FindTransform("SessionNotPreparedPanel");
             Assert.That(prompt == null || !prompt.gameObject.activeInHierarchy, Is.True);
-            Assert.That(FindActiveButton("Pilot Experiment"), Is.Not.Null);
+            var pilot = FindActiveButton("Pilot Experiment");
             var formal = FindActiveButton("Formal Experiment");
+            Assert.That(pilot, Is.Not.Null);
             Assert.That(formal, Is.Not.Null);
-            Assert.That(formal.interactable, Is.False);
+            Assert.That(pilot.interactable, Is.True);
+            Assert.That(formal.interactable, Is.True);
         }
 
         [UnityTest]

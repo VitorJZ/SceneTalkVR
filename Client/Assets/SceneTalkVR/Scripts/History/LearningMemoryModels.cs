@@ -10,7 +10,7 @@ namespace SceneTalkVR.History
         public string feedbackSensitivity;
         public CorrectionExperimentCondition condition;
         public string experimentId;
-        public string experimentPhase;
+        public string experimentKind;
         public string experimentAttemptId;
         public string experimentRunId;
 
@@ -47,7 +47,7 @@ namespace SceneTalkVR.History
         public int turnCount;
         public int correctionCount;
         public string experimentId;
-        public string experimentPhase;
+        public string experimentKind;
         public string experimentAttemptId;
         public string experimentRunId;
 

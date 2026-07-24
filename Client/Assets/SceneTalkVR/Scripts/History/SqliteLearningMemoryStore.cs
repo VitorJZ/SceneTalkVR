@@ -11,7 +11,7 @@ namespace SceneTalkVR.History
 {
     public sealed class SqliteLearningMemoryStore : ILearningMemoryStore, IExperimentHistoryStore
     {
-        private const int CurrentSchemaVersion = 2;
+        private const int CurrentSchemaVersion = 3;
 
         private readonly string databasePath;
         private SQLiteConnection connection;
@@ -51,10 +51,10 @@ namespace SceneTalkVR.History
                 if (schemaVersion < 1)
                 {
                     MigrateToVersion1();
+                    schemaVersion = 1;
                 }
-                // Version 2 creation is intentionally idempotent so a database produced by an
-                // interrupted migration can repair missing tables or linkage columns on reopen.
-                MigrateToVersion2();
+                if (schemaVersion < 3) MigrateToVersion3();
+                else EnsureVersion3Schema();
             }
             catch
             {
@@ -90,72 +90,194 @@ namespace SceneTalkVR.History
             });
         }
 
-        private void MigrateToVersion2()
+        private void MigrateToVersion3()
         {
             connection.RunInTransaction(() =>
             {
-                connection.Execute(
-                    "CREATE TABLE IF NOT EXISTS experiment_records ("
-                    + "experiment_id TEXT PRIMARY KEY NOT NULL, participant_id TEXT NOT NULL, status INTEGER NOT NULL, "
-                    + "pilot_status INTEGER NOT NULL, formal_status INTEGER NOT NULL, preferred_embodiment TEXT NOT NULL, "
-                    + "created_at_unix_ms INTEGER NOT NULL, updated_at_unix_ms INTEGER NOT NULL)");
-                connection.Execute(
-                    "CREATE TABLE IF NOT EXISTS experiment_phases ("
-                    + "experiment_id TEXT NOT NULL, phase INTEGER NOT NULL, session_id TEXT NOT NULL, status INTEGER NOT NULL, "
-                    + "data_root_path TEXT NOT NULL, started_at_unix_ms INTEGER NOT NULL, completed_at_unix_ms INTEGER NOT NULL, "
-                    + "updated_at_unix_ms INTEGER NOT NULL, PRIMARY KEY(experiment_id, phase), "
-                    + "FOREIGN KEY(experiment_id) REFERENCES experiment_records(experiment_id) ON DELETE CASCADE)");
-                connection.Execute(
-                    "CREATE TABLE IF NOT EXISTS experiment_attempts ("
-                    + "attempt_id TEXT PRIMARY KEY NOT NULL, experiment_id TEXT NOT NULL, phase INTEGER NOT NULL, "
-                    + "condition_key TEXT NOT NULL, task_id TEXT NOT NULL, run_id TEXT NOT NULL, attempt_index INTEGER NOT NULL, "
-                    + "status INTEGER NOT NULL, completion_reason TEXT NOT NULL, started_at_unix_ms INTEGER NOT NULL, "
-                    + "ended_at_unix_ms INTEGER NOT NULL, FOREIGN KEY(experiment_id) REFERENCES experiment_records(experiment_id) ON DELETE CASCADE)");
-                connection.Execute(
-                    "CREATE TABLE IF NOT EXISTS questionnaire_sessions ("
-                    + "questionnaire_session_key TEXT PRIMARY KEY NOT NULL, experiment_id TEXT NOT NULL, phase INTEGER NOT NULL, "
-                    + "attempt_id TEXT, linkage_key TEXT NOT NULL, questionnaire_id TEXT NOT NULL, completion_status INTEGER NOT NULL, "
-                    + "completion_rate REAL NOT NULL, has_missing INTEGER NOT NULL, session_json TEXT NOT NULL, prompts_json TEXT NOT NULL, "
-                    + "updated_at_unix_ms INTEGER NOT NULL, FOREIGN KEY(experiment_id) REFERENCES experiment_records(experiment_id) ON DELETE CASCADE)");
-                connection.Execute(
-                    "CREATE TABLE IF NOT EXISTS questionnaire_responses ("
-                    + "questionnaire_session_key TEXT NOT NULL, item_id TEXT NOT NULL, raw_value TEXT NOT NULL, "
-                    + "scored_value REAL NOT NULL, has_scored_value INTEGER NOT NULL, response_json TEXT NOT NULL, "
-                    + "PRIMARY KEY(questionnaire_session_key, item_id), "
-                    + "FOREIGN KEY(questionnaire_session_key) REFERENCES questionnaire_sessions(questionnaire_session_key) ON DELETE CASCADE)");
-                connection.Execute(
-                    "CREATE TABLE IF NOT EXISTS questionnaire_scores ("
-                    + "questionnaire_session_key TEXT NOT NULL, section_id TEXT NOT NULL, mean REAL NOT NULL, "
-                    + "answered_count INTEGER NOT NULL, item_count INTEGER NOT NULL, has_missing INTEGER NOT NULL, "
-                    + "PRIMARY KEY(questionnaire_session_key, section_id), "
-                    + "FOREIGN KEY(questionnaire_session_key) REFERENCES questionnaire_sessions(questionnaire_session_key) ON DELETE CASCADE)");
-                connection.Execute(
-                    "CREATE TABLE IF NOT EXISTS experiment_rankings ("
-                    + "experiment_id TEXT NOT NULL, phase INTEGER NOT NULL, response_json TEXT NOT NULL, "
-                    + "updated_at_unix_ms INTEGER NOT NULL, PRIMARY KEY(experiment_id, phase), "
-                    + "FOREIGN KEY(experiment_id) REFERENCES experiment_records(experiment_id) ON DELETE CASCADE)");
-
-                if (!HasColumn("conversation_sessions", "experiment_id"))
-                    connection.Execute("ALTER TABLE conversation_sessions ADD COLUMN experiment_id TEXT");
-                if (!HasColumn("conversation_sessions", "experiment_phase"))
-                    connection.Execute("ALTER TABLE conversation_sessions ADD COLUMN experiment_phase TEXT");
-                if (!HasColumn("conversation_sessions", "experiment_attempt_id"))
-                    connection.Execute("ALTER TABLE conversation_sessions ADD COLUMN experiment_attempt_id TEXT");
-                if (!HasColumn("conversation_sessions", "experiment_run_id"))
-                    connection.Execute("ALTER TABLE conversation_sessions ADD COLUMN experiment_run_id TEXT");
-
-                connection.Execute("CREATE INDEX IF NOT EXISTS idx_experiment_records_updated ON experiment_records(updated_at_unix_ms DESC)");
-                connection.Execute("CREATE INDEX IF NOT EXISTS idx_experiment_attempts_parent ON experiment_attempts(experiment_id, phase, attempt_index)");
-                connection.Execute("CREATE INDEX IF NOT EXISTS idx_questionnaire_sessions_parent ON questionnaire_sessions(experiment_id, phase)");
-                connection.Execute("CREATE INDEX IF NOT EXISTS idx_conversation_sessions_experiment ON conversation_sessions(experiment_id, updated_at_unix_ms DESC)");
+                // Version 2 stored Pilot and Formal as phases of one record. Those rows are
+                // deliberately unsupported by the split architecture. Preserve only ordinary
+                // conversation history; raw collection folders are not touched here.
+                DeleteExperimentConversations();
+                DropExperimentHistoryTables();
+                RebuildConversationTablesForVersion3();
+                CreateVersion3Tables();
                 connection.Execute($"PRAGMA user_version = {CurrentSchemaVersion.ToString(CultureInfo.InvariantCulture)}");
             });
+        }
+
+        private void EnsureVersion3Schema()
+        {
+            connection.RunInTransaction(() =>
+            {
+                // Repair databases produced by an interrupted or early v3 migration. A legacy
+                // experiment_records table cannot be interpreted as split history, so discard
+                // only its experiment-owned rows while preserving ordinary conversations.
+                if (HasTable("experiment_records") && !HasColumn("experiment_records", "kind"))
+                {
+                    DeleteExperimentConversations();
+                    DropExperimentHistoryTables();
+                }
+
+                if (HasColumn("conversation_sessions", "experiment_phase")
+                    || !HasColumn("conversation_sessions", "experiment_kind"))
+                {
+                    RebuildConversationTablesForVersion3();
+                }
+                else
+                {
+                    EnsureExperimentConversationColumns();
+                }
+
+                CreateVersion3Tables();
+                connection.Execute($"PRAGMA user_version = {CurrentSchemaVersion.ToString(CultureInfo.InvariantCulture)}");
+            });
+        }
+
+        private void DeleteExperimentConversations()
+        {
+            if (!HasColumn("conversation_sessions", "experiment_id")) return;
+            connection.Execute(
+                "DELETE FROM conversation_turns WHERE session_id IN "
+                + "(SELECT session_id FROM conversation_sessions WHERE experiment_id IS NOT NULL AND experiment_id <> '')");
+            connection.Execute(
+                "DELETE FROM conversation_sessions WHERE experiment_id IS NOT NULL AND experiment_id <> ''");
+        }
+
+        private void DropExperimentHistoryTables()
+        {
+            connection.Execute("DROP TABLE IF EXISTS questionnaire_responses");
+            connection.Execute("DROP TABLE IF EXISTS questionnaire_scores");
+            connection.Execute("DROP TABLE IF EXISTS questionnaire_sessions");
+            connection.Execute("DROP TABLE IF EXISTS experiment_rankings");
+            connection.Execute("DROP TABLE IF EXISTS experiment_attempts");
+            connection.Execute("DROP TABLE IF EXISTS experiment_phases");
+            connection.Execute("DROP TABLE IF EXISTS experiment_records");
+        }
+
+        private void RebuildConversationTablesForVersion3()
+        {
+            var experimentId = HasColumn("conversation_sessions", "experiment_id")
+                ? "experiment_id"
+                : "NULL";
+            var experimentKind = HasColumn("conversation_sessions", "experiment_kind")
+                ? "experiment_kind"
+                : "NULL";
+            var experimentAttemptId = HasColumn("conversation_sessions", "experiment_attempt_id")
+                ? "experiment_attempt_id"
+                : "NULL";
+            var experimentRunId = HasColumn("conversation_sessions", "experiment_run_id")
+                ? "experiment_run_id"
+                : "NULL";
+
+            connection.Execute("DROP TABLE IF EXISTS conversation_turns_v3");
+            connection.Execute("DROP TABLE IF EXISTS conversation_sessions_v3");
+            connection.Execute(
+                "CREATE TABLE conversation_sessions_v3 ("
+                + "session_id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, scenario_id TEXT NOT NULL, "
+                + "task_type TEXT NOT NULL, environment_type TEXT NOT NULL, correction_provider TEXT NOT NULL, "
+                + "correction_style TEXT NOT NULL, created_at_unix_ms INTEGER NOT NULL, updated_at_unix_ms INTEGER NOT NULL, "
+                + "turn_count INTEGER NOT NULL, correction_count INTEGER NOT NULL, settings_json TEXT NOT NULL, "
+                + "scene_payload_json TEXT NOT NULL, experiment_id TEXT, experiment_kind TEXT, "
+                + "experiment_attempt_id TEXT, experiment_run_id TEXT)");
+            connection.Execute(
+                "CREATE TABLE conversation_turns_v3 ("
+                + "id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, sequence_index INTEGER NOT NULL, "
+                + "is_opening INTEGER NOT NULL, created_at_unix_ms INTEGER NOT NULL, user_text TEXT NOT NULL, "
+                + "assistant_text TEXT NOT NULL, has_correction INTEGER NOT NULL, error_type TEXT NOT NULL, payload_json TEXT NOT NULL, "
+                + "FOREIGN KEY(session_id) REFERENCES conversation_sessions_v3(session_id) ON DELETE CASCADE)");
+            connection.Execute(
+                "INSERT INTO conversation_sessions_v3 "
+                + "(session_id,title,scenario_id,task_type,environment_type,correction_provider,correction_style,"
+                + "created_at_unix_ms,updated_at_unix_ms,turn_count,correction_count,settings_json,scene_payload_json,"
+                + "experiment_id,experiment_kind,experiment_attempt_id,experiment_run_id) "
+                + "SELECT session_id,title,scenario_id,task_type,environment_type,correction_provider,correction_style,"
+                + "created_at_unix_ms,updated_at_unix_ms,turn_count,correction_count,settings_json,scene_payload_json,"
+                + experimentId + "," + experimentKind + "," + experimentAttemptId + "," + experimentRunId
+                + " FROM conversation_sessions");
+            connection.Execute(
+                "INSERT INTO conversation_turns_v3 "
+                + "(id,session_id,sequence_index,is_opening,created_at_unix_ms,user_text,assistant_text,has_correction,error_type,payload_json) "
+                + "SELECT t.id,t.session_id,t.sequence_index,t.is_opening,t.created_at_unix_ms,t.user_text,t.assistant_text,"
+                + "t.has_correction,t.error_type,t.payload_json FROM conversation_turns t "
+                + "INNER JOIN conversation_sessions_v3 s ON s.session_id=t.session_id");
+            connection.Execute("DROP TABLE conversation_turns");
+            connection.Execute("DROP TABLE conversation_sessions");
+            connection.Execute("ALTER TABLE conversation_sessions_v3 RENAME TO conversation_sessions");
+            connection.Execute("ALTER TABLE conversation_turns_v3 RENAME TO conversation_turns");
+        }
+
+        private void CreateVersion3Tables()
+        {
+            connection.Execute(
+                "CREATE TABLE IF NOT EXISTS experiment_records ("
+                + "experiment_id TEXT PRIMARY KEY NOT NULL, participant_id TEXT NOT NULL, session_id TEXT NOT NULL, "
+                + "kind INTEGER NOT NULL, status INTEGER NOT NULL, assistant_embodiment_snapshot TEXT NOT NULL, "
+                + "data_root_path TEXT NOT NULL, created_at_unix_ms INTEGER NOT NULL, started_at_unix_ms INTEGER NOT NULL, "
+                + "completed_at_unix_ms INTEGER NOT NULL, updated_at_unix_ms INTEGER NOT NULL)");
+            connection.Execute(
+                "CREATE TABLE IF NOT EXISTS experiment_attempts ("
+                + "attempt_id TEXT PRIMARY KEY NOT NULL, experiment_id TEXT NOT NULL, condition_key TEXT NOT NULL, "
+                + "task_id TEXT NOT NULL, run_id TEXT NOT NULL, attempt_index INTEGER NOT NULL, status INTEGER NOT NULL, "
+                + "completion_reason TEXT NOT NULL, started_at_unix_ms INTEGER NOT NULL, ended_at_unix_ms INTEGER NOT NULL, "
+                + "FOREIGN KEY(experiment_id) REFERENCES experiment_records(experiment_id) ON DELETE CASCADE)");
+            connection.Execute(
+                "CREATE TABLE IF NOT EXISTS questionnaire_sessions ("
+                + "questionnaire_session_key TEXT PRIMARY KEY NOT NULL, experiment_id TEXT NOT NULL, attempt_id TEXT, "
+                + "linkage_key TEXT NOT NULL, questionnaire_id TEXT NOT NULL, completion_status INTEGER NOT NULL, "
+                + "completion_rate REAL NOT NULL, has_missing INTEGER NOT NULL, session_json TEXT NOT NULL, "
+                + "prompts_json TEXT NOT NULL, updated_at_unix_ms INTEGER NOT NULL, "
+                + "FOREIGN KEY(experiment_id) REFERENCES experiment_records(experiment_id) ON DELETE CASCADE)");
+            connection.Execute(
+                "CREATE TABLE IF NOT EXISTS questionnaire_responses ("
+                + "questionnaire_session_key TEXT NOT NULL, item_id TEXT NOT NULL, raw_value TEXT NOT NULL, "
+                + "scored_value REAL NOT NULL, has_scored_value INTEGER NOT NULL, response_json TEXT NOT NULL, "
+                + "PRIMARY KEY(questionnaire_session_key, item_id), "
+                + "FOREIGN KEY(questionnaire_session_key) REFERENCES questionnaire_sessions(questionnaire_session_key) ON DELETE CASCADE)");
+            connection.Execute(
+                "CREATE TABLE IF NOT EXISTS questionnaire_scores ("
+                + "questionnaire_session_key TEXT NOT NULL, section_id TEXT NOT NULL, mean REAL NOT NULL, "
+                + "answered_count INTEGER NOT NULL, item_count INTEGER NOT NULL, has_missing INTEGER NOT NULL, "
+                + "PRIMARY KEY(questionnaire_session_key, section_id), "
+                + "FOREIGN KEY(questionnaire_session_key) REFERENCES questionnaire_sessions(questionnaire_session_key) ON DELETE CASCADE)");
+            connection.Execute(
+                "CREATE TABLE IF NOT EXISTS experiment_rankings ("
+                + "experiment_id TEXT PRIMARY KEY NOT NULL, response_json TEXT NOT NULL, updated_at_unix_ms INTEGER NOT NULL, "
+                + "FOREIGN KEY(experiment_id) REFERENCES experiment_records(experiment_id) ON DELETE CASCADE)");
+            connection.Execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_conversation_turn_sequence "
+                + "ON conversation_turns(session_id, sequence_index)");
+            connection.Execute(
+                "CREATE INDEX IF NOT EXISTS idx_conversation_sessions_updated "
+                + "ON conversation_sessions(updated_at_unix_ms DESC)");
+            connection.Execute("CREATE INDEX IF NOT EXISTS idx_experiment_records_updated ON experiment_records(updated_at_unix_ms DESC)");
+            connection.Execute("CREATE INDEX IF NOT EXISTS idx_experiment_attempts_parent ON experiment_attempts(experiment_id, attempt_index)");
+            connection.Execute("CREATE INDEX IF NOT EXISTS idx_questionnaire_sessions_parent ON questionnaire_sessions(experiment_id)");
+            connection.Execute("CREATE INDEX IF NOT EXISTS idx_conversation_sessions_experiment ON conversation_sessions(experiment_id, updated_at_unix_ms DESC)");
+        }
+
+        private void EnsureExperimentConversationColumns()
+        {
+            if (!HasColumn("conversation_sessions", "experiment_id"))
+                connection.Execute("ALTER TABLE conversation_sessions ADD COLUMN experiment_id TEXT");
+            if (!HasColumn("conversation_sessions", "experiment_kind"))
+                connection.Execute("ALTER TABLE conversation_sessions ADD COLUMN experiment_kind TEXT");
+            if (!HasColumn("conversation_sessions", "experiment_attempt_id"))
+                connection.Execute("ALTER TABLE conversation_sessions ADD COLUMN experiment_attempt_id TEXT");
+            if (!HasColumn("conversation_sessions", "experiment_run_id"))
+                connection.Execute("ALTER TABLE conversation_sessions ADD COLUMN experiment_run_id TEXT");
         }
 
         private bool HasColumn(string table, string column)
         {
             return connection.Query<TableInfoRow>($"PRAGMA table_info({table})")
                 .Any(item => string.Equals(item.name, column, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private bool HasTable(string table)
+        {
+            return connection.ExecuteScalar<int>(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?",
+                table) > 0;
         }
 
         public int CountSessions()
@@ -328,11 +450,8 @@ namespace SceneTalkVR.History
             var record = connection.Find<ExperimentRecordRow>(experimentId);
             if (record == null) return null;
 
-            var phases = connection.Query<ExperimentPhaseRow>(
-                    "SELECT * FROM experiment_phases WHERE experiment_id = ? ORDER BY phase ASC", experimentId)
-                .Select(ToPhase).ToArray();
             var attempts = connection.Query<ExperimentAttemptRow>(
-                    "SELECT * FROM experiment_attempts WHERE experiment_id = ? ORDER BY phase ASC, attempt_index ASC, started_at_unix_ms ASC",
+                    "SELECT * FROM experiment_attempts WHERE experiment_id = ? ORDER BY attempt_index ASC, started_at_unix_ms ASC",
                     experimentId)
                 .Select(ToAttempt).ToArray();
             var conversations = connection.Query<ConversationSessionRow>(
@@ -340,17 +459,16 @@ namespace SceneTalkVR.History
                     experimentId)
                 .Select(ToSummary).ToArray();
             var questionnaires = connection.Query<QuestionnaireSessionRow>(
-                    "SELECT * FROM questionnaire_sessions WHERE experiment_id = ? ORDER BY phase ASC, updated_at_unix_ms ASC",
+                    "SELECT * FROM questionnaire_sessions WHERE experiment_id = ? ORDER BY updated_at_unix_ms ASC",
                     experimentId)
                 .Select(ToQuestionnaire).ToArray();
             var rankings = connection.Query<ExperimentRankingRow>(
-                    "SELECT * FROM experiment_rankings WHERE experiment_id = ? ORDER BY phase ASC", experimentId)
+                    "SELECT * FROM experiment_rankings WHERE experiment_id = ?", experimentId)
                 .Select(ToRanking).ToArray();
 
             return new ExperimentRecordDetail
             {
                 summary = ToExperimentSummary(record),
-                phases = phases,
                 attempts = attempts,
                 conversations = conversations,
                 questionnaires = questionnaires,
@@ -366,8 +484,6 @@ namespace SceneTalkVR.History
             connection.RunInTransaction(() =>
             {
                 connection.Insert(ToRow(detail.summary));
-                foreach (var phase in detail.phases ?? Array.Empty<ExperimentPhaseRecord>())
-                    connection.Insert(ToRow(phase));
             });
         }
 
@@ -378,14 +494,6 @@ namespace SceneTalkVR.History
                 throw new ArgumentException("A valid experiment summary is required.", nameof(summary));
             if (connection.Update(ToRow(summary)) == 0)
                 throw new InvalidOperationException($"Experiment '{summary.experimentId}' was not found.");
-        }
-
-        public void UpsertPhase(ExperimentPhaseRecord phase)
-        {
-            EnsureInitialized();
-            if (phase == null || string.IsNullOrWhiteSpace(phase.experimentId))
-                throw new ArgumentException("A valid experiment phase is required.", nameof(phase));
-            connection.InsertOrReplace(ToRow(phase));
         }
 
         public void UpsertAttempt(ExperimentAttemptRecord attempt)
@@ -403,12 +511,11 @@ namespace SceneTalkVR.History
             if (questionnaire?.session == null || string.IsNullOrWhiteSpace(questionnaire.experimentId))
                 throw new ArgumentException("A valid experiment questionnaire is required.", nameof(questionnaire));
             var linkage = questionnaire.session.questionnaireLinkageKey ?? string.Empty;
-            var key = $"{questionnaire.experimentId}:{(int)questionnaire.phase}:{linkage}:{questionnaire.attemptId}";
+            var key = $"{questionnaire.experimentId}:{linkage}:{questionnaire.attemptId}";
             var row = new QuestionnaireSessionRow
             {
                 questionnaire_session_key = key,
                 experiment_id = questionnaire.experimentId,
-                phase = (int)questionnaire.phase,
                 attempt_id = questionnaire.attemptId ?? string.Empty,
                 linkage_key = linkage,
                 questionnaire_id = questionnaire.session.questionnaireId ?? string.Empty,
@@ -459,7 +566,6 @@ namespace SceneTalkVR.History
             connection.InsertOrReplace(new ExperimentRankingRow
             {
                 experiment_id = ranking.experimentId,
-                phase = (int)ranking.phase,
                 response_json = JsonUtility.ToJson(ranking.response),
                 updated_at_unix_ms = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
             });
@@ -485,7 +591,6 @@ namespace SceneTalkVR.History
                 connection.Execute("DELETE FROM questionnaire_sessions WHERE experiment_id = ?", experimentId);
                 connection.Execute("DELETE FROM experiment_rankings WHERE experiment_id = ?", experimentId);
                 connection.Execute("DELETE FROM experiment_attempts WHERE experiment_id = ?", experimentId);
-                connection.Execute("DELETE FROM experiment_phases WHERE experiment_id = ?", experimentId);
                 deleted = connection.Execute("DELETE FROM experiment_records WHERE experiment_id = ?", experimentId) > 0;
             });
             if (deleted)
@@ -530,7 +635,7 @@ namespace SceneTalkVR.History
                 settings_json = JsonUtility.ToJson(detail.settings ?? new ConversationSettingsSnapshot()),
                 scene_payload_json = JsonUtility.ToJson(detail.sceneSnapshot ?? new SpringScenePayload()),
                 experiment_id = summary.experimentId ?? detail.settings?.experimentId ?? string.Empty,
-                experiment_phase = summary.experimentPhase ?? detail.settings?.experimentPhase ?? string.Empty,
+                experiment_kind = summary.experimentKind ?? detail.settings?.experimentKind ?? string.Empty,
                 experiment_attempt_id = summary.experimentAttemptId ?? detail.settings?.experimentAttemptId ?? string.Empty,
                 experiment_run_id = summary.experimentRunId ?? detail.settings?.experimentRunId ?? string.Empty
             };
@@ -568,7 +673,7 @@ namespace SceneTalkVR.History
                 turnCount = row.turn_count,
                 correctionCount = row.correction_count,
                 experimentId = row.experiment_id,
-                experimentPhase = row.experiment_phase,
+                experimentKind = row.experiment_kind,
                 experimentAttemptId = row.experiment_attempt_id,
                 experimentRunId = row.experiment_run_id
             };
@@ -591,11 +696,14 @@ namespace SceneTalkVR.History
         {
             experiment_id = value.experimentId,
             participant_id = value.participantId ?? string.Empty,
+            session_id = value.sessionId ?? string.Empty,
+            kind = (int)value.kind,
             status = (int)value.status,
-            pilot_status = (int)value.pilotStatus,
-            formal_status = (int)value.formalStatus,
-            preferred_embodiment = value.preferredEmbodiment ?? string.Empty,
+            assistant_embodiment_snapshot = value.assistantEmbodimentSnapshot ?? string.Empty,
+            data_root_path = value.dataRootPath ?? string.Empty,
             created_at_unix_ms = value.createdAtUnixMs,
+            started_at_unix_ms = value.startedAtUnixMs,
+            completed_at_unix_ms = value.completedAtUnixMs,
             updated_at_unix_ms = value.updatedAtUnixMs
         };
 
@@ -603,33 +711,12 @@ namespace SceneTalkVR.History
         {
             experimentId = value.experiment_id,
             participantId = value.participant_id,
-            status = (ExperimentRecordStatus)value.status,
-            pilotStatus = (ExperimentPhaseStatus)value.pilot_status,
-            formalStatus = (ExperimentPhaseStatus)value.formal_status,
-            preferredEmbodiment = value.preferred_embodiment,
-            createdAtUnixMs = value.created_at_unix_ms,
-            updatedAtUnixMs = value.updated_at_unix_ms
-        };
-
-        private static ExperimentPhaseRow ToRow(ExperimentPhaseRecord value) => new ExperimentPhaseRow
-        {
-            experiment_id = value.experimentId,
-            phase = (int)value.phase,
-            session_id = value.sessionId ?? string.Empty,
-            status = (int)value.status,
-            data_root_path = value.dataRootPath ?? string.Empty,
-            started_at_unix_ms = value.startedAtUnixMs,
-            completed_at_unix_ms = value.completedAtUnixMs,
-            updated_at_unix_ms = value.updatedAtUnixMs
-        };
-
-        private static ExperimentPhaseRecord ToPhase(ExperimentPhaseRow value) => new ExperimentPhaseRecord
-        {
-            experimentId = value.experiment_id,
-            phase = (ExperimentPhaseKind)value.phase,
             sessionId = value.session_id,
-            status = (ExperimentPhaseStatus)value.status,
+            kind = (ExperimentKind)value.kind,
+            status = (ExperimentRecordStatus)value.status,
+            assistantEmbodimentSnapshot = value.assistant_embodiment_snapshot,
             dataRootPath = value.data_root_path,
+            createdAtUnixMs = value.created_at_unix_ms,
             startedAtUnixMs = value.started_at_unix_ms,
             completedAtUnixMs = value.completed_at_unix_ms,
             updatedAtUnixMs = value.updated_at_unix_ms
@@ -639,7 +726,6 @@ namespace SceneTalkVR.History
         {
             attempt_id = value.attemptId,
             experiment_id = value.experimentId,
-            phase = (int)value.phase,
             condition_key = value.conditionKey ?? string.Empty,
             task_id = value.taskId ?? string.Empty,
             run_id = value.runId ?? string.Empty,
@@ -654,7 +740,6 @@ namespace SceneTalkVR.History
         {
             attemptId = value.attempt_id,
             experimentId = value.experiment_id,
-            phase = (ExperimentPhaseKind)value.phase,
             conditionKey = value.condition_key,
             taskId = value.task_id,
             runId = value.run_id,
@@ -693,7 +778,6 @@ namespace SceneTalkVR.History
             {
                 questionnaireRecordId = value.questionnaire_session_key,
                 experimentId = value.experiment_id,
-                phase = (ExperimentPhaseKind)value.phase,
                 attemptId = value.attempt_id,
                 session = session,
                 prompts = prompts.items ?? Array.Empty<QuestionnairePromptSnapshot>()
@@ -703,7 +787,6 @@ namespace SceneTalkVR.History
         private static ExperimentRankingRecord ToRanking(ExperimentRankingRow value) => new ExperimentRankingRecord
         {
             experimentId = value.experiment_id,
-            phase = (ExperimentPhaseKind)value.phase,
             response = DeserializeOrDefault<PreferenceRankingResponse>(value.response_json)
         };
 
@@ -748,7 +831,7 @@ namespace SceneTalkVR.History
             public string settings_json { get; set; }
             public string scene_payload_json { get; set; }
             public string experiment_id { get; set; }
-            public string experiment_phase { get; set; }
+            public string experiment_kind { get; set; }
             public string experiment_attempt_id { get; set; }
             public string experiment_run_id { get; set; }
         }
@@ -795,22 +878,12 @@ namespace SceneTalkVR.History
         {
             [PrimaryKey] public string experiment_id { get; set; }
             public string participant_id { get; set; }
-            public int status { get; set; }
-            public int pilot_status { get; set; }
-            public int formal_status { get; set; }
-            public string preferred_embodiment { get; set; }
-            public long created_at_unix_ms { get; set; }
-            public long updated_at_unix_ms { get; set; }
-        }
-
-        [Table("experiment_phases")]
-        private sealed class ExperimentPhaseRow
-        {
-            public string experiment_id { get; set; }
-            public int phase { get; set; }
             public string session_id { get; set; }
+            public int kind { get; set; }
             public int status { get; set; }
+            public string assistant_embodiment_snapshot { get; set; }
             public string data_root_path { get; set; }
+            public long created_at_unix_ms { get; set; }
             public long started_at_unix_ms { get; set; }
             public long completed_at_unix_ms { get; set; }
             public long updated_at_unix_ms { get; set; }
@@ -821,7 +894,6 @@ namespace SceneTalkVR.History
         {
             [PrimaryKey] public string attempt_id { get; set; }
             public string experiment_id { get; set; }
-            public int phase { get; set; }
             public string condition_key { get; set; }
             public string task_id { get; set; }
             public string run_id { get; set; }
@@ -837,7 +909,6 @@ namespace SceneTalkVR.History
         {
             [PrimaryKey] public string questionnaire_session_key { get; set; }
             public string experiment_id { get; set; }
-            public int phase { get; set; }
             public string attempt_id { get; set; }
             public string linkage_key { get; set; }
             public string questionnaire_id { get; set; }
@@ -874,8 +945,7 @@ namespace SceneTalkVR.History
         [Table("experiment_rankings")]
         private sealed class ExperimentRankingRow
         {
-            public string experiment_id { get; set; }
-            public int phase { get; set; }
+            [PrimaryKey] public string experiment_id { get; set; }
             public string response_json { get; set; }
             public long updated_at_unix_ms { get; set; }
         }
