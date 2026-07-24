@@ -79,6 +79,8 @@ namespace SceneTalkVR.Runtime
                 preferredButtons[codes[i]] = Button(panel.transform, codes[i] + "Preferred", "Preferred", new Vector2(360, y),
                     () => SelectPreferred(preferredCode), new Vector2(118, 42));
             }
+            RefreshRankButtons();
+            RefreshPreferredButtons();
             reasonInput = Input(panel.transform, "RankingReason", "Why do you prefer your top-ranked mode?", new Vector2(0, -166), new Vector2(700, 64));
             validation = Label(panel.transform, "Validation", string.Empty, new Vector2(0, -218), new Vector2(700, 30), 17);
             Button(panel.transform, "RankingSubmitButton", "Submit Ranking", new Vector2(0, -258), Submit);
@@ -139,30 +141,43 @@ namespace SceneTalkVR.Runtime
 
         private void SelectRank(FormalConditionCode code, int rank)
         {
+            var previousRank = ranks[code];
+            var occupied = ranks.FirstOrDefault(x => x.Key != code && x.Value == rank);
+            if (occupied.Value == rank)
+                ranks[occupied.Key] = previousRank;
             ranks[code] = rank;
+            RefreshRankButtons();
+            validation.text = string.Empty;
+        }
+
+        private void RefreshRankButtons()
+        {
             foreach (var pair in rankButtons)
             {
-                var selected = pair.Key == code + ":" + rank;
+                var selected = ranks.Any(x => pair.Key == x.Key + ":" + x.Value);
                 pair.Value.GetComponent<Image>().color = selected ? new Color(.12f, .66f, .36f, 1f) : new Color(.12f, .38f, .62f, 1f);
             }
-            validation.text = string.Empty;
         }
 
         private void SelectPreferred(FormalConditionCode code)
         {
             preferredCondition = code;
-            foreach (var pair in preferredButtons)
-                pair.Value.GetComponent<Image>().color = pair.Key == code
-                    ? new Color(.12f, .66f, .36f, 1f) : new Color(.12f, .38f, .62f, 1f);
+            RefreshPreferredButtons();
             validation.text = string.Empty;
+        }
+
+        private void RefreshPreferredButtons()
+        {
+            foreach (var pair in preferredButtons)
+                pair.Value.GetComponent<Image>().color = pair.Key == preferredCondition
+                    ? new Color(.12f, .66f, .36f, 1f) : new Color(.12f, .38f, .62f, 1f);
         }
 
         private void ResetResponse()
         {
             submitted=false;preferredCondition=null;
             foreach(var code in new[]{FormalConditionCode.NE,FormalConditionCode.NR,FormalConditionCode.SE,FormalConditionCode.SR})ranks[code]=0;
-            foreach(var button in rankButtons.Values)if(button!=null)button.GetComponent<Image>().color=new Color(.12f,.38f,.62f,1f);
-            foreach(var button in preferredButtons.Values)if(button!=null)button.GetComponent<Image>().color=new Color(.12f,.38f,.62f,1f);
+            RefreshRankButtons();RefreshPreferredButtons();
             if(reasonInput!=null)reasonInput.text=string.Empty;if(validation!=null)validation.text=string.Empty;
         }
 

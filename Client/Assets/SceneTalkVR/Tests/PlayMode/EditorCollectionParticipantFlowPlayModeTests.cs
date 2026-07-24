@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using NUnit.Framework;
@@ -134,7 +135,13 @@ namespace SceneTalkVR.Tests.PlayMode
             }
             yield return null; Assert.That(Active("FormalFinalRankingPanel"), Is.True);
             AssertExitOverlay();
-            Click("NERank1"); Click("NRRank2"); Click("SERank3"); Click("SRRank4"); Click("NEPreferred"); Input("RankingReason").text = "Device validation ranking."; Click("RankingSubmitButton"); yield return null;
+            AssertSelectedRanks();
+            Click("NERank1"); AssertSelectedRanks("NERank1");
+            Click("NRRank2"); AssertSelectedRanks("NERank1", "NRRank2");
+            Click("NRRank1"); AssertSelectedRanks("NERank2", "NRRank1");
+            Click("NERank1"); Click("SERank3"); Click("SRRank4");
+            AssertSelectedRanks("NERank1", "NRRank2", "SERank3", "SRRank4");
+            Click("NEPreferred"); Input("RankingReason").text = "Device validation ranking."; Click("RankingSubmitButton"); yield return null;
             Assert.That(Active("FormalExperimentCompletionPanel"), Is.True); AssertExitOverlay(); Assert.That((bool)Get(rehearsal, "ExperimentCompleted"), Is.True); Assert.That((bool)Get(Get(rehearsal, "FormalAssignment"), "collectionEligible"), Is.False);
             Click("FormalCompletionContinueButton"); yield return null;
             Assert.That(Conditions(assignment).All(item => Get(item, "status").ToString() == "Completed"), Is.True);
@@ -189,6 +196,20 @@ namespace SceneTalkVR.Tests.PlayMode
         private static TMP_InputField Input(string name) => Resources.FindObjectsOfTypeAll<TMP_InputField>().First(x => x.gameObject.name == name);
         private static void ForcePicoDeviceValidation(bool value) { var type = Type.GetType("SceneTalkVR.Core.ExperimentRuntimePlatform, Assembly-CSharp"); type.GetProperty("ForcePicoDeviceValidationForTests").SetValue(null, value); }
         private static void Click(string name) => Button(name).onClick.Invoke();
+        private static void AssertSelectedRanks(params string[] selectedNames)
+        {
+            var selected = new HashSet<string>(selectedNames, StringComparer.Ordinal);
+            var buttons = Resources.FindObjectsOfTypeAll<Button>()
+                .Where(x => x.gameObject.scene.IsValid() && x.transform.parent != null && x.transform.parent.name == "FormalFinalRankingPanel")
+                .Where(x => x.name.Contains("Rank", StringComparison.Ordinal) && x.name != "RankingSubmitButton")
+                .ToArray();
+            Assert.That(buttons, Has.Length.EqualTo(16));
+            foreach (var button in buttons)
+            {
+                var color = button.GetComponent<Image>().color;
+                Assert.That(color.g > color.b, Is.EqualTo(selected.Contains(button.name)), button.name);
+            }
+        }
         private static bool Active(string name) { var go = Resources.FindObjectsOfTypeAll<GameObject>().FirstOrDefault(x => x.name == name && x.scene.IsValid()); return go != null && go.activeInHierarchy; }
         private static string TextOf(string name) { var go = Resources.FindObjectsOfTypeAll<GameObject>().First(x => x.name == name && x.scene.IsValid()); return string.Join("\n", go.GetComponentsInChildren<TMP_Text>(true).Select(x => x.text)); }
         private static Button[] ButtonsUnder(string name) { var go = Resources.FindObjectsOfTypeAll<GameObject>().First(x => x.name == name && x.scene.IsValid()); return go.GetComponentsInChildren<Button>(true); }
