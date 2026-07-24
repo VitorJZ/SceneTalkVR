@@ -69,6 +69,10 @@ namespace SceneTalkVR.Runtime
                 {
                     ApplyTextMaterial(text, textShader);
                 }
+                else if (graphic is TMP_SubMeshUI subMesh)
+                {
+                    ApplyTextMaterial(subMesh, textShader);
+                }
                 else
                 {
                     ApplyGraphicMaterial(graphic, imageShader);
@@ -78,7 +82,7 @@ namespace SceneTalkVR.Runtime
 
         private void ApplyGraphicMaterial(Graphic graphic, Shader shader)
         {
-            if (shader == null || appliedGraphics.Contains(graphic))
+            if (shader == null)
             {
                 return;
             }
@@ -89,14 +93,20 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
-            if (!graphicMaterialInstances.TryGetValue(source, out var material))
+            if (source.shader == shader)
+            {
+                appliedGraphics.Add(graphic);
+                return;
+            }
+
+            if (!graphicMaterialInstances.TryGetValue(source, out var material) || material == null)
             {
                 material = new Material(source)
                 {
                     shader = shader,
                     name = $"{source.name} - Always On Top"
                 };
-                graphicMaterialInstances.Add(source, material);
+                graphicMaterialInstances[source] = material;
             }
 
             graphic.material = material;
@@ -105,7 +115,7 @@ namespace SceneTalkVR.Runtime
 
         private void ApplyTextMaterial(TMP_Text text, Shader shader)
         {
-            if (shader == null || appliedGraphics.Contains(text))
+            if (shader == null)
             {
                 return;
             }
@@ -123,18 +133,60 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
-            if (!textMaterialInstances.TryGetValue(source, out var material))
+            if (source.shader == shader)
+            {
+                appliedGraphics.Add(text);
+                return;
+            }
+
+            if (!textMaterialInstances.TryGetValue(source, out var material) || material == null)
             {
                 material = new Material(source)
                 {
                     shader = shader,
                     name = $"{source.name} - Always On Top"
                 };
-                textMaterialInstances.Add(source, material);
+                textMaterialInstances[source] = material;
             }
 
             text.fontSharedMaterial = material;
             appliedGraphics.Add(text);
+        }
+
+        private void ApplyTextMaterial(TMP_SubMeshUI subMesh, Shader shader)
+        {
+            if (shader == null)
+            {
+                return;
+            }
+
+            // TMP_SubMeshUI.material lazily clones its source and throws when
+            // the owning TMP object is pending destruction. sharedMaterial can
+            // be checked safely and preserves fallback-font rendering.
+            var source = subMesh.sharedMaterial;
+            if (source == null)
+            {
+                return;
+            }
+
+            if (source.shader == shader)
+            {
+                appliedGraphics.Add(subMesh);
+                return;
+            }
+
+            if (!textMaterialInstances.TryGetValue(source, out var material) || material == null)
+            {
+                material = new Material(source)
+                {
+                    shader = shader,
+                    name = $"{source.name} - Always On Top"
+                };
+                textMaterialInstances[source] = material;
+            }
+
+            subMesh.sharedMaterial = material;
+            appliedGraphics.Add(subMesh);
         }
 
         private void OnDestroy()

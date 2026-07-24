@@ -82,6 +82,10 @@ namespace SceneTalkVR.Runtime
             Label(completion.transform,"Title","Pilot Experiment Completed",new Vector2(0,65),new Vector2(620,50),30);
             Label(completion.transform,"Message","Thank you. You have completed the pilot study.",new Vector2(0,-20),new Vector2(600,80),22);
             Button(completion.transform,"PilotCompletionContinueButton","Continue",new Vector2(0,-105),ContinueAfterCompletion,new Vector2(210,48));
+
+            // Build under an active hierarchy so TMP initializes its font material
+            // before SceneTalkWorldUiRenderer applies the overlay shader.
+            Refresh();
         }
         private void Arm(bool resume){var ok=resume?coordinator.ResumeSession(participantInput.text,sessionInput.text,out var error):coordinator.CreateSession(participantInput.text,sessionInput.text,out error);if(ok)sessionInput.text=coordinator.SessionId;setupError.text=ok?"":Humanize(error);}
         private void BeginTask(){if(!coordinator.BeginCurrentTask(out var error))Debug.LogError("[PilotCollection] "+error,this);}
@@ -117,7 +121,7 @@ namespace SceneTalkVR.Runtime
             if(stage==PilotParticipantStage.FinalRanking)ranking.transform.SetAsLastSibling();if(stage==PilotParticipantStage.Completion)completion.transform.SetAsLastSibling();
             if(stage!=PilotParticipantStage.None)GetComponent<SceneTalkFlowUiController>()?.BringExitButtonToFront();
         }
-        private GameObject Panel(string name,Vector2 size){var go=new GameObject(name,typeof(RectTransform));go.transform.SetParent(canvas.transform,false);go.AddComponent<Image>().color=new Color(.035f,.05f,.08f,.98f);go.GetComponent<RectTransform>().sizeDelta=size;go.SetActive(false);return go;}
+        private GameObject Panel(string name,Vector2 size){var go=new GameObject(name,typeof(RectTransform));go.transform.SetParent(canvas.transform,false);go.AddComponent<Image>().color=new Color(.035f,.05f,.08f,.98f);go.GetComponent<RectTransform>().sizeDelta=size;return go;}
         private static GameObject Node(Transform parent,string name){var go=new GameObject(name,typeof(RectTransform));go.transform.SetParent(parent,false);return go;}
         private static TMP_Text Label(Transform parent,string name,string value,Vector2 pos,Vector2 size,int font,TextAnchor anchor=TextAnchor.MiddleCenter){var go=Node(parent,name);var text=go.AddComponent<TextMeshProUGUI>();text.text=value;text.color=Color.white;text.fontSize=font;text.alignment=ToTmpAlignment(anchor);text.textWrappingMode=TextWrappingModes.Normal;text.overflowMode=TextOverflowModes.Overflow;text.rectTransform.anchoredPosition=pos;text.rectTransform.sizeDelta=size;return text;}
         private static Button Button(Transform parent,string name,string label,Vector2 pos,UnityEngine.Events.UnityAction action,Vector2 size){var go=Node(parent,name);go.AddComponent<Image>().color=new Color(.12f,.38f,.62f,1);var button=go.AddComponent<Button>();button.onClick.AddListener(action);go.GetComponent<RectTransform>().anchoredPosition=pos;go.GetComponent<RectTransform>().sizeDelta=size;var text=Label(go.transform,"Label",label,Vector2.zero,size,18);text.raycastTarget=false;return button;}
