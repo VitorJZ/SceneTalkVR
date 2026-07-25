@@ -150,6 +150,76 @@ namespace SceneTalkVR.AvatarSystem.Tests.Editor
         }
 
         [Test]
+        public void CorrectionPrompt_ModerateIncludesClearUnnaturalRequestDetection()
+        {
+            var host = new GameObject("Correction Detection Prompt Test");
+            try
+            {
+                var service = host.AddComponent<RealLLMService>();
+                service.SetExperimentCondition(new CorrectionExperimentCondition
+                {
+                    provider = ExperimentConditionManager.AssistantAgentProvider,
+                    style = ExperimentConditionManager.ExplicitStyle
+                });
+
+                var prompt = (string)InvokePrivate(service, "BuildCorrectionSystemPrompt");
+
+                Assert.That(prompt, Does.Contain("at most ONE clear language error"));
+                Assert.That(prompt, Does.Contain("clearly unnatural request or question constructions"));
+                Assert.That(prompt, Does.Contain("I'm asking for you to replace my dish."));
+                Assert.That(prompt, Does.Contain("Giving me some recommendations."));
+                Assert.That(prompt, Does.Contain("How long the replacement will be?"));
+                Assert.That(prompt, Does.Contain("Can you replace my dish?' is already natural"));
+                Assert.That(prompt, Does.Not.Contain("at most ONE major error"));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(host);
+            }
+        }
+
+        [TestCase(ExperimentConditionManager.ExplicitStyle)]
+        [TestCase(ExperimentConditionManager.RecastStyle)]
+        public void RealLlmFinalization_RepairsMissingSpokenCorrectionText(string style)
+        {
+            var host = new GameObject("Correction Spoken Text Repair Test");
+            try
+            {
+                var service = host.AddComponent<RealLLMService>();
+                service.SetExperimentCondition(new CorrectionExperimentCondition
+                {
+                    provider = ExperimentConditionManager.AssistantAgentProvider,
+                    style = style
+                });
+                var feedback = Feedback(
+                    original: "I want reserve a table",
+                    corrected: "I want to reserve a table",
+                    provider: string.Empty,
+                    style: string.Empty);
+                feedback.feedbackText = string.Empty;
+                feedback.recastText = string.Empty;
+
+                var finalized = (CorrectionFeedbackData)InvokePrivate(
+                    service,
+                    "FinalizeCorrectionFeedback",
+                    feedback.originalText,
+                    feedback);
+
+                Assert.That(finalized.hasFeedback, Is.True);
+                Assert.That(finalized.feedbackText, Is.Not.Empty);
+                if (style == ExperimentConditionManager.RecastStyle)
+                {
+                    Assert.That(finalized.recastText, Is.Not.Empty);
+                }
+                Assert.That(finalized.rationaleTag, Does.Contain("missing_spoken_feedback_repaired"));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(host);
+            }
+        }
+
+        [Test]
         public void SttSuppression_UsesExistingThresholdsAndRequiresAvailableConfidence()
         {
             var host = new GameObject("Correction Policy STT Threshold Test");

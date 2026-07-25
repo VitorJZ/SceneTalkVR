@@ -3,7 +3,7 @@
   "port": 8788,
   "upstream_url": "https://models.sjtu.edu.cn/api/v1/chat/completions",
   "api_key": "",
-  "timeout_seconds": 60,
+  "timeout_seconds": 28,
   "transport": "auto",
   "curl_path": "curl.exe",
   "curl_ssl_no_revoke": true

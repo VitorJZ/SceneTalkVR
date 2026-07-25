@@ -11,7 +11,7 @@ class GatewayConfig:
     port: int = 8788
     upstream_url: str = "https://models.sjtu.edu.cn/api/v1/chat/completions"
     api_key: str = ""
-    timeout_seconds: int = 60
+    timeout_seconds: int = 28
     transport: str = "auto"
     curl_path: str = "curl.exe"
     curl_ssl_no_revoke: bool = True

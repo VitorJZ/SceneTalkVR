@@ -77,7 +77,16 @@ class LlmGatewayHandler(BaseHTTPRequestHandler):
 
         started = time.perf_counter()
         try:
-            status, response_body, content_type = self._forward_to_upstream(body)
+            requested_accept = self.headers.get("Accept", "application/json")
+            upstream_accept = (
+                "text/event-stream"
+                if "text/event-stream" in requested_accept.lower()
+                else "application/json"
+            )
+            status, response_body, content_type, retry_after = self._forward_to_upstream(
+                body,
+                upstream_accept,
+            )
         except ProviderError as exc:
             self._send_json(
                 self._error("provider_error", str(exc)),
@@ -90,7 +99,13 @@ class LlmGatewayHandler(BaseHTTPRequestHandler):
             "[llm-gateway] "
             f"upstream status={int(status)} elapsedMs={elapsed_ms} bytes={len(response_body)}"
         )
-        self._send_bytes(response_body, content_type=content_type, status=status)
+        response_headers = {"Retry-After": retry_after} if retry_after else None
+        self._send_bytes(
+            response_body,
+            content_type=content_type,
+            status=status,
+            extra_headers=response_headers,
+        )
 
     def log_message(self, format: str, *args: Any) -> None:
         print(f"[llm-gateway] {self.address_string()} {format % args}")
@@ -136,27 +151,33 @@ class LlmGatewayHandler(BaseHTTPRequestHandler):
 
         return raw_body
 
-    def _forward_to_upstream(self, body: bytes) -> tuple[HTTPStatus, bytes, str]:
+    def _forward_to_upstream(
+        self,
+        body: bytes,
+        accept: str,
+    ) -> tuple[HTTPStatus, bytes, str, str]:
         config = self.gateway_state.config
         transport = (config.transport or "auto").strip().lower()
         if transport == "curl":
-            return self._forward_to_upstream_with_curl(body)
+            return self._forward_to_upstream_with_curl(body, accept)
 
         try:
-            return self._forward_to_upstream_with_urllib(body)
+            return self._forward_to_upstream_with_urllib(body, accept)
         except ProviderError:
             if transport != "auto":
                 raise
 
-        return self._forward_to_upstream_with_curl(body)
+        return self._forward_to_upstream_with_curl(body, accept)
 
     def _forward_to_upstream_with_urllib(
-        self, body: bytes
-    ) -> tuple[HTTPStatus, bytes, str]:
+        self,
+        body: bytes,
+        accept: str,
+    ) -> tuple[HTTPStatus, bytes, str, str]:
         config = self.gateway_state.config
         headers = {
             "Content-Type": "application/json",
-            "Accept": "application/json",
+            "Accept": accept,
             "Authorization": f"Bearer {config.api_key}",
         }
         request = urllib_request.Request(
@@ -169,18 +190,22 @@ class LlmGatewayHandler(BaseHTTPRequestHandler):
         try:
             with urllib_request.urlopen(request, timeout=config.timeout_seconds) as response:
                 content_type = response.headers.get("Content-Type", "application/json")
-                return HTTPStatus(response.status), response.read(), content_type
+                retry_after = response.headers.get("Retry-After", "")
+                return HTTPStatus(response.status), response.read(), content_type, retry_after
         except HTTPError as exc:
             content_type = exc.headers.get("Content-Type", "application/json")
-            return HTTPStatus(exc.code), exc.read(), content_type
+            retry_after = exc.headers.get("Retry-After", "")
+            return HTTPStatus(exc.code), exc.read(), content_type, retry_after
         except URLError as exc:
             raise ProviderError(f"LLM upstream network error: {exc.reason}") from exc
         except TimeoutError as exc:
             raise ProviderError("LLM upstream request timed out.") from exc
 
     def _forward_to_upstream_with_curl(
-        self, body: bytes
-    ) -> tuple[HTTPStatus, bytes, str]:
+        self,
+        body: bytes,
+        accept: str,
+    ) -> tuple[HTTPStatus, bytes, str, str]:
         config = self.gateway_state.config
         command = [
             config.curl_path or "curl",
@@ -190,13 +215,15 @@ class LlmGatewayHandler(BaseHTTPRequestHandler):
             "-H",
             "Content-Type: application/json",
             "-H",
-            "Accept: application/json",
+            f"Accept: {accept}",
             "-H",
             f"Authorization: Bearer {config.api_key}",
             "--data-binary",
             "@-",
             "-w",
-            "\nSCENETALK_HTTP_STATUS:%{http_code}",
+            "\nSCENETALK_HTTP_STATUS:%{http_code}"
+            "\nSCENETALK_CONTENT_TYPE:%{content_type}"
+            "\nSCENETALK_RETRY_AFTER:%header{retry-after}",
         ]
         if config.curl_ssl_no_revoke:
             command.insert(1, "--ssl-no-revoke")
@@ -224,7 +251,9 @@ class LlmGatewayHandler(BaseHTTPRequestHandler):
                 f"curl upstream request failed with exit code {completed.returncode}: {detail}"
             )
 
-        response_body, raw_status = stdout.rsplit(marker, 1)
+        response_body, raw_metadata = stdout.rsplit(marker, 1)
+        metadata_lines = raw_metadata.decode("utf-8", errors="replace").splitlines()
+        raw_status = metadata_lines[0] if metadata_lines else ""
         try:
             status_code = int(raw_status.strip()[:3])
         except ValueError as exc:
@@ -236,7 +265,19 @@ class LlmGatewayHandler(BaseHTTPRequestHandler):
                 f"curl upstream request failed with exit code {completed.returncode}: {detail}"
             )
 
-        return HTTPStatus(status_code), response_body, "application/json"
+        metadata = {}
+        for line in metadata_lines[1:]:
+            name, separator, value = line.partition(":")
+            if separator:
+                metadata[name.strip()] = value.strip()
+
+        content_type = metadata.get("SCENETALK_CONTENT_TYPE", "") or (
+            "text/event-stream"
+            if accept == "text/event-stream" and status_code < 400
+            else "application/json"
+        )
+        retry_after = metadata.get("SCENETALK_RETRY_AFTER", "")
+        return HTTPStatus(status_code), response_body, content_type, retry_after
 
     @staticmethod
     def _error(error_code: str, message: str) -> dict[str, Any]:
@@ -259,10 +300,13 @@ class LlmGatewayHandler(BaseHTTPRequestHandler):
         *,
         content_type: str,
         status: HTTPStatus = HTTPStatus.OK,
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
+        for name, value in (extra_headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(data)
 

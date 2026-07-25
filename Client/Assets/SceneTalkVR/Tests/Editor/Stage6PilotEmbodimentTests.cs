@@ -67,6 +67,12 @@ namespace SceneTalkVR.Tests.Editor
                 presenter.BeginFeedback(); Assert.That(presenter.HasVisualEntity, Is.False); Assert.That(presenter.VisualEntityType, Is.EqualTo("none"));
                 Assert.That(go.GetComponent<CorrectionAgentPresenter>().CurrentVisualMode, Is.EqualTo(CorrectionAgentPresenter.VisualMode.AudioOnly));
                 Assert.That(presenter.AudioSource.spatialBlend, Is.Zero);
+                go.AddComponent<CorrectionFeedbackPresenter>();
+                var voice = go.AddComponent<AvatarPresentationVoiceModule>();
+                voice.PrepareStreaming(null);
+                voice.AbortStreaming();
+                Assert.That(presenter.HasVisualEntity, Is.False,
+                    "Turn cleanup must not create a visual entity for voice-only conditions.");
             }
             finally { UnityEngine.Object.DestroyImmediate(go); }
         }
@@ -81,11 +87,52 @@ namespace SceneTalkVR.Tests.Editor
                 Assert.That(agent, Is.Not.Null); Assert.That(agent.CurrentVisualMode, Is.EqualTo(CorrectionAgentPresenter.VisualMode.GeneratedAgent)); Assert.That(presenter.HasVisualEntity, Is.True);
                 Assert.That(presenter.AudioSource.minDistance, Is.EqualTo(3.2f).Within(0.0001f));
                 Assert.That(presenter.AudioSource.maxDistance, Is.EqualTo(8f).Within(0.0001f));
+                agent.HideImmediate();
+                Assert.That(presenter.AudioSource.isActiveAndEnabled, Is.False);
+                var preparedSource = presenter.PrepareFeedbackAudioSource();
+                Assert.That(preparedSource, Is.SameAs(presenter.AudioSource));
+                Assert.That(preparedSource.isActiveAndEnabled, Is.True);
+                Assert.That(presenter.HasVisualEntity, Is.True);
                 presenter.BeginFeedback(); Assert.That(presenter.HasVisualEntity, Is.True);
                 presenter.EndFeedback(); Assert.That(presenter.HasVisualEntity, Is.True);
                 presenter.ResetSession(); Assert.That(presenter.HasVisualEntity, Is.False);
             }
             finally { UnityEngine.Object.DestroyImmediate(go); }
+        }
+
+        [Test] public void FloatingOrb_StreamTurnCleanupPreservesAgentUntilSessionReset()
+        {
+            var go = new GameObject("orb-stream-lifecycle-test");
+            try
+            {
+                var pilot = go.AddComponent<PilotEmbodimentPresenter>();
+                Assert.That(
+                    pilot.Configure(
+                        presentations.Find(PilotEmbodimentCondition.FloatingOrb),
+                        PilotAudioSourcePolicy.SpatialFixedSource,
+                        false,
+                        out var error),
+                    Is.True,
+                    error);
+                go.AddComponent<CorrectionFeedbackPresenter>();
+                var voice = go.AddComponent<AvatarPresentationVoiceModule>();
+
+                Assert.That(pilot.HasVisualEntity, Is.True);
+                voice.PrepareStreaming(null);
+                Assert.That(pilot.HasVisualEntity, Is.True,
+                    "Starting a new turn must not hide the condition-level Agent.");
+                voice.AbortStreaming();
+                Assert.That(pilot.HasVisualEntity, Is.True,
+                    "Cancelling a turn must not hide the condition-level Agent.");
+
+                voice.ClearAvatar();
+                Assert.That(pilot.HasVisualEntity, Is.False,
+                    "Only a session/condition reset should hide the Agent.");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+            }
         }
 
         [Test] public void Humanoid_UsesFormalPresenterPrefab_AndRejectsMissingFormalPrefab()
@@ -106,6 +153,14 @@ namespace SceneTalkVR.Tests.Editor
                 Assert.That(agent.CurrentVisualMode, Is.EqualTo(CorrectionAgentPresenter.VisualMode.HumanoidAvatar));
                 Assert.That(go.transform.Find("Correction Assistant Agent/Assistant Humanoid"), Is.Not.Null);
                 Assert.That(go.transform.Find("Pilot Humanoid Feedback Agent"), Is.Null);
+                go.AddComponent<CorrectionFeedbackPresenter>();
+                var voice = go.AddComponent<AvatarPresentationVoiceModule>();
+                voice.PrepareStreaming(null);
+                Assert.That(presenter.HasVisualEntity, Is.True,
+                    "Starting a turn must preserve the humanoid Agent.");
+                voice.AbortStreaming();
+                Assert.That(presenter.HasVisualEntity, Is.True,
+                    "Cancelling a turn must preserve the humanoid Agent.");
 
                 agentSerialized.FindProperty("humanoidPrefab").objectReferenceValue = null;
                 agentSerialized.ApplyModifiedPropertiesWithoutUndo();

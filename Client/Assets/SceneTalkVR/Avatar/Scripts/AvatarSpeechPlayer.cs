@@ -12,6 +12,7 @@ namespace SceneTalkVR.AvatarSystem
         public VoiceGatewayClient gatewayClient;
         public AudioSource defaultAudioSource;
         public AudioClip demoReplyClip;
+        public AudioClip recoveryPromptClip;
         public bool useVoiceGatewayTts;
         public bool fallbackToDemoVoiceOnGatewayError;
         public string sessionId;
@@ -34,6 +35,7 @@ namespace SceneTalkVR.AvatarSystem
         public Action playbackEnded;
         public Action preparationStarted;
         public Action preparationReady;
+        public bool useRecoveryFallback;
     }
 
     internal sealed class AvatarSpeechPlaybackResult
@@ -166,7 +168,10 @@ namespace SceneTalkVR.AvatarSystem
                 preparedSpeech.fallbackLevel = AppendFallback(
                     preparedSpeech.fallbackLevel,
                     "gateway_error");
-                if (!context.fallbackToDemoVoiceOnGatewayError)
+                var canUseRecoveryClip = playbackRequest.useRecoveryFallback
+                    && targetAudioSource != null
+                    && context.recoveryPromptClip != null;
+                if (!context.fallbackToDemoVoiceOnGatewayError && !canUseRecoveryClip)
                 {
                     preparedSpeech.error = gatewayError;
                     CompletePreparation(preparedSpeech, startedAt, playbackRequest, onComplete);
@@ -178,7 +183,22 @@ namespace SceneTalkVR.AvatarSystem
                     context.logContext);
             }
 
-            if (preparedSpeech.clip == null && targetAudioSource != null && context.demoReplyClip != null)
+            if (preparedSpeech.clip == null
+                && playbackRequest.useRecoveryFallback
+                && targetAudioSource != null
+                && context.recoveryPromptClip != null)
+            {
+                preparedSpeech.clip = context.recoveryPromptClip;
+                preparedSpeech.audioDurationMs = Mathf.RoundToInt(context.recoveryPromptClip.length * 1000f);
+                preparedSpeech.fallbackLevel = AppendFallback(
+                    preparedSpeech.fallbackLevel,
+                    "recovery_clip");
+            }
+
+            if (preparedSpeech.clip == null
+                && !playbackRequest.useRecoveryFallback
+                && targetAudioSource != null
+                && context.demoReplyClip != null)
             {
                 preparedSpeech.clip = context.demoReplyClip;
                 preparedSpeech.audioDurationMs = Mathf.RoundToInt(context.demoReplyClip.length * 1000f);
@@ -189,6 +209,13 @@ namespace SceneTalkVR.AvatarSystem
 
             if (preparedSpeech.clip == null)
             {
+                if (playbackRequest.useRecoveryFallback)
+                {
+                    preparedSpeech.error = "Recovery prompt has no playable live or local audio.";
+                    CompletePreparation(preparedSpeech, startedAt, playbackRequest, onComplete);
+                    yield break;
+                }
+
                 preparedSpeech.useSilentWait = true;
                 preparedSpeech.fallbackLevel = AppendFallback(
                     preparedSpeech.fallbackLevel,
@@ -225,8 +252,28 @@ namespace SceneTalkVR.AvatarSystem
             var playedAudio = false;
             if (preparedSpeech.clip != null && targetAudioSource != null)
             {
+                if (!targetAudioSource.isActiveAndEnabled)
+                {
+                    result.error = "AudioSource is disabled or its GameObject is inactive before playback.";
+                    preparedSpeech.Release();
+                    onComplete?.Invoke(result);
+                    yield break;
+                }
+
                 targetAudioSource.clip = preparedSpeech.clip;
                 targetAudioSource.Play();
+                if (!targetAudioSource.isPlaying)
+                {
+                    result.error = "AudioSource failed to start playback.";
+                    if (targetAudioSource.clip == preparedSpeech.clip)
+                    {
+                        targetAudioSource.clip = null;
+                    }
+                    preparedSpeech.Release();
+                    onComplete?.Invoke(result);
+                    yield break;
+                }
+
                 playbackRequest?.playbackStarted?.Invoke();
                 if (preparedSpeech.ttsResponse != null)
                 {
@@ -239,7 +286,18 @@ namespace SceneTalkVR.AvatarSystem
 
                 yield return new WaitWhile(() => targetAudioSource != null && targetAudioSource.isPlaying);
                 playbackRequest?.playbackEnded?.Invoke();
-                playedAudio = targetAudioSource != null && !targetAudioSource.isPlaying;
+                if (targetAudioSource == null)
+                {
+                    result.error = "AudioSource was destroyed during playback.";
+                }
+                else if (!targetAudioSource.isActiveAndEnabled)
+                {
+                    result.error = "AudioSource was disabled during playback.";
+                }
+                else
+                {
+                    playedAudio = true;
+                }
                 if (targetAudioSource != null && targetAudioSource.clip == preparedSpeech.clip)
                 {
                     targetAudioSource.clip = null;
