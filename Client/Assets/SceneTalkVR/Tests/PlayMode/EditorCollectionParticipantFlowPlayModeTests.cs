@@ -127,7 +127,7 @@ namespace SceneTalkVR.Tests.PlayMode
         {
             Arm(out var assignment); StartFormalFlow(); yield return null; var selected = ConditionForTask(assignment, "hotel_check_in"); Click(Get(selected, "formalConditionCode") + "ModeButton"); yield return null; Evaluate("My name is Harry Potter."); yield return null;
             var mapping = Conditions(assignment).Select(x => Get(x, "formalConditionCode") + "=" + Get(Get(x, "task"), "taskId")).ToArray(); var participant = (string)Get(assignment, "participantId"); var session = (string)Get(assignment, "experimentSessionId");
-            CallVoid(collection, "EndRuntimeSession"); Configure(); var args = new object[] { participant, session, true, null }; Assert.That((bool)collection.GetType().GetMethod("ArmParticipantSession").Invoke(collection, args), Is.True, args[3] as string); OutCall(collection, "BeginParticipantFlow"); yield return null;
+            CallVoid(collection, "EndRuntimeSession"); Configure(); var args = new object[] { participant, session, true, null }; Assert.That((bool)collection.GetType().GetMethod("ArmParticipantSession").Invoke(collection, args), Is.True, args[3] as string); Assert.That((bool)Get(manager, "IsFormalExperiment"), Is.True); Assert.That((bool)Get(manager, "CanUseManualRuntimeCondition"), Is.False); OutCall(collection, "BeginParticipantFlow"); yield return null;
             Assert.That(Conditions(Get(collection, "Assignment")).Select(x => Get(x, "formalConditionCode") + "=" + Get(Get(x, "task"), "taskId")), Is.EqualTo(mapping)); Assert.That(GoalState(Get(lifecycle, "GoalTracker"), "reservation_name"), Is.EqualTo("Confirmed"));
         }
 
@@ -207,6 +207,8 @@ namespace SceneTalkVR.Tests.PlayMode
             Click("ConfirmExitExperimentButton"); yield return null;
             Assert.That(Active("InitialPanel"), Is.True); AssertHomeNavigation();
             Assert.That((bool)Get(collection, "IsArmed"), Is.False);
+            Assert.That((bool)Get(manager, "IsFormalExperiment"), Is.False);
+            Assert.That((bool)Get(manager, "CanUseManualRuntimeCondition"), Is.True);
             var persisted = JsonUtility.FromJson(System.IO.File.ReadAllText(System.IO.Path.Combine(dataFolder, "formal_assignment.json")), assignment.GetType());
             Assert.That(Get(persisted, "status").ToString(), Is.EqualTo("Active"));
             Assert.That(Get(Conditions(persisted).Single(x => (string)Get(Get(x, "task"), "taskId") == "hotel_check_in"), "status").ToString(), Is.EqualTo("TechnicalInvalid"));
