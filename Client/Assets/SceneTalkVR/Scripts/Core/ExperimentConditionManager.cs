@@ -97,6 +97,10 @@ namespace SceneTalkVR.Core
         private SceneTalkExperimentTask restoredTaskOverride;
         private string restoredConditionIdOverride;
         private bool assignmentConditionActive;
+        private bool hasPreFormalRuntimeSettings;
+        private bool preFormalDebugMode;
+        private bool preFormalShowDebugLabel;
+        private ExperimentDeploymentProfileId preFormalDeploymentProfile;
         private readonly ExperimentEventTimeline eventTimeline = new ExperimentEventTimeline();
         private long eventTurnStartedTicks;
 
@@ -188,6 +192,14 @@ namespace SceneTalkVR.Core
             QuestionnaireCatalog questionnaires, ExperimentVoiceProfileCatalog voices,
             ExperimentDeploymentCatalog deployments)
         {
+            if (!formalExperiment)
+            {
+                preFormalDebugMode = debugMode;
+                preFormalShowDebugLabel = showDebugLabel;
+                preFormalDeploymentProfile = deploymentProfile;
+                hasPreFormalRuntimeSettings = true;
+            }
+
             experimentProtocol = protocol;
             taskCatalog = tasks;
             questionnaireCatalog = questionnaires;
@@ -199,6 +211,30 @@ namespace SceneTalkVR.Core
             showDebugLabel = false;
             assignmentConditionActive = false;
             RefreshCondition(false);
+        }
+
+        public void ExitEditorCollectionMode()
+        {
+            if (!formalExperiment) return;
+
+            formalExperiment = false;
+            assignmentConditionActive = false;
+            experimentAssistantEmbodimentOverride = string.Empty;
+
+            if (hasPreFormalRuntimeSettings)
+            {
+                debugMode = preFormalDebugMode;
+                showDebugLabel = preFormalShowDebugLabel;
+                deploymentProfile = preFormalDeploymentProfile;
+                hasPreFormalRuntimeSettings = false;
+            }
+            else
+            {
+                deploymentProfile = ExperimentDeploymentProfileId.DevelopmentEditor;
+            }
+
+            RefreshCondition(false);
+            NotifyConditionChanged();
         }
 
         public bool ValidateFormalProtocol(out string error)

@@ -427,6 +427,7 @@ namespace SceneTalkVR.Core
 
         private void ReturnHomeAndClearContext()
         {
+            conditionManager?.ExitEditorCollectionMode();
             conditionManager?.ClearExperimentAssistantEmbodiment();
             history?.ClearRuntimeContext();
             CurrentExperiment = null;
