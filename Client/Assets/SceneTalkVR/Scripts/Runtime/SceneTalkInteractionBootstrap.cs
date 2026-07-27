@@ -1392,7 +1392,7 @@ namespace SceneTalkVR.Runtime
 
             if (orchestrator.CurrentState == SceneTalkState.Error)
             {
-                orchestrator.RetryListening();
+                orchestrator.RetryAfterError();
                 return;
             }
 

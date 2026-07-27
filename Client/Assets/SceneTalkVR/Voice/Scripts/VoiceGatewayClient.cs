@@ -6,13 +6,40 @@ using UnityEngine.Networking;
 
 namespace SceneTalkVR.Voice
 {
+    public sealed class VoiceGatewayRuntimeOptions
+    {
+        public VoiceGatewayRuntimeOptions(
+            string baseUrl,
+            int requestTimeoutSeconds,
+            string expectedTtsProvider,
+            bool allowMockProvider)
+        {
+            BaseUrl = baseUrl;
+            RequestTimeoutSeconds = Mathf.Max(1, requestTimeoutSeconds);
+            ExpectedTtsProvider = string.IsNullOrWhiteSpace(expectedTtsProvider)
+                ? "tencent"
+                : expectedTtsProvider.Trim().ToLowerInvariant();
+            AllowMockProvider = allowMockProvider;
+        }
+
+        public string BaseUrl { get; }
+        public int RequestTimeoutSeconds { get; }
+        public string ExpectedTtsProvider { get; }
+        public bool AllowMockProvider { get; }
+    }
+
     public sealed class VoiceGatewayClient : MonoBehaviour
     {
         [SerializeField] private VoiceGatewaySettings settings;
         [SerializeField] private string gatewayBaseUrl = "http://127.0.0.1:8787";
-        [SerializeField] private int requestTimeoutSeconds = 10;
+        [SerializeField] private int requestTimeoutSeconds = 30;
+        [SerializeField] private string expectedTtsProvider = "tencent";
+        [SerializeField] private bool allowMockTtsProvider;
         [SerializeField, Min(0)] private int transientRetryCount = 1;
         private string runtimeGatewayBaseUrl;
+        private int runtimeRequestTimeoutSeconds;
+        private string runtimeExpectedTtsProvider;
+        private bool? runtimeAllowMockTtsProvider;
 
         public string GatewayBaseUrl => !string.IsNullOrWhiteSpace(runtimeGatewayBaseUrl)
             ? NormalizeBaseUrl(runtimeGatewayBaseUrl)
@@ -20,13 +47,37 @@ namespace SceneTalkVR.Voice
             ? settings.GatewayBaseUrl
             : NormalizeBaseUrl(gatewayBaseUrl);
 
-        private int RequestTimeoutSeconds => settings != null
-            ? settings.RequestTimeoutSeconds
-            : Mathf.Max(1, requestTimeoutSeconds);
+        public int EffectiveRequestTimeoutSeconds => runtimeRequestTimeoutSeconds > 0
+            ? runtimeRequestTimeoutSeconds
+            : settings != null
+                ? settings.RequestTimeoutSeconds
+                : Mathf.Max(1, requestTimeoutSeconds);
+        public string EffectiveExpectedTtsProvider => !string.IsNullOrWhiteSpace(runtimeExpectedTtsProvider)
+            ? runtimeExpectedTtsProvider
+            : settings != null
+                ? settings.ExpectedTtsProvider
+                : string.IsNullOrWhiteSpace(expectedTtsProvider)
+                    ? "tencent"
+                    : expectedTtsProvider.Trim().ToLowerInvariant();
+        public bool EffectiveAllowMockProvider => runtimeAllowMockTtsProvider
+            ?? (settings != null ? settings.AllowMockProvider : allowMockTtsProvider);
 
         public void ConfigureGatewayBaseUrl(string baseUrl)
         {
             runtimeGatewayBaseUrl = NormalizeBaseUrl(baseUrl);
+        }
+
+        public void ConfigureRuntime(VoiceGatewayRuntimeOptions options)
+        {
+            if (options == null)
+            {
+                return;
+            }
+
+            runtimeGatewayBaseUrl = NormalizeBaseUrl(options.BaseUrl);
+            runtimeRequestTimeoutSeconds = Mathf.Max(1, options.RequestTimeoutSeconds);
+            runtimeExpectedTtsProvider = options.ExpectedTtsProvider;
+            runtimeAllowMockTtsProvider = options.AllowMockProvider;
         }
 
         public IEnumerator RequestStt(
@@ -49,6 +100,13 @@ namespace SceneTalkVR.Voice
                     if (response == null || string.IsNullOrWhiteSpace(response.transcript))
                     {
                         onError?.Invoke("Voice gateway STT response did not include a transcript.");
+                        return;
+                    }
+
+                    if (!EffectiveAllowMockProvider
+                        && IsMockProvider(response.provider, response.fallbackLevel))
+                    {
+                        onError?.Invoke("Voice gateway returned mock STT data in a live voice profile.");
                         return;
                     }
 
@@ -80,6 +138,17 @@ namespace SceneTalkVR.Voice
                     {
                         error = "Voice gateway TTS response did not include an audioUrl.";
                     }
+                    else if (!ValidateTtsProvider(response, out var providerError))
+                    {
+                        error = providerError;
+                    }
+                    else if (!ValidateTtsTextAcknowledgement(
+                        request.text,
+                        response.textCharacters,
+                        out var textError))
+                    {
+                        error = textError;
+                    }
                 },
                 message => error = message);
 
@@ -101,9 +170,13 @@ namespace SceneTalkVR.Voice
                 yield break;
             }
 
-            if (clip == null)
+            if (clip == null || clip.samples <= 0 || clip.length <= 0.05f)
             {
-                onError?.Invoke("Voice gateway TTS audio download completed without an AudioClip.");
+                if (clip != null)
+                {
+                    Destroy(clip);
+                }
+                onError?.Invoke("Voice gateway TTS audio download did not contain a playable AudioClip.");
                 yield break;
             }
 
@@ -124,7 +197,7 @@ namespace SceneTalkVR.Voice
                 using var request = new UnityWebRequest(url, UnityWebRequest.kHttpVerbPOST);
                 request.uploadHandler = new UploadHandlerRaw(bodyRaw);
                 request.downloadHandler = new DownloadHandlerBuffer();
-                request.timeout = RequestTimeoutSeconds;
+                request.timeout = EffectiveRequestTimeoutSeconds;
                 request.SetRequestHeader("Content-Type", "application/json");
                 request.SetRequestHeader("Accept", "application/json");
 
@@ -227,7 +300,7 @@ namespace SceneTalkVR.Voice
             Action<string> onError)
         {
             using var request = UnityWebRequestMultimedia.GetAudioClip(url, AudioType.WAV);
-            request.timeout = RequestTimeoutSeconds;
+            request.timeout = EffectiveRequestTimeoutSeconds;
             yield return request.SendWebRequest();
 
             if (request.result != UnityWebRequest.Result.Success)
@@ -272,6 +345,76 @@ namespace SceneTalkVR.Voice
             }
 
             return value.TrimEnd('/');
+        }
+
+        internal bool ValidateTtsProvider(TtsResponse response, out string error)
+        {
+            error = string.Empty;
+            if (response == null)
+            {
+                error = "Voice gateway TTS response is null.";
+                return false;
+            }
+
+            var provider = (response.provider ?? string.Empty).Trim().ToLowerInvariant();
+            var isMock = IsMockProvider(provider, response.fallbackLevel);
+            if (isMock && !EffectiveAllowMockProvider)
+            {
+                error = "Voice gateway returned mock TTS audio in a live voice profile.";
+                return false;
+            }
+
+            var expectedProvider = EffectiveExpectedTtsProvider;
+            if (!string.IsNullOrWhiteSpace(expectedProvider)
+                && !string.Equals(provider, expectedProvider, StringComparison.OrdinalIgnoreCase))
+            {
+                error = $"Voice gateway returned TTS provider '{provider}' while '{expectedProvider}' was required.";
+                return false;
+            }
+
+            return true;
+        }
+
+        internal static bool ValidateTtsTextAcknowledgement(
+            string requestedText,
+            int acknowledgedCharacters,
+            out string error)
+        {
+            error = string.Empty;
+            if (CountUnicodeScalars((requestedText ?? string.Empty).Trim()) == acknowledgedCharacters)
+            {
+                return true;
+            }
+
+            error = "Voice gateway TTS response did not acknowledge the complete requested text.";
+            return false;
+        }
+
+        private static int CountUnicodeScalars(string value)
+        {
+            var count = 0;
+            for (var index = 0; index < value.Length; index++)
+            {
+                if (char.IsHighSurrogate(value[index])
+                    && index + 1 < value.Length
+                    && char.IsLowSurrogate(value[index + 1]))
+                {
+                    index++;
+                }
+
+                count++;
+            }
+
+            return count;
+        }
+
+        private static bool IsMockProvider(string provider, string fallbackLevel)
+        {
+            var normalizedProvider = (provider ?? string.Empty).Trim().ToLowerInvariant();
+            var normalizedFallback = (fallbackLevel ?? string.Empty).Trim().ToLowerInvariant();
+            return string.Equals(normalizedProvider, "mock", StringComparison.Ordinal)
+                || normalizedFallback.StartsWith("mock_", StringComparison.Ordinal)
+                || normalizedFallback.StartsWith("mock_after_", StringComparison.Ordinal);
         }
     }
 

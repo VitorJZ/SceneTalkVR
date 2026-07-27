@@ -20,7 +20,6 @@ namespace SceneTalkVR.AvatarSystem
         public string defaultVoiceId;
         public string currentAvatarGenderPresentation;
         public int ttsSampleRate;
-        public float fallbackSpeakingSeconds;
     }
 
     internal sealed class AvatarSpeechPlaybackRequest
@@ -56,7 +55,6 @@ namespace SceneTalkVR.AvatarSystem
         public string error;
         public int audioDurationMs;
         public int preparationDurationMs;
-        public bool useSilentWait;
         public bool ownsClip;
 
         public void Release()
@@ -209,17 +207,11 @@ namespace SceneTalkVR.AvatarSystem
 
             if (preparedSpeech.clip == null)
             {
-                if (playbackRequest.useRecoveryFallback)
-                {
-                    preparedSpeech.error = "Recovery prompt has no playable live or local audio.";
-                    CompletePreparation(preparedSpeech, startedAt, playbackRequest, onComplete);
-                    yield break;
-                }
-
-                preparedSpeech.useSilentWait = true;
-                preparedSpeech.fallbackLevel = AppendFallback(
-                    preparedSpeech.fallbackLevel,
-                    "silent_wait");
+                preparedSpeech.error = playbackRequest.useRecoveryFallback
+                    ? "Recovery prompt has no playable live or local audio."
+                    : !string.IsNullOrWhiteSpace(gatewayError)
+                        ? gatewayError
+                        : "Avatar reply has no playable live or local audio.";
             }
 
             CompletePreparation(preparedSpeech, startedAt, playbackRequest, onComplete);
@@ -275,6 +267,9 @@ namespace SceneTalkVR.AvatarSystem
                 }
 
                 playbackRequest?.playbackStarted?.Invoke();
+                var playbackStartedAtDspTime = AudioSettings.dspTime;
+                var expectedPlaybackSeconds = preparedSpeech.clip.length
+                    / Mathf.Max(0.01f, Mathf.Abs(targetAudioSource.pitch));
                 if (preparedSpeech.ttsResponse != null)
                 {
                     Debug.Log(
@@ -284,8 +279,11 @@ namespace SceneTalkVR.AvatarSystem
                         context != null ? context.logContext : null);
                 }
 
-                yield return new WaitWhile(() => targetAudioSource != null && targetAudioSource.isPlaying);
-                playbackRequest?.playbackEnded?.Invoke();
+                yield return new WaitWhile(() => targetAudioSource != null
+                    && targetAudioSource.isPlaying
+                    && targetAudioSource.clip == preparedSpeech.clip);
+                var playbackElapsedSeconds = AudioSettings.dspTime - playbackStartedAtDspTime;
+                var completionToleranceSeconds = 1f / Mathf.Max(1, preparedSpeech.clip.frequency);
                 if (targetAudioSource == null)
                 {
                     result.error = "AudioSource was destroyed during playback.";
@@ -294,22 +292,23 @@ namespace SceneTalkVR.AvatarSystem
                 {
                     result.error = "AudioSource was disabled during playback.";
                 }
+                else if (targetAudioSource.clip != preparedSpeech.clip)
+                {
+                    result.error = "AudioSource clip changed before Avatar speech playback completed.";
+                }
+                else if (playbackElapsedSeconds + completionToleranceSeconds < expectedPlaybackSeconds)
+                {
+                    result.error = "Avatar speech playback stopped before the AudioClip completed.";
+                }
                 else
                 {
                     playedAudio = true;
+                    playbackRequest?.playbackEnded?.Invoke();
                 }
                 if (targetAudioSource != null && targetAudioSource.clip == preparedSpeech.clip)
                 {
                     targetAudioSource.clip = null;
                 }
-            }
-            else if (preparedSpeech.useSilentWait)
-            {
-                playbackRequest?.playbackStarted?.Invoke();
-                yield return new WaitForSeconds(Mathf.Max(
-                    0.1f,
-                    context != null ? context.fallbackSpeakingSeconds : 0.1f));
-                playbackRequest?.playbackEnded?.Invoke();
             }
             else if (preparedSpeech.clip != null)
             {
@@ -341,7 +340,7 @@ namespace SceneTalkVR.AvatarSystem
             {
                 sessionId = context.sessionId,
                 turnId = CreateTurnId(),
-                text = playbackRequest.text,
+                text = (playbackRequest.text ?? string.Empty).Trim(),
                 language = string.IsNullOrWhiteSpace(context.language) ? "en-US" : context.language,
                 voiceProfile = new VoiceProfile
                 {

@@ -61,7 +61,7 @@ namespace SceneTalkVR.Core
     {
         void PrepareStreaming(SpringScenePayload basePayload);
         void EnqueueSentence(string sentence);
-        void SignalStreamingComplete();
+        void CompleteStreaming(string expectedDialogueText);
         void OpenDialogueGate();
         void AbortStreaming();
     }

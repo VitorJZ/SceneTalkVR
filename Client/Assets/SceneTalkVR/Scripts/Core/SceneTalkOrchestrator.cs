@@ -19,6 +19,12 @@ namespace SceneTalkVR.Runtime
             Dialogue
         }
 
+        private enum RetryKind
+        {
+            None,
+            AvatarReplyPlayback
+        }
+
         [Header("Module adapters")]
         [SerializeField] private MonoBehaviour speechInputModule;
         [SerializeField] private MonoBehaviour brainModule;
@@ -194,6 +200,9 @@ namespace SceneTalkVR.Runtime
         private bool experimentExitConfirmationActive;
         private SceneTalkState? deferredStateDuringExperimentExit;
         private float speechCaptureStartedAt;
+        private RetryKind pendingRetryKind;
+        private SpringScenePayload pendingAvatarReplyPayload;
+        private bool pendingAvatarReplyIsOpening;
 
         private ISceneTalkSpeechInput SpeechInput => speechInputModule as ISceneTalkSpeechInput;
         private ISceneTalkManualSpeechInput ManualSpeechInput => speechInputModule as ISceneTalkManualSpeechInput;
@@ -587,6 +596,7 @@ namespace SceneTalkVR.Runtime
 
         public void RetryListening()
         {
+            ClearPendingRetry();
             if (IsDialogueActive)
             {
                 BeginDialogueSpeechCapture();
@@ -805,7 +815,7 @@ namespace SceneTalkVR.Runtime
                 () => { },
                 message => error = message);
 
-            if (HandleErrorOrFinish(error, "Avatar voice playback failed."))
+            if (HandleAvatarVoiceErrorOrFinish(error, initialPayload, true))
             {
                 currentTurn = null;
                 yield break;
@@ -849,6 +859,12 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
+            if (CurrentState == SceneTalkState.Error)
+            {
+                RetryAfterError();
+                return;
+            }
+
             BeginDialogueSpeechCapture();
         }
 
@@ -856,6 +872,14 @@ namespace SceneTalkVR.Runtime
         {
             if (IsSpeechRecording || currentTurn != null)
             {
+                return false;
+            }
+
+            if (CurrentState == SceneTalkState.Error
+                && pendingRetryKind == RetryKind.AvatarReplyPlayback
+                && pendingAvatarReplyPayload != null)
+            {
+                RetryAfterError();
                 return false;
             }
 
@@ -1041,10 +1065,19 @@ namespace SceneTalkVR.Runtime
 
         public void RetryAfterError()
         {
-            if (CurrentState == SceneTalkState.Error)
+            if (CurrentState != SceneTalkState.Error || currentTurn != null)
             {
-                RetryListening();
+                return;
             }
+
+            if (pendingRetryKind == RetryKind.AvatarReplyPlayback
+                && pendingAvatarReplyPayload != null)
+            {
+                currentTurn = StartCoroutine(RetryAvatarReplyPlayback());
+                return;
+            }
+
+            RetryListening();
         }
 
         private void EnterRequestReadyState(bool clearTranscript)
@@ -1297,7 +1330,7 @@ namespace SceneTalkVR.Runtime
 
             RecordTurnMetrics(payload);
 
-            if (HandleErrorOrFinish(error, "Avatar voice playback failed."))
+            if (HandleAvatarVoiceErrorOrFinish(error, payload, true))
             {
                 currentTurn = null;
                 yield break;
@@ -1393,7 +1426,7 @@ namespace SceneTalkVR.Runtime
 
             RecordTurnMetrics(payload);
 
-            if (HandleErrorOrFinish(error, "Avatar voice playback failed."))
+            if (HandleAvatarVoiceErrorOrFinish(error, payload, false))
             {
                 currentTurn = null;
                 yield break;
@@ -1793,6 +1826,91 @@ namespace SceneTalkVR.Runtime
             return false;
         }
 
+        private bool HandleAvatarVoiceErrorOrFinish(
+            string error,
+            SpringScenePayload payload,
+            bool isOpeningReply)
+        {
+            if (finishRequested)
+            {
+                ResolveExperimentConditionManager(false)?.RecordUserAction("exit");
+                SetState(SceneTalkState.Finished);
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(error))
+            {
+                return false;
+            }
+
+            var manager = ResolveExperimentConditionManager(false);
+            manager?.RecordModuleFallback("Avatar voice playback failed.");
+            manager?.MarkTurnTechnicalInvalid("DialoguePlayback", error);
+            pendingRetryKind = RetryKind.AvatarReplyPlayback;
+            pendingAvatarReplyPayload = payload;
+            pendingAvatarReplyIsOpening = isOpeningReply;
+            (AvatarVoice as ISceneTalkStreamingAvatarVoice)?.AbortStreaming();
+            Debug.LogError($"[SceneTalkVR] Avatar voice playback failed: {error}", this);
+            EnterError("Avatar voice playback failed. Please retry.");
+            return true;
+        }
+
+        private IEnumerator RetryAvatarReplyPlayback()
+        {
+            var payload = BuildDialogueOnlyRetryPayload(pendingAvatarReplyPayload);
+            var isOpeningReply = pendingAvatarReplyIsOpening;
+            LastError = string.Empty;
+            finishRequested = false;
+            (AvatarVoice as ISceneTalkStreamingAvatarVoice)?.AbortStreaming();
+            AvatarReplyContext?.SetReplyContext(isOpeningReply);
+            SetState(SceneTalkState.DialogueSpeaking);
+
+            string error = null;
+            yield return AvatarVoice.PresentReply(
+                payload,
+                () => { },
+                message => error = message);
+
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                currentTurn = null;
+                Debug.LogError($"[SceneTalkVR] Avatar reply retry failed: {error}", this);
+                EnterError("Avatar voice playback failed. Please retry.");
+                yield break;
+            }
+
+            currentTurn = null;
+            ClearPendingRetry();
+            EnterTurnReviewState();
+        }
+
+        private static SpringScenePayload BuildDialogueOnlyRetryPayload(SpringScenePayload source)
+        {
+            if (source == null)
+            {
+                return null;
+            }
+
+            return new SpringScenePayload
+            {
+                taskType = source.taskType,
+                environmentType = source.environmentType,
+                dialogueReply = source.dialogueReply,
+                dialogueContinuation = source.dialogueContinuation,
+                avatarRole = source.avatarRole,
+                scene = source.scene,
+                dialoguePacing = source.dialoguePacing,
+                correctionFeedback = new CorrectionFeedbackData { hasFeedback = false }
+            };
+        }
+
+        private void ClearPendingRetry()
+        {
+            pendingRetryKind = RetryKind.None;
+            pendingAvatarReplyPayload = null;
+            pendingAvatarReplyIsOpening = false;
+        }
+
         private static bool HasGenerationFailure(string error, SpringScenePayload payload)
         {
             return !string.IsNullOrWhiteSpace(error)
@@ -2000,6 +2118,7 @@ namespace SceneTalkVR.Runtime
 
         private void EnterTurnReviewState()
         {
+            ClearPendingRetry();
             var manager = ResolveExperimentConditionManager(false);
             var completedTurnId = manager?.CurrentTurnId;
             manager?.CompleteActiveTurn();
@@ -2301,7 +2420,16 @@ namespace SceneTalkVR.Runtime
                 }
                 finally
                 {
-                    streamingVoice.SignalStreamingComplete();
+                    if (string.IsNullOrWhiteSpace(brainError)
+                        && finalPayload != null
+                        && !string.IsNullOrWhiteSpace(finalPayload.dialogueReply))
+                    {
+                        streamingVoice.CompleteStreaming(finalPayload.dialogueReply);
+                    }
+                    else
+                    {
+                        streamingVoice.AbortStreaming();
+                    }
                 }
 
                 if (!string.IsNullOrEmpty(brainError))

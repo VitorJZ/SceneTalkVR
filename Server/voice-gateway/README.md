@@ -16,7 +16,7 @@ This implementation supports:
 - `mock`: deterministic transcript + generated WAV tone.
 - `tencent`: Tencent Cloud ASR `SentenceRecognition` + TTS `TextToVoice`.
 
-When `VOICE_GATEWAY_PROVIDER=tencent`, `TENCENT_FALLBACK_TO_MOCK=true` keeps the local demo usable if credentials or cloud calls fail.
+Live Tencent deployments must keep `TENCENT_FALLBACK_TO_MOCK=false` so cloud failures are returned to the client. Set the provider to `mock` only for an explicit offline/mock profile.
 
 ## Run
 
@@ -78,7 +78,7 @@ TENCENT_SECRET_KEY="..."
 TENCENT_REGION=ap-guangzhou
 TENCENT_ASR_ENGINE=16k_en
 TENCENT_TTS_VOICE_TYPE=1051
-TENCENT_FALLBACK_TO_MOCK=true
+TENCENT_FALLBACK_TO_MOCK=false
 TENCENT_TRANSPORT=auto
 TENCENT_CURL_PATH=curl.exe
 TENCENT_CURL_SSL_NO_REVOKE=true

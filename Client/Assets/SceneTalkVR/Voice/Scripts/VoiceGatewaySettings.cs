@@ -6,12 +6,18 @@ namespace SceneTalkVR.Voice
     public sealed class VoiceGatewaySettings : ScriptableObject
     {
         [SerializeField] private string gatewayBaseUrl = "http://127.0.0.1:8787";
-        [SerializeField] private int requestTimeoutSeconds = 10;
+        [SerializeField] private int requestTimeoutSeconds = 30;
+        [SerializeField] private string expectedTtsProvider = "tencent";
+        [SerializeField] private bool allowMockTtsProvider;
 
         public string GatewayBaseUrl => string.IsNullOrWhiteSpace(gatewayBaseUrl)
             ? "http://127.0.0.1:8787"
             : gatewayBaseUrl.TrimEnd('/');
 
         public int RequestTimeoutSeconds => Mathf.Max(1, requestTimeoutSeconds);
+        public string ExpectedTtsProvider => string.IsNullOrWhiteSpace(expectedTtsProvider)
+            ? "tencent"
+            : expectedTtsProvider.Trim().ToLowerInvariant();
+        public bool AllowMockProvider => allowMockTtsProvider;
     }
 }

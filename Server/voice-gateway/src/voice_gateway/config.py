@@ -20,7 +20,7 @@ class GatewayConfig:
     tencent_tts_endpoint: str = "tts.tencentcloudapi.com"
     tencent_asr_engine: str = "16k_en"
     tencent_tts_voice_type: int = 1051
-    tencent_fallback_to_mock: bool = True
+    tencent_fallback_to_mock: bool = False
     tencent_transport: str = "auto"
     tencent_curl_path: str = "curl.exe"
     tencent_curl_ssl_no_revoke: bool = True

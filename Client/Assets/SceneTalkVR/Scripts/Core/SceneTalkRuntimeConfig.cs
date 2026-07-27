@@ -22,6 +22,9 @@ namespace SceneTalkVR.Core
 
         [Header("LAN Services")]
         [SerializeField] private string voiceGatewayBaseUrl = string.Empty;
+        [SerializeField, Min(1)] private int voiceGatewayRequestTimeoutSeconds = 30;
+        [SerializeField] private string expectedTtsProvider = "tencent";
+        [SerializeField] private bool allowMockTtsProvider;
         [SerializeField] private bool useHolodeckBackend;
         [SerializeField] private string holodeckBackendUrl = string.Empty;
         [SerializeField] private int holodeckTimeoutSeconds = 300;
@@ -55,6 +58,11 @@ namespace SceneTalkVR.Core
         public bool UseDeveloperTextConsole => useDeveloperTextConsole;
         public string VoiceGatewayBaseUrl => NormalizeUrl(voiceGatewayBaseUrl);
         public bool HasVoiceGatewayBaseUrl => !string.IsNullOrWhiteSpace(VoiceGatewayBaseUrl);
+        public int VoiceGatewayRequestTimeoutSeconds => Mathf.Max(1, voiceGatewayRequestTimeoutSeconds);
+        public string ExpectedTtsProvider => string.IsNullOrWhiteSpace(expectedTtsProvider)
+            ? "tencent"
+            : expectedTtsProvider.Trim().ToLowerInvariant();
+        public bool AllowMockTtsProvider => allowMockTtsProvider;
         public bool UseHolodeckBackend => !formalModeRuntimeLock && useHolodeckBackend;
         public string HolodeckBackendUrl => NormalizeUrl(holodeckBackendUrl);
         public bool HasHolodeckBackendUrl => !string.IsNullOrWhiteSpace(HolodeckBackendUrl);
@@ -110,6 +118,9 @@ namespace SceneTalkVR.Core
             useVoiceGatewaySpeech = true;
             useVoiceGatewayTts = true;
             useFixedExperimentMode = true;
+            voiceGatewayRequestTimeoutSeconds = 30;
+            expectedTtsProvider = "tencent";
+            allowMockTtsProvider = false;
             useHolodeckBackend = false;
             onlyUsePanorama = true;
             forceFallbackPanorama = true;

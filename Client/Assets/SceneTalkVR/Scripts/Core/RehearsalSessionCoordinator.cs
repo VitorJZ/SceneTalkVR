@@ -138,6 +138,8 @@ namespace SceneTalkVR.Core
             currentPosition = -1; rankingSubmitted = false; interviewSaved = false;
             finalRankingVisible = false; experimentCompleted = false;
             PersistAssignments(); WriteOperator("CreateSession");
+            FindFirstObjectByType<SceneTalkRuntimeConfigApplier>(FindObjectsInactive.Include)
+                ?.RefreshVoiceGatewayConfiguration();
             Debug.Log($"[ExperimentRuntime] Rehearsal armed. flow={flow}; qualification=Rehearsal; "
                 + $"dataOrigin=rehearsal; collectionEligible=false; target={RuntimeContext.deploymentTarget}; "
                 + $"profile={RuntimeContext.deploymentProfile}; sessionId={SessionId}", this);
@@ -171,6 +173,8 @@ namespace SceneTalkVR.Core
             finalRankingVisible = flow == ExperimentFlowMode.Formal
                 && FormalAssignment?.status == AssignmentStatus.Completed;
             experimentCompleted = false;
+            FindFirstObjectByType<SceneTalkRuntimeConfigApplier>(FindObjectsInactive.Include)
+                ?.RefreshVoiceGatewayConfiguration();
             WriteOperator("LoadSession"); RefreshUi(); return true;
         }
 
@@ -503,7 +507,10 @@ namespace SceneTalkVR.Core
                 orchestrator?.ReturnToInitialMenu(); formalLifecycle?.ClearAssignmentForRuntimeMode(); pilotWorkflow?.ClearAssignmentForRuntimeMode();
                 questionnaire?.Service.Reset(); conditionManager?.ResetConditionSessionBoundary(); currentPosition = -1;
                 rankingSubmitted = interviewSaved = finalRankingVisible = experimentCompleted = false;
-                RuntimeContext = null; RefreshUi();
+                RuntimeContext = null;
+                FindFirstObjectByType<SceneTalkRuntimeConfigApplier>(FindObjectsInactive.Include)
+                    ?.RefreshVoiceGatewayConfiguration();
+                RefreshUi();
             }
             finally { resetInProgress = false; }
         }
@@ -675,6 +682,8 @@ namespace SceneTalkVR.Core
             formalLifecycle?.ClearAssignmentForRuntimeMode();
             pilotWorkflow?.ClearAssignmentForRuntimeMode();
             RuntimeContext = null;
+            FindFirstObjectByType<SceneTalkRuntimeConfigApplier>(FindObjectsInactive.Include)
+                ?.RefreshVoiceGatewayConfiguration();
             RefreshUi();
         }
 
@@ -708,7 +717,14 @@ namespace SceneTalkVR.Core
             error = string.Empty; return true;
         }
 
-        private bool FailStart(string error) { RuntimeContext = null; RefreshUi(); return false; }
+        private bool FailStart(string error)
+        {
+            RuntimeContext = null;
+            FindFirstObjectByType<SceneTalkRuntimeConfigApplier>(FindObjectsInactive.Include)
+                ?.RefreshVoiceGatewayConfiguration();
+            RefreshUi();
+            return false;
+        }
         private static bool Fail(out string error, string value) { error = value; return false; }
         private static string Safe(string value) => new string((value ?? string.Empty).Select(x => char.IsLetterOrDigit(x) || x == '-' || x == '_' ? x : '_').ToArray());
         private void RefreshUi() => FindFirstObjectByType<SceneTalkFlowUiController>(FindObjectsInactive.Include)?.RefreshExternalState();

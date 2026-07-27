@@ -18,6 +18,9 @@ MonoBehaviour:
   useFixedExperimentMode: 1
   useDeveloperTextConsole: 0
   voiceGatewayBaseUrl: http://192.168.137.1:8787
+  voiceGatewayRequestTimeoutSeconds: 30
+  expectedTtsProvider: tencent
+  allowMockTtsProvider: 0
   useHolodeckBackend: 0
   holodeckBackendUrl: 
   holodeckTimeoutSeconds: 300

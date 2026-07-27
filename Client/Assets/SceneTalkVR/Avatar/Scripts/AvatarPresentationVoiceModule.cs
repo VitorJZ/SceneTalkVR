@@ -54,7 +54,6 @@ namespace SceneTalkVR.AvatarSystem
         [SerializeField] private AudioClip demoReplyClip;
         [SerializeField, Tooltip("Local last-resort clip for the LLM recovery prompt.")]
         private AudioClip recoveryPromptClip;
-        [SerializeField] private float fallbackSpeakingSeconds = 2f;
 
         [Header("Voice Gateway")]
         [SerializeField] private bool useVoiceGatewayTts;
@@ -127,8 +126,8 @@ namespace SceneTalkVR.AvatarSystem
             streamingPlaybackCoroutine = null;
             earlyCorrectionCoroutine = null;
             streamingAvatarLoadCoroutine = null;
-            activeStreamingSpeech?.Release();
-            activeStreamingSpeech = null;
+            activeStreamingSegment?.PreparedSpeech?.Release();
+            activeStreamingSegment = null;
             ResetStreamingPlaybackState();
 
             if (audioSource != null)
@@ -169,17 +168,6 @@ namespace SceneTalkVR.AvatarSystem
         public void ResetSession()
         {
             ClearAvatar();
-            streamingSentenceQueue.Clear();
-            while (streamingPreparedQueue.Count > 0) streamingPreparedQueue.Dequeue()?.Release();
-            isStreamingFinished = true;
-            isStreamingPlaying = false;
-            isPreparingStream = false;
-            isDialogueGateOpen = false;
-            wasAnySentenceEnqueued = false;
-            correctionPlanResolvedEarly = false;
-            earlyCorrectionPlaying = false;
-            earlyCorrectionError = string.Empty;
-            feedbackFirstGate.Reset();
             var source = BuildSpeechPlaybackContext().defaultAudioSource;
             if (source != null)
             {
@@ -314,23 +302,31 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             // 2. Play Dialogue continuation (Streaming or Non-streaming)
-            bool wasStreamingUsed = wasAnySentenceEnqueued;
+            bool wasStreamingUsed = streamingTurn.State != StreamingSpeechTurnState.Idle
+                && streamingTurn.State != StreamingSpeechTurnState.Aborted;
             if (wasStreamingUsed)
             {
                 // Open Dialogue Gate so that streaming sentences can start playing
                 OpenDialogueGate();
 
-                // Wait for the streaming/caching dialogue to finish playing completely
-                while (isStreamingPlaying || streamingPreparedQueue.Count > 0 || streamingSentenceQueue.Count > 0)
+                EnsureStreamingWorkersRunning();
+
+                // The turn state machine is the only completion authority. Queue
+                // emptiness is not sufficient while a sentence is still synthesizing.
+                while (!streamingTurn.IsTerminal)
                 {
-                    yield return new WaitForSeconds(0.1f);
+                    yield return new WaitForSeconds(0.05f);
                 }
-                if (!string.IsNullOrWhiteSpace(streamingError))
+
+                if (streamingTurn.State != StreamingSpeechTurnState.Completed)
                 {
-                    feedbackFirstGate.MarkTechnicalInvalid(streamingError);
-                    FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)
-                        ?.MarkTurnTechnicalInvalid("DialoguePlayback", streamingError);
-                    onError?.Invoke(streamingError);
+                    var dialogueFailure = string.IsNullOrWhiteSpace(streamingTurn.Error)
+                        ? "Streaming Avatar speech did not complete."
+                        : streamingTurn.Error;
+                    feedbackFirstGate.MarkTechnicalInvalid(dialogueFailure);
+                    SetThinking(false);
+                    EndSpeechAnimation();
+                    onError?.Invoke(dialogueFailure);
                     yield break;
                 }
             }
@@ -374,12 +370,17 @@ namespace SceneTalkVR.AvatarSystem
                     && replyResult != null
                     && !string.IsNullOrWhiteSpace(replyResult.fallbackLevel)
                     && !string.Equals(replyResult.fallbackLevel, "none", StringComparison.OrdinalIgnoreCase);
-                if (replyResult != null && (!string.IsNullOrWhiteSpace(replyResult.error) || formalDialogueFallback))
+                if (replyResult == null
+                    || !replyResult.playbackCompleted
+                    || !string.IsNullOrWhiteSpace(replyResult.error)
+                    || formalDialogueFallback)
                 {
-                    var dialogueFailure = !string.IsNullOrWhiteSpace(replyResult.error) ? replyResult.error : replyResult.fallbackLevel;
+                    var dialogueFailure = !string.IsNullOrWhiteSpace(replyResult?.error)
+                        ? replyResult.error
+                        : formalDialogueFallback
+                            ? replyResult.fallbackLevel
+                            : "Avatar reply playback did not complete.";
                     feedbackFirstGate.MarkTechnicalInvalid(dialogueFailure);
-                    FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)
-                        ?.MarkTurnTechnicalInvalid("DialoguePlayback", dialogueFailure);
                     onError?.Invoke(dialogueFailure);
                     yield break;
                 }
@@ -548,21 +549,23 @@ namespace SceneTalkVR.AvatarSystem
 
         private AvatarSpeechPlaybackContext BuildSpeechPlaybackContext()
         {
+            var gatewayClient = useVoiceGatewayTts ? ResolveVoiceGatewayClient() : voiceGatewayClient;
+            var allowLocalDemoFallback = fallbackToDemoVoiceOnGatewayError
+                && (!useVoiceGatewayTts || gatewayClient?.EffectiveAllowMockProvider == true);
             return new AvatarSpeechPlaybackContext
             {
                 logContext = this,
-                gatewayClient = useVoiceGatewayTts ? ResolveVoiceGatewayClient() : voiceGatewayClient,
+                gatewayClient = gatewayClient,
                 defaultAudioSource = audioSource,
                 demoReplyClip = demoReplyClip,
                 recoveryPromptClip = recoveryPromptClip,
                 useVoiceGatewayTts = useVoiceGatewayTts,
-                fallbackToDemoVoiceOnGatewayError = fallbackToDemoVoiceOnGatewayError,
+                fallbackToDemoVoiceOnGatewayError = allowLocalDemoFallback,
                 sessionId = sessionId,
                 language = language,
                 defaultVoiceId = defaultVoiceId,
                 currentAvatarGenderPresentation = currentAvatarGenderPresentation,
-                ttsSampleRate = ttsSampleRate,
-                fallbackSpeakingSeconds = fallbackSpeakingSeconds
+                ttsSampleRate = ttsSampleRate
             };
         }
 
@@ -863,16 +866,14 @@ namespace SceneTalkVR.AvatarSystem
 
         #region Streaming Playback Implementation
 
-        private System.Collections.Generic.Queue<string> streamingSentenceQueue = new System.Collections.Generic.Queue<string>();
-        private System.Collections.Generic.Queue<PreparedAvatarSpeech> streamingPreparedQueue = new System.Collections.Generic.Queue<PreparedAvatarSpeech>();
-        private bool isStreamingFinished = false;
-        private bool isStreamingPlaying = false;
-        private string streamingError = null;
+        private readonly System.Collections.Generic.Queue<StreamingSpeechSegment> streamingSentenceQueue =
+            new System.Collections.Generic.Queue<StreamingSpeechSegment>();
+        private readonly System.Collections.Generic.Queue<StreamingSpeechSegment> streamingPreparedQueue =
+            new System.Collections.Generic.Queue<StreamingSpeechSegment>();
+        private readonly StreamingAvatarSpeechTurn streamingTurn = new StreamingAvatarSpeechTurn();
         private SpringScenePayload streamingBasePayload;
         private bool isDialogueGateOpen = false;
         private readonly FeedbackFirstPlaybackGate feedbackFirstGate = new FeedbackFirstPlaybackGate();
-        private bool isPreparingStream = false;
-        private bool wasAnySentenceEnqueued = false;
         private bool dialogueTtsStartedLogged;
         private bool dialogueTtsReadyLogged;
         private bool correctionPlanResolvedEarly;
@@ -882,7 +883,7 @@ namespace SceneTalkVR.AvatarSystem
         private Coroutine streamingPlaybackCoroutine;
         private Coroutine earlyCorrectionCoroutine;
         private Coroutine streamingAvatarLoadCoroutine;
-        private PreparedAvatarSpeech activeStreamingSpeech;
+        private StreamingSpeechSegment activeStreamingSegment;
 
         public float LastTtsReadyLatencyMs { get; private set; } = -1f;
         public float LastCorrectionPlayStart { get; private set; } = -1f;
@@ -893,6 +894,7 @@ namespace SceneTalkVR.AvatarSystem
         public void PrepareStreaming(SpringScenePayload basePayload)
         {
             AbortStreamingInternal(false);
+            streamingTurn.Begin();
             streamingBasePayload = basePayload;
 
             if (basePayload != null)
@@ -926,6 +928,7 @@ namespace SceneTalkVR.AvatarSystem
 
         private void AbortStreamingInternal(bool resetAnimation)
         {
+            streamingTurn.Abort();
             StopTrackedCoroutine(ref streamingPreparationCoroutine);
             StopTrackedCoroutine(ref streamingPlaybackCoroutine);
             StopTrackedCoroutine(ref earlyCorrectionCoroutine);
@@ -938,9 +941,9 @@ namespace SceneTalkVR.AvatarSystem
             }
             ResolveCorrectionFeedbackPresenter(false)?.StopPlaybackPreservingPresentation();
 
-            activeStreamingSpeech?.Release();
-            activeStreamingSpeech = null;
-            ResetStreamingPlaybackState();
+            activeStreamingSegment?.PreparedSpeech?.Release();
+            activeStreamingSegment = null;
+            ResetStreamingPlaybackState(false);
             if (resetAnimation)
             {
                 SetThinking(false);
@@ -959,22 +962,21 @@ namespace SceneTalkVR.AvatarSystem
             coroutine = null;
         }
 
-        private void ResetStreamingPlaybackState()
+        private void ResetStreamingPlaybackState(bool resetTurn = true)
         {
             streamingSentenceQueue.Clear();
             while (streamingPreparedQueue.Count > 0)
             {
-                streamingPreparedQueue.Dequeue()?.Release();
+                streamingPreparedQueue.Dequeue()?.PreparedSpeech?.Release();
             }
 
-            isStreamingFinished = false;
-            isStreamingPlaying = false;
-            streamingError = null;
+            if (resetTurn)
+            {
+                streamingTurn.Reset();
+            }
             streamingBasePayload = null;
             isDialogueGateOpen = false;
             feedbackFirstGate.Reset();
-            isPreparingStream = false;
-            wasAnySentenceEnqueued = false;
             isAvatarLoadingFinished = false;
             dialogueTtsStartedLogged = false;
             dialogueTtsReadyLogged = false;
@@ -985,7 +987,7 @@ namespace SceneTalkVR.AvatarSystem
             streamingPlaybackCoroutine = null;
             earlyCorrectionCoroutine = null;
             streamingAvatarLoadCoroutine = null;
-            activeStreamingSpeech = null;
+            activeStreamingSegment = null;
 
             LastTtsReadyLatencyMs = -1f;
             LastCorrectionPlayStart = -1f;
@@ -996,25 +998,77 @@ namespace SceneTalkVR.AvatarSystem
 
         public void EnqueueSentence(string sentence)
         {
-            if (string.IsNullOrEmpty(sentence)) return;
+            var segment = streamingTurn.Enqueue(sentence);
+            if (segment == null) return;
 
-            wasAnySentenceEnqueued = true;
-            streamingSentenceQueue.Enqueue(sentence);
+            streamingSentenceQueue.Enqueue(segment);
+            EnsureStreamingWorkersRunning();
+        }
 
-            if (!isPreparingStream)
+        public void CompleteStreaming(string expectedDialogueText)
+        {
+            if (streamingTurn.State != StreamingSpeechTurnState.Receiving)
+            {
+                return;
+            }
+
+            var normalizedExpected = StreamingAvatarSpeechTurn.NormalizeWhitespace(expectedDialogueText);
+            if (string.IsNullOrWhiteSpace(normalizedExpected))
+            {
+                FailStreamingTurn("LLM streaming completed without dialogue text.");
+                return;
+            }
+
+            var reconciliation = streamingTurn.Reconcile(normalizedExpected, out var missingSuffix);
+            if (reconciliation == StreamingTextReconciliation.MissingSuffix)
+            {
+                EnqueueSentence(missingSuffix);
+            }
+            else if (reconciliation == StreamingTextReconciliation.Diverged)
+            {
+                if (streamingTurn.HasPlaybackStarted)
+                {
+                    FailStreamingTurn(
+                        "Streamed dialogue text differs from the final LLM reply after playback started.");
+                    return;
+                }
+
+                RebuildUnplayedStreamingReply(normalizedExpected);
+            }
+
+            streamingTurn.BeginDraining(normalizedExpected);
+            EnsureStreamingWorkersRunning();
+        }
+
+        private void RebuildUnplayedStreamingReply(string expectedDialogueText)
+        {
+            StopTrackedCoroutine(ref streamingPreparationCoroutine);
+            streamingSentenceQueue.Clear();
+            while (streamingPreparedQueue.Count > 0)
+            {
+                streamingPreparedQueue.Dequeue()?.PreparedSpeech?.Release();
+            }
+
+            streamingTurn.ReplaceUnplayed(expectedDialogueText);
+            EnqueueSentence(expectedDialogueText);
+        }
+
+        private void EnsureStreamingWorkersRunning()
+        {
+            if (streamingTurn.IsTerminal)
+            {
+                return;
+            }
+
+            if (streamingPreparationCoroutine == null && streamingSentenceQueue.Count > 0)
             {
                 streamingPreparationCoroutine = StartCoroutine(PrepareStreamingQueueCoroutine());
             }
 
-            if (!isStreamingPlaying)
+            if (streamingPlaybackCoroutine == null && streamingTurn.HasSegments)
             {
                 streamingPlaybackCoroutine = StartCoroutine(PlayStreamingQueueCoroutine());
             }
-        }
-
-        public void SignalStreamingComplete()
-        {
-            isStreamingFinished = true;
         }
 
         public void OpenDialogueGate()
@@ -1129,51 +1183,79 @@ namespace SceneTalkVR.AvatarSystem
 
         private IEnumerator PrepareStreamingQueueCoroutine()
         {
-            isPreparingStream = true;
-            while (!isStreamingFinished || streamingSentenceQueue.Count > 0)
+            var turnId = streamingTurn.TurnId;
+            while (streamingTurn.IsCurrent(turnId))
             {
                 if (streamingSentenceQueue.Count == 0)
                 {
+                    if (streamingTurn.State == StreamingSpeechTurnState.Draining)
+                    {
+                        break;
+                    }
+
                     yield return new WaitForSeconds(0.05f);
                     continue;
                 }
 
-                string sentence = streamingSentenceQueue.Dequeue();
+                var segment = streamingSentenceQueue.Dequeue();
+                streamingTurn.MarkSynthesizing(segment);
                 PreparedAvatarSpeech prepared = null;
                 yield return SpeechPlayer.Prepare(
                     BuildSpeechPlaybackContext(),
                     streamingBasePayload,
                     new AvatarSpeechPlaybackRequest
                     {
-                        text = sentence,
-                        logLabel = $"Streaming sentence: {sentence}",
+                        text = segment.Text,
+                        logLabel = $"Streaming sentence: {segment.Text}",
                         preparationStarted = RecordDialogueTtsStarted,
                         preparationReady = RecordDialogueTtsReady
                     },
                     value => prepared = value);
 
-                if (prepared != null)
+                if (!streamingTurn.IsCurrent(turnId))
                 {
-                    if (LastTtsReadyLatencyMs < 0f)
-                    {
-                        var orchestrator = FindFirstObjectByType<SceneTalkOrchestrator>();
-                        float captureEnd = orchestrator != null ? orchestrator.LastSpeechCaptureEndTime : Time.realtimeSinceStartup;
-                        LastTtsReadyLatencyMs = (Time.realtimeSinceStartup - captureEnd) * 1000f;
-                    }
-                    streamingPreparedQueue.Enqueue(prepared);
+                    prepared?.Release();
+                    break;
                 }
+
+                if (prepared == null || !string.IsNullOrWhiteSpace(prepared.error))
+                {
+                    var preparationError = !string.IsNullOrWhiteSpace(prepared?.error)
+                        ? prepared.error
+                        : "Streaming TTS preparation returned no audio result.";
+                    prepared?.Release();
+                    FailStreamingTurn(preparationError, segment);
+                    break;
+                }
+
+                segment.PreparedSpeech = prepared;
+                streamingTurn.MarkReady(segment);
+                if (LastTtsReadyLatencyMs < 0f)
+                {
+                    var orchestrator = FindFirstObjectByType<SceneTalkOrchestrator>();
+                    float captureEnd = orchestrator != null ? orchestrator.LastSpeechCaptureEndTime : Time.realtimeSinceStartup;
+                    LastTtsReadyLatencyMs = (Time.realtimeSinceStartup - captureEnd) * 1000f;
+                }
+                streamingPreparedQueue.Enqueue(segment);
             }
-            isPreparingStream = false;
+
             streamingPreparationCoroutine = null;
+            streamingTurn.TryComplete();
         }
 
         private IEnumerator PlayStreamingQueueCoroutine()
         {
-            isStreamingPlaying = true;
+            var turnId = streamingTurn.TurnId;
             SetReplyPreparationThinking();
 
-            while (!isStreamingFinished || streamingPreparedQueue.Count > 0 || streamingSentenceQueue.Count > 0 || !isDialogueGateOpen)
+            while (streamingTurn.IsCurrent(turnId))
             {
+                streamingTurn.TryComplete();
+                if (streamingTurn.IsTerminal)
+                {
+                    break;
+                }
+
                 if (!isDialogueGateOpen || streamingPreparedQueue.Count == 0)
                 {
                     yield return new WaitForSeconds(0.05f);
@@ -1185,50 +1267,90 @@ namespace SceneTalkVR.AvatarSystem
                     yield return new WaitForSeconds(0.05f);
                 }
 
-                if (LastDialoguePlayStart < 0f)
-                {
-                    LastDialoguePlayStart = Time.realtimeSinceStartup;
-                    feedbackFirstGate.DialogueStarted();
-                    RecordDialoguePlaybackEvent(ExperimentTimingEventType.DialoguePlaybackStarted);
-                }
-
-                BeginSpeechAnimation(isOpeningReply);
-
-                var prepared = streamingPreparedQueue.Dequeue();
-                activeStreamingSpeech = prepared;
+                var segment = streamingPreparedQueue.Dequeue();
+                var prepared = segment.PreparedSpeech;
+                activeStreamingSegment = segment;
+                streamingTurn.MarkPlaying(segment);
                 AvatarSpeechPlaybackResult replyResult = null;
                 yield return SpeechPlayer.PlayPrepared(
                     BuildSpeechPlaybackContext(),
                     new AvatarSpeechPlaybackRequest
                     {
                         text = string.Empty,
-                        logLabel = "Streaming dialogue reply"
+                        logLabel = $"Streaming dialogue segment {segment.Sequence}",
+                        playbackStarted = () =>
+                        {
+                            if (LastDialoguePlayStart < 0f)
+                            {
+                                LastDialoguePlayStart = Time.realtimeSinceStartup;
+                                feedbackFirstGate.DialogueStarted();
+                                RecordDialoguePlaybackEvent(ExperimentTimingEventType.DialoguePlaybackStarted);
+                            }
+
+                            BeginSpeechAnimation(isOpeningReply);
+                        }
                     },
                     prepared,
                     value => replyResult = value);
-                activeStreamingSpeech = null;
+                segment.PreparedSpeech = null;
+                activeStreamingSegment = null;
+
+                if (!streamingTurn.IsCurrent(turnId))
+                {
+                    break;
+                }
 
                 var formalFallback = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)?.IsFormalExperiment == true
                     && replyResult != null
                     && !string.IsNullOrWhiteSpace(replyResult.fallbackLevel)
                     && !string.Equals(replyResult.fallbackLevel, "none", StringComparison.OrdinalIgnoreCase);
-                if (replyResult != null && (!string.IsNullOrEmpty(replyResult.error) || formalFallback))
+                if (replyResult == null
+                    || !replyResult.playbackCompleted
+                    || !string.IsNullOrWhiteSpace(replyResult.error)
+                    || formalFallback)
                 {
-                    streamingError = !string.IsNullOrWhiteSpace(replyResult.error) ? replyResult.error : replyResult.fallbackLevel;
+                    var playbackError = !string.IsNullOrWhiteSpace(replyResult?.error)
+                        ? replyResult.error
+                        : formalFallback
+                            ? replyResult.fallbackLevel
+                            : "Streaming Avatar speech playback did not complete.";
+                    FailStreamingTurn(playbackError, segment);
                     break;
+                }
+
+                streamingTurn.MarkPlayed(segment);
+            }
+
+            if (streamingTurn.State == StreamingSpeechTurnState.Completed
+                && LastDialoguePlayStart >= 0f)
+            {
+                LastDialoguePlayEnd = Time.realtimeSinceStartup;
+                if (feedbackFirstGate.State == FeedbackFirstTurnState.DialogueSpeaking)
+                {
+                    feedbackFirstGate.DialogueEnded();
+                    RecordDialoguePlaybackEvent(ExperimentTimingEventType.DialoguePlaybackEnded);
                 }
             }
 
-            LastDialoguePlayEnd = Time.realtimeSinceStartup;
-            if (feedbackFirstGate.State == FeedbackFirstTurnState.DialogueSpeaking)
-            {
-                feedbackFirstGate.DialogueEnded();
-                RecordDialoguePlaybackEvent(ExperimentTimingEventType.DialoguePlaybackEnded);
-            }
-            isStreamingPlaying = false;
             streamingPlaybackCoroutine = null;
             SetThinking(false);
             EndSpeechAnimation();
+        }
+
+        private void FailStreamingTurn(string error, StreamingSpeechSegment segment = null)
+        {
+            streamingTurn.Fail(error, segment);
+            if (audioSource != null && audioSource.isPlaying)
+            {
+                audioSource.Stop();
+            }
+
+            while (streamingPreparedQueue.Count > 0)
+            {
+                streamingPreparedQueue.Dequeue()?.PreparedSpeech?.Release();
+            }
+
+            Debug.LogError($"[SceneTalkVR] Streaming Avatar speech failed: {streamingTurn.Error}", this);
         }
 
         private void RecordDialogueTtsStarted()

@@ -110,14 +110,73 @@ namespace SceneTalkVR.Runtime
 
         private void ConfigureVoiceGateway()
         {
-            if (voiceGatewayClient == null || !config.HasVoiceGatewayBaseUrl)
+            if (voiceGatewayClient == null)
             {
                 return;
             }
 
-            voiceGatewayClient.ConfigureGatewayBaseUrl(ResolveServiceUrlForRuntime(
-                config.VoiceGatewayBaseUrl,
-                8787));
+            var baseUrl = config.HasVoiceGatewayBaseUrl
+                ? ResolveServiceUrlForRuntime(config.VoiceGatewayBaseUrl, 8787)
+                : voiceGatewayClient.GatewayBaseUrl;
+            var timeoutSeconds = config.VoiceGatewayRequestTimeoutSeconds;
+            var expectedProvider = config.ExpectedTtsProvider;
+            var allowMockProvider = config.AllowMockTtsProvider;
+
+            if (TryResolveActiveVoiceDeployment(out var deployment))
+            {
+                if (!string.IsNullOrWhiteSpace(deployment.voiceGatewayBaseUrl))
+                {
+                    baseUrl = ResolveServiceUrlForRuntime(deployment.voiceGatewayBaseUrl, 8787);
+                }
+
+                timeoutSeconds = Mathf.Max(1, deployment.requestTimeoutSeconds);
+                expectedProvider = string.IsNullOrWhiteSpace(deployment.ttsProvider)
+                    ? expectedProvider
+                    : deployment.ttsProvider.Trim().ToLowerInvariant();
+                allowMockProvider = deployment.profileId == ExperimentDeploymentProfileId.MockOffline;
+            }
+
+            voiceGatewayClient.ConfigureRuntime(new VoiceGatewayRuntimeOptions(
+                baseUrl,
+                timeoutSeconds,
+                expectedProvider,
+                allowMockProvider));
+        }
+
+        public void RefreshVoiceGatewayConfiguration()
+        {
+            ResolveModules();
+            if (config != null)
+            {
+                ConfigureVoiceGateway();
+            }
+        }
+
+        private bool TryResolveActiveVoiceDeployment(out ExperimentDeploymentProfile deployment)
+        {
+            var rehearsal = RehearsalSessionCoordinator.Active;
+            if (rehearsal != null && rehearsal.IsActive && rehearsal.DeploymentCatalog != null)
+            {
+                var profileId = rehearsal.IsDeviceValidation
+                    ? ExperimentDeploymentProfileId.PicoDeviceValidation
+                    : ExperimentDeploymentProfileId.RehearsalEditor;
+                if (rehearsal.DeploymentCatalog.TryGet(profileId, out deployment))
+                {
+                    return true;
+                }
+            }
+
+            if (experimentConditionManager != null
+                && experimentConditionManager.DeploymentCatalog != null
+                && experimentConditionManager.DeploymentCatalog.TryGet(
+                    experimentConditionManager.DeploymentProfile,
+                    out deployment))
+            {
+                return true;
+            }
+
+            deployment = null;
+            return false;
         }
 
         private void ConfigureBrain()
@@ -218,6 +277,8 @@ namespace SceneTalkVR.Runtime
             return "[SceneTalkVR] Runtime config applied. "
                 + $"brain={config.BrainMode}, "
                 + $"voiceGateway={effectiveVoiceGatewayUrl}, "
+                + $"voiceTimeout={voiceGatewayClient?.EffectiveRequestTimeoutSeconds ?? config.VoiceGatewayRequestTimeoutSeconds}s, "
+                + $"ttsProvider={voiceGatewayClient?.EffectiveExpectedTtsProvider ?? config.ExpectedTtsProvider}, "
                 + $"llm={effectiveLlmUrl}, "
                 + $"avatarPacingTemperature={config.Temperature:0.###}, "
                 + $"maxNonGoalQuestionsPerTask={config.MaxNonGoalQuestionsPerTask}, "

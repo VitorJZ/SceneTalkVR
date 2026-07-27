@@ -75,13 +75,99 @@ namespace SceneTalkVR.Tests.Editor
             }
         }
 
+        [UnityTest]
+        public IEnumerator AvatarPlaybackFailure_StaysOutOfTurnReviewUntilCachedReplyRetrySucceeds()
+        {
+            var host = new GameObject("AvatarPlaybackRetryTests");
+            try
+            {
+                var orchestrator = host.AddComponent<SceneTalkOrchestrator>();
+                var voice = host.AddComponent<FakeRecoveryVoice>();
+                orchestrator.ConfigureModules(avatarVoice: voice);
+                var payload = new SpringScenePayload
+                {
+                    dialogueReply = "The complete cached reply.",
+                    correctionFeedback = new CorrectionFeedbackData { hasFeedback = true }
+                };
+                var handler = typeof(SceneTalkOrchestrator).GetMethod(
+                    "HandleAvatarVoiceErrorOrFinish",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+
+                LogAssert.Expect(
+                    LogType.Error,
+                    "[SceneTalkVR] Avatar voice playback failed: tts_timeout");
+                LogAssert.Expect(
+                    LogType.Error,
+                    "[SceneTalkVR] Avatar voice playback failed. Please retry.");
+                var handled = (bool)handler!.Invoke(
+                    orchestrator,
+                    new object[] { "tts_timeout", payload, false });
+
+                Assert.That(handled, Is.True);
+                Assert.That(orchestrator.CurrentState, Is.EqualTo(SceneTalkState.Error));
+                Assert.That(voice.PresentReplyCount, Is.Zero);
+
+                orchestrator.ToggleDialogueSpeechCapture();
+                yield return null;
+                yield return null;
+
+                Assert.That(voice.PresentReplyCount, Is.EqualTo(1));
+                Assert.That(voice.LastReplyPayload.dialogueReply, Is.EqualTo(payload.dialogueReply));
+                Assert.That(voice.LastReplyPayload.correctionFeedback.hasFeedback, Is.False);
+                Assert.That(orchestrator.CurrentState, Is.EqualTo(SceneTalkState.TurnReview));
+                Assert.That(orchestrator.IsTurnRunning, Is.False);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(host);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator ControllerSpeechTrigger_AvatarPlaybackErrorRetriesCachedReply()
+        {
+            var host = new GameObject("AvatarPlaybackControllerRetryTests");
+            try
+            {
+                var orchestrator = host.AddComponent<SceneTalkOrchestrator>();
+                var voice = host.AddComponent<FakeRecoveryVoice>();
+                orchestrator.ConfigureModules(avatarVoice: voice);
+                var payload = new SpringScenePayload { dialogueReply = "Retry this reply." };
+                var handler = typeof(SceneTalkOrchestrator).GetMethod(
+                    "HandleAvatarVoiceErrorOrFinish",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+
+                LogAssert.Expect(
+                    LogType.Error,
+                    "[SceneTalkVR] Avatar voice playback failed: playback_stopped");
+                LogAssert.Expect(
+                    LogType.Error,
+                    "[SceneTalkVR] Avatar voice playback failed. Please retry.");
+                handler!.Invoke(orchestrator, new object[] { "playback_stopped", payload, false });
+
+                Assert.That(orchestrator.TryBeginControllerSpeechCapture(), Is.False);
+                yield return null;
+                yield return null;
+
+                Assert.That(voice.PresentReplyCount, Is.EqualTo(1));
+                Assert.That(voice.LastReplyPayload.dialogueReply, Is.EqualTo(payload.dialogueReply));
+                Assert.That(orchestrator.CurrentState, Is.EqualTo(SceneTalkState.TurnReview));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(host);
+            }
+        }
+
         private sealed class FakeRecoveryVoice : MonoBehaviour,
             ISceneTalkAvatarRecoveryVoice,
             ISceneTalkStreamingAvatarVoice
         {
             public int AbortCount { get; private set; }
             public int RecoveryCount { get; private set; }
+            public int PresentReplyCount { get; private set; }
             public string LastPrompt { get; private set; }
+            public SpringScenePayload LastReplyPayload { get; private set; }
 
             public IEnumerator PresentRecoveryPrompt(
                 string prompt,
@@ -99,13 +185,15 @@ namespace SceneTalkVR.Tests.Editor
                 Action onComplete,
                 Action<string> onError)
             {
+                PresentReplyCount++;
+                LastReplyPayload = payload;
+                yield return null;
                 onComplete?.Invoke();
-                yield break;
             }
 
             public void PrepareStreaming(SpringScenePayload basePayload) { }
             public void EnqueueSentence(string sentence) { }
-            public void SignalStreamingComplete() { }
+            public void CompleteStreaming(string expectedDialogueText) { }
             public void OpenDialogueGate() { }
             public void AbortStreaming() => AbortCount++;
         }

@@ -124,13 +124,44 @@ namespace SceneTalkVR.AvatarSystem.Tests
 
                 Assert.That(preparedSpeech, Is.Not.Null);
                 Assert.That(preparedSpeech.clip, Is.Null);
-                Assert.That(preparedSpeech.useSilentWait, Is.False);
                 Assert.That(preparedSpeech.fallbackLevel, Does.Not.Contain("demo_clip"));
                 Assert.That(preparedSpeech.error, Is.Not.Empty);
             }
             finally
             {
                 Object.DestroyImmediate(demoClip);
+                Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator Prepare_DialogueWithoutAudio_ReturnsErrorInsteadOfSilentSuccess()
+        {
+            var gameObject = new GameObject("AvatarSpeechMissingDialogueTests");
+            try
+            {
+                PreparedAvatarSpeech preparedSpeech = null;
+                yield return new AvatarSpeechPlayer().Prepare(
+                    new AvatarSpeechPlaybackContext
+                    {
+                        defaultAudioSource = gameObject.AddComponent<AudioSource>(),
+                        useVoiceGatewayTts = false
+                    },
+                    new SpringScenePayload(),
+                    new AvatarSpeechPlaybackRequest
+                    {
+                        text = "This reply must be audible.",
+                        logLabel = "Missing dialogue audio"
+                    },
+                    value => preparedSpeech = value);
+
+                Assert.That(preparedSpeech, Is.Not.Null);
+                Assert.That(preparedSpeech.clip, Is.Null);
+                Assert.That(preparedSpeech.error, Is.Not.Empty);
+                Assert.That(preparedSpeech.fallbackLevel, Does.Not.Contain("silent_wait"));
+            }
+            finally
+            {
                 Object.DestroyImmediate(gameObject);
             }
         }

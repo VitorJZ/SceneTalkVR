@@ -211,6 +211,8 @@ namespace SceneTalkVR.Core
             showDebugLabel = false;
             assignmentConditionActive = false;
             RefreshCondition(false);
+            FindFirstObjectByType<SceneTalkRuntimeConfigApplier>(FindObjectsInactive.Include)
+                ?.RefreshVoiceGatewayConfiguration();
         }
 
         public void ExitEditorCollectionMode()
@@ -235,6 +237,8 @@ namespace SceneTalkVR.Core
 
             RefreshCondition(false);
             NotifyConditionChanged();
+            FindFirstObjectByType<SceneTalkRuntimeConfigApplier>(FindObjectsInactive.Include)
+                ?.RefreshVoiceGatewayConfiguration();
         }
 
         public bool ValidateFormalProtocol(out string error)

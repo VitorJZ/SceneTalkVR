@@ -7,7 +7,7 @@
   "tencent_region": "ap-guangzhou",
   "tencent_asr_engine": "16k_en",
   "tencent_tts_voice_type": 1051,
-  "tencent_fallback_to_mock": true,
+  "tencent_fallback_to_mock": false,
   "tencent_transport": "auto",
   "tencent_curl_path": "curl.exe",
   "tencent_curl_ssl_no_revoke": true

@@ -541,7 +541,6 @@ namespace SceneTalkVR.AvatarSystem
         {
             var fallback = playbackResult.fallbackLevel ?? string.Empty;
             var missingAgent = fallback.IndexOf("missing_agent", StringComparison.OrdinalIgnoreCase) >= 0;
-            var silentFallback = fallback.IndexOf("silent_wait", StringComparison.OrdinalIgnoreCase) >= 0;
             var demoFallback = fallback.IndexOf("demo_clip", StringComparison.OrdinalIgnoreCase) >= 0;
 
             if (missingAgent)
@@ -552,11 +551,6 @@ namespace SceneTalkVR.AvatarSystem
             if (!string.IsNullOrWhiteSpace(playbackResult.error))
             {
                 return Result(provider, "failed", "playback_error");
-            }
-
-            if (silentFallback)
-            {
-                return Result(provider, "silent_fallback", "audio_unavailable");
             }
 
             if (demoFallback)

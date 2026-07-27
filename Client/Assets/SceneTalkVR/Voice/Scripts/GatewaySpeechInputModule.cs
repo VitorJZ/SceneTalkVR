@@ -82,7 +82,11 @@ namespace SceneTalkVR.Voice
 
                 if (!string.IsNullOrWhiteSpace(recordingError))
                 {
-                    if (useFallbackTranscriptOnError && !experimentLocked && !string.IsNullOrWhiteSpace(fallbackTranscript))
+                    if (AllowsFallbackTranscript(
+                        useFallbackTranscriptOnError,
+                        experimentLocked,
+                        fallbackTranscript,
+                        client))
                     {
                         Debug.LogWarning($"[SceneTalkVR] Microphone STT fallback: {recordingError}", this);
                         onComplete?.Invoke(fallbackTranscript);
@@ -117,7 +121,11 @@ namespace SceneTalkVR.Voice
 
             if (!string.IsNullOrWhiteSpace(error))
             {
-                if (useFallbackTranscriptOnError && !experimentLocked && !string.IsNullOrWhiteSpace(fallbackTranscript))
+                if (AllowsFallbackTranscript(
+                    useFallbackTranscriptOnError,
+                    experimentLocked,
+                    fallbackTranscript,
+                    client))
                 {
                     Debug.LogWarning($"[SceneTalkVR] Gateway STT fallback: {error}", this);
                     onComplete?.Invoke(fallbackTranscript);
@@ -139,6 +147,18 @@ namespace SceneTalkVR.Voice
                 $"[SceneTalkVR] Gateway STT transcript ({response.provider}, {response.latencyMs} ms): {response.transcript}",
                 this);
             onComplete?.Invoke(response.transcript);
+        }
+
+        internal static bool AllowsFallbackTranscript(
+            bool fallbackEnabled,
+            bool isExperimentLocked,
+            string configuredTranscript,
+            VoiceGatewayClient client)
+        {
+            return fallbackEnabled
+                && !isExperimentLocked
+                && !string.IsNullOrWhiteSpace(configuredTranscript)
+                && client?.EffectiveAllowMockProvider == true;
         }
 
         public void RequestStopCapture()

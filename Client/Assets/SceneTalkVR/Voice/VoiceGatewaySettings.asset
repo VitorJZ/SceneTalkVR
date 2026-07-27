@@ -13,4 +13,6 @@ MonoBehaviour:
   m_Name: VoiceGatewaySettings
   m_EditorClassIdentifier: 
   gatewayBaseUrl: http://192.168.137.1:8787
-  requestTimeoutSeconds: 10
+  requestTimeoutSeconds: 30
+  expectedTtsProvider: tencent
+  allowMockTtsProvider: 0

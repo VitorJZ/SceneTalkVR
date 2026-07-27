@@ -65,18 +65,17 @@ namespace SceneTalkVR.AvatarSystem.Tests
                 };
 
                 presenter.PrepareStreaming(previousPayload);
-                presenter.SignalStreamingComplete();
                 presenter.OpenDialogueGate();
-                EnqueuePrivateValue(presenter, "streamingSentenceQueue", "stale sentence");
+                var turn = GetPrivateField<object>(presenter, "streamingTurn");
+                var segment = turn.GetType().GetMethod("Enqueue")
+                    ?.Invoke(turn, new object[] { "stale sentence" });
+                EnqueuePrivateValue(presenter, "streamingSentenceQueue", segment);
                 SetPrivateField(presenter, "isAvatarLoadingFinished", true);
 
                 presenter.ClearAvatar();
 
-                Assert.That(GetPrivateField<bool>(presenter, "isStreamingFinished"), Is.False);
-                Assert.That(GetPrivateField<bool>(presenter, "isStreamingPlaying"), Is.False);
+                Assert.That(turn.GetType().GetProperty("State")?.GetValue(turn)?.ToString(), Is.EqualTo("Idle"));
                 Assert.That(GetPrivateField<bool>(presenter, "isDialogueGateOpen"), Is.False);
-                Assert.That(GetPrivateField<bool>(presenter, "isPreparingStream"), Is.False);
-                Assert.That(GetPrivateField<bool>(presenter, "wasAnySentenceEnqueued"), Is.False);
                 Assert.That(GetPrivateField<bool>(presenter, "isAvatarLoadingFinished"), Is.False);
                 Assert.That(GetPrivateField<object>(presenter, "streamingBasePayload"), Is.Null);
                 Assert.That(GetPrivateCollectionCount(presenter, "streamingSentenceQueue"), Is.Zero);

@@ -1935,7 +1935,13 @@ namespace SceneTalkVR.Runtime
             {
                 var isRecording = orchestrator.IsSpeechRecording;
                 SetActive(dialogueListenButton.gameObject, true);
-                SetButtonLabel(dialogueListenButton, isRecording ? "End" : "Speak");
+                SetButtonLabel(
+                    dialogueListenButton,
+                    isRecording
+                        ? "End"
+                        : orchestrator.CurrentState == SceneTalkState.Error
+                            ? "Retry"
+                            : "Speak");
                 SetInteractable(dialogueListenButton, isRecording || !orchestrator.IsTurnRunning);
             }
         }
