@@ -185,6 +185,25 @@ namespace SceneTalkVR.AvatarSystem.Tests
         }
 
         [Test]
+        public void ExitingFormalCollectionModeUnlocksManualRuntimeChangesAndReentryRelocks()
+        {
+            manager.EnterEditorCollectionMode(null, null, null, null, null);
+            Assert.That(manager.IsFormalExperiment, Is.True);
+            Assert.That(manager.CanUseManualRuntimeCondition, Is.False);
+
+            manager.ExitEditorCollectionMode();
+            Assert.That(manager.IsFormalExperiment, Is.False);
+            Assert.That(manager.CanUseManualRuntimeCondition, Is.True);
+            Assert.That(
+                manager.TrySetManualFeedbackStyle(ExperimentConditionManager.RecastStyle),
+                Is.True);
+
+            manager.EnterEditorCollectionMode(null, null, null, null, null);
+            Assert.That(manager.IsFormalExperiment, Is.True);
+            Assert.That(manager.CanUseManualRuntimeCondition, Is.False);
+        }
+
+        [Test]
         public void ActiveAndPendingTurnsRejectManualChanges()
         {
             var originalConditionId = manager.CurrentConditionId;

@@ -363,6 +363,7 @@ namespace SceneTalkVR.Core
         public void EndRuntimeSession()
         {
             WriteOperator("ParticipantSessionDisarmed");
+            conditionManager?.ExitEditorCollectionMode();
             ResetRuntimeOnly();
             RuntimeContext = null;
             requestedAssistantEmbodimentSnapshot = string.Empty;
@@ -397,6 +398,7 @@ namespace SceneTalkVR.Core
 
             WriteOperator("ParticipantSessionExited", "reason=" + reason, actor: "participant");
             orchestrator?.ReturnToInitialMenu();
+            conditionManager?.ExitEditorCollectionMode();
             ResetRuntimeOnly();
             RuntimeContext = null;
             RefreshUi();
@@ -420,6 +422,7 @@ namespace SceneTalkVR.Core
                 PersistAssignment();
             }
             WriteOperator("ParticipantSessionSuspended", "reason=" + reason, actor: "participant");
+            conditionManager?.ExitEditorCollectionMode();
             ResetRuntimeOnly();
             RuntimeContext = null;
             RefreshUi();
