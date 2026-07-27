@@ -72,7 +72,7 @@ MonoBehaviour:
     initialQuestion: Good afternoon! Welcome to City Hotel. How can I help you today?
     environmentType: hotel_lobby
     panoramaResourceKey: SceneTalkVR/Textures/hotel-lobby-360
-    avatarPresetKey: barista_humanoid_v1
+    avatarPresetKey: barista_male_humanoid_v1
     avatarRole: hotel receptionist
     voiceProfileKey: editor_collection_dialogue_voice
     roleplayPrompt: Stay in the hotel check-in task. Do not change scene, avatar,
@@ -140,7 +140,7 @@ MonoBehaviour:
     initialQuestion: Hello! Is there anything in particular you're looking for today?
     environmentType: furniture_store
     panoramaResourceKey: SceneTalkVR/Textures/furniture-store-360
-    avatarPresetKey: teacher_humanoid_v1
+    avatarPresetKey: barista_male_humanoid_v1
     avatarRole: furniture salesperson
     voiceProfileKey: editor_collection_dialogue_voice
     roleplayPrompt: Stay in the furniture-shopping task. Do not change scene, avatar,
@@ -275,7 +275,7 @@ MonoBehaviour:
       help you today?
     environmentType: tourist_information_point
     panoramaResourceKey: SceneTalkVR/Textures/tourist-information-360
-    avatarPresetKey: teacher_female_humanoid_v1
+    avatarPresetKey: barista_male_humanoid_v1
     avatarRole: tourist information officer
     voiceProfileKey: editor_collection_dialogue_voice
     roleplayPrompt: Stay in the tourist-assistance task. Do not change scene, avatar,
@@ -345,7 +345,7 @@ MonoBehaviour:
       reservation?
     environmentType: restaurant
     panoramaResourceKey: SceneTalkVR/Textures/restaurant-360
-    avatarPresetKey: barista_humanoid_v1
+    avatarPresetKey: barista_male_humanoid_v1
     avatarRole: restaurant host
     voiceProfileKey: restaurant_host_en
     roleplayPrompt: Stay in the walk-in restaurant task. Do not change scene, role,
@@ -419,7 +419,7 @@ MonoBehaviour:
       a recommendation?
     environmentType: restaurant
     panoramaResourceKey: SceneTalkVR/Textures/restaurant-360
-    avatarPresetKey: barista_humanoid_v1
+    avatarPresetKey: barista_male_humanoid_v1
     avatarRole: restaurant server
     voiceProfileKey: restaurant_host_en
     roleplayPrompt: Stay in the meal-ordering task. Do not change scene, role, task,
@@ -484,7 +484,7 @@ MonoBehaviour:
     initialQuestion: Here is your meal. Is everything all right with your order?
     environmentType: restaurant
     panoramaResourceKey: SceneTalkVR/Textures/restaurant-360
-    avatarPresetKey: barista_humanoid_v1
+    avatarPresetKey: barista_male_humanoid_v1
     avatarRole: restaurant server
     voiceProfileKey: restaurant_host_en
     roleplayPrompt: Stay in the wrong-dish resolution task. Do not change scene,

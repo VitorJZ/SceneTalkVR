@@ -69,10 +69,10 @@ namespace SceneTalkVR.AvatarSystem.Tests
             Assert.That(result.fallbackReason, Does.Contain("unknown_scenario"));
         }
 
-        [TestCase("hotel_check_in", "barista_humanoid_v1")]
-        [TestCase("furniture_shopping", "teacher_humanoid_v1")]
+        [TestCase("hotel_check_in", "barista_male_humanoid_v1")]
+        [TestCase("furniture_shopping", "barista_male_humanoid_v1")]
         [TestCase("gym_membership", "barista_male_humanoid_v1")]
-        [TestCase("tourist_assistance", "teacher_female_humanoid_v1")]
+        [TestCase("tourist_assistance", "barista_male_humanoid_v1")]
         public void ProductionCatalog_MapsFixedScenarioToRequestedPrefab(string scenarioId, string expectedKey)
         {
             var productionCatalog = AssetDatabase.LoadAssetAtPath<AvatarCatalog>(

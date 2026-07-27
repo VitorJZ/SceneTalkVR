@@ -9,6 +9,7 @@ namespace SceneTalkVR.EditorTools
 {
     public static class EditorCollectionAssetBuilder
     {
+        private const string UnifiedDialogueAvatarKey = "barista_male_humanoid_v1";
         public const string Root = "Assets/SceneTalkVR/ExperimentProtocol/";
         public const string ProtocolPath = Root + "ExperimentV11Protocol.asset";
         public const string TaskPath = Root + "ExperimentTaskCatalog.asset";
@@ -95,10 +96,10 @@ namespace SceneTalkVR.EditorTools
             }
             var mappings = new[]
             {
-                Mapping("hotel_check_in", "barista_humanoid_v1"),
-                Mapping("furniture_shopping", "teacher_humanoid_v1"),
-                Mapping("gym_membership", "barista_male_humanoid_v1"),
-                Mapping("tourist_assistance", "teacher_female_humanoid_v1")
+                Mapping("hotel_check_in", UnifiedDialogueAvatarKey),
+                Mapping("furniture_shopping", UnifiedDialogueAvatarKey),
+                Mapping("gym_membership", UnifiedDialogueAvatarKey),
+                Mapping("tourist_assistance", UnifiedDialogueAvatarKey)
             };
             var panoramas = tasks.GetTasks(ExperimentTaskPhase.Formal).Select(x => new EditorCollectionPanoramaApproval
             {
@@ -141,10 +142,9 @@ namespace SceneTalkVR.EditorTools
             foreach (var task in catalog.Tasks.Where(x => x != null))
             {
                 task.nonGoalQuestions = NonGoalQuestions(task.taskId);
+                if (task.phase == ExperimentTaskPhase.Formal || task.phase == ExperimentTaskPhase.Pilot)
+                    task.avatarPresetKey = UnifiedDialogueAvatarKey;
                 if (task.phase != ExperimentTaskPhase.Formal) continue;
-                task.avatarPresetKey = task.taskId == "hotel_check_in" ? "barista_humanoid_v1"
-                    : task.taskId == "furniture_shopping" ? "teacher_humanoid_v1"
-                    : task.taskId == "gym_membership" ? "barista_male_humanoid_v1" : "teacher_female_humanoid_v1";
                 task.voiceProfileKey = "editor_collection_dialogue_voice";
                 task.developerPlaceholderAvatar = false;
                 var ids = task.taskId == "hotel_check_in" ? new[] { "reservation_name", "breakfast", "higher_floor", "checkout_time" }
@@ -227,10 +227,14 @@ namespace SceneTalkVR.EditorTools
                 entry.assetVersion = "editor-collection-1"; entry.approvedForCollection = true;
                 entry.approvedForEditorCollection = true; entry.replaceableAsset = true;
                 entry.evidenceReference = "formal-editor-collection-directive-v1";
-                entry.scenarioIds = entry.key == "barista_humanoid_v1" ? new[] { "hotel_check_in" }
-                    : entry.key == "teacher_humanoid_v1" ? new[] { "furniture_shopping" }
-                    : entry.key == "barista_male_humanoid_v1" ? new[] { "gym_membership" }
-                    : new[] { "tourist_assistance" };
+                entry.scenarioIds = entry.key == UnifiedDialogueAvatarKey
+                    ? new[]
+                    {
+                        "hotel_check_in", "furniture_shopping", "gym_membership", "tourist_assistance",
+                        "pilot_restaurant", "pilot_restaurant_walk_in", "pilot_restaurant_ordering",
+                        "pilot_restaurant_wrong_dish"
+                    }
+                    : Array.Empty<string>();
             }
         }
 

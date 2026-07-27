@@ -18,6 +18,31 @@ namespace SceneTalkVR.Tests.PlayMode
         {Assert.That(Label("PilotExperimentButton"),Is.EqualTo("Pilot Experiment"));Assert.That(Label("FormalExperimentButton"),Is.EqualTo("Formal Experiment"));Assert.That(Label("ExperimentHistoryButton"),Is.EqualTo("Experiment History"));Assert.That(Resources.FindObjectsOfTypeAll<Button>().Any(x=>x.name=="NewExperimentButton"),Is.False);AssertHomeNavigation();Click("PilotExperimentButton");yield return null;Assert.That(Active("PilotAppearanceSelectionPanel"),Is.True);Assert.That(Active("PilotSessionSetupPanel"),Is.False);Assert.That(Active("ExperimentMenuPanel"),Is.False);Assert.That(Active("FormalModeSelectionPanel"),Is.False);Assert.That(Active("TaskSelectionPanel"),Is.False);AssertOverlayText("PilotAppearanceSelectionPanel");AssertExitOverlay();}
         [UnityTest]public IEnumerator PilotCreateSession_PersistsLockedMappingAndShowsAppearanceSelection()
         {Create();yield return null;var coordinator=ActiveObject("SceneTalkVR.Core.PilotCollectionSessionCoordinator, Assembly-CSharp");Assert.That((bool)Get(coordinator,"IsArmed"),Is.True);Assert.That(Get(coordinator,"Stage").ToString(),Is.EqualTo("AppearanceSelection"));Assert.That((string)Get(coordinator,"ParticipantId"),Does.StartWith("PILOT-P-"));Assert.That((string)Get(coordinator,"SessionId"),Does.StartWith("PILOT-S-"));var assignment=Get(coordinator,"Assignment");Assert.That((bool)Get(assignment,"collectionEligible"),Is.True);Assert.That((bool)Get(assignment,"developerTestAssignment"),Is.False);var conditions=((IEnumerable)Get(assignment,"conditions")).Cast<object>().ToArray();Assert.That(conditions.Select(x=>Get(Get(x,"task"),"taskId")).Distinct().Count(),Is.EqualTo(3));Assert.That(conditions.Select(x=>Get(x,"embodimentCondition")).Distinct().Count(),Is.EqualTo(3));Assert.That(System.IO.File.Exists(System.IO.Path.Combine((string)Get(coordinator,"CurrentDataFolder"),"pilot_assignment.json")),Is.True);Assert.That(Active("PilotAppearanceSelectionPanel"),Is.True);}
+        [UnityTest]public IEnumerator NewPilotExperiment_ClearsFinalRankingDraft()
+        {
+            Create();yield return null;
+            Input("PilotRankingReason").text="Previous participant feedback.";
+            Click("VoiceOnlyRank1");Click("FloatingOrbRank2");Click("HumanoidAgentRank3");Click("VoiceOnlyPreferred");
+            var experiment=ActiveObject("SceneTalkVR.Core.ExperimentSessionCoordinator, Assembly-CSharp");
+            experiment.GetType().GetMethod("ConfirmLeaveExperiment").Invoke(experiment,null);yield return null;
+            Click("PilotExperimentButton");yield return null;
+            Assert.That(Input("PilotRankingReason").text,Is.Empty);
+            foreach(var button in new[]{"VoiceOnlyRank1","FloatingOrbRank2","HumanoidAgentRank3","VoiceOnlyPreferred","FloatingOrbPreferred","HumanoidAgentPreferred"})AssertRankNotSelected(button);
+        }
+        [UnityTest]public IEnumerator ExperimentHistoryResume_PreservesPilotRankingDraft()
+        {
+            Create();yield return null;
+            Input("PilotRankingReason").text="Keep this draft when resuming.";
+            Click("VoiceOnlyRank1");Click("FloatingOrbRank2");Click("HumanoidAgentRank3");Click("VoiceOnlyPreferred");
+            var experiment=ActiveObject("SceneTalkVR.Core.ExperimentSessionCoordinator, Assembly-CSharp");
+            var experimentId=(string)Get(Get(Get(experiment,"CurrentExperiment"),"summary"),"experimentId");
+            experiment.GetType().GetMethod("ConfirmLeaveExperiment").Invoke(experiment,null);yield return null;
+            var continueArgs=new object[]{experimentId,null};
+            Assert.That((bool)experiment.GetType().GetMethod("ContinueExperiment").Invoke(experiment,continueArgs),Is.True,continueArgs[1] as string);
+            yield return null;
+            Assert.That(Input("PilotRankingReason").text,Is.EqualTo("Keep this draft when resuming."));
+            foreach(var button in new[]{"VoiceOnlyRank1","FloatingOrbRank2","HumanoidAgentRank3","VoiceOnlyPreferred"})AssertRankSelected(button);
+        }
         [UnityTest]public IEnumerator IncompleteExperimentExitRequiresConfirmationAndKeepsRecord()
         {Create();yield return null;var experiment=ActiveObject("SceneTalkVR.Core.ExperimentSessionCoordinator, Assembly-CSharp");var id=(string)Get(Get(Get(experiment,"CurrentExperiment"),"summary"),"experimentId");Click("ExitButton");yield return null;Assert.That(Active("ExperimentExitConfirmPanel"),Is.True);Assert.That(Active("PilotAppearanceSelectionPanel"),Is.False);Click("ContinueExperimentButton");yield return null;Assert.That(Active("PilotAppearanceSelectionPanel"),Is.True);Click("ExitButton");yield return null;Click("ConfirmExitExperimentButton");yield return null;AssertHomeNavigation();Click("ExperimentHistoryButton");yield return null;Assert.That(Active("ExperimentHistoryListPanel"),Is.True);var items=((IEnumerable)Get(Get(experiment,"CurrentHistoryPage"),"items")).Cast<object>();Assert.That(items.Any(x=>(string)Get(x,"experimentId")==id),Is.True);}
         [UnityTest]public IEnumerator BeginPilot_ShowsAssignedTaskWithoutEmbodimentMetadata()

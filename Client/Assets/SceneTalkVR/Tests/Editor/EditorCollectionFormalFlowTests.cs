@@ -126,7 +126,7 @@ namespace SceneTalkVR.Tests.Editor
         { foreach (var task in tasks.GetTasks(ExperimentTaskPhase.Formal)) { var texture = Resources.Load<Texture2D>(task.panoramaResourceKey); Assert.That(texture, Is.Not.Null, task.taskId); Assert.That((texture.width, texture.height), Is.EqualTo((2048, 1024)), task.taskId); } }
 
         [Test] public void T40_FormalAvatarMappingsAreExplicit()
-        { Assert.That(resources.FindAvatar("hotel_check_in").requestedPresetKey, Is.EqualTo("barista_humanoid_v1")); Assert.That(resources.FindAvatar("furniture_shopping").requestedPresetKey, Is.EqualTo("teacher_humanoid_v1")); Assert.That(resources.FindAvatar("gym_membership").requestedPresetKey, Is.EqualTo("barista_male_humanoid_v1")); Assert.That(resources.FindAvatar("tourist_assistance").requestedPresetKey, Is.EqualTo("teacher_female_humanoid_v1")); }
+        { Assert.That(tasks.GetTasks(ExperimentTaskPhase.Formal).All(x => resources.FindAvatar(x.taskId)?.requestedPresetKey == "barista_male_humanoid_v1"), Is.True); }
 
         [Test] public void T41_ProductionStructuredFallbackUsesDedicatedJsonLlmBoundary()
         {

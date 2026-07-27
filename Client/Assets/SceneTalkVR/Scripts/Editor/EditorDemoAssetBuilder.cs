@@ -9,6 +9,7 @@ namespace SceneTalkVR.EditorTools
 {
     public static class EditorDemoAssetBuilder
     {
+        private const string UnifiedDialogueAvatarKey = "barista_male_humanoid_v1";
         public const string Root = "Assets/SceneTalkVR/ExperimentProtocol/";
         public const string ProtocolPath = Root + "ExperimentV11EditorDemoProtocol.asset";
         public const string MappingPath = Root + "EditorDemoAvatarMapping.asset";
@@ -24,10 +25,10 @@ namespace SceneTalkVR.EditorTools
             var tasks = AssetDatabase.LoadAssetAtPath<ExperimentTaskCatalog>(Root + "ExperimentTaskCatalog.asset");
             var formal = new[]
             {
-                Map("hotel_check_in", "barista_humanoid_v1"),
-                Map("furniture_shopping", "teacher_humanoid_v1"),
-                Map("gym_membership", "barista_male_humanoid_v1"),
-                Map("tourist_assistance", "teacher_female_humanoid_v1")
+                Map("hotel_check_in", UnifiedDialogueAvatarKey),
+                Map("furniture_shopping", UnifiedDialogueAvatarKey),
+                Map("gym_membership", UnifiedDialogueAvatarKey),
+                Map("tourist_assistance", UnifiedDialogueAvatarKey)
             };
             var humanoid = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SceneTalkVR/Avatar/Prefabs/Humanoid/teacher_female_humanoid_v1.prefab");
             var panoramas = formal.Select(x =>

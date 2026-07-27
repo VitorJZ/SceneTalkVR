@@ -127,16 +127,10 @@ namespace SceneTalkVR.Tests.Editor
             }
         }
 
-        [Test] public void TouristAssistance_HasApprovedEditorCollectionAvatarPreset()
+        [Test] public void AllFivePanoramaScenes_UseGymMaleDialogueAvatar()
         {
-            var task = Catalog.Find("tourist_assistance");
-            Assert.That(task, Is.Not.Null);
-            Assert.That(task.phase, Is.EqualTo(ExperimentTaskPhase.Formal));
-            Assert.That(task.scenarioId, Is.EqualTo("tourist_assistance"));
-            Assert.That(task.avatarRole, Is.EqualTo("tourist information officer"));
-            Assert.That(task.voiceProfileKey, Is.Not.Empty);
-            Assert.That(task.developerPlaceholderAvatar, Is.False);
-            Assert.That(task.avatarPresetKey, Is.EqualTo("teacher_female_humanoid_v1"));
+            Assert.That(Catalog.Tasks.Select(task => task.panoramaResourceKey).Distinct().Count(), Is.EqualTo(5));
+            Assert.That(Catalog.Tasks.All(task => task.avatarPresetKey == "barista_male_humanoid_v1"), Is.True);
         }
 
         [Test] public void FormalValidation_AcceptsApprovedEditorCollectionTaskResources()

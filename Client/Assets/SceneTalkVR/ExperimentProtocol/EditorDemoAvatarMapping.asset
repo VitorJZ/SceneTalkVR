@@ -15,11 +15,11 @@ MonoBehaviour:
   mappingVersion: 1.0-editor-demo
   formalMappings:
   - taskId: hotel_check_in
-    demoAvatarKey: barista_humanoid_v1
+    demoAvatarKey: barista_male_humanoid_v1
     demoPlaceholder: 1
     semanticRoleApproved: 0
   - taskId: furniture_shopping
-    demoAvatarKey: teacher_humanoid_v1
+    demoAvatarKey: barista_male_humanoid_v1
     demoPlaceholder: 1
     semanticRoleApproved: 0
   - taskId: gym_membership
@@ -27,7 +27,7 @@ MonoBehaviour:
     demoPlaceholder: 1
     semanticRoleApproved: 0
   - taskId: tourist_assistance
-    demoAvatarKey: teacher_female_humanoid_v1
+    demoAvatarKey: barista_male_humanoid_v1
     demoPlaceholder: 1
     semanticRoleApproved: 0
   pilotHumanoidPrefab: {fileID: 996461390545780520, guid: f996e4fd27273468099629141107f6ed, type: 3}

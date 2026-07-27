@@ -16,12 +16,12 @@ MonoBehaviour:
   avatarCatalog: {fileID: 11400000, guid: 0ebbc1a5d3f5f4343a2d5d400c37fbf1, type: 2}
   formalAvatarMappings:
   - taskId: hotel_check_in
-    requestedPresetKey: barista_humanoid_v1
+    requestedPresetKey: barista_male_humanoid_v1
     approvedForEditorCollection: 1
     approvedForCollection: 1
     replaceableAsset: 1
   - taskId: furniture_shopping
-    requestedPresetKey: teacher_humanoid_v1
+    requestedPresetKey: barista_male_humanoid_v1
     approvedForEditorCollection: 1
     approvedForCollection: 1
     replaceableAsset: 1
@@ -31,7 +31,7 @@ MonoBehaviour:
     approvedForCollection: 1
     replaceableAsset: 1
   - taskId: tourist_assistance
-    requestedPresetKey: teacher_female_humanoid_v1
+    requestedPresetKey: barista_male_humanoid_v1
     approvedForEditorCollection: 1
     approvedForCollection: 1
     replaceableAsset: 1
