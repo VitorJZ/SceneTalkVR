@@ -9,6 +9,7 @@ namespace SceneTalkVR.EditorTools
 {
     public static class RehearsalAssetBuilder
     {
+        private const string UnifiedDialogueAvatarKey = "barista_male_humanoid_v1";
         public const string Root = "Assets/SceneTalkVR/ExperimentProtocol/";
         public const string ProtocolPath = Root + "ExperimentV11RehearsalProtocol.asset";
         public const string ResourcePath = Root + "ExperimentV11RehearsalResources.asset";
@@ -23,10 +24,10 @@ namespace SceneTalkVR.EditorTools
             var tasks = AssetDatabase.LoadAssetAtPath<ExperimentTaskCatalog>(Root + "ExperimentTaskCatalog.asset");
             var mappings = new[]
             {
-                Map("hotel_check_in", "hotel receptionist / front desk clerk", "barista_humanoid_v1"),
-                Map("furniture_shopping", "furniture salesperson", "teacher_humanoid_v1"),
-                Map("gym_membership", "gym membership consultant / trainer", "barista_male_humanoid_v1"),
-                Map("tourist_assistance", "tourist information officer", "teacher_female_humanoid_v1")
+                Map("hotel_check_in", "hotel receptionist / front desk clerk", UnifiedDialogueAvatarKey),
+                Map("furniture_shopping", "furniture salesperson", UnifiedDialogueAvatarKey),
+                Map("gym_membership", "gym membership consultant / trainer", UnifiedDialogueAvatarKey),
+                Map("tourist_assistance", "tourist information officer", UnifiedDialogueAvatarKey)
             };
             var formalTasks = tasks != null ? tasks.GetTasks(ExperimentTaskPhase.Formal) : new System.Collections.Generic.List<ExperimentTaskDefinition>();
             var pilotTasks = tasks != null ? tasks.GetTasks(ExperimentTaskPhase.Pilot) : new System.Collections.Generic.List<ExperimentTaskDefinition>();

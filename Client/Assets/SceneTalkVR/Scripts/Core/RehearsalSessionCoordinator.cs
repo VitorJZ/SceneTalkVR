@@ -601,6 +601,8 @@ namespace SceneTalkVR.Core
             if (!IsFormal) return;
             ExperimentSessionCoordinator.Active?.NotifyAttemptCompleted("questionnaire_submitted");
             PersistAssignments();
+            orchestrator?.ResetForConditionSelection();
+            formalLifecycle?.ClearCurrentConditionBoundary();
             currentPosition = -1;
             WriteOperator("ReturnToFormalModeSelection");
             if (FormalAssignment?.status == AssignmentStatus.Completed)

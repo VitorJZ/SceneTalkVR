@@ -63,10 +63,10 @@ namespace SceneTalkVR.Tests.Editor
         [Test] public void T31_PilotAssignmentUsesRealAllocator()
         { var ok=new PilotAssignmentAllocator().TryCreateRehearsal("P03","S",protocol,tasks,resources.ResourceSnapshotId,out var a,out var e);Assert.That(ok,Is.True,e);AssertIsolation(a);Assert.That(a.conditions.Select(x=>x.embodimentCondition).Distinct().Count(),Is.EqualTo(3));Assert.That(a.conditions.Select(x=>x.task.taskId).Distinct().Count(),Is.EqualTo(3)); }
         [Test] public void T32_PilotExplicitAndHeadLocked() { Assert.That(protocol.PilotFeedbackStyle,Is.EqualTo(PilotFeedbackStyleChoice.Explicit));Assert.That(protocol.VoiceOnlyAudioPolicy,Is.EqualTo(PilotAudioSourcePolicy.NonSpatialHeadLocked)); }
-        [TestCase("hotel_check_in","barista_humanoid_v1")]
-        [TestCase("furniture_shopping","teacher_humanoid_v1")]
+        [TestCase("hotel_check_in","barista_male_humanoid_v1")]
+        [TestCase("furniture_shopping","barista_male_humanoid_v1")]
         [TestCase("gym_membership","barista_male_humanoid_v1")]
-        [TestCase("tourist_assistance","teacher_female_humanoid_v1")]
+        [TestCase("tourist_assistance","barista_male_humanoid_v1")]
         public void T33_T36_FormalAvatarMapping(string task,string key)=>Assert.That(resources.FindAvatar(task).avatarPresetKey,Is.EqualTo(key));
         [Test] public void T37_PilotHumanoidMapping() { Assert.That(resources.PilotHumanoidPresetKey,Is.EqualTo("teacher_female_humanoid_v1"));Assert.That(resources.PilotHumanoidPrefab,Is.Not.Null); }
         [Test] public void T38_FivePanoramaKeysLoad() { foreach(var key in new[]{"SceneTalkVR/Textures/hotel-lobby-360","SceneTalkVR/Textures/furniture-store-360","SceneTalkVR/Textures/gym-360","SceneTalkVR/Textures/tourist-information-360","SceneTalkVR/Textures/restaurant-360"})Assert.That(Resources.Load<Texture2D>(key),Is.Not.Null,key); }

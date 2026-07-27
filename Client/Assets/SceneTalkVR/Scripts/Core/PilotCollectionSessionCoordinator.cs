@@ -128,7 +128,7 @@ namespace SceneTalkVR.Core
                 if(!allocator.TryCreateCollection(participantId,sessionId,protocol,tasks,presentations,RuntimeContext.resourceSnapshotId,out var created,out error)||!workflow.LoadAssignment(created,out error))return FailArm();
                 PilotAssignmentAllocator.Save(created,AssignmentPath);currentPosition=-1;Stage=PilotParticipantStage.AppearanceSelection;
             }
-            workflow.ConfigureRunLimits(5,8f);Write("PilotSessionArmed","resume="+resume);RefreshUi();error="";return true;
+            workflow.ConfigureRunLimits(5,8f);if(!resume)ResetFinalRankingUi();Write("PilotSessionArmed","resume="+resume);RefreshUi();error="";return true;
         }
 
         private bool ArmDeviceValidation(string participantId,string sessionId,bool resume,out string error)
@@ -151,6 +151,7 @@ namespace SceneTalkVR.Core
             Stage=resume&&Assignment?.conditions?.All(x=>x.status==PilotRunStatus.Completed)==true
                 ?(rankingSubmitted?PilotParticipantStage.Completion:PilotParticipantStage.FinalRanking)
                 :PilotParticipantStage.AppearanceSelection;
+            if(!resume)ResetFinalRankingUi();
             Write("PilotDeviceValidationArmed","resume="+resume);
             Debug.Log($"[ExperimentRuntime] Pilot device validation armed. qualification=Rehearsal; "
                 + $"dataOrigin=rehearsal; collectionEligible=false; profile=pico_device_validation; sessionId={SessionId}",this);
@@ -305,6 +306,7 @@ namespace SceneTalkVR.Core
         private bool ValidateAssignment(PilotAssignment value,out string error){if(value==null||value.flowMode!=ExperimentFlowMode.Pilot||value.runQualification!=ExperimentRunQualification.Collection||value.dataOrigin!="participant_collection"||!value.collectionEligible||value.developerTestAssignment||value.demoMode||value.conditions?.Length!=3){error="pilot_collection_assignment_invalid";return false;}return PilotAssignmentAllocator.IsCompatible(value,manager.ExperimentProtocol.ProtocolVersion,manager.TaskCatalog.CatalogVersion,out error);}
         private bool FailArm(){RuntimeContext=null;Stage=PilotParticipantStage.Setup;return false;}
         private void ResetRuntime(){questionnaireTransitionPending=false;qaRankingDraft=null;StopAllCoroutines();workflow?.ResetPilotConditionBoundary();workflow?.ClearAssignmentForRuntimeMode();orchestrator?.ResetForConditionSelection();currentPosition=-1;rankingSubmitted=false;}
+        private void ResetFinalRankingUi()=>(GetComponent<PilotCollectionParticipantUi>()??FindFirstObjectByType<PilotCollectionParticipantUi>(FindObjectsInactive.Include))?.ResetFinalRankingDraft();
         private void Write(string type,string detail="",bool qa=false,string actor=""){if(!IsArmed)return;Directory.CreateDirectory(CurrentDataFolder);var item=workflow?.Current;var value=new PilotCollectionOperatorEvent{timestampUtc=DateTime.UtcNow.ToString("o"),eventType=type,participantId=ParticipantId,sessionId=SessionId,pilotRunId=workflow?.PilotRunId??"",sequenceId=Assignment?.sequenceId??"",conditionPosition=item?.conditionPosition??-1,embodiment=item==null?"":PilotProtocolValues.Label(item.embodimentCondition),taskId=item?.task?.taskId??"",detail=detail,runQualification=IsDeviceValidation?"rehearsal":"collection",dataOrigin=IsDeviceValidation?"rehearsal":"participant_collection",collectionEligible=!IsDeviceValidation,deploymentProfile=IsDeviceValidation?"pico_device_validation":"editor_collection",qaAutomationUsed=qa,actor=!string.IsNullOrWhiteSpace(actor)?actor:qa?"qa_operator":IsDeviceValidation?"device_validation_participant":"experiment_operator"};var file=IsDeviceValidation?"pilot_device_validation_operator_events.jsonl":"pilot_collection_operator_events.jsonl";File.AppendAllText(Path.Combine(CurrentDataFolder,file),JsonUtility.ToJson(value)+Environment.NewLine,Encoding.UTF8);}
         private static bool ValidIdentity(string value,out string error){if(string.IsNullOrWhiteSpace(value)){error="participant_or_session_required";return false;}if(value.IndexOfAny(Path.GetInvalidFileNameChars())>=0||value.Contains("/")||value.Contains("\\")){error="participant_or_session_contains_invalid_path_character";return false;}error="";return true;}
         private static string Safe(string value)=>new string((value??"").Select(c=>char.IsLetterOrDigit(c)||c=='-'||c=='_'?c:'_').ToArray());

@@ -32,7 +32,7 @@ namespace SceneTalkVR.EditorTools
             var sequenceError=protocol==null?"protocol_missing":"";var sequences=Array.Empty<PilotSequenceDefinition>();var sequenceOk=protocol!=null&&protocol.TryResolvePilotSequences(out sequences,out sequenceError)&&sequences.Length==3;Check("pilot_sequences",sequenceOk,sequenceError??"three sequences");
             var pilotTasks=tasks?.GetTasks(ExperimentTaskPhase.Pilot).ToArray();Check("pilot_tasks",ExperimentTaskCatalog.ValidatePilotTasks(pilotTasks,out var taskError),taskError);
             var presentationError=presentations==null?"presentation_catalog_missing":"";var presentationOk=presentations!=null&&presentations.ValidateLocked(protocol,out presentationError);Check("presentations",presentationOk,presentationError);
-            Check("dialogue_avatar",pilotTasks!=null&&pilotTasks.All(x=>x.avatarPresetKey=="barista_humanoid_v1"),"pilot_restaurant_dialogue_avatar=barista_humanoid_v1");
+            Check("dialogue_avatar",pilotTasks!=null&&pilotTasks.All(x=>x.avatarPresetKey=="barista_male_humanoid_v1"),"pilot_restaurant_dialogue_avatar=barista_male_humanoid_v1");
             Check("voice_only_audio",presentations?.Find(PilotEmbodimentCondition.VoiceOnly)?.audioSourcePolicy==PilotAudioSourcePolicy.NonSpatialHeadLocked,"non_spatial_head_locked; spatialBlend=0");
             Check("orb_prefab",presentations?.Find(PilotEmbodimentCondition.FloatingOrb)?.visualPrefabKey=="generated_orb_v1","procedural generated_orb_v1");
             Check("humanoid_prefab",presentations?.Find(PilotEmbodimentCondition.HumanoidAgent)?.visualPrefab!=null,"teacher_female_humanoid_v1");
