@@ -41,6 +41,10 @@ namespace SceneTalkVR.Runtime
         [SerializeField, TextArea]
         private string llmFailurePrompt = "Sorry, I didn't catch that. Could you say it again?";
 
+        [Header("Speech Input")]
+        [SerializeField, Min(0f), Tooltip("Seconds after Speak starts during which another Speak click is ignored.")]
+        private float speakButtonStopDebounceSeconds = 0.35f;
+
         [Header("Events")]
         public UnityEvent<SceneTalkState> stateChanged = new UnityEvent<SceneTalkState>();
 
@@ -189,6 +193,7 @@ namespace SceneTalkVR.Runtime
         private string pendingHistorySessionId;
         private bool experimentExitConfirmationActive;
         private SceneTalkState? deferredStateDuringExperimentExit;
+        private float speechCaptureStartedAt;
 
         private ISceneTalkSpeechInput SpeechInput => speechInputModule as ISceneTalkSpeechInput;
         private ISceneTalkManualSpeechInput ManualSpeechInput => speechInputModule as ISceneTalkManualSpeechInput;
@@ -819,6 +824,11 @@ namespace SceneTalkVR.Runtime
         {
             if (IsSpeechRecording && activeSpeechCaptureMode == SpeechCaptureMode.Request)
             {
+                if (!CanStopSpeechCaptureFromSpeakButton())
+                {
+                    return;
+                }
+
                 RequestStopSpeechCapture();
                 return;
             }
@@ -830,6 +840,11 @@ namespace SceneTalkVR.Runtime
         {
             if (IsSpeechRecording && activeSpeechCaptureMode == SpeechCaptureMode.Dialogue)
             {
+                if (!CanStopSpeechCaptureFromSpeakButton())
+                {
+                    return;
+                }
+
                 RequestStopSpeechCapture();
                 return;
             }
@@ -1152,7 +1167,13 @@ namespace SceneTalkVR.Runtime
         {
             activeSpeechCaptureMode = mode;
             IsSpeechRecording = true;
+            speechCaptureStartedAt = Time.realtimeSinceStartup;
             SetState(SceneTalkState.Recording);
+        }
+
+        private bool CanStopSpeechCaptureFromSpeakButton()
+        {
+            return Time.realtimeSinceStartup - speechCaptureStartedAt >= speakButtonStopDebounceSeconds;
         }
 
         private void CompleteSpeechCaptureState()

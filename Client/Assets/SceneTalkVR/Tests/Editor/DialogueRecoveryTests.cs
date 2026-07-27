@@ -12,6 +12,33 @@ namespace SceneTalkVR.Tests.Editor
     public sealed class DialogueRecoveryTests
     {
         [UnityTest]
+        public IEnumerator SpeakButton_DoubleClickDuringStartup_DoesNotStopCapture()
+        {
+            var host = new GameObject("SpeakButtonDebounceTests");
+            try
+            {
+                var orchestrator = host.AddComponent<SceneTalkOrchestrator>();
+                var speechInput = host.AddComponent<FakeManualSpeechInput>();
+                orchestrator.ConfigureModules(speechInput: speechInput);
+
+                orchestrator.ToggleRequestSpeechCapture();
+                orchestrator.ToggleRequestSpeechCapture();
+
+                Assert.That(orchestrator.IsSpeechRecording, Is.True);
+                Assert.That(speechInput.StopRequestCount, Is.Zero);
+
+                yield return new WaitForSecondsRealtime(0.4f);
+                orchestrator.ToggleRequestSpeechCapture();
+
+                Assert.That(speechInput.StopRequestCount, Is.EqualTo(1));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(host);
+            }
+        }
+
+        [UnityTest]
         public IEnumerator LlmFailure_AbortsStreamingSpeaksPromptAndEnablesRetry()
         {
             var host = new GameObject("DialogueRecoveryTests");
@@ -81,6 +108,26 @@ namespace SceneTalkVR.Tests.Editor
             public void SignalStreamingComplete() { }
             public void OpenDialogueGate() { }
             public void AbortStreaming() => AbortCount++;
+        }
+
+        private sealed class FakeManualSpeechInput : MonoBehaviour,
+            ISceneTalkSpeechInput,
+            ISceneTalkManualSpeechInput
+        {
+            public int StopRequestCount { get; private set; }
+
+            public IEnumerator CaptureSpeech(Action<string> onComplete, Action<string> onError)
+            {
+                while (StopRequestCount == 0)
+                {
+                    yield return null;
+                }
+
+                onComplete?.Invoke("test");
+            }
+
+            public void RequestStopCapture() => StopRequestCount++;
+            public void CancelCapture() { }
         }
     }
 }
