@@ -74,9 +74,9 @@ namespace SceneTalkVR.Runtime
             progressText = Label(panel.transform, "Progress", "", new Vector2(0, 238), new Vector2(820, 40), 22);
             validationText = Label(panel.transform, "RequiredStatus", "", new Vector2(0, -198), new Vector2(800, 36), 18);
             content = Node(panel.transform, "SectionContent").transform;
-            previousButton = Button(panel.transform, "PreviousButton", "Previous", new Vector2(-260, -246), Previous);
-            nextButton = Button(panel.transform, "NextButton", "Next", new Vector2(0, -246), Next);
-            submitButton = Button(panel.transform, "SubmitButton", "Submit", new Vector2(260, -246), Submit);
+            previousButton = Button(panel.transform, "PreviousButton", "上一页", new Vector2(-260, -246), Previous);
+            nextButton = Button(panel.transform, "NextButton", "下一页", new Vector2(0, -246), Next);
+            submitButton = Button(panel.transform, "SubmitButton", "提交", new Vector2(260, -246), Submit);
             ApplyUserScale();
         }
 
@@ -94,12 +94,12 @@ namespace SceneTalkVR.Runtime
                 var items = enabled.Where(x => x.sectionId == section.sectionId).ToArray();
                 if (items.Length == 0) continue;
                 var pageRoot = Node(content, "Page_" + section.sectionId); pageObjects.Add(pageRoot);
-                Label(pageRoot.transform, "SectionTitle", section.displayNameEnglish + " / " + section.displayNameChinese, new Vector2(0, 176), new Vector2(820, 42), 25);
+                Label(pageRoot.transform, "SectionTitle", section.displayNameChinese, new Vector2(0, 176), new Vector2(820, 42), 25);
                 var y = 116f;
                 foreach (var item in items)
                 {
                     itemPages[item.itemId] = pageObjects.Count - 1;
-                    Label(pageRoot.transform, "Prompt_" + item.itemId, item.promptChinese + "\n" + item.promptEnglish,
+                    Label(pageRoot.transform, "Prompt_" + item.itemId, item.promptChinese,
                         new Vector2(-150, y), new Vector2(500, 62), 17, TextAnchor.MiddleLeft);
                     if (item.itemType == QuestionnaireItemType.Likert)
                     {
@@ -124,10 +124,10 @@ namespace SceneTalkVR.Runtime
             if (pageObjects.Count == 0) return;
             page = Mathf.Clamp(value, 0, pageObjects.Count - 1); submitConfirmationArmed = false;
             for (var i = 0; i < pageObjects.Count; i++) pageObjects[i].SetActive(i == page);
-            progressText.text = $"Page {page + 1} / {pageObjects.Count}";
+            progressText.text = $"第 {page + 1} / {pageObjects.Count} 页";
             previousButton.interactable = page > 0; nextButton.interactable = page < pageObjects.Count - 1;
             submitButton.gameObject.SetActive(page == pageObjects.Count - 1);
-            submitButton.GetComponentInChildren<TMP_Text>().text = "Submit";
+            submitButton.GetComponentInChildren<TMP_Text>().text = "提交";
             if (recordNavigation) controller.CompletePage(page, out _);
         }
         public void Previous() => ShowPage(page - 1);
@@ -145,11 +145,11 @@ namespace SceneTalkVR.Runtime
                 }
                 return;
             }
-            if (!submitConfirmationArmed) { submitConfirmationArmed = true; validationText.text = "Press again to confirm submission."; submitButton.GetComponentInChildren<TMP_Text>().text = "Confirm"; return; }
+            if (!submitConfirmationArmed) { submitConfirmationArmed = true; validationText.text = "请再次点击以确认提交。"; submitButton.GetComponentInChildren<TMP_Text>().text = "确认提交"; return; }
             submissionInProgress = true;
             if (!controller.Submit(out error)) { submissionInProgress = false; validationText.text = Humanize(error); return; }
             submissionInProgress = false;
-            validationText.text = "Submitted"; panel.SetActive(false);
+            validationText.text = "已提交"; panel.SetActive(false);
         }
 
         private void RefreshLikertSelection(QuestionnaireSession session)
@@ -165,15 +165,12 @@ namespace SceneTalkVR.Runtime
                     ? new Color(.12f, .68f, .34f, 1f) : new Color(0.12f, 0.38f, 0.62f, 1f);
             }
             if (validationText != null && session.completionStatus != QuestionnaireCompletionStatus.Submitted)
-                validationText.text = session.hasMissing ? "Please answer all required items." : "All required items are answered.";
+                validationText.text = session.hasMissing ? "请完成所有必答题。" : "所有必答题均已完成。";
         }
 
         private static string Humanize(string error)
         {
-            if (string.IsNullOrWhiteSpace(error)) return string.Empty;
-            if (error.StartsWith("required_item_missing:", StringComparison.Ordinal)) return "Please answer every required question before submitting.";
-            if (error == "questionnaire_already_submitted") return "This questionnaire has already been submitted.";
-            return "Unable to submit: " + error;
+            return SceneTalkChineseUiText.Error(error);
         }
 
         private void ApplyUserScale()

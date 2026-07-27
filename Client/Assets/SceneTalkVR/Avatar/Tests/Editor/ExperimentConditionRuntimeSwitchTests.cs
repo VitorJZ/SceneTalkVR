@@ -315,7 +315,7 @@ namespace SceneTalkVR.AvatarSystem.Tests
                 Assert.That(sourceButton.interactable, Is.True);
                 Assert.That(styleButton.interactable, Is.True);
                 Assert.That(appearanceButton.interactable, Is.True);
-                Assert.That(appearanceValue.text, Is.EqualTo("Little Orb"));
+                Assert.That(appearanceValue.text, Is.EqualTo("悬浮球"));
 
                 var initialProvider = manager.CurrentFeedbackProvider;
                 var initialStyle = manager.CurrentFeedbackStyle;
@@ -332,8 +332,8 @@ namespace SceneTalkVR.AvatarSystem.Tests
                     .GetMethod("Refresh", BindingFlags.Instance | BindingFlags.NonPublic)
                     .Invoke(flowUi, null);
                 Assert.That(appearanceButton.interactable, Is.False);
-                Assert.That(appearanceButton.GetComponentInChildren<TMP_Text>().text, Is.EqualTo("N/A"));
-                Assert.That(appearanceValue.text, Is.EqualTo("N/A"));
+                Assert.That(appearanceButton.GetComponentInChildren<TMP_Text>().text, Is.EqualTo("不适用"));
+                Assert.That(appearanceValue.text, Is.EqualTo("不适用"));
 
                 styleButton.onClick.Invoke();
                 Assert.That(manager.CurrentFeedbackStyle, Is.Not.EqualTo(initialStyle));
@@ -375,11 +375,11 @@ namespace SceneTalkVR.AvatarSystem.Tests
                 Assert.That(sourceButton.interactable, Is.False);
                 Assert.That(styleButton.interactable, Is.False);
                 Assert.That(appearanceButton.interactable, Is.False);
-                Assert.That(sourceButton.GetComponentInChildren<TMP_Text>().text, Is.EqualTo("Locked"));
-                Assert.That(styleButton.GetComponentInChildren<TMP_Text>().text, Is.EqualTo("Locked"));
-                Assert.That(appearanceButton.GetComponentInChildren<TMP_Text>().text, Is.EqualTo("Locked"));
+                Assert.That(sourceButton.GetComponentInChildren<TMP_Text>().text, Is.EqualTo("已锁定"));
+                Assert.That(styleButton.GetComponentInChildren<TMP_Text>().text, Is.EqualTo("已锁定"));
+                Assert.That(appearanceButton.GetComponentInChildren<TMP_Text>().text, Is.EqualTo("已锁定"));
                 Assert.That(statusText, Is.Not.Null);
-                Assert.That(statusText.text, Is.EqualTo("Locked by condition order."));
+                Assert.That(statusText.text, Is.EqualTo("已由实验条件顺序锁定。"));
             }
             finally
             {

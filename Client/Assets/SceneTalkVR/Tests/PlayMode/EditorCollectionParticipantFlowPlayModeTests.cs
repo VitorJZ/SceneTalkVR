@@ -298,7 +298,7 @@ namespace SceneTalkVR.Tests.PlayMode
         private static void AssertHomeNavigation()
         {
             Assert.That(Active("QuitButton"), Is.True);
-            Assert.That(Button("QuitButton").GetComponentInChildren<TMP_Text>(true).text, Is.EqualTo("Quit"));
+            Assert.That(Button("QuitButton").GetComponentInChildren<TMP_Text>(true).text, Is.EqualTo("退出"));
             Assert.That(Button("QuitButton").transform.parent.gameObject.name, Is.EqualTo("InitialPanel"));
             Assert.That(Active("ExitButton"), Is.False, "The home page must use Quit instead of the global Exit button.");
         }

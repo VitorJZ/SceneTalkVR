@@ -244,7 +244,7 @@ namespace SceneTalkVR.Runtime
             root.SetParent(worldCanvas.transform, false);
 
             demoBanner = CreatePanel(root, "EditorDemoBanner", new Vector2(0f, 278f), new Vector2(700f, 34f), new Color(0.65f, 0.12f, 0.08f, 0.92f));
-            demoBannerText = CreateText(demoBanner.transform, "EditorDemoBannerText", "EDITOR DEMONSTRATION — NOT PARTICIPANT DATA", Vector2.zero, new Vector2(680f, 30f), 18, TextAnchor.MiddleCenter, Color.white);
+            demoBannerText = CreateText(demoBanner.transform, "EditorDemoBannerText", "编辑器演示——非参与者数据", Vector2.zero, new Vector2(680f, 30f), 18, TextAnchor.MiddleCenter, Color.white);
             demoStatusPanel = CreatePanel(root, "EditorDemoStatusPanel", new Vector2(382f, 72f), new Vector2(270f, 190f), new Color(0.05f, 0.06f, 0.08f, 0.82f));
             demoStatusText = CreateText(demoStatusPanel.transform, "EditorDemoStatusText", string.Empty, Vector2.zero, new Vector2(246f, 170f), 14, TextAnchor.UpperLeft, new Color(1f, .86f, .42f, 1f));
             demoRankingPanel = CreatePanel(root, "EditorDemoRankingPreview", Vector2.zero, new Vector2(520f, 330f), new Color(0.03f, 0.04f, 0.07f, 0.94f));
@@ -252,35 +252,35 @@ namespace SceneTalkVR.Runtime
             demoRankingPanel.SetActive(false);
 
             rehearsalWaitingPanel = CreatePanel(root, "RehearsalWaitingPanel", Vector2.zero, new Vector2(620f, 260f), new Color(0.04f, 0.05f, 0.07f, 0.94f));
-            CreateText(rehearsalWaitingPanel.transform, "Title", "Welcome to SceneTalkVR", new Vector2(0f, 62f), new Vector2(560f, 52f), 30, TextAnchor.MiddleCenter, Color.white);
-            CreateText(rehearsalWaitingPanel.transform, "Instruction", "Please wait while the experimenter prepares your next task.", new Vector2(0f, -20f), new Vector2(540f, 90f), 21, TextAnchor.MiddleCenter, new Color(.82f, .9f, 1f, 1f));
+            CreateText(rehearsalWaitingPanel.transform, "Title", "欢迎使用 SceneTalkVR", new Vector2(0f, 62f), new Vector2(560f, 52f), 30, TextAnchor.MiddleCenter, Color.white);
+            CreateText(rehearsalWaitingPanel.transform, "Instruction", "请稍候，实验人员正在准备下一个任务。", new Vector2(0f, -20f), new Vector2(540f, 90f), 21, TextAnchor.MiddleCenter, new Color(.82f, .9f, 1f, 1f));
 
             formalModeSelectionPanel = CreatePanel(root, "FormalModeSelectionPanel", Vector2.zero, new Vector2(900f, 520f), new Color(0.04f, 0.05f, 0.07f, 0.96f));
-            CreateText(formalModeSelectionPanel.transform, "Title", "Choose a Feedback Mode", new Vector2(0f, 220f), new Vector2(800f, 44f), 28, TextAnchor.MiddleCenter, Color.white);
-            CreateText(formalModeSelectionPanel.transform, "Instruction", "Choose any available mode. Your task has already been assigned.", new Vector2(0f, 182f), new Vector2(800f, 30f), 17, TextAnchor.MiddleCenter, new Color(.78f, .86f, 1f, 1f));
+            CreateText(formalModeSelectionPanel.transform, "Title", "选择反馈模式", new Vector2(0f, 220f), new Vector2(800f, 44f), 28, TextAnchor.MiddleCenter, Color.white);
+            CreateText(formalModeSelectionPanel.transform, "Instruction", "请选择任一可用模式，任务已为你分配。", new Vector2(0f, 182f), new Vector2(800f, 30f), 17, TextAnchor.MiddleCenter, new Color(.78f, .86f, 1f, 1f));
             BuildFormalModeButtons();
 
             sessionNotPreparedPanel = CreatePanel(root, "SessionNotPreparedPanel", Vector2.zero, new Vector2(660f, 250f), new Color(0.04f, 0.05f, 0.07f, 0.97f));
-            CreateText(sessionNotPreparedPanel.transform, "Title", "Experiment Session Not Prepared", new Vector2(0f, 62f), new Vector2(590f, 44f), 27, TextAnchor.MiddleCenter, Color.white);
-            CreateText(sessionNotPreparedPanel.transform, "Instruction", "The experiment session has not been prepared.\nPlease contact the experimenter.", new Vector2(0f, -20f), new Vector2(590f, 92f), 21, TextAnchor.MiddleCenter, new Color(.85f, .9f, 1f, 1f));
-            CreateButton(sessionNotPreparedPanel.transform, "SessionNotPreparedBackButton", "Back", new Vector2(0f, -92f), new Vector2(160f, 44f), new Color(.24f, .36f, .42f, 1f))
+            CreateText(sessionNotPreparedPanel.transform, "Title", "实验会话尚未准备", new Vector2(0f, 62f), new Vector2(590f, 44f), 27, TextAnchor.MiddleCenter, Color.white);
+            CreateText(sessionNotPreparedPanel.transform, "Instruction", "实验会话尚未准备。\n请联系实验人员。", new Vector2(0f, -20f), new Vector2(590f, 92f), 21, TextAnchor.MiddleCenter, new Color(.85f, .9f, 1f, 1f));
+            CreateButton(sessionNotPreparedPanel.transform, "SessionNotPreparedBackButton", "返回", new Vector2(0f, -92f), new Vector2(160f, 44f), new Color(.24f, .36f, .42f, 1f))
                 .onClick.AddListener(() => { sessionPreparationBlocked = false; Refresh(); });
 
             mainMenuPanel = CreatePanel(root, "InitialPanel", new Vector2(0f, 0f), new Vector2(430f, 600f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
             CreateText(mainMenuPanel.transform, "Title", "SceneTalkVR", new Vector2(0f, 255f), new Vector2(360f, 54f), 34, TextAnchor.MiddleCenter, Color.white);
-            experimentPilotButton = CreateButton(mainMenuPanel.transform, "PilotExperimentButton", "Pilot Experiment", new Vector2(0f, 172f), new Vector2(270f, 50f), new Color(0.18f, 0.48f, 0.58f, 1f));
-            experimentFormalButton = CreateButton(mainMenuPanel.transform, "FormalExperimentButton", "Formal Experiment", new Vector2(0f, 110f), new Vector2(270f, 50f), new Color(0.16f, 0.38f, 0.68f, 1f));
-            pilotButton = CreateButton(mainMenuPanel.transform, "ExperimentHistoryButton", "Experiment History", new Vector2(0f, 48f), new Vector2(270f, 50f), new Color(0.18f, 0.48f, 0.58f, 1f));
-            historyButton = CreateButton(mainMenuPanel.transform, "HistoryButton", "History", new Vector2(0f, -14f), new Vector2(270f, 50f), new Color(0.24f, 0.36f, 0.42f, 1f));
-            settingsButton = CreateButton(mainMenuPanel.transform, "SettingsButton", "Settings", new Vector2(0f, -76f), new Vector2(270f, 50f), new Color(0.24f, 0.36f, 0.42f, 1f));
-            quitButton = CreateButton(mainMenuPanel.transform, "QuitButton", "Quit", new Vector2(0f, -138f), new Vector2(270f, 50f), ExitButtonColor);
+            experimentPilotButton = CreateButton(mainMenuPanel.transform, "PilotExperimentButton", "预实验", new Vector2(0f, 172f), new Vector2(270f, 50f), new Color(0.18f, 0.48f, 0.58f, 1f));
+            experimentFormalButton = CreateButton(mainMenuPanel.transform, "FormalExperimentButton", "正式实验", new Vector2(0f, 110f), new Vector2(270f, 50f), new Color(0.16f, 0.38f, 0.68f, 1f));
+            pilotButton = CreateButton(mainMenuPanel.transform, "ExperimentHistoryButton", "实验历史", new Vector2(0f, 48f), new Vector2(270f, 50f), new Color(0.18f, 0.48f, 0.58f, 1f));
+            historyButton = CreateButton(mainMenuPanel.transform, "HistoryButton", "对话历史", new Vector2(0f, -14f), new Vector2(270f, 50f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            settingsButton = CreateButton(mainMenuPanel.transform, "SettingsButton", "设置", new Vector2(0f, -76f), new Vector2(270f, 50f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            quitButton = CreateButton(mainMenuPanel.transform, "QuitButton", "退出", new Vector2(0f, -138f), new Vector2(270f, 50f), ExitButtonColor);
             homeExperimentMessageText = CreateText(mainMenuPanel.transform, "ExperimentMessage", string.Empty, new Vector2(0f, -218f), new Vector2(360f, 74f), 16, TextAnchor.MiddleCenter, new Color(1f, .58f, .42f, 1f));
 
             BuildExperimentPanels(root);
 
             historyListPanel = CreatePanel(root, "HistoryListPanel", Vector2.zero, new Vector2(820f, 500f), new Color(0.04f, 0.05f, 0.07f, 0.94f));
-            CreateText(historyListPanel.transform, "Title", "Conversation History", new Vector2(0f, 210f), new Vector2(620f, 44f), 30, TextAnchor.MiddleCenter, Color.white);
-            historyEmptyText = CreateText(historyListPanel.transform, "Empty", "No conversation history yet.", new Vector2(0f, 10f), new Vector2(650f, 60f), 22, TextAnchor.MiddleCenter, new Color(0.75f, 0.82f, 0.88f, 1f));
+            CreateText(historyListPanel.transform, "Title", "对话历史", new Vector2(0f, 210f), new Vector2(620f, 44f), 30, TextAnchor.MiddleCenter, Color.white);
+            historyEmptyText = CreateText(historyListPanel.transform, "Empty", "暂无对话历史。", new Vector2(0f, 10f), new Vector2(650f, 60f), 22, TextAnchor.MiddleCenter, new Color(0.75f, 0.82f, 0.88f, 1f));
             for (var i = 0; i < historyRowButtons.Length; i++)
             {
                 historyRowButtons[i] = CreateButton(
@@ -299,13 +299,13 @@ namespace SceneTalkVR.Runtime
                     label.fontSizeMax = 19f;
                 }
             }
-            historyPreviousButton = CreateButton(historyListPanel.transform, "PreviousButton", "Previous", new Vector2(-250f, -210f), new Vector2(150f, 44f), new Color(0.24f, 0.36f, 0.42f, 1f));
-            historyPageText = CreateText(historyListPanel.transform, "Page", "Page 1 / 1", new Vector2(0f, -210f), new Vector2(200f, 40f), 18, TextAnchor.MiddleCenter, Color.white);
-            historyNextButton = CreateButton(historyListPanel.transform, "NextButton", "Next", new Vector2(250f, -210f), new Vector2(150f, 44f), new Color(0.24f, 0.36f, 0.42f, 1f));
-            historyListBackButton = CreateButton(historyListPanel.transform, "BackButton", "Back", new Vector2(-350f, 210f), new Vector2(100f, 40f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            historyPreviousButton = CreateButton(historyListPanel.transform, "PreviousButton", "上一页", new Vector2(-250f, -210f), new Vector2(150f, 44f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            historyPageText = CreateText(historyListPanel.transform, "Page", "第 1 / 1 页", new Vector2(0f, -210f), new Vector2(200f, 40f), 18, TextAnchor.MiddleCenter, Color.white);
+            historyNextButton = CreateButton(historyListPanel.transform, "NextButton", "下一页", new Vector2(250f, -210f), new Vector2(150f, 44f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            historyListBackButton = CreateButton(historyListPanel.transform, "BackButton", "返回", new Vector2(-350f, 210f), new Vector2(100f, 40f), new Color(0.24f, 0.36f, 0.42f, 1f));
 
             historyDetailPanel = CreatePanel(root, "HistoryDetailPanel", Vector2.zero, new Vector2(820f, 500f), new Color(0.04f, 0.05f, 0.07f, 0.94f));
-            CreateText(historyDetailPanel.transform, "Title", "History Details", new Vector2(0f, 212f), new Vector2(620f, 42f), 29, TextAnchor.MiddleCenter, Color.white);
+            CreateText(historyDetailPanel.transform, "Title", "历史详情", new Vector2(0f, 212f), new Vector2(620f, 42f), 29, TextAnchor.MiddleCenter, Color.white);
             historyDetailSummaryText = CreateText(historyDetailPanel.transform, "Summary", string.Empty, new Vector2(-25f, 137f), new Vector2(690f, 104f), 16, TextAnchor.UpperLeft, new Color(0.82f, 0.9f, 1f, 1f));
             var historyViewport = CreatePanel(historyDetailPanel.transform, "ConversationViewport", new Vector2(-28f, -38f), new Vector2(690f, 230f), new Color(0f, 0f, 0f, 0.35f));
             historyViewport.AddComponent<RectMask2D>();
@@ -325,73 +325,73 @@ namespace SceneTalkVR.Runtime
             historyDetailContentRect.sizeDelta = new Vector2(-24f, 220f);
             historyDetailScrollRect.viewport = historyViewport.GetComponent<RectTransform>();
             historyDetailScrollRect.content = historyDetailContentRect;
-            historyPageUpButton = CreateButton(historyDetailPanel.transform, "PageUpButton", "Up", new Vector2(355f, 8f), new Vector2(76f, 44f), new Color(0.24f, 0.36f, 0.42f, 1f));
-            historyPageDownButton = CreateButton(historyDetailPanel.transform, "PageDownButton", "Down", new Vector2(355f, -52f), new Vector2(76f, 44f), new Color(0.24f, 0.36f, 0.42f, 1f));
-            historyContinueButton = CreateButton(historyDetailPanel.transform, "ContinueButton", "Continue", new Vector2(-110f, -210f), new Vector2(170f, 46f), new Color(0.12f, 0.52f, 0.38f, 1f));
-            historyDeleteButton = CreateButton(historyDetailPanel.transform, "DeleteButton", "Delete", new Vector2(110f, -210f), new Vector2(170f, 46f), ExitButtonColor);
-            historyDetailBackButton = CreateButton(historyDetailPanel.transform, "BackButton", "Back", new Vector2(-330f, -210f), new Vector2(120f, 46f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            historyPageUpButton = CreateButton(historyDetailPanel.transform, "PageUpButton", "向上", new Vector2(355f, 8f), new Vector2(76f, 44f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            historyPageDownButton = CreateButton(historyDetailPanel.transform, "PageDownButton", "向下", new Vector2(355f, -52f), new Vector2(76f, 44f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            historyContinueButton = CreateButton(historyDetailPanel.transform, "ContinueButton", "继续", new Vector2(-110f, -210f), new Vector2(170f, 46f), new Color(0.12f, 0.52f, 0.38f, 1f));
+            historyDeleteButton = CreateButton(historyDetailPanel.transform, "DeleteButton", "删除", new Vector2(110f, -210f), new Vector2(170f, 46f), ExitButtonColor);
+            historyDetailBackButton = CreateButton(historyDetailPanel.transform, "BackButton", "返回", new Vector2(-330f, -210f), new Vector2(120f, 46f), new Color(0.24f, 0.36f, 0.42f, 1f));
 
             historyDeletePanel = CreatePanel(root, "HistoryDeletePanel", Vector2.zero, new Vector2(620f, 290f), new Color(0.04f, 0.05f, 0.07f, 0.97f));
-            CreateText(historyDeletePanel.transform, "Title", "Delete History?", new Vector2(0f, 95f), new Vector2(500f, 46f), 29, TextAnchor.MiddleCenter, Color.white);
+            CreateText(historyDeletePanel.transform, "Title", "删除历史记录？", new Vector2(0f, 95f), new Vector2(500f, 46f), 29, TextAnchor.MiddleCenter, Color.white);
             historyDeleteMessageText = CreateText(historyDeletePanel.transform, "Message", string.Empty, new Vector2(0f, 25f), new Vector2(520f, 76f), 18, TextAnchor.MiddleCenter, new Color(0.84f, 0.88f, 0.92f, 1f));
-            historyDeleteCancelButton = CreateButton(historyDeletePanel.transform, "CancelButton", "Cancel", new Vector2(-115f, -88f), new Vector2(170f, 48f), new Color(0.24f, 0.36f, 0.42f, 1f));
-            historyDeleteConfirmButton = CreateButton(historyDeletePanel.transform, "ConfirmDeleteButton", "Delete", new Vector2(115f, -88f), new Vector2(170f, 48f), ExitButtonColor);
+            historyDeleteCancelButton = CreateButton(historyDeletePanel.transform, "CancelButton", "取消", new Vector2(-115f, -88f), new Vector2(170f, 48f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            historyDeleteConfirmButton = CreateButton(historyDeletePanel.transform, "ConfirmDeleteButton", "删除", new Vector2(115f, -88f), new Vector2(170f, 48f), ExitButtonColor);
 
             historyErrorPanel = CreatePanel(root, "HistoryErrorPanel", Vector2.zero, new Vector2(680f, 260f), new Color(0.04f, 0.05f, 0.07f, 0.96f));
-            CreateText(historyErrorPanel.transform, "Title", "History Error", new Vector2(0f, 82f), new Vector2(520f, 44f), 28, TextAnchor.MiddleCenter, Color.white);
+            CreateText(historyErrorPanel.transform, "Title", "历史记录错误", new Vector2(0f, 82f), new Vector2(520f, 44f), 28, TextAnchor.MiddleCenter, Color.white);
             historyErrorText = CreateText(historyErrorPanel.transform, "Message", string.Empty, new Vector2(0f, -5f), new Vector2(560f, 110f), 18, TextAnchor.MiddleCenter, new Color(1f, 0.55f, 0.42f, 1f));
-            historyErrorBackButton = CreateButton(historyErrorPanel.transform, "BackButton", "Back", new Vector2(0f, -92f), new Vector2(150f, 44f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            historyErrorBackButton = CreateButton(historyErrorPanel.transform, "BackButton", "返回", new Vector2(0f, -92f), new Vector2(150f, 44f), new Color(0.24f, 0.36f, 0.42f, 1f));
 
             settingsPanel = CreatePanel(root, "SettingsPanel", new Vector2(0f, 0f), new Vector2(820f, 500f), new Color(0.04f, 0.05f, 0.07f, 0.92f));
-            settingsTitleText = CreateText(settingsPanel.transform, "Title", "Settings", new Vector2(0f, 210f), new Vector2(480f, 44f), 30, TextAnchor.MiddleCenter, Color.white);
-            settingsPageText = CreateText(settingsPanel.transform, "Page", "Display & Correction", new Vector2(0f, 174f), new Vector2(700f, 30f), 18, TextAnchor.MiddleCenter, new Color(0.74f, 0.86f, 1f, 1f));
+            settingsTitleText = CreateText(settingsPanel.transform, "Title", "设置", new Vector2(0f, 210f), new Vector2(480f, 44f), 30, TextAnchor.MiddleCenter, Color.white);
+            settingsPageText = CreateText(settingsPanel.transform, "Page", "显示与纠错", new Vector2(0f, 174f), new Vector2(700f, 30f), 18, TextAnchor.MiddleCenter, new Color(0.74f, 0.86f, 1f, 1f));
 
             settingsGeneralGroup = new GameObject("GeneralSettings");
             settingsGeneralGroup.transform.SetParent(settingsPanel.transform, false);
-            CreateText(settingsGeneralGroup.transform, "FontLabel", "Font Size", new Vector2(-240f, 108f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
+            CreateText(settingsGeneralGroup.transform, "FontLabel", "字体大小", new Vector2(-240f, 108f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
             fontMinusButton = CreateButton(settingsGeneralGroup.transform, "FontMinusButton", "-", new Vector2(78f, 108f), new Vector2(52f, 48f), new Color(0.24f, 0.36f, 0.42f, 1f));
             fontValueText = CreateText(settingsGeneralGroup.transform, "FontValue", string.Empty, new Vector2(174f, 108f), new Vector2(120f, 44f), 20, TextAnchor.MiddleCenter, Color.white);
             fontPlusButton = CreateButton(settingsGeneralGroup.transform, "FontPlusButton", "+", new Vector2(270f, 108f), new Vector2(52f, 48f), new Color(0.24f, 0.36f, 0.42f, 1f));
 
-            CreateText(settingsGeneralGroup.transform, "UiLabel", "Interface Size", new Vector2(-240f, 58f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
+            CreateText(settingsGeneralGroup.transform, "UiLabel", "界面大小", new Vector2(-240f, 58f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
             uiMinusButton = CreateButton(settingsGeneralGroup.transform, "UiMinusButton", "-", new Vector2(78f, 58f), new Vector2(52f, 48f), new Color(0.24f, 0.36f, 0.42f, 1f));
             uiValueText = CreateText(settingsGeneralGroup.transform, "UiValue", string.Empty, new Vector2(174f, 58f), new Vector2(120f, 44f), 20, TextAnchor.MiddleCenter, Color.white);
             uiPlusButton = CreateButton(settingsGeneralGroup.transform, "UiPlusButton", "+", new Vector2(270f, 58f), new Vector2(52f, 48f), new Color(0.24f, 0.36f, 0.42f, 1f));
 
-            CreateText(settingsGeneralGroup.transform, "SubtitleLabel", "Dialogue Subtitles", new Vector2(-240f, 8f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
+            CreateText(settingsGeneralGroup.transform, "SubtitleLabel", "对话字幕", new Vector2(-240f, 8f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
             subtitleValueText = CreateText(settingsGeneralGroup.transform, "SubtitleValue", string.Empty, new Vector2(110f, 8f), new Vector2(140f, 44f), 20, TextAnchor.MiddleCenter, Color.white);
-            subtitleChangeButton = CreateButton(settingsGeneralGroup.transform, "SubtitleChangeButton", "Change", new Vector2(293f, 8f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
+            subtitleChangeButton = CreateButton(settingsGeneralGroup.transform, "SubtitleChangeButton", "切换", new Vector2(293f, 8f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
 
-            CreateText(settingsGeneralGroup.transform, "CorrectionSourceLabel", "Correction Source", new Vector2(-240f, -42f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
+            CreateText(settingsGeneralGroup.transform, "CorrectionSourceLabel", "纠错来源", new Vector2(-240f, -42f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
             correctionSourceValueText = CreateText(settingsGeneralGroup.transform, "CorrectionSourceValue", string.Empty, new Vector2(110f, -42f), new Vector2(190f, 44f), 18, TextAnchor.MiddleCenter, Color.white);
-            correctionSourceChangeButton = CreateButton(settingsGeneralGroup.transform, "CorrectionSourceChangeButton", "Change", new Vector2(293f, -42f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
+            correctionSourceChangeButton = CreateButton(settingsGeneralGroup.transform, "CorrectionSourceChangeButton", "切换", new Vector2(293f, -42f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
 
-            CreateText(settingsGeneralGroup.transform, "CorrectionAppearanceLabel", "Assistant Appearance", new Vector2(-240f, -92f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
+            CreateText(settingsGeneralGroup.transform, "CorrectionAppearanceLabel", "辅助角色外观", new Vector2(-240f, -92f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
             correctionAppearanceValueText = CreateText(settingsGeneralGroup.transform, "CorrectionAppearanceValue", string.Empty, new Vector2(110f, -92f), new Vector2(190f, 44f), 18, TextAnchor.MiddleCenter, Color.white);
-            correctionAppearanceChangeButton = CreateButton(settingsGeneralGroup.transform, "CorrectionAppearanceChangeButton", "Change", new Vector2(293f, -92f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
+            correctionAppearanceChangeButton = CreateButton(settingsGeneralGroup.transform, "CorrectionAppearanceChangeButton", "切换", new Vector2(293f, -92f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
 
-            CreateText(settingsGeneralGroup.transform, "CorrectionStyleLabel", "Correction Style", new Vector2(-240f, -142f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
+            CreateText(settingsGeneralGroup.transform, "CorrectionStyleLabel", "纠错方式", new Vector2(-240f, -142f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
             correctionStyleValueText = CreateText(settingsGeneralGroup.transform, "CorrectionStyleValue", string.Empty, new Vector2(110f, -142f), new Vector2(190f, 44f), 18, TextAnchor.MiddleCenter, Color.white);
-            correctionStyleChangeButton = CreateButton(settingsGeneralGroup.transform, "CorrectionStyleChangeButton", "Change", new Vector2(293f, -142f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
+            correctionStyleChangeButton = CreateButton(settingsGeneralGroup.transform, "CorrectionStyleChangeButton", "切换", new Vector2(293f, -142f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
 
             correctionSettingsStatusText = CreateText(settingsGeneralGroup.transform, "CorrectionSettingsStatus", string.Empty, new Vector2(0f, -202f), new Vector2(700f, 30f), 15, TextAnchor.MiddleCenter, new Color(0.72f, 0.8f, 0.86f, 1f));
 
             requestPanel = CreatePanel(root, "RequestPanel", new Vector2(0f, 0f), new Vector2(700f, 380f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
-            requestTitleText = CreateText(requestPanel.transform, "Title", "Scene And Avatar Request", new Vector2(0f, 146f), new Vector2(640f, 42f), 26, TextAnchor.MiddleCenter, Color.white);
-            requestStatusText = CreateText(requestPanel.transform, "Status", "Listening...", new Vector2(0f, 104f), new Vector2(640f, 34f), 20, TextAnchor.MiddleCenter, new Color(0.74f, 0.86f, 1f, 1f));
-            requestTranscriptText = CreateText(requestPanel.transform, "Transcript", "Transcript: -", new Vector2(0f, 28f), new Vector2(620f, 112f), 22, TextAnchor.MiddleCenter, Color.white);
+            requestTitleText = CreateText(requestPanel.transform, "Title", "场景与角色需求", new Vector2(0f, 146f), new Vector2(640f, 42f), 26, TextAnchor.MiddleCenter, Color.white);
+            requestStatusText = CreateText(requestPanel.transform, "Status", "正在聆听……", new Vector2(0f, 104f), new Vector2(640f, 34f), 20, TextAnchor.MiddleCenter, new Color(0.74f, 0.86f, 1f, 1f));
+            requestTranscriptText = CreateText(requestPanel.transform, "Transcript", "识别文本：-", new Vector2(0f, 28f), new Vector2(620f, 112f), 22, TextAnchor.MiddleCenter, Color.white);
             requestErrorText = CreateText(requestPanel.transform, "Error", string.Empty, new Vector2(0f, -64f), new Vector2(620f, 34f), 18, TextAnchor.MiddleCenter, new Color(1f, 0.45f, 0.35f, 1f));
-            listenButton = CreateButton(requestPanel.transform, "ListenButton", "Listen", new Vector2(-110f, -142f), new Vector2(150f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f));
-            confirmButton = CreateButton(requestPanel.transform, "ConfirmButton", "Confirm", new Vector2(110f, -142f), new Vector2(150f, 54f), new Color(0.12f, 0.52f, 0.38f, 1f));
+            listenButton = CreateButton(requestPanel.transform, "ListenButton", "开始录音", new Vector2(-110f, -142f), new Vector2(150f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f));
+            confirmButton = CreateButton(requestPanel.transform, "ConfirmButton", "确认", new Vector2(110f, -142f), new Vector2(150f, 54f), new Color(0.12f, 0.52f, 0.38f, 1f));
 
             // Fixed Task Selection Panel
             taskSelectionPanel = CreatePanel(root, "TaskSelectionPanel", new Vector2(0f, 0f), new Vector2(900f, 520f), new Color(0.04f, 0.05f, 0.07f, 0.95f));
-            CreateText(taskSelectionPanel.transform, "Title", "Select a Practice Task", new Vector2(0f, 220f), new Vector2(800f, 44f), 28, TextAnchor.MiddleCenter, Color.white);
+            CreateText(taskSelectionPanel.transform, "Title", "选择练习任务", new Vector2(0f, 220f), new Vector2(800f, 44f), 28, TextAnchor.MiddleCenter, Color.white);
 
             BuildTaskButtons();
 
             loadingPanel = CreatePanel(root, "LoadingPanel", new Vector2(0f, 0f), new Vector2(540f, 220f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
-            loadingText = CreateText(loadingPanel.transform, "LoadingText", "Loading scene and avatar...", new Vector2(0f, 0f), new Vector2(480f, 80f), 26, TextAnchor.MiddleCenter, Color.white);
+            loadingText = CreateText(loadingPanel.transform, "LoadingText", "正在加载场景与角色……", new Vector2(0f, 0f), new Vector2(480f, 80f), 26, TextAnchor.MiddleCenter, Color.white);
 
             subtitlePanel = CreatePanel(root, "SubtitlePanel", new Vector2(DialoguePanelCenterX, -136f), new Vector2(DialoguePanelWidth, 248f), new Color(0f, 0f, 0f, 0.62f));
             subtitlePanel.AddComponent<RectMask2D>();
@@ -403,24 +403,24 @@ namespace SceneTalkVR.Runtime
             subtitleTextContainerRect.anchoredPosition = new Vector2(DialogueContentCenterX, 48f);
             subtitleTextContainerRect.sizeDelta = new Vector2(DialogueContentWidth, 100f);
 
-            playerSubtitleText = CreateText(subtitleTextContainer.transform, "PlayerSubtitle", "You: -", new Vector2(0f, 36f), new Vector2(DialogueContentWidth, 28f), 18, TextAnchor.UpperLeft, new Color(0.45f, 0.9f, 1f, 1f));
-            avatarSubtitleText = CreateText(subtitleTextContainer.transform, "AvatarSubtitle", "Avatar: -", new Vector2(0f, -14f), new Vector2(DialogueContentWidth, 72f), 19, TextAnchor.UpperLeft, new Color(1f, 0.88f, 0.36f, 1f));
+            playerSubtitleText = CreateText(subtitleTextContainer.transform, "PlayerSubtitle", "你：-", new Vector2(0f, 36f), new Vector2(DialogueContentWidth, 28f), 18, TextAnchor.UpperLeft, new Color(0.45f, 0.9f, 1f, 1f));
+            avatarSubtitleText = CreateText(subtitleTextContainer.transform, "AvatarSubtitle", "角色：-", new Vector2(0f, -14f), new Vector2(DialogueContentWidth, 72f), 19, TextAnchor.UpperLeft, new Color(1f, 0.88f, 0.36f, 1f));
             ConfigureDialogueText(playerSubtitleText);
             ConfigureDialogueText(avatarSubtitleText);
 
             experimentDebugText = CreateText(subtitlePanel.transform, "ExperimentDebug", string.Empty, new Vector2(DialogueContentCenterX, 111f), new Vector2(DialogueContentWidth, 22f), 13, TextAnchor.MiddleLeft, new Color(0.72f, 0.8f, 0.86f, 1f));
             correctionFeedbackText = CreateText(subtitlePanel.transform, "CorrectionFeedback", string.Empty, new Vector2(DialogueContentCenterX, -32f), new Vector2(DialogueContentWidth, 36f), 16, TextAnchor.UpperLeft, new Color(0.78f, 0.95f, 0.74f, 1f));
             correctionStatusText = CreateText(subtitlePanel.transform, "CorrectionStatus", string.Empty, new Vector2(DialogueContentCenterX, -77f), new Vector2(DialogueContentWidth, 28f), 16, TextAnchor.MiddleLeft, new Color(0.86f, 0.9f, 1f, 1f));
-            dialogueStatusText = CreateText(subtitlePanel.transform, "DialogueStatus", "Ready", new Vector2(DialogueContentCenterX, -102f), new Vector2(DialogueContentWidth, 28f), 16, TextAnchor.MiddleLeft, new Color(0.86f, 0.9f, 1f, 1f));
+            dialogueStatusText = CreateText(subtitlePanel.transform, "DialogueStatus", "准备就绪", new Vector2(DialogueContentCenterX, -102f), new Vector2(DialogueContentWidth, 28f), 16, TextAnchor.MiddleLeft, new Color(0.86f, 0.9f, 1f, 1f));
             ConfigureDialogueText(experimentDebugText);
             ConfigureDialogueText(correctionFeedbackText);
             ConfigureDialogueText(correctionStatusText);
             ConfigureDialogueText(dialogueStatusText);
 
-            dialogueListenButton = CreateButton(subtitlePanel.transform, "DialogueListenButton", "Speak", new Vector2(DialogueButtonCenterX, -92f), new Vector2(110f, 40f), new Color(0.12f, 0.52f, 0.38f, 1f));
+            dialogueListenButton = CreateButton(subtitlePanel.transform, "DialogueListenButton", "发言", new Vector2(DialogueButtonCenterX, -92f), new Vector2(110f, 40f), new Color(0.12f, 0.52f, 0.38f, 1f));
 
             taskGoalPanel = CreatePanel(root, "ReadOnlyTaskGoalPanel", TaskGoalPanelPosition, TaskGoalPanelSize, new Color(0.03f, 0.04f, 0.06f, 0.84f));
-            CreateText(taskGoalPanel.transform, "Title", "Task Goals", new Vector2(0f, 90f), new Vector2(320f, 34f), 22, TextAnchor.MiddleCenter, Color.white);
+            CreateText(taskGoalPanel.transform, "Title", "任务目标", new Vector2(0f, 90f), new Vector2(320f, 34f), 22, TextAnchor.MiddleCenter, Color.white);
             taskGoalText = CreateText(taskGoalPanel.transform, "GoalStateText", string.Empty, new Vector2(0f, -18f), new Vector2(320f, 160f), 16, TextAnchor.UpperLeft, new Color(0.86f, 0.92f, 1f, 1f));
             ConfigureDialogueText(taskGoalText);
             
@@ -448,14 +448,14 @@ namespace SceneTalkVR.Runtime
         private void BuildExperimentPanels(Transform root)
         {
             experimentExitConfirmPanel = CreatePanel(root, "ExperimentExitConfirmPanel", Vector2.zero, new Vector2(680f, 320f), new Color(.04f, .05f, .07f, .98f));
-            CreateText(experimentExitConfirmPanel.transform, "Title", "Exit Experiment?", new Vector2(0f, 104f), new Vector2(580f, 48f), 30, TextAnchor.MiddleCenter, Color.white);
-            CreateText(experimentExitConfirmPanel.transform, "Message", "This experiment is not complete. Your history will be kept, and you can continue it later from Experiment History.", new Vector2(0f, 25f), new Vector2(580f, 100f), 19, TextAnchor.MiddleCenter, new Color(.84f, .9f, 1f, 1f));
-            experimentExitCancelButton = CreateButton(experimentExitConfirmPanel.transform, "ContinueExperimentButton", "Continue Experiment", new Vector2(-135f, -102f), new Vector2(230f, 48f), new Color(.12f, .52f, .38f, 1f));
-            experimentExitConfirmButton = CreateButton(experimentExitConfirmPanel.transform, "ConfirmExitExperimentButton", "Exit to Home", new Vector2(135f, -102f), new Vector2(210f, 48f), ExitButtonColor);
+            CreateText(experimentExitConfirmPanel.transform, "Title", "退出实验？", new Vector2(0f, 104f), new Vector2(580f, 48f), 30, TextAnchor.MiddleCenter, Color.white);
+            CreateText(experimentExitConfirmPanel.transform, "Message", "实验尚未完成。系统会保留历史记录，你可以稍后从“实验历史”继续。", new Vector2(0f, 25f), new Vector2(580f, 100f), 19, TextAnchor.MiddleCenter, new Color(.84f, .9f, 1f, 1f));
+            experimentExitCancelButton = CreateButton(experimentExitConfirmPanel.transform, "ContinueExperimentButton", "继续实验", new Vector2(-135f, -102f), new Vector2(230f, 48f), new Color(.12f, .52f, .38f, 1f));
+            experimentExitConfirmButton = CreateButton(experimentExitConfirmPanel.transform, "ConfirmExitExperimentButton", "退出到主页", new Vector2(135f, -102f), new Vector2(210f, 48f), ExitButtonColor);
 
             experimentHistoryListPanel = CreatePanel(root, "ExperimentHistoryListPanel", Vector2.zero, new Vector2(860f, 520f), new Color(.04f, .05f, .07f, .96f));
-            CreateText(experimentHistoryListPanel.transform, "Title", "Experiment History", new Vector2(0f, 220f), new Vector2(680f, 46f), 30, TextAnchor.MiddleCenter, Color.white);
-            experimentHistoryEmptyText = CreateText(experimentHistoryListPanel.transform, "Empty", "No experiment history yet.", new Vector2(0f, 10f), new Vector2(680f, 60f), 22, TextAnchor.MiddleCenter, new Color(.75f, .82f, .88f, 1f));
+            CreateText(experimentHistoryListPanel.transform, "Title", "实验历史", new Vector2(0f, 220f), new Vector2(680f, 46f), 30, TextAnchor.MiddleCenter, Color.white);
+            experimentHistoryEmptyText = CreateText(experimentHistoryListPanel.transform, "Empty", "暂无实验历史。", new Vector2(0f, 10f), new Vector2(680f, 60f), 22, TextAnchor.MiddleCenter, new Color(.75f, .82f, .88f, 1f));
             for (var i = 0; i < experimentHistoryRowButtons.Length; i++)
             {
                 experimentHistoryRowButtons[i] = CreateButton(experimentHistoryListPanel.transform, "ExperimentHistoryRow" + (i + 1), string.Empty,
@@ -469,21 +469,21 @@ namespace SceneTalkVR.Runtime
                     label.fontSizeMax = 18f;
                 }
             }
-            experimentHistoryPreviousButton = CreateButton(experimentHistoryListPanel.transform, "ExperimentHistoryPreviousButton", "Previous", new Vector2(-250f, -225f), new Vector2(150f, 44f), new Color(.24f, .36f, .42f, 1f));
-            experimentHistoryPageText = CreateText(experimentHistoryListPanel.transform, "Page", "Page 1 / 1", new Vector2(0f, -225f), new Vector2(200f, 40f), 18, TextAnchor.MiddleCenter, Color.white);
-            experimentHistoryNextButton = CreateButton(experimentHistoryListPanel.transform, "ExperimentHistoryNextButton", "Next", new Vector2(250f, -225f), new Vector2(150f, 44f), new Color(.24f, .36f, .42f, 1f));
+            experimentHistoryPreviousButton = CreateButton(experimentHistoryListPanel.transform, "ExperimentHistoryPreviousButton", "上一页", new Vector2(-250f, -225f), new Vector2(150f, 44f), new Color(.24f, .36f, .42f, 1f));
+            experimentHistoryPageText = CreateText(experimentHistoryListPanel.transform, "Page", "第 1 / 1 页", new Vector2(0f, -225f), new Vector2(200f, 40f), 18, TextAnchor.MiddleCenter, Color.white);
+            experimentHistoryNextButton = CreateButton(experimentHistoryListPanel.transform, "ExperimentHistoryNextButton", "下一页", new Vector2(250f, -225f), new Vector2(150f, 44f), new Color(.24f, .36f, .42f, 1f));
 
             experimentHistoryActionsPanel = CreatePanel(root, "ExperimentHistoryActionsPanel", Vector2.zero, new Vector2(760f, 400f), new Color(.04f, .05f, .07f, .97f));
-            CreateText(experimentHistoryActionsPanel.transform, "Title", "Experiment Record", new Vector2(0f, 155f), new Vector2(650f, 46f), 29, TextAnchor.MiddleCenter, Color.white);
+            CreateText(experimentHistoryActionsPanel.transform, "Title", "实验记录", new Vector2(0f, 155f), new Vector2(650f, 46f), 29, TextAnchor.MiddleCenter, Color.white);
             experimentHistoryActionsSummaryText = CreateText(experimentHistoryActionsPanel.transform, "Summary", string.Empty, new Vector2(0f, 66f), new Vector2(650f, 120f), 18, TextAnchor.MiddleCenter, new Color(.82f, .9f, 1f, 1f));
-            experimentHistoryContinueButton = CreateButton(experimentHistoryActionsPanel.transform, "ContinueExperimentRecordButton", "Continue", new Vector2(-220f, -102f), new Vector2(180f, 48f), new Color(.12f, .52f, .38f, 1f));
-            experimentHistoryViewButton = CreateButton(experimentHistoryActionsPanel.transform, "ViewExperimentRecordButton", "View Record", new Vector2(0f, -102f), new Vector2(180f, 48f), new Color(.16f, .38f, .68f, 1f));
-            experimentHistoryDeleteButton = CreateButton(experimentHistoryActionsPanel.transform, "DeleteExperimentRecordButton", "Delete", new Vector2(220f, -102f), new Vector2(180f, 48f), ExitButtonColor);
+            experimentHistoryContinueButton = CreateButton(experimentHistoryActionsPanel.transform, "ContinueExperimentRecordButton", "继续", new Vector2(-220f, -102f), new Vector2(180f, 48f), new Color(.12f, .52f, .38f, 1f));
+            experimentHistoryViewButton = CreateButton(experimentHistoryActionsPanel.transform, "ViewExperimentRecordButton", "查看记录", new Vector2(0f, -102f), new Vector2(180f, 48f), new Color(.16f, .38f, .68f, 1f));
+            experimentHistoryDeleteButton = CreateButton(experimentHistoryActionsPanel.transform, "DeleteExperimentRecordButton", "删除", new Vector2(220f, -102f), new Vector2(180f, 48f), ExitButtonColor);
 
             experimentHistoryRecordPanel = CreatePanel(root, "ExperimentHistoryRecordPanel", Vector2.zero, new Vector2(950f, 570f), new Color(.04f, .05f, .07f, .97f));
-            CreateText(experimentHistoryRecordPanel.transform, "Title", "Experiment Record Details", new Vector2(0f, 252f), new Vector2(780f, 42f), 28, TextAnchor.MiddleCenter, Color.white);
+            CreateText(experimentHistoryRecordPanel.transform, "Title", "实验记录详情", new Vector2(0f, 252f), new Vector2(780f, 42f), 28, TextAnchor.MiddleCenter, Color.white);
             experimentHistoryRecordText = CreateScrollableText(experimentHistoryRecordPanel.transform, "ExperimentRecord", new Vector2(0f, 135f), new Vector2(830f, 180f), out experimentRecordScrollRect, out experimentRecordContentRect);
-            CreateText(experimentHistoryRecordPanel.transform, "EntriesTitle", "Conversations and Questionnaires", new Vector2(0f, 28f), new Vector2(760f, 30f), 18, TextAnchor.MiddleCenter, new Color(.78f, .88f, 1f, 1f));
+            CreateText(experimentHistoryRecordPanel.transform, "EntriesTitle", "对话与问卷", new Vector2(0f, 28f), new Vector2(760f, 30f), 18, TextAnchor.MiddleCenter, new Color(.78f, .88f, 1f, 1f));
             for (var i = 0; i < experimentRecordEntryButtons.Length; i++)
             {
                 var index = i;
@@ -493,27 +493,27 @@ namespace SceneTalkVR.Runtime
                 if (label != null) { label.alignment = TextAlignmentOptions.Left; label.fontSize = 15f; }
                 experimentRecordEntryButtons[i].onClick.AddListener(() => OpenExperimentRecordEntry(index));
             }
-            experimentRecordPreviousButton = CreateButton(experimentHistoryRecordPanel.transform, "ExperimentRecordPreviousButton", "Previous", new Vector2(-220f, -252f), new Vector2(140f, 38f), new Color(.24f, .36f, .42f, 1f));
-            experimentRecordEntriesPageText = CreateText(experimentHistoryRecordPanel.transform, "EntriesPage", "Page 1 / 1", new Vector2(0f, -252f), new Vector2(180f, 34f), 16, TextAnchor.MiddleCenter, Color.white);
-            experimentRecordNextButton = CreateButton(experimentHistoryRecordPanel.transform, "ExperimentRecordNextButton", "Next", new Vector2(220f, -252f), new Vector2(140f, 38f), new Color(.24f, .36f, .42f, 1f));
+            experimentRecordPreviousButton = CreateButton(experimentHistoryRecordPanel.transform, "ExperimentRecordPreviousButton", "上一页", new Vector2(-220f, -252f), new Vector2(140f, 38f), new Color(.24f, .36f, .42f, 1f));
+            experimentRecordEntriesPageText = CreateText(experimentHistoryRecordPanel.transform, "EntriesPage", "第 1 / 1 页", new Vector2(0f, -252f), new Vector2(180f, 34f), 16, TextAnchor.MiddleCenter, Color.white);
+            experimentRecordNextButton = CreateButton(experimentHistoryRecordPanel.transform, "ExperimentRecordNextButton", "下一页", new Vector2(220f, -252f), new Vector2(140f, 38f), new Color(.24f, .36f, .42f, 1f));
 
             experimentHistoryConversationPanel = CreatePanel(root, "ExperimentHistoryConversationDetailPanel", Vector2.zero, new Vector2(900f, 550f), new Color(.04f, .05f, .07f, .97f));
-            CreateText(experimentHistoryConversationPanel.transform, "Title", "Conversation Details", new Vector2(0f, 235f), new Vector2(760f, 42f), 28, TextAnchor.MiddleCenter, Color.white);
+            CreateText(experimentHistoryConversationPanel.transform, "Title", "对话详情", new Vector2(0f, 235f), new Vector2(760f, 42f), 28, TextAnchor.MiddleCenter, Color.white);
             experimentHistoryConversationSummaryText = CreateText(experimentHistoryConversationPanel.transform, "Summary", string.Empty, new Vector2(0f, 174f), new Vector2(760f, 78f), 16, TextAnchor.MiddleCenter, new Color(.82f, .9f, 1f, 1f));
             experimentHistoryConversationBodyText = CreateScrollableText(experimentHistoryConversationPanel.transform, "ExperimentConversation", new Vector2(0f, -40f), new Vector2(790f, 330f), out experimentConversationScrollRect, out experimentConversationContentRect);
 
             experimentHistoryQuestionnairePanel = CreatePanel(root, "ExperimentHistoryQuestionnaireDetailPanel", Vector2.zero, new Vector2(900f, 550f), new Color(.04f, .05f, .07f, .97f));
-            CreateText(experimentHistoryQuestionnairePanel.transform, "Title", "Questionnaire Details", new Vector2(0f, 235f), new Vector2(760f, 42f), 28, TextAnchor.MiddleCenter, Color.white);
+            CreateText(experimentHistoryQuestionnairePanel.transform, "Title", "问卷详情", new Vector2(0f, 235f), new Vector2(760f, 42f), 28, TextAnchor.MiddleCenter, Color.white);
             experimentHistoryQuestionnaireText = CreateScrollableText(experimentHistoryQuestionnairePanel.transform, "ExperimentQuestionnaire", new Vector2(0f, -5f), new Vector2(800f, 410f), out experimentQuestionnaireScrollRect, out experimentQuestionnaireContentRect);
 
             experimentHistoryDeletePanel = CreatePanel(root, "ExperimentHistoryDeleteConfirmPanel", Vector2.zero, new Vector2(650f, 300f), new Color(.04f, .05f, .07f, .98f));
-            CreateText(experimentHistoryDeletePanel.transform, "Title", "Delete Experiment?", new Vector2(0f, 98f), new Vector2(560f, 46f), 29, TextAnchor.MiddleCenter, Color.white);
+            CreateText(experimentHistoryDeletePanel.transform, "Title", "删除实验记录？", new Vector2(0f, 98f), new Vector2(560f, 46f), 29, TextAnchor.MiddleCenter, Color.white);
             experimentHistoryDeleteMessageText = CreateText(experimentHistoryDeletePanel.transform, "Message", string.Empty, new Vector2(0f, 24f), new Vector2(560f, 88f), 18, TextAnchor.MiddleCenter, new Color(.84f, .9f, 1f, 1f));
-            experimentHistoryDeleteCancelButton = CreateButton(experimentHistoryDeletePanel.transform, "CancelExperimentDeleteButton", "Cancel", new Vector2(-115f, -93f), new Vector2(170f, 46f), new Color(.24f, .36f, .42f, 1f));
-            experimentHistoryDeleteConfirmButton = CreateButton(experimentHistoryDeletePanel.transform, "ConfirmExperimentDeleteButton", "Delete", new Vector2(115f, -93f), new Vector2(170f, 46f), ExitButtonColor);
+            experimentHistoryDeleteCancelButton = CreateButton(experimentHistoryDeletePanel.transform, "CancelExperimentDeleteButton", "取消", new Vector2(-115f, -93f), new Vector2(170f, 46f), new Color(.24f, .36f, .42f, 1f));
+            experimentHistoryDeleteConfirmButton = CreateButton(experimentHistoryDeletePanel.transform, "ConfirmExperimentDeleteButton", "删除", new Vector2(115f, -93f), new Vector2(170f, 46f), ExitButtonColor);
 
             experimentHistoryErrorPanel = CreatePanel(root, "ExperimentHistoryErrorPanel", Vector2.zero, new Vector2(680f, 270f), new Color(.04f, .05f, .07f, .98f));
-            CreateText(experimentHistoryErrorPanel.transform, "Title", "Experiment History Error", new Vector2(0f, 88f), new Vector2(580f, 44f), 28, TextAnchor.MiddleCenter, Color.white);
+            CreateText(experimentHistoryErrorPanel.transform, "Title", "实验历史错误", new Vector2(0f, 88f), new Vector2(580f, 44f), 28, TextAnchor.MiddleCenter, Color.white);
             experimentHistoryErrorText = CreateText(experimentHistoryErrorPanel.transform, "Message", string.Empty, new Vector2(0f, -5f), new Vector2(570f, 120f), 18, TextAnchor.MiddleCenter, new Color(1f, .55f, .42f, 1f));
         }
 
@@ -904,8 +904,13 @@ namespace SceneTalkVR.Runtime
                 var task = taskButtonDefinitions[i];
                 var column = i % 2; var row = i / 2;
                 var x = column == 0 ? -210f : 210f; var y = 90f - row * 190f;
-                taskButtons.Add(CreateButton(taskSelectionPanel.transform, $"Task{i + 1}Button", task.displayName, new Vector2(x, y), new Vector2(380f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f)));
-                CreateText(taskSelectionPanel.transform, $"Task{i + 1}Context", task.context + "\nOpening: " + task.initialQuestion, new Vector2(x, y - 80f), new Vector2(380f, 88f), 15, TextAnchor.UpperCenter, new Color(0.8f, 0.8f, 0.8f, 1f));
+                taskButtons.Add(CreateButton(taskSelectionPanel.transform, $"Task{i + 1}Button",
+                    SceneTalkChineseUiText.TaskName(task.taskId, task.displayName), new Vector2(x, y),
+                    new Vector2(380f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f)));
+                CreateText(taskSelectionPanel.transform, $"Task{i + 1}Context",
+                    SceneTalkChineseUiText.TaskContext(task.taskId, task.context) + "\n开场白：" + task.initialQuestion,
+                    new Vector2(x, y - 80f), new Vector2(380f, 88f), 15, TextAnchor.UpperCenter,
+                    new Color(0.8f, 0.8f, 0.8f, 1f));
             }
         }
 
@@ -922,17 +927,17 @@ namespace SceneTalkVR.Runtime
                     new Vector2(x, y), new Vector2(390f, 70f), new Color(0.16f, 0.38f, 0.68f, 1f));
                 button.onClick.AddListener(() => SelectFormalMode(captured));
                 formalModeButtons[code] = button;
-                formalModeStatusTexts[code] = CreateText(formalModeSelectionPanel.transform, code + "Status", "Available",
+                formalModeStatusTexts[code] = CreateText(formalModeSelectionPanel.transform, code + "Status", "可选择",
                     new Vector2(x, y - 52f), new Vector2(360f, 26f), 15, TextAnchor.MiddleCenter, new Color(.75f, .9f, .75f, 1f));
             }
         }
 
         private static string FriendlyConditionLabel(FormalConditionCode code) => code switch
         {
-            FormalConditionCode.NE => "NE — Explicit feedback from partner",
-            FormalConditionCode.NR => "NR — Recast feedback from partner",
-            FormalConditionCode.SE => "SE — Explicit feedback from support agent",
-            FormalConditionCode.SR => "SR — Recast feedback from support agent",
+            FormalConditionCode.NE => "NE — 对话角色直接纠错",
+            FormalConditionCode.NR => "NR — 对话角色重述反馈",
+            FormalConditionCode.SE => "SE — 辅助角色直接纠错",
+            FormalConditionCode.SR => "SR — 辅助角色重述反馈",
             _ => code.ToString()
         };
 
@@ -1081,8 +1086,8 @@ namespace SceneTalkVR.Runtime
         {
             if (demoRankingPanel == null || demoRankingText == null) return;
             demoRankingText.text = pilot
-                ? "PILOT FINAL RANKING / 预实验最终排序\n\n1  Voice Only\n2  Floating Orb\n3  Humanoid Agent\n\nDEMO OPERATOR PREVIEW\nautoFilledForDemo only"
-                : "FORMAL FINAL RANKING / 正式条件最终排序\n\n1  NE\n2  NR\n3  SE\n4  SR\n\nDEMO OPERATOR PREVIEW\nautoFilledForDemo only";
+                ? "预实验最终排序\n\n1  仅语音\n2  悬浮球\n3  人形辅助角色\n\n演示操作员预览\n仅用于自动填充演示"
+                : "正式条件最终排序\n\n1  NE\n2  NR\n3  SE\n4  SR\n\n演示操作员预览\n仅用于自动填充演示";
             demoRankingPanel.SetActive(true);
             demoRankingPanel.transform.SetAsLastSibling();
             if (demoBanner != null) demoBanner.transform.SetAsLastSibling();
@@ -1092,8 +1097,8 @@ namespace SceneTalkVR.Runtime
         {
             if (demoRankingPanel == null || demoRankingText == null) return;
             demoRankingText.text = pilot
-                ? "PILOT REHEARSAL RANKING\n\nUse Rehearsal Control to exercise QA ranking submission."
-                : "FORMAL REHEARSAL RANKING\n\nUse the collection participant flow for the interactive final ranking.";
+                ? "预实验演练排序\n\n请使用演练控制窗口执行质量验证排序提交。"
+                : "正式实验演练排序\n\n请使用参与者收集流程完成交互式最终排序。";
             demoRankingPanel.name = "RehearsalRankingOperatorNotice";
             rehearsalFinalRankingVisible = true;
             demoRankingPanel.SetActive(true);
@@ -1109,13 +1114,13 @@ namespace SceneTalkVR.Runtime
             if (deviceValidation)
             {
                 SetActive(demoBanner, true); SetActive(demoStatusPanel, true);
-                if (demoBannerText != null) demoBannerText.text = "PICO DEVICE VALIDATION — NOT PARTICIPANT DATA";
+                if (demoBannerText != null) demoBannerText.text = "PICO 设备验证——非参与者数据";
                 if (demoStatusText != null)
                 {
-                    var mode = rehearsal?.IsFormal == true ? "Formal" : rehearsal?.IsPilot == true ? "Pilot" : "Not started";
-                    demoStatusText.text = $"Mode: PICO Device Validation {mode}\n"
-                        + $"Qualification: Rehearsal\nData origin: rehearsal\nCollection eligible: No\n"
-                        + $"Profile: pico_device_validation\nSession: {rehearsal?.SessionId ?? string.Empty}";
+                    var mode = rehearsal?.IsFormal == true ? "正式实验" : rehearsal?.IsPilot == true ? "预实验" : "尚未开始";
+                    demoStatusText.text = $"模式：PICO 设备验证（{mode}）\n"
+                        + $"资格：演练\n数据来源：演练\n可用于正式收集：否\n"
+                        + $"配置：pico_device_validation\n会话：{rehearsal?.SessionId ?? string.Empty}";
                 }
                 demoBanner?.transform.SetAsLastSibling();
                 return;
@@ -1138,11 +1143,11 @@ namespace SceneTalkVR.Runtime
             var pilotCondition = demo.CurrentPosition >= 0 && demo.PilotAssignment?.conditions != null && demo.CurrentPosition < demo.PilotAssignment.conditions.Length ? demo.PilotAssignment.conditions[demo.CurrentPosition] : null;
             var condition = demo.IsFormalDemo ? formalCondition?.formalConditionCode.ToString() : pilotCondition?.embodimentConditionLabel;
             var avatar = demo.IsFormalDemo ? demo.ResolveFormalAvatarKey(demo.CurrentTaskId) : demo.ResolvePilotProfile(pilotCondition?.embodimentCondition ?? PilotEmbodimentCondition.VoiceOnly)?.visualPrefabKey;
-            demoStatusText.text = $"Mode: {(demo.IsFormalDemo ? "Editor Demo Formal" : "Editor Demo Pilot")}\n"
-                + $"Condition: {condition ?? "not prepared"}\nTask: {demo.CurrentTaskId}\n"
-                + $"Sequence position: {Mathf.Max(0, demo.CurrentPosition + 1)}/{demo.TotalConditions}\n"
-                + $"Avatar: DEMO AVATAR ({avatar})\nVoice: Editor Demo\nCollection eligible: No\n"
-                + "Editor Demo Resource — Not Collection Approved";
+            demoStatusText.text = $"模式：{(demo.IsFormalDemo ? "编辑器正式实验演示" : "编辑器预实验演示")}\n"
+                + $"条件：{condition ?? "尚未准备"}\n任务：{SceneTalkChineseUiText.TaskName(demo.CurrentTaskId, demo.CurrentTaskId)}\n"
+                + $"序号：{Mathf.Max(0, demo.CurrentPosition + 1)}/{demo.TotalConditions}\n"
+                + $"角色：演示角色（{avatar}）\n语音：编辑器演示\n可用于正式收集：否\n"
+                + "编辑器演示资源——未经正式收集批准";
         }
 
         public void SetGoalPanelVisible(bool visible)
@@ -1199,7 +1204,7 @@ namespace SceneTalkVR.Runtime
         private void RenderGoalPanel(GoalProgressTracker tracker)
         {
             if (taskGoalText == null || tracker == null || tracker.Goals.Count == 0) { if (taskGoalText != null) taskGoalText.text = string.Empty; return; }
-            var taskName = string.IsNullOrWhiteSpace(tracker.Context.taskId) ? "Task" : tracker.Context.taskId;
+            var taskName = SceneTalkChineseUiText.TaskName(tracker.Context.taskId, tracker.Context.taskId);
             var builder = new System.Text.StringBuilder(taskName).AppendLine();
             for (var i = 0; i < tracker.Goals.Count; i++)
             {
@@ -1207,15 +1212,16 @@ namespace SceneTalkVR.Runtime
                 if (goal.state != GoalProgressState.Confirmed && i != tracker.ActiveGoalIndex) continue;
                 builder.Append(goal.state == GoalProgressState.Confirmed ? "[✓] "
                     : goal.state == GoalProgressState.Candidate ? "[…] "
-                    : goal.state == GoalProgressState.Rejected ? "[↻] " : "[ ] ").AppendLine(goal.goalText);
+                    : goal.state == GoalProgressState.Rejected ? "[↻] " : "[ ] ")
+                    .AppendLine(SceneTalkChineseUiText.Goal(goal.goalId, goal.goalText));
             }
             if (tracker.SequenceState == GoalSequenceState.AwaitingParticipantTurn)
-                builder.AppendLine().AppendLine("Goal completed. Speak once more to continue...");
+                builder.AppendLine().AppendLine("目标已完成，请再次发言以继续……");
             else if (tracker.SequenceState == GoalSequenceState.AwaitingAvatarReply)
-                builder.AppendLine().AppendLine("Waiting for the Avatar's reply to finish...");
+                builder.AppendLine().AppendLine("正在等待角色回复结束……");
             else if (tracker.SequenceState == GoalSequenceState.Completed)
-                builder.AppendLine().AppendLine("All goals completed.");
-            builder.AppendLine().Append(tracker.ConfirmedCount).Append(" / ").Append(tracker.Goals.Count).Append(" completed");
+                builder.AppendLine().AppendLine("全部目标已完成。");
+            builder.AppendLine().Append("已完成 ").Append(tracker.ConfirmedCount).Append(" / ").Append(tracker.Goals.Count);
             taskGoalText.text = builder.ToString();
         }
 
@@ -1228,9 +1234,9 @@ namespace SceneTalkVR.Runtime
             foreach (var pair in formalModeButtons)
             {
                 var item = assignment?.conditions?.FirstOrDefault(x => x.formalConditionCode == pair.Key);
-                var status = item == null ? "Unavailable" : item.status == ConditionRunStatus.Completed ? "Completed"
-                    : item.status == ConditionRunStatus.TechnicalInvalid ? "Retry available"
-                    : item.status == ConditionRunStatus.Assigned ? "Available" : "In progress";
+                var status = item == null ? "不可用" : item.status == ConditionRunStatus.Completed ? "已完成"
+                    : item.status == ConditionRunStatus.TechnicalInvalid ? "可重试"
+                    : item.status == ConditionRunStatus.Assigned ? "可选择" : "进行中";
                 pair.Value.interactable = item != null && (item.status == ConditionRunStatus.Assigned || item.status == ConditionRunStatus.TechnicalInvalid);
                 if (formalModeStatusTexts.TryGetValue(pair.Key, out var label)) label.text = status;
             }
@@ -1249,12 +1255,12 @@ namespace SceneTalkVR.Runtime
 
             if (settingsTitleText != null)
             {
-                settingsTitleText.text = "Settings";
+                settingsTitleText.text = "设置";
             }
 
             if (settingsPageText != null)
             {
-                settingsPageText.text = "Display & Correction";
+                settingsPageText.text = "显示与纠错";
             }
 
             if (fontValueText != null)
@@ -1269,7 +1275,7 @@ namespace SceneTalkVR.Runtime
 
             if (subtitleValueText != null)
             {
-                subtitleValueText.text = settings.hideDialogueSubtitles ? "Hidden" : "Shown";
+                subtitleValueText.text = settings.hideDialogueSubtitles ? "隐藏" : "显示";
             }
 
             if (correctionSourceValueText != null)
@@ -1296,25 +1302,25 @@ namespace SceneTalkVR.Runtime
                 correctionAppearanceValueText.text = usesAssistantAgent
                     ? ResolveCorrectionAppearanceDisplayName(
                         SceneTalkUserSettingsStore.Current.assistantEmbodiment)
-                    : "N/A";
+                    : "不适用";
             }
 
             SetInteractable(correctionSourceChangeButton, canChangeCorrection);
             SetInteractable(correctionAppearanceChangeButton, canChangeAppearance);
             SetInteractable(correctionStyleChangeButton, canChangeCorrection);
-            SetButtonLabel(correctionSourceChangeButton, canChangeCorrection ? "Change" : "Locked");
+            SetButtonLabel(correctionSourceChangeButton, canChangeCorrection ? "切换" : "已锁定");
             SetButtonLabel(
                 correctionAppearanceChangeButton,
-                !canChangeCorrection ? "Locked" : usesAssistantAgent ? "Change" : "N/A");
-            SetButtonLabel(correctionStyleChangeButton, canChangeCorrection ? "Change" : "Locked");
+                !canChangeCorrection ? "已锁定" : usesAssistantAgent ? "切换" : "不适用");
+            SetButtonLabel(correctionStyleChangeButton, canChangeCorrection ? "切换" : "已锁定");
 
             if (correctionSettingsStatusText != null)
             {
                 correctionSettingsStatusText.text = !canChangeCorrection
-                    ? orchestrator.CorrectionSettingLockReason
+                    ? SceneTalkChineseUiText.Error(orchestrator.CorrectionSettingLockReason)
                     : usesAssistantAgent
-                        ? "Appearance is saved globally and locked when a Formal experiment starts."
-                        : "Choose Assistant Agent to change its appearance.";
+                        ? "辅助角色外观会全局保存，并在正式实验开始后锁定。"
+                        : "选择辅助角色后可以更改其外观。";
             }
         }
 
@@ -1337,10 +1343,10 @@ namespace SceneTalkVR.Runtime
                 }
                 var item = items[i];
                 SetButtonLabel(button,
-                    $"[{item.kind}] {item.participantId}    {FormatHistoryTime(item.updatedAtUnixMs)}\n"
-                    + $"Status: {FriendlyExperimentStatus(item.status)}"
+                    $"[{SceneTalkChineseUiText.ExperimentKindName(item.kind)}] {item.participantId}    {FormatHistoryTime(item.updatedAtUnixMs)}\n"
+                    + $"状态：{FriendlyExperimentStatus(item.status)}"
                     + (item.kind == ExperimentKind.Formal && !string.IsNullOrWhiteSpace(item.assistantEmbodimentSnapshot)
-                        ? $"  |  Appearance: {ResolveCorrectionAppearanceDisplayName(item.assistantEmbodimentSnapshot)}"
+                        ? $"  |  外观：{ResolveCorrectionAppearanceDisplayName(item.assistantEmbodimentSnapshot)}"
                         : string.Empty));
                 if (!string.Equals(experimentHistoryRowIds[i], item.experimentId, System.StringComparison.Ordinal))
                 {
@@ -1351,7 +1357,7 @@ namespace SceneTalkVR.Runtime
                 }
             }
             if (experimentHistoryPageText != null)
-                experimentHistoryPageText.text = $"Page {page.pageIndex + 1} / {page.TotalPages}";
+                experimentHistoryPageText.text = $"第 {page.pageIndex + 1} / {page.TotalPages} 页";
             SetInteractable(experimentHistoryPreviousButton, page.pageIndex > 0);
             SetInteractable(experimentHistoryNextButton, page.pageIndex + 1 < page.TotalPages);
         }
@@ -1364,11 +1370,11 @@ namespace SceneTalkVR.Runtime
             if (experimentHistoryActionsSummaryText != null)
             {
                 experimentHistoryActionsSummaryText.text =
-                    $"{summary.kind} experiment  |  {FriendlyExperimentStatus(summary.status)}\n"
-                    + $"Participant: {summary.participantId}\n"
-                    + $"Updated: {FormatHistoryTime(summary.updatedAtUnixMs)}"
+                    $"{SceneTalkChineseUiText.ExperimentKindName(summary.kind)}  |  {FriendlyExperimentStatus(summary.status)}\n"
+                    + $"参与者：{summary.participantId}\n"
+                    + $"更新时间：{FormatHistoryTime(summary.updatedAtUnixMs)}"
                     + (summary.kind == ExperimentKind.Formal && !string.IsNullOrWhiteSpace(summary.assistantEmbodimentSnapshot)
-                        ? $"\nAppearance: {ResolveCorrectionAppearanceDisplayName(summary.assistantEmbodimentSnapshot)}"
+                        ? $"\n外观：{ResolveCorrectionAppearanceDisplayName(summary.assistantEmbodimentSnapshot)}"
                         : string.Empty);
             }
             SetInteractable(experimentHistoryContinueButton, summary.CanContinue);
@@ -1394,7 +1400,7 @@ namespace SceneTalkVR.Runtime
                     {
                         isConversation = true,
                         id = conversation.sessionId,
-                        label = $"Conversation  {conversation.title}  |  {conversation.turnCount} turns  |  {FormatHistoryTime(conversation.updatedAtUnixMs)}"
+                        label = $"对话  {SceneTalkChineseUiText.TaskName(string.Empty, conversation.title)}  |  {conversation.turnCount} 轮  |  {FormatHistoryTime(conversation.updatedAtUnixMs)}"
                     });
                 }
                 foreach (var questionnaire in detail.questionnaires ?? System.Array.Empty<ExperimentQuestionnaireRecord>())
@@ -1404,7 +1410,7 @@ namespace SceneTalkVR.Runtime
                     {
                         isConversation = false,
                         id = questionnaire.questionnaireRecordId,
-                        label = $"Questionnaire  {session?.questionnaireId ?? "-"}  |  {session?.completionStatus}  |  {(session?.completionRate ?? 0f):P0}"
+                        label = $"问卷  {session?.questionnaireId ?? "-"}  |  {SceneTalkChineseUiText.QuestionnaireStatusName(session?.completionStatus ?? QuestionnaireCompletionStatus.NotStarted)}  |  {(session?.completionRate ?? 0f):P0}"
                     });
                 }
             }
@@ -1420,7 +1426,7 @@ namespace SceneTalkVR.Runtime
                 if (hasItem) SetButtonLabel(experimentRecordEntryButtons[i], experimentRecordEntries[index].label);
             }
             if (experimentRecordEntriesPageText != null)
-                experimentRecordEntriesPageText.text = $"Page {experimentRecordEntryPage + 1} / {pages}";
+                experimentRecordEntriesPageText.text = $"第 {experimentRecordEntryPage + 1} / {pages} 页";
             SetInteractable(experimentRecordPreviousButton, experimentRecordEntryPage > 0);
             SetInteractable(experimentRecordNextButton, experimentRecordEntryPage + 1 < pages);
         }
@@ -1433,8 +1439,8 @@ namespace SceneTalkVR.Runtime
             if (experimentHistoryConversationSummaryText != null)
             {
                 experimentHistoryConversationSummaryText.text =
-                    $"{detail.summary.title}  |  {detail.summary.experimentKind}  |  {detail.summary.turnCount} turns\n"
-                    + $"Task: {detail.summary.taskType}  |  Updated: {FormatHistoryTime(detail.summary.updatedAtUnixMs)}";
+                    $"{SceneTalkChineseUiText.TaskName(detail.summary.taskType, detail.summary.title)}  |  {SceneTalkChineseUiText.ExperimentKindName(detail.summary.experimentKind)}  |  {detail.summary.turnCount} 轮\n"
+                    + $"任务：{SceneTalkChineseUiText.TaskName(detail.summary.taskType, detail.summary.taskType)}  |  更新时间：{FormatHistoryTime(detail.summary.updatedAtUnixMs)}";
             }
             if (string.Equals(lastRenderedExperimentConversationId, detail.summary.sessionId, System.StringComparison.Ordinal)) return;
             lastRenderedExperimentConversationId = detail.summary.sessionId;
@@ -1458,14 +1464,15 @@ namespace SceneTalkVR.Runtime
             if (!isVisible || experimentHistoryDeleteMessageText == null) return;
             var selected = GetExperimentCoordinator()?.SelectedExperiment?.summary;
             experimentHistoryDeleteMessageText.text = selected == null
-                ? "The selected experiment is no longer available."
-                : $"Delete experiment for {selected.participantId} permanently?\nThis removes its database records and owned cached data.";
+                ? "所选实验记录已不可用。"
+                : $"永久删除参与者 {selected.participantId} 的实验记录？\n这会删除数据库记录及其缓存数据。";
         }
 
         private void RefreshExperimentHistoryError(bool isVisible)
         {
             if (isVisible && experimentHistoryErrorText != null)
-                experimentHistoryErrorText.text = GetExperimentCoordinator()?.ErrorMessage ?? "Experiment history operation failed.";
+                experimentHistoryErrorText.text = SceneTalkChineseUiText.Error(
+                    GetExperimentCoordinator()?.ErrorMessage ?? "Experiment history operation failed.");
         }
 
         private void OpenExperimentRecordEntry(int visibleIndex)
@@ -1488,23 +1495,23 @@ namespace SceneTalkVR.Runtime
         private static string BuildExperimentRecordText(ExperimentRecordDetail detail)
         {
             var builder = new StringBuilder();
-            builder.AppendLine($"Experiment: {detail.summary.kind}");
-            builder.AppendLine($"Participant: {detail.summary.participantId}");
-            builder.AppendLine($"Session: {detail.summary.sessionId}");
-            builder.AppendLine($"Status: {FriendlyExperimentStatus(detail.summary.status)}  |  Created: {FormatHistoryTime(detail.summary.createdAtUnixMs)}");
+            builder.AppendLine($"实验：{SceneTalkChineseUiText.ExperimentKindName(detail.summary.kind)}");
+            builder.AppendLine($"参与者：{detail.summary.participantId}");
+            builder.AppendLine($"会话：{detail.summary.sessionId}");
+            builder.AppendLine($"状态：{FriendlyExperimentStatus(detail.summary.status)}  |  创建时间：{FormatHistoryTime(detail.summary.createdAtUnixMs)}");
             if (detail.summary.kind == ExperimentKind.Formal
                 && !string.IsNullOrWhiteSpace(detail.summary.assistantEmbodimentSnapshot))
-                builder.AppendLine("Assistant appearance: "
+                builder.AppendLine("辅助角色外观："
                     + ResolveCorrectionAppearanceDisplayName(detail.summary.assistantEmbodimentSnapshot));
 
             builder.AppendLine();
-            builder.AppendLine("ATTEMPTS");
+            builder.AppendLine("尝试记录");
             var attempts = detail.attempts ?? System.Array.Empty<ExperimentAttemptRecord>();
             if (attempts.Length == 0)
-                builder.AppendLine("No attempts recorded.");
+                builder.AppendLine("暂无尝试记录。");
             foreach (var attempt in attempts.OrderBy(item => item.attemptIndex).ThenBy(item => item.startedAtUnixMs))
             {
-                builder.Append($"Attempt {attempt.attemptIndex}: {ResolveText(attempt.conditionKey)} / {ResolveText(attempt.taskId)} - {attempt.status}");
+                builder.Append($"第 {attempt.attemptIndex} 次：{ResolveText(attempt.conditionKey)} / {SceneTalkChineseUiText.TaskName(attempt.taskId, attempt.taskId)} - {SceneTalkChineseUiText.ExperimentAttemptStatusName(attempt.status)}");
                 if (!string.IsNullOrWhiteSpace(attempt.completionReason)) builder.Append(" (" + attempt.completionReason + ")");
                 builder.AppendLine();
             }
@@ -1513,14 +1520,14 @@ namespace SceneTalkVR.Runtime
             if (ranking != null)
             {
                 builder.AppendLine();
-                builder.AppendLine("FINAL RANKING");
+                builder.AppendLine("最终排序");
                 var ranked = (ranking.rankings ?? System.Array.Empty<PreferenceRankEntry>())
                     .OrderBy(item => item.rank)
                     .Select(item => $"{item.rank}. {(string.IsNullOrWhiteSpace(item.conditionCode) ? item.embodimentCondition : item.conditionCode)}");
-                builder.AppendLine("Ranking: " + string.Join("  ", ranked));
+                builder.AppendLine("排序：" + string.Join("  ", ranked));
                 var preferred = string.IsNullOrWhiteSpace(ranking.preferredConditionCode)
                     ? ranking.preferredEmbodimentCondition : ranking.preferredConditionCode;
-                builder.AppendLine($"Preferred: {ResolveText(preferred)}  |  Reason: {ResolveText(ranking.reason)}");
+                builder.AppendLine($"首选：{ResolveText(preferred)}  |  原因：{ResolveText(ranking.reason)}");
             }
             return builder.ToString();
         }
@@ -1529,22 +1536,21 @@ namespace SceneTalkVR.Runtime
         {
             var session = record.session ?? new QuestionnaireSession();
             var builder = new StringBuilder();
-            builder.AppendLine($"Questionnaire: {ResolveText(session.questionnaireId)}");
-            builder.AppendLine($"Status: {session.completionStatus}  |  Completion: {session.completionRate:P0}  |  Missing: {session.hasMissing}");
-            builder.AppendLine($"Task: {ResolveText(session.taskId)}  |  Condition run: {ResolveText(session.conditionRunId)}");
+            builder.AppendLine($"问卷：{ResolveText(session.questionnaireId)}");
+            builder.AppendLine($"状态：{SceneTalkChineseUiText.QuestionnaireStatusName(session.completionStatus)}  |  完成度：{session.completionRate:P0}  |  有缺失项：{SceneTalkChineseUiText.YesNo(session.hasMissing)}");
+            builder.AppendLine($"任务：{SceneTalkChineseUiText.TaskName(session.taskId, session.taskId)}  |  条件运行：{ResolveText(session.conditionRunId)}");
             builder.AppendLine();
-            builder.AppendLine("SECTION SCORES");
+            builder.AppendLine("分区得分");
             foreach (var score in session.sectionScores ?? System.Array.Empty<QuestionnaireScoreResult>())
-                builder.AppendLine($"{score.sectionId}: mean={score.mean:0.##}, answered={score.answeredCount}/{score.itemCount}, missing={score.hasMissing}");
+                builder.AppendLine($"{score.sectionId}：平均分={score.mean:0.##}，已回答={score.answeredCount}/{score.itemCount}，有缺失={SceneTalkChineseUiText.YesNo(score.hasMissing)}");
             builder.AppendLine();
-            builder.AppendLine("RESPONSES");
+            builder.AppendLine("回答记录");
             foreach (var prompt in record.prompts ?? System.Array.Empty<QuestionnairePromptSnapshot>())
             {
                 var response = session.responses?.FirstOrDefault(item => item.itemId == prompt.itemId);
-                builder.AppendLine($"[{prompt.sectionId}] {ResolveText(prompt.promptEnglish)}");
-                if (!string.IsNullOrWhiteSpace(prompt.promptChinese)) builder.AppendLine(prompt.promptChinese);
-                builder.Append("Answer: " + ResolveText(response?.rawValue));
-                if (response?.hasScoredValue == true) builder.Append($"  |  Score: {response.scoredValue:0.##}");
+                builder.AppendLine($"[{prompt.sectionId}] {ResolveText(prompt.promptChinese)}");
+                builder.Append("回答：" + ResolveText(response?.rawValue));
+                if (response?.hasScoredValue == true) builder.Append($"  |  得分：{response.scoredValue:0.##}");
                 builder.AppendLine();
                 builder.AppendLine();
             }
@@ -1562,12 +1568,12 @@ namespace SceneTalkVR.Runtime
 
         private static string FriendlyExperimentStatus(ExperimentRecordStatus status)
         {
-            return status == ExperimentRecordStatus.InProgress ? "In progress" : status.ToString();
+            return SceneTalkChineseUiText.ExperimentStatusName(status);
         }
 
         private static string HumanizeExperimentError(string error)
         {
-            return string.IsNullOrWhiteSpace(error) ? string.Empty : error.Replace('_', ' ');
+            return SceneTalkChineseUiText.Error(error);
         }
 
         private void RefreshHistoryList(bool isVisible)
@@ -1597,12 +1603,12 @@ namespace SceneTalkVR.Runtime
                 var item = items[i];
                 SetButtonLabel(
                     button,
-                    $"{item.title}    {FormatHistoryTime(item.updatedAtUnixMs)}\n"
-                    + $"{item.turnCount} turns  |  {item.correctionCount} corrections  |  "
+                    $"{SceneTalkChineseUiText.TaskName(item.taskType, item.title)}    {FormatHistoryTime(item.updatedAtUnixMs)}\n"
+                    + $"{item.turnCount} 轮  |  {item.correctionCount} 次纠错  |  "
                     + $"{ResolveCorrectionSourceDisplayName(item.correctionProvider)} / "
                     + ResolveCorrectionStyleDisplayName(item.correctionStyle)
                     + (item.IsExperimentConversation
-                        ? $"  |  Experiment {ShortHistoryId(item.experimentId)} / {item.experimentKind}"
+                        ? $"  |  实验 {ShortHistoryId(item.experimentId)} / {SceneTalkChineseUiText.ExperimentKindName(item.experimentKind)}"
                         : string.Empty));
 
                 if (!string.Equals(historyRowSessionIds[i], item.sessionId, System.StringComparison.Ordinal))
@@ -1616,7 +1622,7 @@ namespace SceneTalkVR.Runtime
 
             if (historyPageText != null)
             {
-                historyPageText.text = $"Page {page.pageIndex + 1} / {page.TotalPages}";
+                historyPageText.text = $"第 {page.pageIndex + 1} / {page.TotalPages} 页";
             }
 
             SetInteractable(historyPreviousButton, page.pageIndex > 0);
@@ -1641,23 +1647,23 @@ namespace SceneTalkVR.Runtime
             if (historyDetailSummaryText != null)
             {
                 historyDetailSummaryText.text =
-                    $"{detail.summary.title}\n"
+                    $"{SceneTalkChineseUiText.TaskName(detail.summary.taskType, detail.summary.title)}\n"
                     + (detail.summary.IsExperimentConversation
-                        ? $"Experiment: {detail.summary.experimentId}  |  Kind: {detail.summary.experimentKind}\n"
+                        ? $"实验：{detail.summary.experimentId}  |  类型：{SceneTalkChineseUiText.ExperimentKindName(detail.summary.experimentKind)}\n"
                         : string.Empty)
-                    + $"Created {FormatHistoryTime(detail.summary.createdAtUnixMs)}  |  Updated {FormatHistoryTime(detail.summary.updatedAtUnixMs)}\n"
-                    + $"Scenario: {detail.summary.scenarioId}  |  Environment: {detail.summary.environmentType}\n"
-                    + $"Avatar: {scene?.avatarRole?.role ?? "-"} / {appearance?.genderPresentation ?? "unknown"}  |  "
-                    + $"Correction: {ResolveCorrectionSourceDisplayName(detail.summary.correctionProvider)} / "
+                    + $"创建时间：{FormatHistoryTime(detail.summary.createdAtUnixMs)}  |  更新时间：{FormatHistoryTime(detail.summary.updatedAtUnixMs)}\n"
+                    + $"任务：{SceneTalkChineseUiText.TaskName(detail.summary.taskType, detail.summary.scenarioId)}  |  环境：{SceneTalkChineseUiText.DisplayValue(detail.summary.environmentType)}\n"
+                    + $"角色：{scene?.avatarRole?.role ?? "-"} / {SceneTalkChineseUiText.DisplayValue(appearance?.genderPresentation)}  |  "
+                    + $"纠错：{ResolveCorrectionSourceDisplayName(detail.summary.correctionProvider)} / "
                     + $"{ResolveCorrectionStyleDisplayName(detail.summary.correctionStyle)}  |  "
-                    + $"Sensitivity: {detail.settings?.feedbackSensitivity ?? "moderate"}\n"
-                    + $"Turns: {detail.summary.turnCount}  |  Corrections: {detail.summary.correctionCount}";
+                    + $"敏感度：{SceneTalkChineseUiText.DisplayValue(detail.settings?.feedbackSensitivity ?? "moderate")}\n"
+                    + $"轮次：{detail.summary.turnCount}  |  纠错次数：{detail.summary.correctionCount}";
             }
 
             SetInteractable(historyContinueButton, detail.summary.CanContinue);
             SetInteractable(historyDeleteButton, detail.summary.CanDelete);
-            SetButtonLabel(historyContinueButton, detail.summary.CanContinue ? "Continue" : "Experiment only");
-            SetButtonLabel(historyDeleteButton, detail.summary.CanDelete ? "Delete" : "Experiment only");
+            SetButtonLabel(historyContinueButton, detail.summary.CanContinue ? "继续" : "仅限实验查看");
+            SetButtonLabel(historyDeleteButton, detail.summary.CanDelete ? "删除" : "仅限实验查看");
 
             if (!string.Equals(
                     lastRenderedHistorySessionId,
@@ -1689,16 +1695,19 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
-            var title = orchestrator.SelectedHistorySession?.summary?.title ?? "this conversation";
+            var summary = orchestrator.SelectedHistorySession?.summary;
+            var title = summary == null
+                ? "此对话"
+                : SceneTalkChineseUiText.TaskName(summary.taskType, summary.title);
             historyDeleteMessageText.text =
-                $"Delete \"{title}\" permanently?\nThis removes its database rows and cached scene files.";
+                $"永久删除“{title}”？\n这会删除对应数据库记录和场景缓存文件。";
         }
 
         private void RefreshHistoryError(bool isVisible)
         {
             if (isVisible && historyErrorText != null)
             {
-                historyErrorText.text = orchestrator.HistoryErrorMessage;
+                historyErrorText.text = SceneTalkChineseUiText.Error(orchestrator.HistoryErrorMessage);
             }
         }
 
@@ -1707,11 +1716,11 @@ namespace SceneTalkVR.Runtime
             var builder = new StringBuilder();
             var task = detail.settings?.condition?.task;
             var avatar = detail.sceneSnapshot?.avatarRole;
-            builder.AppendLine("SETTINGS");
-            builder.AppendLine($"Task context: {ResolveText(task?.context)}");
-            builder.AppendLine($"Goals: {(task?.goals == null || task.goals.Length == 0 ? "-" : string.Join("; ", task.goals))}");
-            builder.AppendLine($"Avatar speech: speed={ResolveText(avatar?.speakingSpeed)}, accent={ResolveText(avatar?.accent)}, attitude={ResolveText(avatar?.attitude)}");
-            builder.AppendLine($"Scene mode: {ResolveText(detail.sceneSnapshot?.scene?.mode)}");
+            builder.AppendLine("设置");
+            builder.AppendLine($"任务情境：{SceneTalkChineseUiText.TaskContext(detail.summary?.taskType, task?.context)}");
+            builder.AppendLine($"目标：{(task?.goals == null || task.goals.Length == 0 ? "-" : string.Join("；", task.goals.Select(goal => SceneTalkChineseUiText.Goal(string.Empty, goal))))}");
+            builder.AppendLine($"角色语音：语速={SceneTalkChineseUiText.DisplayValue(avatar?.speakingSpeed)}，口音={SceneTalkChineseUiText.DisplayValue(avatar?.accent)}，态度={SceneTalkChineseUiText.DisplayValue(avatar?.attitude)}");
+            builder.AppendLine($"场景模式：{SceneTalkChineseUiText.DisplayValue(detail.sceneSnapshot?.scene?.mode)}");
             builder.AppendLine();
 
             var turns = detail.turns ?? System.Array.Empty<DialogueTurnRecord>();
@@ -1722,33 +1731,33 @@ namespace SceneTalkVR.Runtime
                     continue;
                 }
 
-                builder.AppendLine(turn.isOpening ? "OPENING" : $"TURN {turn.sequenceIndex}");
+                builder.AppendLine(turn.isOpening ? "开场" : $"第 {turn.sequenceIndex} 轮");
                 if (!turn.isOpening)
                 {
-                    builder.AppendLine($"You: {ResolveText(turn.userText)}");
+                    builder.AppendLine($"你：{ResolveText(turn.userText)}");
                 }
-                builder.AppendLine($"Avatar: {ResolveText(turn.assistantText)}");
+                builder.AppendLine($"角色：{ResolveText(turn.assistantText)}");
 
                 var feedback = turn.payload?.correctionFeedback;
                 if (feedback != null && feedback.hasFeedback)
                 {
-                    builder.AppendLine($"Correction ({ResolveText(feedback.errorType)}):");
-                    builder.AppendLine($"  Original: {ResolveText(feedback.originalText)}");
-                    builder.AppendLine($"  Corrected: {ResolveText(feedback.correctedText)}");
+                    builder.AppendLine($"纠错（{SceneTalkChineseUiText.DisplayValue(feedback.errorType)}）：");
+                    builder.AppendLine($"  原句：{ResolveText(feedback.originalText)}");
+                    builder.AppendLine($"  修改后：{ResolveText(feedback.correctedText)}");
                     var feedbackText = string.IsNullOrWhiteSpace(feedback.recastText)
                         ? feedback.feedbackText
                         : feedback.recastText;
-                    builder.AppendLine($"  Feedback: {ResolveText(feedbackText)}");
+                    builder.AppendLine($"  反馈：{ResolveText(feedbackText)}");
                 }
                 else if (!turn.isOpening)
                 {
-                    builder.AppendLine("Correction: None");
+                    builder.AppendLine("纠错：无");
                 }
 
                 builder.AppendLine();
             }
 
-            return builder.Length == 0 ? "No dialogue turns were saved." : builder.ToString();
+            return builder.Length == 0 ? "未保存任何对话轮次。" : builder.ToString();
         }
 
         private static string ResolveText(string value)
@@ -1766,7 +1775,7 @@ namespace SceneTalkVR.Runtime
         {
             if (unixMs <= 0)
             {
-                return "Unknown time";
+                return "未知时间";
             }
 
             try
@@ -1777,7 +1786,7 @@ namespace SceneTalkVR.Runtime
             }
             catch (System.ArgumentOutOfRangeException)
             {
-                return "Unknown time";
+                return "未知时间";
             }
         }
 
@@ -1807,39 +1816,39 @@ namespace SceneTalkVR.Runtime
 
             if (requestTitleText != null)
             {
-                requestTitleText.text = "Scene And Avatar Request";
+                requestTitleText.text = "场景与角色需求";
             }
 
             if (requestStatusText != null)
             {
                 if (isRecording)
                 {
-                    requestStatusText.text = "Recording your request...";
+                    requestStatusText.text = "正在录制你的需求……";
                 }
                 else if (isTranscribing)
                 {
-                    requestStatusText.text = "Transcribing your voice...";
+                    requestStatusText.text = "正在识别语音……";
                 }
                 else if (hasTranscript)
                 {
-                    requestStatusText.text = "Review the transcript, then confirm.";
+                    requestStatusText.text = "请检查识别结果，然后确认。";
                 }
                 else
                 {
-                    requestStatusText.text = "Press Listen or hold a trigger to record.";
+                    requestStatusText.text = "点击“录音”或按住扳机键开始录制。";
                 }
             }
 
             if (requestTranscriptText != null)
             {
                 requestTranscriptText.text = hasTranscript
-                    ? $"Transcript:\n{orchestrator.LastTranscript}"
-                    : "Transcript:\n-";
+                    ? $"识别结果：\n{orchestrator.LastTranscript}"
+                    : "识别结果：\n-";
             }
 
             if (requestErrorText != null)
             {
-                requestErrorText.text = hasError ? orchestrator.LastError : string.Empty;
+                requestErrorText.text = hasError ? SceneTalkChineseUiText.Error(orchestrator.LastError) : string.Empty;
             }
 
             SetButtonLabel(listenButton, ResolveRequestListenButtonLabel(isRecording, hasTranscript, hasError));
@@ -1856,21 +1865,21 @@ namespace SceneTalkVR.Runtime
 
             if (orchestrator.CurrentState == SceneTalkState.HistoryLoading)
             {
-                loadingText.text = "Loading conversation history...";
+                loadingText.text = "正在加载对话历史……";
             }
             else if (orchestrator.CurrentState == SceneTalkState.ExperimentHistoryLoading)
             {
-                loadingText.text = "Loading experiment history...";
+                loadingText.text = "正在加载实验历史……";
             }
             else if (orchestrator.CurrentState == SceneTalkState.HistoryRestoring)
             {
-                loadingText.text = "Restoring scene, avatar, and conversation context...";
+                loadingText.text = "正在恢复场景、角色与对话上下文……";
             }
             else
             {
                 loadingText.text = orchestrator.CurrentState == SceneTalkState.SceneReady
-                    ? "Preparing avatar dialogue..."
-                    : "Loading scene and avatar...";
+                    ? "正在准备角色对话……"
+                    : "正在加载场景与角色……";
             }
         }
 
@@ -1895,13 +1904,13 @@ namespace SceneTalkVR.Runtime
             if (playerSubtitleText != null)
             {
                 SetActive(playerSubtitleText.gameObject, !hideSubtitles);
-                playerSubtitleText.text = $"You: {transcript}";
+                playerSubtitleText.text = $"你：{transcript}";
             }
 
             if (avatarSubtitleText != null)
             {
                 SetActive(avatarSubtitleText.gameObject, !hideSubtitles);
-                avatarSubtitleText.text = $"Avatar: {reply}";
+                avatarSubtitleText.text = $"角色：{reply}";
             }
 
             if (experimentDebugText != null)
@@ -1916,7 +1925,7 @@ namespace SceneTalkVR.Runtime
             if (correctionStatusText != null)
             {
                 var status = orchestrator.LastCorrectionStatus;
-                correctionStatusText.text = string.IsNullOrWhiteSpace(status) ? string.Empty : status;
+                correctionStatusText.text = SceneTalkChineseUiText.CorrectionStatus(status);
             }
 
             if (correctionFeedbackText != null)
@@ -1938,10 +1947,10 @@ namespace SceneTalkVR.Runtime
                 SetButtonLabel(
                     dialogueListenButton,
                     isRecording
-                        ? "End"
+                        ? "结束"
                         : orchestrator.CurrentState == SceneTalkState.Error
-                            ? "Retry"
-                            : "Speak");
+                            ? "重试"
+                            : "发言");
                 SetInteractable(dialogueListenButton, isRecording || !orchestrator.IsTurnRunning);
             }
         }
@@ -2025,10 +2034,10 @@ namespace SceneTalkVR.Runtime
         {
             if (isRecording)
             {
-                return "End";
+                return "结束";
             }
 
-            return hasTranscript || hasError ? "Retry" : "Listen";
+            return hasTranscript || hasError ? "重试" : "录音";
         }
 
         private string ResolveDialogueStatusText()
@@ -2040,43 +2049,43 @@ namespace SceneTalkVR.Runtime
 
             if (!string.IsNullOrWhiteSpace(orchestrator.LastError))
             {
-                return orchestrator.LastError;
+                return SceneTalkChineseUiText.Error(orchestrator.LastError);
             }
 
             if (orchestrator.IsTurnRunning)
             {
                 if (orchestrator.CurrentState == SceneTalkState.Recording)
                 {
-                    return "Recording...";
+                    return "正在录音……";
                 }
 
                 if (orchestrator.CurrentState == SceneTalkState.Transcribing)
                 {
-                    return "Transcribing...";
+                    return "正在识别语音……";
                 }
 
                 if (orchestrator.CurrentState == SceneTalkState.Processing)
                 {
-                    return "Thinking...";
+                    return "正在思考……";
                 }
 
                 if (orchestrator.CurrentState == SceneTalkState.CorrectionFeedbackSpeaking)
                 {
-                    return "Playing feedback...";
+                    return "正在播放纠错反馈……";
                 }
 
                 if (orchestrator.CurrentState == SceneTalkState.DialogueSpeaking)
                 {
-                    return "Avatar speaking...";
+                    return "角色正在发言……";
                 }
 
                 if (orchestrator.CurrentState == SceneTalkState.AvatarSpeaking)
                 {
-                    return "Speaking...";
+                    return "正在播放语音……";
                 }
             }
 
-            return "Ready for your next line.";
+            return "可以继续发言。";
         }
 
         private string ResolveCorrectionFeedbackText(bool hideSubtitles)
@@ -2094,7 +2103,7 @@ namespace SceneTalkVR.Runtime
                 return string.Empty;
             }
 
-            return $"Correction: {feedbackText}";
+            return $"纠错：{feedbackText}";
         }
 
         private void Subscribe()
@@ -2272,7 +2281,7 @@ namespace SceneTalkVR.Runtime
             var button = CreateButton(
                 worldCanvas.transform,
                 "ExitButton",
-                "Exit",
+                "退出",
                 Vector2.zero,
                 ExitButtonSize,
                 ExitButtonColor);
@@ -2532,8 +2541,8 @@ namespace SceneTalkVR.Runtime
                 provider,
                 ExperimentConditionManager.AssistantAgentProvider,
                 System.StringComparison.OrdinalIgnoreCase)
-                ? "Assistant Agent"
-                : "Dialogue Avatar";
+                ? "辅助角色"
+                : "对话角色";
         }
 
         private static string ResolveCorrectionStyleDisplayName(string style)
@@ -2542,8 +2551,8 @@ namespace SceneTalkVR.Runtime
                 style,
                 ExperimentConditionManager.RecastStyle,
                 System.StringComparison.OrdinalIgnoreCase)
-                ? "Recast"
-                : "Explicit";
+                ? "重述反馈"
+                : "直接纠错";
         }
 
         private static string ResolveCorrectionAppearanceDisplayName(string embodiment)
@@ -2553,15 +2562,15 @@ namespace SceneTalkVR.Runtime
                     ExperimentConditionManager.AudioOnlyAssistantEmbodiment,
                     System.StringComparison.OrdinalIgnoreCase))
             {
-                return "Voice Only";
+                return "仅语音";
             }
 
             return string.Equals(
                 embodiment,
                 ExperimentConditionManager.HumanoidAssistantEmbodiment,
                 System.StringComparison.OrdinalIgnoreCase)
-                ? "Third Person"
-                : "Little Orb";
+                ? "第三人称角色"
+                : "悬浮球";
         }
 
         private static void DestroyRuntimeOrImmediate(Object target)

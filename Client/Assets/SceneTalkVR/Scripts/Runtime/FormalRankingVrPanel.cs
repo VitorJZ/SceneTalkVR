@@ -53,8 +53,8 @@ namespace SceneTalkVR.Runtime
             {
                 EnsureBuilt(); SetActive(panel, false); SetActive(completionPanel, true);
                 if (completionMessage != null) completionMessage.text = deviceValidationActive
-                    ? "PICO device validation completed.\nNOT PARTICIPANT DATA — collectionEligible=false."
-                    : "Thank you. You have completed the formal experiment.";
+                    ? "PICO 设备验证已完成。\n此数据不是参与者数据，不具备采集资格。"
+                    : "感谢参与，你已完成正式实验。";
                 completionPanel.transform.SetAsLastSibling();
                 BringExitToFront();
             }
@@ -70,8 +70,8 @@ namespace SceneTalkVR.Runtime
             panel = Node(canvas.transform, "FormalFinalRankingPanel");
             var image = panel.AddComponent<Image>(); image.color = new Color(.035f, .05f, .08f, .98f);
             var rect = panel.GetComponent<RectTransform>(); rect.sizeDelta = new Vector2(860, 540);
-            Label(panel.transform, "Title", "Final Ranking / 最终排序", new Vector2(0, 224), new Vector2(760, 44), 28);
-            Label(panel.transform, "Instruction", "Assign each feedback mode a unique rank from 1 (most preferred) to 4.", new Vector2(0, 182), new Vector2(760, 34), 18);
+            Label(panel.transform, "Title", "最终排序", new Vector2(0, 224), new Vector2(760, 44), 28);
+            Label(panel.transform, "Instruction", "请为每种反馈模式指定唯一排名，1 表示最喜欢，4 表示最不喜欢。", new Vector2(0, 182), new Vector2(760, 34), 18);
             var codes = new[] { FormalConditionCode.NE, FormalConditionCode.NR, FormalConditionCode.SE, FormalConditionCode.SR };
             for (var i = 0; i < codes.Length; i++)
             {
@@ -86,21 +86,21 @@ namespace SceneTalkVR.Runtime
                     rankButtons[codes[i] + ":" + rank] = button;
                 }
                 var preferredCode = codes[i];
-                preferredButtons[codes[i]] = Button(panel.transform, codes[i] + "Preferred", "Preferred", new Vector2(360, y),
+                preferredButtons[codes[i]] = Button(panel.transform, codes[i] + "Preferred", "首选", new Vector2(360, y),
                     () => SelectPreferred(preferredCode), new Vector2(118, 42));
             }
             RefreshRankButtons();
             RefreshPreferredButtons();
-            reasonInput = Input(panel.transform, "RankingReason", "Why do you prefer your top-ranked mode?", new Vector2(0, -166), new Vector2(700, 64));
+            reasonInput = Input(panel.transform, "RankingReason", "请说明你最喜欢该模式的原因。", new Vector2(0, -166), new Vector2(700, 64));
             validation = Label(panel.transform, "Validation", string.Empty, new Vector2(0, -218), new Vector2(700, 30), 17);
-            Button(panel.transform, "RankingSubmitButton", "Submit Ranking", new Vector2(0, -258), Submit);
+            Button(panel.transform, "RankingSubmitButton", "提交排序", new Vector2(0, -258), Submit);
 
             completionPanel = Node(canvas.transform, "FormalExperimentCompletionPanel");
             var completionImage = completionPanel.AddComponent<Image>(); completionImage.color = new Color(.035f, .05f, .08f, .98f);
             completionPanel.GetComponent<RectTransform>().sizeDelta = new Vector2(700, 300);
-            Label(completionPanel.transform, "Title", "Experiment Completed", new Vector2(0, 66), new Vector2(620, 54), 32);
-            completionMessage = Label(completionPanel.transform, "Message", "Thank you. You have completed the formal experiment.", new Vector2(0, -28), new Vector2(620, 110), 21);
-            Button(completionPanel.transform, "FormalCompletionContinueButton", "Continue", new Vector2(0, -112), ContinueAfterCompletion, new Vector2(210, 46));
+            Label(completionPanel.transform, "Title", "实验已完成", new Vector2(0, 66), new Vector2(620, 54), 32);
+            completionMessage = Label(completionPanel.transform, "Message", "感谢参与，你已完成正式实验。", new Vector2(0, -28), new Vector2(620, 110), 21);
+            Button(completionPanel.transform, "FormalCompletionContinueButton", "继续", new Vector2(0, -112), ContinueAfterCompletion, new Vector2(210, 46));
             completionPanel.SetActive(false);
         }
 
@@ -120,14 +120,14 @@ namespace SceneTalkVR.Runtime
 
         public void Submit()
         {
-            if (submitted) { validation.text = "This ranking has already been submitted."; return; }
+            if (submitted) { validation.text = "此排序已经提交。"; return; }
             var values = ranks.ToDictionary(x => x.Key, x => x.Value);
             if (values.Values.Any(x => x < 1 || x > 4) || values.Values.Distinct().Count() != 4)
-            { validation.text = "Please assign each rank from 1 to 4 exactly once."; return; }
+            { validation.text = "请将 1 至 4 的每个排名各使用一次。"; return; }
             if (!preferredCondition.HasValue)
-            { validation.text = "Please select the overall preferred condition."; return; }
+            { validation.text = "请选择整体最喜欢的反馈模式。"; return; }
             if (string.IsNullOrWhiteSpace(reasonInput.text))
-            { validation.text = "Please provide a short reason for your ranking."; return; }
+            { validation.text = "请简要说明排序原因。"; return; }
             var entries = values.Select(x => new PreferenceRankEntry { conditionCode = x.Key.ToString(), rank = x.Value })
                 .OrderBy(x => x.rank).ToArray();
             var response = new PreferenceRankingResponse
@@ -144,7 +144,7 @@ namespace SceneTalkVR.Runtime
                     ? rehearsal.SubmitRanking(response, out error)
                     : Fail(out error, "formal_ranking_runtime_missing");
             if (!ok)
-            { validation.text = error; return; }
+            { validation.text = SceneTalkChineseUiText.Error(error); return; }
             submitted = true;
             validation.text = string.Empty;
         }
@@ -193,10 +193,10 @@ namespace SceneTalkVR.Runtime
 
         private static string Friendly(FormalConditionCode code) => code switch
         {
-            FormalConditionCode.NE => "Avatar — Direct Correction (NE)",
-            FormalConditionCode.NR => "Avatar — Reformulation (NR)",
-            FormalConditionCode.SE => "Assistant — Direct Correction (SE)",
-            _ => "Assistant — Reformulation (SR)"
+            FormalConditionCode.NE => "对话角色——直接纠错（NE）",
+            FormalConditionCode.NR => "对话角色——重述反馈（NR）",
+            FormalConditionCode.SE => "辅助角色——直接纠错（SE）",
+            _ => "辅助角色——重述反馈（SR）"
         };
         private static GameObject Node(Transform parent, string name) { var go = new GameObject(name, typeof(RectTransform)); go.transform.SetParent(parent, false); return go; }
         private static TMP_Text Label(Transform parent, string name, string value, Vector2 pos, Vector2 size, int font, TextAnchor anchor = TextAnchor.MiddleCenter)
