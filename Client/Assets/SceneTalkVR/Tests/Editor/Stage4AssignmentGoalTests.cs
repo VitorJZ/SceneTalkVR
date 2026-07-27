@@ -122,6 +122,7 @@ namespace SceneTalkVR.Tests.Editor
             var first = tracker.Goals[0].goalId; var second = tracker.Goals[1].goalId;
             tracker.SubmitGoalCandidate(first, "manual", new GoalEvidence { turnId = "t1", transcript = "evidence" }, out _);
             tracker.ConfirmGoal(first, "experimenter-1", "ok", out _);
+            AdvanceAfterConfirmedGoal(tracker, "t1");
             tracker.SubmitGoalCandidate(second, "manual", new GoalEvidence(), out _);
             tracker.RejectGoal(second, "experimenter-1", "insufficient", out _);
             CollectionAssert.AreEqual(new[] { "candidate", "confirmed", "candidate", "rejected" }, actions);
@@ -133,7 +134,7 @@ namespace SceneTalkVR.Tests.Editor
         public void CompletionRate_UsesConfirmedOnly()
         {
             var tracker = Tracker();
-            for (var i = 0; i < 2; i++) { var id = tracker.Goals[i].goalId; tracker.SubmitGoalCandidate(id, "manual", null, out _); tracker.ConfirmGoal(id, "exp", "", out _); }
+            for (var i = 0; i < 2; i++) { var id = tracker.ActiveGoal.goalId; var turnId = "rate-" + i; tracker.SubmitGoalCandidate(id, "manual", new GoalEvidence { turnId = turnId }, out _); tracker.ConfirmGoal(id, "exp", "", out _); AdvanceAfterConfirmedGoal(tracker, turnId); }
             tracker.SubmitGoalCandidate(tracker.Goals[2].goalId, "llm", null, out _);
             Assert.That(tracker.GetCompletionRate(), Is.EqualTo(0.5f));
         }
@@ -217,6 +218,7 @@ namespace SceneTalkVR.Tests.Editor
             var second = fixture.Coordinator.GoalTracker.Goals[1].goalId;
             fixture.Coordinator.SubmitGoalCandidate(first, "fake_llm", "turn-1", "evidence", out _);
             fixture.Coordinator.ConfirmGoalByExperimenter(first, "exp-1", "confirmed", out _);
+            AdvanceAfterConfirmedGoal(fixture.Coordinator.GoalTracker, "turn-1");
             fixture.Coordinator.SubmitGoalCandidate(second, "manual", "turn-2", "evidence", out _);
             fixture.Coordinator.RejectGoalByExperimenter(second, "exp-1", "not enough", out _);
             var path = Path.Combine(Application.persistentDataPath, "SceneTalkVR", "ExperimentLogs", participant + "_session_study_events_v1.jsonl");
@@ -265,6 +267,17 @@ namespace SceneTalkVR.Tests.Editor
         }
         private static AssignmentSequence Seq(string id, params FormalConditionCode[] values) => new AssignmentSequence { sequenceId = id, conditions = values };
         private static GoalProgressTracker Tracker() { var value = new GoalProgressTracker(); value.ResetGoals(Task("task")); return value; }
+        private static void AdvanceAfterConfirmedGoal(GoalProgressTracker tracker, string evidenceTurnId)
+        {
+            if (tracker.SequenceState == GoalSequenceState.AwaitingParticipantTurn)
+            {
+                var unlockTurnId = evidenceTurnId + "-unlock";
+                Assert.That(tracker.NotifyParticipantTurnSubmitted(unlockTurnId), Is.True);
+                Assert.That(tracker.NotifyDialogueTurnCompleted(unlockTurnId), Is.True);
+                return;
+            }
+            Assert.That(tracker.NotifyDialogueTurnCompleted(evidenceTurnId), Is.True);
+        }
         private static ExperimentTaskDefinition Task(string id) => new ExperimentTaskDefinition
         {
             taskId = id, goals = Enumerable.Range(1, 4).Select(i => new ExperimentTaskGoal { text = "Goal " + i }).ToArray()

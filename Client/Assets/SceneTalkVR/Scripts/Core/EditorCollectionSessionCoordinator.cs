@@ -35,13 +35,14 @@ namespace SceneTalkVR.Core
     [Serializable]
     public sealed class EditorCollectionGoalSnapshot
     {
-        public string schemaVersion = "1.0";
+        public string schemaVersion = GoalSequenceSnapshot.CurrentSchemaVersion;
         public string participantId;
         public string sessionId;
         public string conditionRunId;
         public string taskId;
         public string savedAtUtc;
         public GoalProgressRecord[] goals = Array.Empty<GoalProgressRecord>();
+        public GoalSequenceSnapshot sequence;
     }
 
     [DisallowMultipleComponent]
@@ -197,8 +198,8 @@ namespace SceneTalkVR.Core
             participantStarted = true;
             if (currentPosition >= 0)
             {
-                var goals = LoadGoalSnapshot(Assignment.conditions[currentPosition].latestConditionRunId)?.goals;
-                if (!lifecycle.ResumeCondition(currentPosition, goals, out error)) return false;
+                var snapshot = LoadGoalSnapshot(Assignment.conditions[currentPosition].latestConditionRunId);
+                if (!lifecycle.ResumeCondition(currentPosition, snapshot?.goals, snapshot?.sequence, out error)) return false;
                 if (lifecycle.CurrentConditionAssignment.status == ConditionRunStatus.QuestionnaireInProgress)
                     questionnaire.RestoreCurrentDraft(out _);
             }
@@ -509,7 +510,8 @@ namespace SceneTalkVR.Core
             {
                 participantId = ParticipantId, sessionId = SessionId, conditionRunId = CurrentRunId,
                 taskId = CurrentTaskId, savedAtUtc = DateTime.UtcNow.ToString("o"),
-                goals = lifecycle.GoalTracker.Goals.ToArray()
+                goals = lifecycle.GoalTracker.Goals.ToArray(),
+                sequence = lifecycle.GoalTracker.CaptureSequenceSnapshot()
             };
             File.WriteAllText(GoalSnapshotPath(CurrentRunId), JsonUtility.ToJson(value, true), Encoding.UTF8);
         }

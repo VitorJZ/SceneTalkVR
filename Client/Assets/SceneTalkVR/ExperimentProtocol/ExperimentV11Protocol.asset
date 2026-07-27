@@ -12,18 +12,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6f18c731c34e4a31a7d52a780b93f504, type: 3}
   m_Name: ExperimentV11Protocol
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentV11ProtocolConfig
-  protocolVersion: 1.2.0-editor-collection
-  buildVersion: editor-collection-20260721
+  protocolVersion: 1.4.0-participant-turn-gated-goals
+  buildVersion: editor-collection-20260727
   experimentPhase: 2
   formalModeLocked: 1
   protocolPurpose: ParticipantCollection
   approvedForCollection: 1
   approvalAuthority: ProjectLead
   approvalEvidence: formal-editor-collection-directive-v1
-  protocolSnapshotId: protocol-1.2.0-editor-collection
+  protocolSnapshotId: protocol-1.4.0-participant-turn-gated-goals
   formalConditionOrderPolicy: 2
   formalTaskAssignmentPolicy: random_bijection_without_replacement
   goalConfirmationPolicy: 1
+  goalSequencePolicy: 1
   questionnaireTransitionPolicy: 1
   finalTransitionPolicy: open_final_ranking_after_four_conditions
   primaryAttemptPolicy: latest_valid_completed_attempt
@@ -55,7 +56,7 @@ MonoBehaviour:
     status: 1
     confirmedValue: a=NE,b=NR,c=SE,d=SR
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-24T18:13:10.7140281Z
+    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   - decisionId: formal_task_no_replacement
@@ -63,7 +64,7 @@ MonoBehaviour:
     status: 1
     confirmedValue: strict_without_replacement
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-24T18:13:10.7140281Z
+    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   - decisionId: formal_social_comfort
@@ -71,7 +72,7 @@ MonoBehaviour:
     status: 1
     confirmedValue: excluded
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-24T18:13:10.7140281Z
+    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   - decisionId: pilot_feedback_style
@@ -79,7 +80,7 @@ MonoBehaviour:
     status: 1
     confirmedValue: explicit
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-24T18:13:10.7140281Z
+    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   - decisionId: voice_only_spatial_audio
@@ -87,7 +88,7 @@ MonoBehaviour:
     status: 1
     confirmedValue: non_spatial_head_locked
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-24T18:13:10.7140281Z
+    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   - decisionId: pilot_sequence_mapping
@@ -95,15 +96,15 @@ MonoBehaviour:
     status: 1
     confirmedValue: a=voice_only,b=floating_orb,c=humanoid_agent
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-24T18:13:10.7140281Z
+    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   - decisionId: formal_max_turns
     question: 
     status: 1
-    confirmedValue: 6
+    confirmedValue: 9
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-24T18:13:10.7140281Z
+    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   - decisionId: formal_max_duration
@@ -111,15 +112,15 @@ MonoBehaviour:
     status: 1
     confirmedValue: 10 minutes
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-24T18:13:10.7140281Z
+    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   - decisionId: pilot_max_turns
     question: 
     status: 1
-    confirmedValue: 5
+    confirmedValue: 8
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-24T18:13:10.7140281Z
+    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   - decisionId: pilot_max_duration
@@ -127,7 +128,7 @@ MonoBehaviour:
     status: 1
     confirmedValue: 8 minutes
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-24T18:13:10.7140281Z
+    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   - decisionId: questionnaire_scale_anchors
@@ -136,7 +137,7 @@ MonoBehaviour:
     confirmedValue: "1=Strongly disagree / \u975E\u5E38\u4E0D\u540C\u610F;7=Strongly
       agree / \u975E\u5E38\u540C\u610F"
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-24T18:13:10.7140281Z
+    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   changeLog:
@@ -147,3 +148,17 @@ MonoBehaviour:
     evidenceReference: formal-editor-collection-directive-v1
     summary: Approved the Unity Editor participant-collection protocol and participant-choice
       formal flow.
+  - changedAtUtc: 2026-07-25T00:00:00.0000000Z
+    changedBy: ProjectLead
+    previousProtocolVersion: 1.2.0-editor-collection
+    newProtocolVersion: 1.3.0-sequential-goals
+    evidenceReference: sequential-goal-turn-gate-directive-v1
+    summary: Locked sequential goal presentation and evaluation, with each next goal
+      gated by a completed Avatar reply.
+  - changedAtUtc: 2026-07-27T00:00:00.0000000Z
+    changedBy: ProjectLead
+    previousProtocolVersion: 1.3.0-sequential-goals
+    newProtocolVersion: 1.4.0-participant-turn-gated-goals
+    evidenceReference: participant-turn-gated-goal-directive-v1
+    summary: Requires a new participant turn and its completed Avatar reply before
+      each next goal is shown and evaluated.

@@ -1310,6 +1310,13 @@ namespace SceneTalkVR.Runtime
                 yield break;
             }
 
+            var goalManager = ResolveExperimentConditionManager(false);
+            var participantTurnId = goalManager?.CurrentTurnId;
+            GoalEvaluationOrchestrator.NotifyParticipantTurnSubmitted(
+                goalManager?.LifecycleCoordinator,
+                PilotWorkflowCoordinator.Active,
+                participantTurnId,
+                transcript);
             LastTranscript = transcript;
             RefreshUi();
             SetState(SceneTalkState.Processing);
@@ -1334,10 +1341,9 @@ namespace SceneTalkVR.Runtime
             ApplyExperimentConditionToPayload(payload);
             LastScenePayload = payload;
             RefreshUi();
-            var goalManager = ResolveExperimentConditionManager(false);
             GoalEvaluationOrchestrator.StartActiveTaskGoalEvaluation(this,
                 goalManager?.LifecycleCoordinator, PilotWorkflowCoordinator.Active,
-                goalManager?.CurrentTurnId, transcript);
+                participantTurnId, transcript);
             try
             {
                 if (IsHistoryRecordingEnabled)
@@ -1972,8 +1978,14 @@ namespace SceneTalkVR.Runtime
 
         private void EnterTurnReviewState()
         {
-            ResolveExperimentConditionManager(false)?.CompleteActiveTurn();
-            var lifecycle = ResolveExperimentConditionManager(false)?.LifecycleCoordinator;
+            var manager = ResolveExperimentConditionManager(false);
+            var completedTurnId = manager?.CurrentTurnId;
+            manager?.CompleteActiveTurn();
+            var lifecycle = manager?.LifecycleCoordinator;
+            GoalEvaluationOrchestrator.NotifyDialogueTurnCompleted(
+                lifecycle,
+                PilotWorkflowCoordinator.Active,
+                completedTurnId);
             if (lifecycle != null && lifecycle.ShouldEndForLimit(out var limitReason))
             {
                 lifecycle.NotifyTaskLimitReached(limitReason);

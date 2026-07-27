@@ -62,6 +62,7 @@ namespace SceneTalkVR.Core
         [SerializeField] private FormalConditionOrderPolicy formalConditionOrderPolicy = FormalConditionOrderPolicy.Undefined;
         [SerializeField] private string formalTaskAssignmentPolicy;
         [SerializeField] private GoalConfirmationPolicy goalConfirmationPolicy = GoalConfirmationPolicy.ExperimenterReview;
+        [SerializeField] private GoalSequencePolicy goalSequencePolicy = GoalSequencePolicy.Undefined;
         [SerializeField] private QuestionnaireReturnPolicy questionnaireTransitionPolicy = QuestionnaireReturnPolicy.Undefined;
         [SerializeField] private string finalTransitionPolicy;
         [SerializeField] private string primaryAttemptPolicy;
@@ -111,6 +112,7 @@ namespace SceneTalkVR.Core
         public FormalConditionOrderPolicy FormalConditionOrderPolicy => formalConditionOrderPolicy;
         public string FormalTaskAssignmentPolicy => formalTaskAssignmentPolicy?.Trim() ?? string.Empty;
         public GoalConfirmationPolicy GoalConfirmationPolicy => goalConfirmationPolicy;
+        public GoalSequencePolicy GoalSequencePolicy => goalSequencePolicy;
         public QuestionnaireReturnPolicy QuestionnaireTransitionPolicy => questionnaireTransitionPolicy;
         public string FinalTransitionPolicy => finalTransitionPolicy?.Trim() ?? string.Empty;
         public string PrimaryAttemptPolicy => primaryAttemptPolicy?.Trim() ?? string.Empty;
@@ -198,6 +200,7 @@ namespace SceneTalkVR.Core
             if (formalConditionOrderPolicy != FormalConditionOrderPolicy.ParticipantChoice
                 || formalTaskAssignmentPolicy != "random_bijection_without_replacement"
                 || goalConfirmationPolicy != GoalConfirmationPolicy.AutomaticOnValidatedDetection
+                || goalSequencePolicy != GoalSequencePolicy.SequentialAfterParticipantTurnAndAvatarReply
                 || questionnaireTransitionPolicy != QuestionnaireReturnPolicy.ReturnToModeSelection
                 || finalTransitionPolicy != "open_final_ranking_after_four_conditions"
                 || primaryAttemptPolicy != "latest_valid_completed_attempt")
@@ -245,6 +248,7 @@ namespace SceneTalkVR.Core
             formalConditionOrderPolicy = FormalConditionOrderPolicy.ParticipantChoice;
             formalTaskAssignmentPolicy = "random_bijection_without_replacement";
             goalConfirmationPolicy = GoalConfirmationPolicy.AutomaticOnValidatedDetection;
+            goalSequencePolicy = GoalSequencePolicy.SequentialAfterParticipantTurnAndAvatarReply;
             questionnaireTransitionPolicy = QuestionnaireReturnPolicy.ReturnToModeSelection;
             finalTransitionPolicy = "open_final_ranking_after_four_conditions";
             primaryAttemptPolicy = "latest_valid_completed_attempt";

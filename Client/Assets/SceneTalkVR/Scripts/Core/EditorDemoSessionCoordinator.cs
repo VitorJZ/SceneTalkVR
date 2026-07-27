@@ -165,14 +165,32 @@ namespace SceneTalkVR.Core
             error = string.Empty;
             if (!IsDemoMode) { error = "demo_autofill_forbidden_outside_demo"; return false; }
             var tracker = IsFormalDemo ? lifecycle.GoalTracker : pilot.Goals;
-            foreach (var goal in tracker.Goals.ToArray())
+            var guard = tracker.Goals.Count;
+            while (tracker.ActiveGoal != null && guard-- > 0)
             {
+                var goal = tracker.ActiveGoal;
+                var turnId = $"demo-auto-{tracker.ActiveGoalIndex + 1}";
                 if (goal.state == GoalProgressState.NotStarted || goal.state == GoalProgressState.Rejected)
-                    if (!tracker.SubmitGoalCandidate(goal.goalId, "demo_operator", new GoalEvidence { turnId = "demo-auto", transcript = "autoFilledForDemo=true" }, out error)) return false;
+                    if (!tracker.SubmitGoalCandidate(goal.goalId, "demo_operator", new GoalEvidence { turnId = turnId, transcript = "autoFilledForDemo=true" }, out error)) return false;
                 if (goal.state == GoalProgressState.Candidate)
                     if (!tracker.ConfirmGoal(goal.goalId, "demo_operator", "autoFilledForDemo=true", out error)) return false;
+                if (!AdvanceAutomatedGoalTurn(tracker, turnId))
+                { error = "demo_goal_sequence_did_not_advance"; return false; }
             }
+            if (!tracker.IsSequenceCompleted) { error = "demo_goal_sequence_incomplete"; return false; }
             WriteOperator("CompleteCurrentGoals", true); RefreshUi(); return true;
+        }
+
+        private static bool AdvanceAutomatedGoalTurn(GoalProgressTracker tracker, string evidenceTurnId)
+        {
+            if (tracker.SequenceState == GoalSequenceState.AwaitingParticipantTurn)
+            {
+                var unlockTurnId = evidenceTurnId + "-unlock";
+                return tracker.NotifyParticipantTurnSubmitted(unlockTurnId)
+                    && tracker.NotifyDialogueTurnCompleted(unlockTurnId);
+            }
+            return tracker.SequenceState == GoalSequenceState.AwaitingAvatarReply
+                && tracker.NotifyDialogueTurnCompleted(evidenceTurnId);
         }
 
         public bool CompleteCurrentTask(out string error)

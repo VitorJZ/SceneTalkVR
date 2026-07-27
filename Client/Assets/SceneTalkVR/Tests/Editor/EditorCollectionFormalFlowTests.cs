@@ -36,7 +36,7 @@ namespace SceneTalkVR.Tests.Editor
         }
 
         [Test] public void T01_OfficialProtocolIsCollectionApproved()
-        { Assert.That(protocol.ProtocolVersion, Is.EqualTo("1.2.0-editor-collection")); Assert.That(protocol.ApprovedForCollection, Is.True); Assert.That(protocol.ValidateForFormalMode(out var error), Is.True, error); }
+        { Assert.That(protocol.ProtocolVersion, Is.EqualTo("1.4.0-participant-turn-gated-goals")); Assert.That(protocol.ApprovedForCollection, Is.True); Assert.That(protocol.GoalSequencePolicy, Is.EqualTo(GoalSequencePolicy.SequentialAfterParticipantTurnAndAvatarReply)); Assert.That(protocol.ValidateForFormalMode(out var error), Is.True, error); }
 
         [Test] public void T02_ElevenDecisionsAreConfirmedWithProvenance()
         { Assert.That(protocol.RequiredDecisions.Count, Is.EqualTo(11)); Assert.That(protocol.RequiredDecisions.All(x => x.status == ProtocolDecisionStatus.Confirmed && x.confirmedBy == "ProjectLead" && !string.IsNullOrWhiteSpace(x.confirmedAtUtc) && x.evidenceReference == "formal-editor-collection-directive-v1"), Is.True); }
@@ -47,9 +47,9 @@ namespace SceneTalkVR.Tests.Editor
         [TestCase("pilot_feedback_style", "explicit")]
         [TestCase("voice_only_spatial_audio", "non_spatial_head_locked")]
         [TestCase("pilot_sequence_mapping", "a=voice_only,b=floating_orb,c=humanoid_agent")]
-        [TestCase("formal_max_turns", "6")]
+        [TestCase("formal_max_turns", "9")]
         [TestCase("formal_max_duration", "10 minutes")]
-        [TestCase("pilot_max_turns", "5")]
+        [TestCase("pilot_max_turns", "8")]
         [TestCase("pilot_max_duration", "8 minutes")]
         public void T03_T12_OfficialDecisionValues(string id, string expected)
         { Assert.That(protocol.TryGetConfirmedDecision(id, out var value), Is.True); Assert.That(value, Is.EqualTo(expected)); }

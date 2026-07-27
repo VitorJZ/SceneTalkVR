@@ -271,7 +271,6 @@ namespace SceneTalkVR.Core
             {
                 if (!TryRegisterEvaluationTurn(formal.dedupeKey)) return false;
                 formal.request.recentUserTurns = TrackRecent(formal.runKey, transcript);
-                lifecycle.RecordStudyEvent(StudyEventType.UserTranscriptFinalized, "participant", "user_speech_only=true");
                 coroutineHost.StartCoroutine(EvaluateActiveTaskGoalsAsync(formal.request, lifecycle.GoalTracker,
                     formal.isCurrent, () => IsPlaybackStillRunning(coroutineHost), formal.audit));
                 return true;
@@ -294,7 +293,7 @@ namespace SceneTalkVR.Core
         {
             if (request == null || tracker == null || identityIsCurrent == null || !identityIsCurrent()) yield break;
             var pendingDefinitions = (request.currentGoalDefinitions ?? Array.Empty<ExperimentTaskGoal>())
-                .Where(x => x != null && tracker.Goals.Any(g => g.goalId == x.goalId && g.state != GoalProgressState.Confirmed))
+                .Where(x => x != null && tracker.IsGoalActive(x.goalId))
                 .ToArray();
             if (pendingDefinitions.Length == 0) yield break;
 
@@ -320,7 +319,7 @@ namespace SceneTalkVR.Core
             if (!identityIsCurrent()) yield break;
 
             var unresolved = pendingDefinitions
-                .Where(def => tracker.Goals.Any(g => g.goalId == def.goalId && g.state != GoalProgressState.Confirmed))
+                .Where(def => tracker.IsGoalActive(def.goalId))
                 .ToArray();
             if (unresolved.Length == 0) yield break;
 
@@ -391,7 +390,11 @@ namespace SceneTalkVR.Core
             var session = assignment.experimentSessionId ?? string.Empty;
             var run = lifecycle.ConditionRunId ?? string.Empty;
             var taskId = task.taskId ?? string.Empty;
-            var runKey = BuildRunKey("formal", participant, session, run, taskId);
+            var activeDefinitions = ActiveDefinitions(task, lifecycle.GoalTracker);
+            if (activeDefinitions.Length == 0) return false;
+            var activeGoalId = activeDefinitions[0].goalId;
+            var sequenceRevision = lifecycle.GoalTracker.SequenceRevision;
+            var runKey = BuildRunKey("formal", participant, session, run, taskId, activeGoalId, sequenceRevision);
             execution = new ActiveExecution
             {
                 runKey = runKey,
@@ -400,7 +403,7 @@ namespace SceneTalkVR.Core
                 {
                     participantId = participant, sessionId = session, conditionRunId = run,
                     taskId = taskId, turnId = turnId, userTranscript = transcript,
-                    currentGoalDefinitions = IncompleteDefinitions(task, lifecycle.GoalTracker),
+                    currentGoalDefinitions = activeDefinitions,
                     evaluatorVersion = GoalAchievementEvaluator.EvaluatorVersion
                 },
                 isCurrent = () => lifecycle != null && lifecycle.Assignment != null
@@ -410,7 +413,9 @@ namespace SceneTalkVR.Core
                     && string.Equals(lifecycle.Assignment.participantId, participant, StringComparison.Ordinal)
                     && string.Equals(lifecycle.Assignment.experimentSessionId, session, StringComparison.Ordinal)
                     && string.Equals(lifecycle.ConditionRunId, run, StringComparison.Ordinal)
-                    && string.Equals(lifecycle.CurrentConditionAssignment.task?.taskId, taskId, StringComparison.Ordinal),
+                    && string.Equals(lifecycle.CurrentConditionAssignment.task?.taskId, taskId, StringComparison.Ordinal)
+                    && lifecycle.GoalTracker.SequenceRevision == sequenceRevision
+                    && lifecycle.GoalTracker.IsGoalActive(activeGoalId),
                 audit = value => RecordFormalAudit(lifecycle, turnId, value)
             };
             return execution.request.currentGoalDefinitions.Length > 0;
@@ -431,7 +436,11 @@ namespace SceneTalkVR.Core
             var session = assignment.sessionId ?? string.Empty;
             var run = pilot.PilotRunId ?? string.Empty;
             var taskId = task.taskId ?? string.Empty;
-            var runKey = BuildRunKey("pilot", participant, session, run, taskId);
+            var activeDefinitions = ActiveDefinitions(task, pilot.Goals);
+            if (activeDefinitions.Length == 0) return false;
+            var activeGoalId = activeDefinitions[0].goalId;
+            var sequenceRevision = pilot.Goals.SequenceRevision;
+            var runKey = BuildRunKey("pilot", participant, session, run, taskId, activeGoalId, sequenceRevision);
             execution = new ActiveExecution
             {
                 runKey = runKey,
@@ -440,7 +449,7 @@ namespace SceneTalkVR.Core
                 {
                     participantId = participant, sessionId = session, conditionRunId = run,
                     taskId = taskId, turnId = turnId, userTranscript = transcript,
-                    currentGoalDefinitions = IncompleteDefinitions(task, pilot.Goals),
+                    currentGoalDefinitions = activeDefinitions,
                     evaluatorVersion = GoalAchievementEvaluator.EvaluatorVersion
                 },
                 isCurrent = () => pilot != null && pilot.Assignment != null && pilot.Current != null
@@ -448,19 +457,23 @@ namespace SceneTalkVR.Core
                     && string.Equals(pilot.Assignment.participantId, participant, StringComparison.Ordinal)
                     && string.Equals(pilot.Assignment.sessionId, session, StringComparison.Ordinal)
                     && string.Equals(pilot.PilotRunId, run, StringComparison.Ordinal)
-                    && string.Equals(pilot.Current.task?.taskId, taskId, StringComparison.Ordinal),
+                    && string.Equals(pilot.Current.task?.taskId, taskId, StringComparison.Ordinal)
+                    && pilot.Goals.SequenceRevision == sequenceRevision
+                    && pilot.Goals.IsGoalActive(activeGoalId),
                 audit = value => pilot?.RecordGoalEvaluationAudit(turnId, value)
             };
             return execution.request.currentGoalDefinitions.Length > 0;
         }
 
-        private static ExperimentTaskGoal[] IncompleteDefinitions(ExperimentTaskDefinition task, GoalProgressTracker tracker) =>
+        private static ExperimentTaskGoal[] ActiveDefinitions(ExperimentTaskDefinition task, GoalProgressTracker tracker) =>
             (task?.goals ?? Array.Empty<ExperimentTaskGoal>())
-                .Where(def => def != null && tracker.Goals.Any(g => g.goalId == def.goalId && g.state != GoalProgressState.Confirmed))
+                .Where(def => def != null && tracker != null && tracker.IsGoalActive(def.goalId))
+                .Take(1)
                 .ToArray();
 
-        private static string BuildRunKey(string flow, string participant, string session, string run, string task) =>
-            string.Join("|", flow, participant, session, run, task);
+        private static string BuildRunKey(string flow, string participant, string session, string run,
+            string task, string goalId, int sequenceRevision) =>
+            string.Join("|", flow, participant, session, run, task, goalId, sequenceRevision.ToString());
 
         public static bool TryRegisterEvaluationTurn(string evaluationIdentity)
         {
@@ -501,11 +514,9 @@ namespace SceneTalkVR.Core
                 if (evaluation == null || !evaluation.achieved || string.IsNullOrWhiteSpace(evaluation.goalId)) continue;
                 var definition = request.currentGoalDefinitions.FirstOrDefault(x => x.goalId == evaluation.goalId);
                 var existing = tracker.Goals.FirstOrDefault(x => x.goalId == evaluation.goalId);
-                if (definition == null || existing == null || existing.state == GoalProgressState.Confirmed) continue;
+                if (definition == null || existing == null || !tracker.IsGoalActive(evaluation.goalId)) continue;
                 var threshold = semantic ? GoalAchievementEvaluator.SemanticFallbackMinimumConfidence : definition.minimumConfidence;
                 if (evaluation.confidence < threshold || (semantic && string.IsNullOrWhiteSpace(evaluation.evidence))) continue;
-                if (tracker.ConfirmedCount == tracker.Goals.Count - 1 && playbackStillRunning != null)
-                    while (identityIsCurrent() && playbackStillRunning()) yield return null;
                 if (!identityIsCurrent()) yield break;
                 tracker.SubmitGoalCandidate(evaluation.goalId,
                     string.IsNullOrWhiteSpace(evaluation.evaluatorVersion)
@@ -539,6 +550,35 @@ namespace SceneTalkVR.Core
         private static bool IsPlaybackStillRunning(MonoBehaviour host) => host is SceneTalkOrchestrator orchestrator && orchestrator.IsTurnRunning;
         public static string SourceLabel(GoalEvaluatorSource source) => source == GoalEvaluatorSource.StructuredLlm ? "structured_llm" : "deterministic";
 
+        public static bool NotifyParticipantTurnSubmitted(ExperimentLifecycleCoordinator lifecycle,
+            PilotWorkflowCoordinator pilot, string turnId, string transcript, string speaker = "participant")
+        {
+            if (!string.Equals(speaker, "participant", StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(turnId) || string.IsNullOrWhiteSpace(transcript)) return false;
+
+            var changed = false;
+            if (lifecycle?.CurrentConditionAssignment?.status == ConditionRunStatus.Running
+                && lifecycle.TechnicalValidity != ExperimentTechnicalValidity.TechnicalInvalid)
+            {
+                lifecycle.RecordStudyEvent(StudyEventType.UserTranscriptFinalized, "participant", "user_speech_only=true");
+                changed |= lifecycle.GoalTracker.NotifyParticipantTurnSubmitted(turnId);
+            }
+            if (pilot?.Current?.status == PilotRunStatus.Running)
+                changed |= pilot.Goals.NotifyParticipantTurnSubmitted(turnId);
+            return changed;
+        }
+
+        public static bool NotifyDialogueTurnCompleted(ExperimentLifecycleCoordinator lifecycle,
+            PilotWorkflowCoordinator pilot, string turnId)
+        {
+            var advanced = false;
+            if (lifecycle?.CurrentConditionAssignment?.status == ConditionRunStatus.Running)
+                advanced |= lifecycle.GoalTracker.NotifyDialogueTurnCompleted(turnId);
+            if (pilot?.Current?.status == PilotRunStatus.Running)
+                advanced |= pilot.Goals.NotifyDialogueTurnCompleted(turnId);
+            return advanced;
+        }
+
         public static int EvaluateUserTranscript(ExperimentLifecycleCoordinator lifecycle, string turnId,
             string transcript, string speaker = "participant")
         {
@@ -554,6 +594,12 @@ namespace SceneTalkVR.Core
             var manager = lifecycle.GetComponent<ExperimentConditionManager>();
             var task = manager?.TaskCatalog?.Find(lifecycle.CurrentConditionAssignment.task?.taskId);
             if (task == null) return 0;
+            var activeDefinitions = ActiveDefinitions(task, lifecycle.GoalTracker);
+            if (activeDefinitions.Length == 0) return 0;
+            var sequenceRevision = lifecycle.GoalTracker.SequenceRevision;
+            var runKey = BuildRunKey("formal", lifecycle.Assignment.participantId,
+                lifecycle.Assignment.experimentSessionId, lifecycle.ConditionRunId, task.taskId,
+                activeDefinitions[0].goalId, sequenceRevision);
             lifecycle.RecordStudyEvent(StudyEventType.UserTranscriptFinalized, "participant", "user_speech_only=true");
             lifecycle.RecordStudyEvent(StudyEventType.GoalEvaluationStarted, "system_goal_evaluator", GoalAchievementEvaluator.EvaluatorVersion);
             var request = new GoalEvaluationRequest
@@ -564,8 +610,8 @@ namespace SceneTalkVR.Core
                 taskId = task.taskId,
                 turnId = turnId,
                 userTranscript = transcript,
-                recentUserTurns = lifecycle.RecordFinalUserTranscript(transcript),
-                currentGoalDefinitions = task.goals,
+                recentUserTurns = TrackRecent(runKey, transcript),
+                currentGoalDefinitions = activeDefinitions,
                 evaluatorVersion = GoalAchievementEvaluator.EvaluatorVersion
             };
             var result = new GoalAchievementEvaluator(StructuredFallback).Evaluate(request);
@@ -576,7 +622,8 @@ namespace SceneTalkVR.Core
                 lifecycle.StartCoroutine(AsyncStructuredFallback.Evaluate(request, fallbackResult =>
                 {
                     if (lifecycle == null || lifecycle.ConditionRunId != expectedRun
-                        || lifecycle.TechnicalValidity == ExperimentTechnicalValidity.TechnicalInvalid) return;
+                        || lifecycle.TechnicalValidity == ExperimentTechnicalValidity.TechnicalInvalid
+                        || lifecycle.GoalTracker.SequenceRevision != sequenceRevision) return;
                     ApplyResult(lifecycle, task, turnId, transcript, fallbackResult);
                 }, error => lifecycle?.RecordStudyEvent(StudyEventType.GoalEvaluationCompleted,
                     "system_goal_evaluator", "error=" + error)));
@@ -595,6 +642,10 @@ namespace SceneTalkVR.Core
             var manager = pilot.GetComponent<ExperimentConditionManager>();
             var task = manager?.TaskCatalog?.Find(pilot.Current.task?.taskId);
             if (task == null) return 0;
+            var activeDefinitions = ActiveDefinitions(task, pilot.Goals);
+            if (activeDefinitions.Length == 0) return 0;
+            var runKey = BuildRunKey("pilot", pilot.Assignment.participantId, pilot.Assignment.sessionId,
+                pilot.PilotRunId, task.taskId, activeDefinitions[0].goalId, pilot.Goals.SequenceRevision);
             var request = new GoalEvaluationRequest
             {
                 participantId = pilot.Assignment.participantId,
@@ -603,8 +654,8 @@ namespace SceneTalkVR.Core
                 taskId = task.taskId,
                 turnId = turnId,
                 userTranscript = transcript,
-                recentUserTurns = new[] { transcript },
-                currentGoalDefinitions = task.goals,
+                recentUserTurns = TrackRecent(runKey, transcript),
+                currentGoalDefinitions = activeDefinitions,
                 evaluatorVersion = GoalAchievementEvaluator.EvaluatorVersion
             };
             var result = new GoalAchievementEvaluator(StructuredFallback).Evaluate(request);
@@ -614,7 +665,7 @@ namespace SceneTalkVR.Core
                 if (evaluation == null || !evaluation.achieved) continue;
                 var definition = task.goals.FirstOrDefault(x => x.goalId == evaluation.goalId);
                 var existing = pilot.Goals.Goals.FirstOrDefault(x => x.goalId == evaluation.goalId);
-                if (definition == null || existing == null || existing.state == GoalProgressState.Confirmed
+                if (definition == null || existing == null || !pilot.Goals.IsGoalActive(evaluation.goalId)
                     || evaluation.confidence < definition.minimumConfidence) continue;
                 if (pilot.Goals.SubmitGoalCandidate(evaluation.goalId,
                     string.IsNullOrWhiteSpace(evaluation.evaluatorVersion) ? GoalAchievementEvaluator.EvaluatorVersion : evaluation.evaluatorVersion,
@@ -637,7 +688,7 @@ namespace SceneTalkVR.Core
                 var definition = task.goals.FirstOrDefault(x => x.goalId == evaluation.goalId);
                 if (definition == null || evaluation.confidence < definition.minimumConfidence) continue;
                 var existing = lifecycle.GoalTracker.Goals.FirstOrDefault(x => x.goalId == evaluation.goalId);
-                if (existing == null || existing.state == GoalProgressState.Confirmed) continue;
+                if (existing == null || !lifecycle.GoalTracker.IsGoalActive(evaluation.goalId)) continue;
                 if (lifecycle.GoalTracker.SubmitGoalCandidate(evaluation.goalId,
                     string.IsNullOrWhiteSpace(evaluation.evaluatorVersion) ? GoalAchievementEvaluator.EvaluatorVersion + "+structured_llm" : evaluation.evaluatorVersion,
                     new GoalEvidence { turnId = turnId, transcript = transcript, confidence = evaluation.confidence,

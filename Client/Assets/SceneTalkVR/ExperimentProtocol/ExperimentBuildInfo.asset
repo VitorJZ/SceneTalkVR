@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentBuildInfo
   gitCommit: 8d3f91eab133a98e80729e37457eba3e26f2129f
   activeBranch: main
-  buildVersion: editor-collection-20260721
-  buildTimestampUtc: 2026-07-24T08:56:34.0997022Z
+  buildVersion: editor-collection-20260727
+  buildTimestampUtc: 2026-07-27T00:00:00.0000000Z
   unityVersion: 6000.3.16f1
-  protocolVersion: 1.2.0-editor-collection
+  protocolVersion: 1.4.0-participant-turn-gated-goals

@@ -37,16 +37,16 @@ namespace SceneTalkVR.Tests.Editor
         [TestCase("pilot_feedback_style","explicit")]
         [TestCase("voice_only_spatial_audio","non_spatial_head_locked")]
         [TestCase("pilot_sequence_mapping","a=voice_only,b=floating_orb,c=humanoid_agent")]
-        [TestCase("formal_max_turns","6")]
+        [TestCase("formal_max_turns","9")]
         [TestCase("formal_max_duration","10 minutes")]
-        [TestCase("pilot_max_turns","5")]
+        [TestCase("pilot_max_turns","8")]
         [TestCase("pilot_max_duration","8 minutes")]
         [TestCase("questionnaire_scale_anchors","1 = Strongly disagree / 非常不同意; 7 = Strongly agree / 非常同意")]
         public void T06_T16_DecisionValue(string id,string expected) => Assert.That(protocol.Decisions.Single(x=>x.decisionId==id).confirmedValue,Is.EqualTo(expected));
         [Test] public void T17_FormalSequences() => Assert.That(protocol.FormalSequences.Select(x=>x.sequenceId),Is.EqualTo(new[]{"a-b-c-d","b-c-d-a","c-d-a-b","d-a-b-c"}));
         [Test] public void T18_PilotSequences() => Assert.That(protocol.PilotSequences.Select(x=>x.sequenceId),Is.EqualTo(new[]{"a-b-c","b-c-a","c-a-b"}));
-        [Test] public void T19_FormalLimits() { Assert.That(protocol.FormalMaxTurns,Is.EqualTo(6)); Assert.That(protocol.FormalMaxDurationMinutes,Is.EqualTo(10)); }
-        [Test] public void T20_PilotLimits() { Assert.That(protocol.PilotMaxTurns,Is.EqualTo(5)); Assert.That(protocol.PilotMaxDurationMinutes,Is.EqualTo(8)); }
+        [Test] public void T19_FormalLimits() { Assert.That(protocol.FormalMaxTurns,Is.EqualTo(9)); Assert.That(protocol.FormalMaxDurationMinutes,Is.EqualTo(10)); }
+        [Test] public void T20_PilotLimits() { Assert.That(protocol.PilotMaxTurns,Is.EqualTo(8)); Assert.That(protocol.PilotMaxDurationMinutes,Is.EqualTo(8)); }
         [TestCase(ExperimentFlowMode.DeveloperManual,ExperimentRunQualification.Development,true)]
         [TestCase(ExperimentFlowMode.Formal,ExperimentRunQualification.Rehearsal,true)]
         [TestCase(ExperimentFlowMode.Formal,ExperimentRunQualification.Collection,true)]
@@ -79,7 +79,7 @@ namespace SceneTalkVR.Tests.Editor
         [Test] public void T45_LegacyRuntimeModesRemainReadableOnly() { Assert.That(Enum.GetNames(typeof(ExperimentRuntimeMode)),Does.Contain("EditorDemoFormal").And.Contain("EditorDemoPilot"));Assert.That(typeof(EditorDemoSessionCoordinator).GetMethod("StartFormalDemo").GetCustomAttributes(typeof(ObsoleteAttribute),false),Is.Not.Empty); }
         [Test] public void T46_RunLimitsAreInjectableIntoSharedLifecycles()
         {
-            var go=new GameObject("rehearsal-limit-test");try{var formal=go.AddComponent<ExperimentLifecycleCoordinator>();var pilot=go.AddComponent<PilotWorkflowCoordinator>();formal.ConfigureRunLimits(protocol.FormalMaxTurns,protocol.FormalMaxDurationMinutes);pilot.ConfigureRunLimits(protocol.PilotMaxTurns,protocol.PilotMaxDurationMinutes);Assert.That((formal.MaximumTurns,formal.MaximumDurationMinutes),Is.EqualTo((6,10f)));Assert.That((pilot.MaximumTurns,pilot.MaximumDurationMinutes),Is.EqualTo((5,8f)));}finally{UnityEngine.Object.DestroyImmediate(go);}
+            var go=new GameObject("rehearsal-limit-test");try{var formal=go.AddComponent<ExperimentLifecycleCoordinator>();var pilot=go.AddComponent<PilotWorkflowCoordinator>();formal.ConfigureRunLimits(protocol.FormalMaxTurns,protocol.FormalMaxDurationMinutes);pilot.ConfigureRunLimits(protocol.PilotMaxTurns,protocol.PilotMaxDurationMinutes);Assert.That((formal.MaximumTurns,formal.MaximumDurationMinutes),Is.EqualTo((9,10f)));Assert.That((pilot.MaximumTurns,pilot.MaximumDurationMinutes),Is.EqualTo((8,8f)));}finally{UnityEngine.Object.DestroyImmediate(go);}
         }
         [Test] public void T47_PilotEventCarriesRehearsalQualificationMetadata()
         {

@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
+using SceneTalkVR.Core;
 using SceneTalkVR.Runtime.Services;
 using UnityEngine;
 
@@ -18,6 +19,11 @@ namespace SceneTalkVR.Tests.Editor
         [SetUp]
         public void SetUp()
         {
+            if (IsPureRetryTest())
+            {
+                return;
+            }
+
             host = new GameObject("LlmReliabilityTests");
             service = host.AddComponent<RealLLMService>();
         }
@@ -25,7 +31,13 @@ namespace SceneTalkVR.Tests.Editor
         [TearDown]
         public void TearDown()
         {
-            UnityEngine.Object.DestroyImmediate(host);
+            if (host != null)
+            {
+                UnityEngine.Object.DestroyImmediate(host);
+            }
+
+            host = null;
+            service = null;
         }
 
         [Test]
@@ -113,6 +125,37 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(exception!.InnerException, Is.TypeOf<FormatException>());
         }
 
+        [Test]
+        public void FormalDialogueGuard_AllowsOrdinaryRoleplayNegation()
+        {
+            const string reply = "You're welcome to take photos inside the museum, but flash photography is not allowed to protect the exhibits.";
+            service.SetExperimentCondition(new CorrectionExperimentCondition
+            {
+                formalExperiment = true,
+                provider = "assistant_agent",
+                style = "explicit",
+                scenarioId = "tourist_assistance",
+                task = new SceneTalkExperimentTask
+                {
+                    taskId = "tourist_assistance",
+                    fallbackEnvironmentType = "museum"
+                }
+            });
+            var payload = new SpringScenePayload
+            {
+                dialogueReply = reply,
+                correctionFeedback = new CorrectionFeedbackData { hasFeedback = false }
+            };
+            var apply = typeof(RealLLMService).GetMethod(
+                "ApplyExperimentConditionToPayload",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            apply!.Invoke(service, new object[] { payload });
+
+            Assert.That(GetField<bool>(service, "formalDialogueLeakageDetected"), Is.False);
+            Assert.That(payload.dialogueReply, Is.EqualTo(reply));
+        }
+
         [TestCase(429L, 1)]
         [TestCase(502L, 0)]
         public async Task TransientDialogueFailure_RetriesOnceAndReturnsSecondResult(
@@ -120,14 +163,8 @@ namespace SceneTalkVR.Tests.Editor
             int retryAfterSeconds)
         {
             var attempts = 0;
-            var executeMethod = typeof(RealLLMService).GetMethod(
-                "ExecuteWithRetry",
-                BindingFlags.Instance | BindingFlags.NonPublic)!
-                .MakeGenericMethod(typeof(string));
-            var purposeType = typeof(RealLLMService).GetNestedType(
-                "LlmRequestPurpose",
-                BindingFlags.NonPublic)!;
-            var dialoguePurpose = Enum.Parse(purposeType, "Dialogue");
+            var requestedDelays = new List<int>();
+            var retryWarnings = new List<string>();
             var failure = CreateRequestFailure(statusCode, retryAfterSeconds);
             Func<int, Task<string>> attempt = _ =>
             {
@@ -137,13 +174,22 @@ namespace SceneTalkVR.Tests.Editor
                     : Task.FromResult("second-attempt-success");
             };
 
-            var task = (Task<string>)executeMethod.Invoke(
-                service,
-                new object[] { attempt, dialoguePurpose, CancellationToken.None })!;
+            var task = ExecuteDialogueRetryCore(
+                attempt,
+                retryWarnings.Add,
+                (delayMilliseconds, _) =>
+                {
+                    requestedDelays.Add(delayMilliseconds);
+                    return Task.CompletedTask;
+                });
             var result = await task;
 
             Assert.That(result, Is.EqualTo("second-attempt-success"));
             Assert.That(attempts, Is.EqualTo(2));
+            Assert.That(retryWarnings, Has.Count.EqualTo(1));
+            Assert.That(retryWarnings[0], Does.Contain($"HTTP {statusCode}"));
+            Assert.That(requestedDelays, Has.Count.EqualTo(1));
+            Assert.That(requestedDelays[0], Is.GreaterThan(0));
         }
 
         [Test]
@@ -151,23 +197,18 @@ namespace SceneTalkVR.Tests.Editor
         {
             var attempts = 0;
             Exception terminalError = null;
-            var executeMethod = typeof(RealLLMService).GetMethod(
-                "ExecuteWithRetry",
-                BindingFlags.Instance | BindingFlags.NonPublic)!
-                .MakeGenericMethod(typeof(string));
-            var purposeType = typeof(RealLLMService).GetNestedType(
-                "LlmRequestPurpose",
-                BindingFlags.NonPublic)!;
-            var dialoguePurpose = Enum.Parse(purposeType, "Dialogue");
+            var retryWarnings = new List<string>();
+            var failure = CreateRequestFailure(502, 1);
             Func<int, Task<string>> attempt = _ =>
             {
                 attempts++;
-                return Task.FromException<string>(CreateRequestFailure(502, 1));
+                return Task.FromException<string>(failure);
             };
 
-            var task = (Task<string>)executeMethod.Invoke(
-                service,
-                new object[] { attempt, dialoguePurpose, CancellationToken.None })!;
+            var task = ExecuteDialogueRetryCore(
+                attempt,
+                retryWarnings.Add,
+                (_, _) => Task.CompletedTask);
             try
             {
                 await task;
@@ -180,6 +221,43 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(attempts, Is.EqualTo(2));
             Assert.That(terminalError, Is.Not.Null);
             Assert.That(terminalError!.Message, Is.EqualTo("HTTP 502"));
+            Assert.That(retryWarnings, Has.Count.EqualTo(1));
+        }
+
+        private static bool IsPureRetryTest()
+        {
+            return TestContext.CurrentContext.Test.MethodName.StartsWith(
+                "TransientDialogueFailure_",
+                StringComparison.Ordinal);
+        }
+
+        private static Task<string> ExecuteDialogueRetryCore(
+            Func<int, Task<string>> attempt,
+            Action<string> onRetry,
+            Func<int, CancellationToken, Task> delayAsync)
+        {
+            var executeMethod = typeof(RealLLMService).GetMethod(
+                "ExecuteWithRetryCore",
+                BindingFlags.Static | BindingFlags.NonPublic)!
+                .MakeGenericMethod(typeof(string));
+            var purposeType = typeof(RealLLMService).GetNestedType(
+                "LlmRequestPurpose",
+                BindingFlags.NonPublic)!;
+            var dialoguePurpose = Enum.Parse(purposeType, "Dialogue");
+
+            return (Task<string>)executeMethod.Invoke(
+                null,
+                new object[]
+                {
+                    attempt,
+                    dialoguePurpose,
+                    CancellationToken.None,
+                    1,
+                    45,
+                    30,
+                    onRetry,
+                    delayAsync
+                })!;
         }
 
         private static object CreateStreamingHandler(Action<string> callback)
@@ -211,6 +289,13 @@ namespace SceneTalkVR.Tests.Editor
         private static T GetProperty<T>(object target, string name)
         {
             return (T)target.GetType().GetProperty(name)!.GetValue(target)!;
+        }
+
+        private static T GetField<T>(object target, string name)
+        {
+            return (T)target.GetType().GetField(
+                name,
+                BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(target)!;
         }
 
         private static Exception CreateRequestFailure(long statusCode, int retryAfterSeconds)

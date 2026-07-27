@@ -438,10 +438,15 @@ namespace SceneTalkVR.AvatarSystem
             // Pilot embodiment presentation owns the shared agent's visibility.  The
             // generic AssistantAgent policy must not force an Orb into Voice Only or
             // Humanoid conditions (or keep the Orb visible between Pilot turns).
+            var pilotPresenter = PilotEmbodimentPresenter.Active;
+            if (pilotPresenter != null && pilotPresenter.Profile != null)
+            {
+                return;
+            }
+
             if (PilotWorkflowCoordinator.Active?.Assignment != null)
             {
-                if (PilotEmbodimentPresenter.Active?.Profile == null)
-                    ResolveCorrectionAgentPresenter(false)?.HideImmediate();
+                ResolveCorrectionAgentPresenter(false)?.HideImmediate();
                 return;
             }
             var shouldShow = ShouldKeepAssistantVisible();

@@ -21,7 +21,9 @@ namespace SceneTalkVR.Core
         ParticipantSessionArmed, FormalModeSelectionShown, FormalModeSelected, ConditionTaskResolved,
         UserTranscriptFinalized, GoalEvaluationStarted, GoalEvaluationCompleted, GoalEvaluationFailed, AllGoalsConfirmed,
         QuestionnaireOpened, QuestionnaireResponseChanged, ReturnedToModeSelection,
-        AllFormalConditionsCompleted, FinalRankingOpened
+        AllFormalConditionsCompleted, FinalRankingOpened,
+        GoalActivated, GoalAwaitingAvatarReply, GoalSequenceAdvanced, GoalSequenceCompleted,
+        GoalAwaitingParticipantTurn
     }
 
     [Serializable]
@@ -63,6 +65,11 @@ namespace SceneTalkVR.Core
         public string protocolSnapshotId;
         public string resourceSnapshotId;
         public string goalConfirmationPolicy;
+        public string goalSequencePolicy;
+        public string goalSequenceState;
+        public int activeGoalIndex;
+        public int goalSequenceRevision;
+        public string goalUnlockTurnId;
         public string previousGoalState;
         public string newGoalState;
         public string formalConditionOrderPolicy;
@@ -128,6 +135,7 @@ namespace SceneTalkVR.Core
                 goalTracker.OnAllGoalsConfirmed -= OnAllGoalsConfirmed;
                 goalTracker.OnGoalCollectionReset -= OnGoalCollectionReset;
                 goalTracker.OnGoalStateChanged -= OnGoalStateChanged;
+                goalTracker.OnGoalSequenceStateChanged -= OnGoalSequenceStateChanged;
             }
         }
 
@@ -161,6 +169,7 @@ namespace SceneTalkVR.Core
             goalTracker.OnAllGoalsConfirmed += OnAllGoalsConfirmed;
             goalTracker.OnGoalCollectionReset += OnGoalCollectionReset;
             goalTracker.OnGoalStateChanged += OnGoalStateChanged;
+            goalTracker.OnGoalSequenceStateChanged += OnGoalSequenceStateChanged;
             goalEventsSubscribed = true;
         }
 
@@ -195,6 +204,10 @@ namespace SceneTalkVR.Core
         }
 
         public bool ResumeCondition(int position, IEnumerable<GoalProgressRecord> restoredGoals, out string error)
+            => ResumeCondition(position, restoredGoals, null, out error);
+
+        public bool ResumeCondition(int position, IEnumerable<GoalProgressRecord> restoredGoals,
+            GoalSequenceSnapshot restoredSequence, out string error)
         {
             error = string.Empty;
             if (assignment?.conditions == null || position < 0 || position >= assignment.conditions.Length)
@@ -210,8 +223,8 @@ namespace SceneTalkVR.Core
             if (!conditionManager.ApplyFormalAssignment(item.formalConditionCode, item.task.taskId, out error,
                 assignment.participantId, assignment.experimentSessionId)) return false;
             var task = conditionManager.TaskCatalog.Find(item.task.taskId);
-            goalTracker.RestoreGoals(task, CreateGoalContext(task), restoredGoals);
-            taskCompletionObserved = goalTracker.AreAllConfirmed;
+            goalTracker.RestoreGoals(task, CreateGoalContext(task), restoredGoals, restoredSequence);
+            taskCompletionObserved = goalTracker.IsSequenceCompleted;
             conditionStartedUtc = DateTime.UtcNow;
             conditionStartTurn = conditionManager.CurrentTurnIndex;
             if (item.status == ConditionRunStatus.Running) orchestrator?.LoadAssignedTask(item.task.taskId);
@@ -382,7 +395,7 @@ namespace SceneTalkVR.Core
 
         public void NotifyTaskLimitReached(string reason)
         {
-            if (currentCondition == null || currentCondition.status != ConditionRunStatus.Running || goalTracker.AreAllConfirmed) return;
+            if (currentCondition == null || currentCondition.status != ConditionRunStatus.Running || goalTracker.IsSequenceCompleted) return;
             CompletionReason = string.IsNullOrWhiteSpace(reason) ? "task_limit" : reason;
             WriteEvent(StudyEventType.TaskLimitReachedWithoutCompletion, reason: CompletionReason, actor: "system");
             TaskLimitReached?.Invoke(CompletionReason);
@@ -392,7 +405,7 @@ namespace SceneTalkVR.Core
         {
             if (currentCondition == null || currentCondition.status != ConditionRunStatus.Running) return;
             if (TechnicalValidity == ExperimentTechnicalValidity.TechnicalInvalid) return;
-            CompletionReason = string.IsNullOrWhiteSpace(reason) ? (goalTracker.AreAllConfirmed ? "all_goals_confirmed" : "experimenter_ended") : reason;
+            CompletionReason = string.IsNullOrWhiteSpace(reason) ? (goalTracker.IsSequenceCompleted ? "all_goals_confirmed" : "experimenter_ended") : reason;
             currentCondition.status = ConditionRunStatus.TaskCompleted;
             WriteEvent(StudyEventType.TaskCompleted, reason: CompletionReason, actor: actor);
             currentCondition.status = ConditionRunStatus.AwaitingQuestionnaire;
@@ -541,6 +554,23 @@ namespace SceneTalkVR.Core
                     reason: "policy=automatic_validated_detection");
         }
 
+        private void OnGoalSequenceStateChanged(GoalProgressChangedEvent value)
+        {
+            if (value == null || !string.Equals(value.conditionRunId, ConditionRunId, StringComparison.Ordinal)) return;
+            if (value.sequenceState == GoalSequenceState.Inactive) return;
+            var type = value.sequenceState == GoalSequenceState.AwaitingParticipantTurn
+                ? StudyEventType.GoalAwaitingParticipantTurn
+                : value.sequenceState == GoalSequenceState.AwaitingAvatarReply
+                ? StudyEventType.GoalAwaitingAvatarReply
+                : value.sequenceState == GoalSequenceState.Completed
+                    ? StudyEventType.GoalSequenceCompleted
+                    : !string.IsNullOrWhiteSpace(value.unlockTurnId)
+                        ? StudyEventType.GoalSequenceAdvanced
+                        : StudyEventType.GoalActivated;
+            WriteEvent(type, goalId: value.activeGoalId, turnId: value.unlockTurnId, actor: value.actor,
+                reason: $"state={value.sequenceState};index={value.activeGoalIndex};revision={value.sequenceRevision}");
+        }
+
         private GoalTrackingContext CreateGoalContext(ExperimentTaskDefinition task) => new GoalTrackingContext
         {
             participantId = assignment?.participantId ?? string.Empty,
@@ -548,6 +578,7 @@ namespace SceneTalkVR.Core
             conditionRunId = ConditionRunId ?? string.Empty,
             taskAssignmentId = currentCondition?.task?.taskAssignmentId ?? string.Empty,
             taskId = task?.taskId ?? string.Empty,
+            sequencePolicy = GoalSequencePolicy.SequentialAfterParticipantTurnAndAvatarReply,
             confirmationPolicy = assignment != null && (assignment.runQualification == ExperimentRunQualification.Rehearsal
                 || assignment.runQualification == ExperimentRunQualification.Collection)
                 ? GoalConfirmationPolicy.AutomaticOnValidatedDetection
@@ -586,6 +617,11 @@ namespace SceneTalkVR.Core
                 flowMode = assignment.flowMode.ToString(), runQualification = assignment.runQualification.ToString(),
                 protocolSnapshotId = assignment.protocolSnapshotId ?? string.Empty, resourceSnapshotId = assignment.resourceSnapshotId ?? string.Empty
                 ,goalConfirmationPolicy = goalTracker.Context.confirmationPolicy.ToString(),
+                goalSequencePolicy = goalTracker.Context.sequencePolicy.ToString(),
+                goalSequenceState = goalTracker.SequenceState.ToString(),
+                activeGoalIndex = goalTracker.ActiveGoalIndex,
+                goalSequenceRevision = goalTracker.SequenceRevision,
+                goalUnlockTurnId = turnId ?? string.Empty,
                 formalConditionOrderPolicy = assignment.formalConditionOrderPolicy ?? string.Empty,
                 taskAssignmentPolicy = assignment.taskAssignmentPolicy ?? string.Empty,
                 participantSelectionPosition = currentCondition?.participantSelectionPosition ?? -1

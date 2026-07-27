@@ -128,7 +128,7 @@ namespace SceneTalkVR.Core
                 if(!allocator.TryCreateCollection(participantId,sessionId,protocol,tasks,presentations,RuntimeContext.resourceSnapshotId,out var created,out error)||!workflow.LoadAssignment(created,out error))return FailArm();
                 PilotAssignmentAllocator.Save(created,AssignmentPath);currentPosition=-1;Stage=PilotParticipantStage.AppearanceSelection;
             }
-            workflow.ConfigureRunLimits(5,8f);Write("PilotSessionArmed","resume="+resume);RefreshUi();error="";return true;
+            if(!TryApplyConfirmedRunLimits(protocol,out error))return FailArm();Write("PilotSessionArmed","resume="+resume);RefreshUi();error="";return true;
         }
 
         private bool ArmDeviceValidation(string participantId,string sessionId,bool resume,out string error)
@@ -270,10 +270,14 @@ namespace SceneTalkVR.Core
         public bool CompleteCurrentPilotGoalsForQa(out string error)
         {
             error="";if(!IsArmed||Stage!=PilotParticipantStage.Dialogue){error="pilot_dialogue_not_active";return false;}
-            foreach(var goal in workflow.Goals.Goals.ToArray())
-            { if((goal.state==GoalProgressState.NotStarted||goal.state==GoalProgressState.Rejected)&&!workflow.Goals.SubmitGoalCandidate(goal.goalId,"qa_operator",new GoalEvidence{turnId="qa",transcript="qaAutomationUsed=true"},out error))return false;if(goal.state==GoalProgressState.Candidate&&!workflow.Goals.ConfirmGoal(goal.goalId,"qa_operator","qaAutomationUsed=true",out error))return false; }
+            var guard=workflow.Goals.Goals.Count;
+            while(workflow.Goals.ActiveGoal!=null&&guard-->0)
+            {var goal=workflow.Goals.ActiveGoal;var turnId=$"pilot-qa-{workflow.Goals.ActiveGoalIndex+1}";if((goal.state==GoalProgressState.NotStarted||goal.state==GoalProgressState.Rejected)&&!workflow.Goals.SubmitGoalCandidate(goal.goalId,"qa_operator",new GoalEvidence{turnId=turnId,transcript="qaAutomationUsed=true"},out error))return false;if(goal.state==GoalProgressState.Candidate&&!workflow.Goals.ConfirmGoal(goal.goalId,"qa_operator","qaAutomationUsed=true",out error))return false;if(!AdvanceAutomatedGoalTurn(workflow.Goals,turnId)){error="pilot_goal_sequence_did_not_advance";return false;}}
+            if(!workflow.Goals.IsSequenceCompleted){error="pilot_goal_sequence_incomplete";return false;}
             Write("QaCompletePilotGoals","",true);return true;
         }
+        private static bool AdvanceAutomatedGoalTurn(GoalProgressTracker tracker,string evidenceTurnId)
+        {if(tracker.SequenceState==GoalSequenceState.AwaitingParticipantTurn){var unlockTurnId=evidenceTurnId+"-unlock";return tracker.NotifyParticipantTurnSubmitted(unlockTurnId)&&tracker.NotifyDialogueTurnCompleted(unlockTurnId);}return tracker.SequenceState==GoalSequenceState.AwaitingAvatarReply&&tracker.NotifyDialogueTurnCompleted(evidenceTurnId);}
         public bool OpenPilotQuestionnaireForQa(out string error)
         { if(Stage==PilotParticipantStage.Dialogue)workflow.CompleteTask();if(workflow.Current?.status!=PilotRunStatus.AwaitingPilotQuestionnaire){error="pilot_not_awaiting_questionnaire";return false;}if(!workflow.BeginQuestionnaire(out error))return false;Stage=PilotParticipantStage.Questionnaire;Persist();Write("QaOpenPilotQuestionnaire","",true);RefreshUi();return true; }
         public bool AutoFillPilotQuestionnaireForQa(out string error)
@@ -301,7 +305,8 @@ namespace SceneTalkVR.Core
         private string AssignmentPath=>Path.Combine(CurrentDataFolder,"pilot_assignment.json");
         private string RankingSubmittedMarkerPath=>Path.Combine(CurrentDataFolder,"pilot_ranking_submitted.marker");
         private void Persist(){if(IsArmed&&Assignment!=null)PilotAssignmentAllocator.Save(Assignment,AssignmentPath);}
-        private void PersistGoals(){if(!IsArmed||string.IsNullOrWhiteSpace(workflow.PilotRunId)||workflow.Current==null)return;Directory.CreateDirectory(CurrentDataFolder);var file=$"pilot_goals_{workflow.Current.conditionPosition}_{workflow.Current.runAttempt}.json";File.WriteAllText(Path.Combine(CurrentDataFolder,file),JsonUtility.ToJson(new PilotGoalSnapshot{participantId=ParticipantId,sessionId=SessionId,pilotRunId=workflow.PilotRunId,taskId=workflow.Current.task.taskId,savedAtUtc=DateTime.UtcNow.ToString("o"),goals=workflow.Goals.Goals.ToArray()},true),Encoding.UTF8);}
+        private void PersistGoals(){if(!IsArmed||string.IsNullOrWhiteSpace(workflow.PilotRunId)||workflow.Current==null)return;Directory.CreateDirectory(CurrentDataFolder);var file=$"pilot_goals_{workflow.Current.conditionPosition}_{workflow.Current.runAttempt}.json";File.WriteAllText(Path.Combine(CurrentDataFolder,file),JsonUtility.ToJson(new PilotGoalSnapshot{participantId=ParticipantId,sessionId=SessionId,pilotRunId=workflow.PilotRunId,taskId=workflow.Current.task.taskId,savedAtUtc=DateTime.UtcNow.ToString("o"),goals=workflow.Goals.Goals.ToArray(),sequence=workflow.Goals.CaptureSequenceSnapshot()},true),Encoding.UTF8);}
+        private bool TryApplyConfirmedRunLimits(ExperimentV11ProtocolConfig protocol,out string error){if(protocol==null||!protocol.TryGetConfirmedDecision("pilot_max_turns",out var turnsValue)||!int.TryParse(turnsValue,out var turns)||turns<=0){error="pilot_max_turns_invalid";return false;}if(!protocol.TryGetConfirmedDecision("pilot_max_duration",out var durationValue)){error="pilot_max_duration_invalid";return false;}var token=new string(durationValue.TakeWhile(c=>char.IsDigit(c)||c=='.').ToArray());if(!float.TryParse(token,System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var minutes)||minutes<=0f){error="pilot_max_duration_invalid";return false;}workflow.ConfigureRunLimits(turns,minutes);error="";return true;}
         private bool ValidateAssignment(PilotAssignment value,out string error){if(value==null||value.flowMode!=ExperimentFlowMode.Pilot||value.runQualification!=ExperimentRunQualification.Collection||value.dataOrigin!="participant_collection"||!value.collectionEligible||value.developerTestAssignment||value.demoMode||value.conditions?.Length!=3){error="pilot_collection_assignment_invalid";return false;}return PilotAssignmentAllocator.IsCompatible(value,manager.ExperimentProtocol.ProtocolVersion,manager.TaskCatalog.CatalogVersion,out error);}
         private bool FailArm(){RuntimeContext=null;Stage=PilotParticipantStage.Setup;return false;}
         private void ResetRuntime(){questionnaireTransitionPending=false;qaRankingDraft=null;StopAllCoroutines();workflow?.ResetPilotConditionBoundary();workflow?.ClearAssignmentForRuntimeMode();orchestrator?.ResetForConditionSelection();currentPosition=-1;rankingSubmitted=false;}
@@ -311,5 +316,5 @@ namespace SceneTalkVR.Core
         private static void RefreshUi()=>FindFirstObjectByType<SceneTalkFlowUiController>(FindObjectsInactive.Include)?.RefreshExternalState();
     }
 
-    [Serializable] public sealed class PilotGoalSnapshot{public string participantId;public string sessionId;public string pilotRunId;public string taskId;public string savedAtUtc;public GoalProgressRecord[] goals=Array.Empty<GoalProgressRecord>();}
+    [Serializable] public sealed class PilotGoalSnapshot{public string schemaVersion=GoalSequenceSnapshot.CurrentSchemaVersion;public string participantId;public string sessionId;public string pilotRunId;public string taskId;public string savedAtUtc;public GoalProgressRecord[] goals=Array.Empty<GoalProgressRecord>();public GoalSequenceSnapshot sequence;}
 }

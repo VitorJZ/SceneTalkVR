@@ -25,6 +25,23 @@ namespace SceneTalkVR.EditorTools
             var now = DateTime.UtcNow.ToString("o");
             var protocol = AssetDatabase.LoadAssetAtPath<ExperimentV11ProtocolConfig>(ProtocolPath);
             var previousProtocolVersion = protocol == null ? string.Empty : protocol.ProtocolVersion;
+            const string targetProtocolVersion = "1.4.0-participant-turn-gated-goals";
+            var changes = (protocol?.ChangeLog ?? Array.Empty<ExperimentProtocolChange>())
+                .Where(change => change != null)
+                .ToList();
+            if (!changes.Any(change => string.Equals(
+                    change.newProtocolVersion, targetProtocolVersion, StringComparison.Ordinal)))
+            {
+                changes.Add(new ExperimentProtocolChange
+                {
+                    changedAtUtc = now,
+                    changedBy = "ProjectLead",
+                    previousProtocolVersion = previousProtocolVersion,
+                    newProtocolVersion = targetProtocolVersion,
+                    evidenceReference = "participant-turn-gated-goal-directive-v1",
+                    summary = "Requires a new participant turn and its completed Avatar reply before each next goal is shown and evaluated."
+                });
+            }
             var decisions = new[]
             {
                 Decision("condition_letter_mapping", "a=NE,b=NR,c=SE,d=SR", now),
@@ -33,22 +50,14 @@ namespace SceneTalkVR.EditorTools
                 Decision("pilot_feedback_style", "explicit", now),
                 Decision("voice_only_spatial_audio", "non_spatial_head_locked", now),
                 Decision("pilot_sequence_mapping", "a=voice_only,b=floating_orb,c=humanoid_agent", now),
-                Decision("formal_max_turns", "6", now),
+                Decision("formal_max_turns", "9", now),
                 Decision("formal_max_duration", "10 minutes", now),
-                Decision("pilot_max_turns", "5", now),
+                Decision("pilot_max_turns", "8", now),
                 Decision("pilot_max_duration", "8 minutes", now),
                 Decision("questionnaire_scale_anchors", "1=Strongly disagree / 非常不同意;7=Strongly agree / 非常同意", now)
             };
-            protocol.EditorSetOfficialCollection("1.2.0-editor-collection", "editor-collection-20260721",
-                "protocol-1.2.0-editor-collection", decisions, new[]
-                {
-                    new ExperimentProtocolChange
-                    {
-                        changedAtUtc = now, changedBy = "ProjectLead", previousProtocolVersion = previousProtocolVersion,
-                        newProtocolVersion = "1.2.0-editor-collection", evidenceReference = "formal-editor-collection-directive-v1",
-                        summary = "Approved the Unity Editor participant-collection protocol and participant-choice formal flow."
-                    }
-                });
+            protocol.EditorSetOfficialCollection(targetProtocolVersion, "editor-collection-20260727",
+                "protocol-1.4.0-participant-turn-gated-goals", decisions, changes.ToArray());
 
             var tasks = AssetDatabase.LoadAssetAtPath<ExperimentTaskCatalog>(TaskPath);
             ConfigureTasks(tasks);
@@ -105,7 +114,7 @@ namespace SceneTalkVR.EditorTools
             foreach (var item in new UnityEngine.Object[] { protocol, tasks, avatarCatalog, voices, deployments, resource, pilotPresentations }) EditorUtility.SetDirty(item);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("[SceneTalkVR] Official Editor Collection assets updated for protocol 1.2.0-editor-collection.");
+            Debug.Log("[SceneTalkVR] Official Editor Collection assets updated for protocol 1.4.0-participant-turn-gated-goals.");
         }
 
         private static ExperimentProtocolDecision Decision(string id, string value, string now) => new ExperimentProtocolDecision

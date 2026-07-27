@@ -4,6 +4,7 @@ namespace SceneTalkVR.Core
 {
     public static class CorrectionTextGuards
     {
+        // Keep these correction-specific: ordinary roleplay negation such as "not allowed" is valid dialogue.
         private static readonly string[] CorrectionLeakagePatterns =
         {
             "you should say",
@@ -20,7 +21,6 @@ namespace SceneTalkVR.Core
             "wrong",
             "incorrect",
             "instead of",
-            "not ",
             "the right way",
             "proper way",
             "actually, you",

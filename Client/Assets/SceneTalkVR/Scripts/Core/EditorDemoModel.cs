@@ -56,9 +56,9 @@ namespace SceneTalkVR.Core
         public AssignmentPolicy FormalAssignmentPolicy => AssignmentPolicy.StrictWithoutReplacement;
         public PilotFeedbackStyleChoice PilotFeedbackStyle => PilotFeedbackStyleChoice.Explicit;
         public PilotAudioSourcePolicy VoiceOnlyAudioPolicy => PilotAudioSourcePolicy.NonSpatialHeadLocked;
-        public int FormalMaxTurns => 6;
+        public int FormalMaxTurns => 9;
         public float FormalMaxDurationMinutes => 10f;
-        public int PilotMaxTurns => 5;
+        public int PilotMaxTurns => 8;
         public float PilotMaxDurationMinutes => 8f;
 
         public AssignmentSequence[] FormalSequences => new[]
@@ -103,9 +103,9 @@ namespace SceneTalkVR.Core
             ["pilot_feedback_style"] = "explicit",
             ["voice_only_spatial_audio"] = "non_spatial_head_locked",
             ["pilot_sequence_mapping"] = "a=voice_only,b=floating_orb,c=humanoid_agent",
-            ["formal_max_turns"] = "6",
+            ["formal_max_turns"] = "9",
             ["formal_max_duration"] = "10 minutes",
-            ["pilot_max_turns"] = "5",
+            ["pilot_max_turns"] = "8",
             ["pilot_max_duration"] = "8 minutes",
             ["questionnaire_scale_anchors"] = "1 = Strongly disagree / 非常不同意; 7 = Strongly agree / 非常同意"
         };

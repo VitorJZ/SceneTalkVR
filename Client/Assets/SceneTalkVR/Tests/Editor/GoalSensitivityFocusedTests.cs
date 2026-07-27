@@ -75,7 +75,7 @@ namespace SceneTalkVR.Tests.Editor
             var definition = task.goals.Single(x => x.goalId == "main_course");
             var audits = new List<GoalEvaluationAudit>();
             var routine = GoalEvaluationOrchestrator.EvaluateActiveTaskGoalsAsync(
-                Request(task, new[] { definition }, "I want the salmon entrée.", "turn-immediate"), Tracker(task),
+                Request(task, new[] { definition }, "I want the salmon entrée.", "turn-immediate"), Tracker(task, definition.goalId),
                 () => true, () => true, audits.Add);
             Assert.That(routine.MoveNext(), Is.True);
             Assert.That(audits.Any(x => x.eventType == "GoalEvaluationStarted" && x.source == GoalEvaluatorSource.Deterministic), Is.True);
@@ -86,7 +86,7 @@ namespace SceneTalkVR.Tests.Editor
         {
             var task = catalog.Find("pilot_restaurant_ordering");
             var definition = task.goals.Single(x => x.goalId == "main_course");
-            var tracker = Tracker(task);
+            var tracker = Tracker(task, definition.goalId);
             GoalEvaluationOrchestrator.AsyncStructuredFallback = new FakeAsyncFallback(.90f, "I want the salmon entrée.");
             yield return GoalEvaluationOrchestrator.EvaluateActiveTaskGoalsAsync(
                 Request(task, new[] { definition }, "I want the salmon entrée.", "turn-audio-failed"), tracker,
@@ -99,7 +99,7 @@ namespace SceneTalkVR.Tests.Editor
         {
             var task = catalog.Find("pilot_restaurant_ordering");
             var definition = task.goals.Single(x => x.goalId == "main_course");
-            var tracker = Tracker(task);
+            var tracker = Tracker(task, definition.goalId);
             var fallback = new FakeAsyncFallback(.80f, "I want the salmon entrée.");
             GoalEvaluationOrchestrator.AsyncStructuredFallback = fallback;
             var request = Request(task, new[] { definition }, "I want the salmon entrée.", "turn-semantic");
@@ -121,6 +121,7 @@ namespace SceneTalkVR.Tests.Editor
             var tracker = Tracker(task);
             tracker.SubmitGoalCandidate(recommendation.goalId, "test",
                 new GoalEvidence { turnId = "prior", transcript = "What do you recommend?", confidence = .98f }, out _);
+            AdvanceAfterConfirmedGoal(tracker, "prior");
             var fallback = new FakeAsyncFallback(.80f, "I want the salmon entrée.");
             GoalEvaluationOrchestrator.AsyncStructuredFallback = fallback;
 
@@ -138,7 +139,7 @@ namespace SceneTalkVR.Tests.Editor
             var definition = task.goals.Single(x => x.goalId == "main_course");
             foreach (var fallback in new[] { new FakeAsyncFallback(.74f, "I want the salmon entrée."), new FakeAsyncFallback(.90f, "") })
             {
-                var tracker = Tracker(task);
+                var tracker = Tracker(task, definition.goalId);
                 GoalEvaluationOrchestrator.AsyncStructuredFallback = fallback;
                 yield return GoalEvaluationOrchestrator.EvaluateActiveTaskGoalsAsync(
                     Request(task, new[] { definition }, "I want the salmon entrée.", Guid.NewGuid().ToString("N")), tracker,
@@ -152,7 +153,7 @@ namespace SceneTalkVR.Tests.Editor
         {
             var task = catalog.Find("pilot_restaurant_ordering");
             var definition = task.goals.Single(x => x.goalId == "main_course");
-            var tracker = Tracker(task);
+            var tracker = Tracker(task, definition.goalId);
             var current = true;
             GoalEvaluationOrchestrator.AsyncStructuredFallback = new FakeAsyncFallback(.90f, "I want the salmon entrée.", () => current = false);
 
@@ -177,7 +178,7 @@ namespace SceneTalkVR.Tests.Editor
             turnId = turnId, userTranscript = transcript, recentUserTurns = new[] { transcript }, currentGoalDefinitions = goals
         };
 
-        private static GoalProgressTracker Tracker(ExperimentTaskDefinition task)
+        private static GoalProgressTracker Tracker(ExperimentTaskDefinition task, string activeGoalId = null)
         {
             var tracker = new GoalProgressTracker();
             tracker.ResetGoals(task, new GoalTrackingContext
@@ -185,7 +186,32 @@ namespace SceneTalkVR.Tests.Editor
                 participantId = "p", sessionId = "s", conditionRunId = "run", taskId = task.taskId,
                 taskAssignmentId = "ta", confirmationPolicy = GoalConfirmationPolicy.AutomaticOnValidatedDetection
             });
+            if (!string.IsNullOrWhiteSpace(activeGoalId))
+            {
+                var guard = task.goals.Length;
+                while (tracker.ActiveGoal != null
+                    && !string.Equals(tracker.ActiveGoal.goalId, activeGoalId, StringComparison.Ordinal)
+                    && guard-- > 0)
+                {
+                    var turnId = "setup-" + tracker.ActiveGoalIndex;
+                    tracker.SubmitGoalCandidate(tracker.ActiveGoal.goalId, "test_setup",
+                        new GoalEvidence { turnId = turnId, transcript = "setup", confidence = .98f }, out _);
+                    AdvanceAfterConfirmedGoal(tracker, turnId);
+                }
+            }
             return tracker;
+        }
+
+        private static void AdvanceAfterConfirmedGoal(GoalProgressTracker tracker, string evidenceTurnId)
+        {
+            if (tracker.SequenceState == GoalSequenceState.AwaitingParticipantTurn)
+            {
+                var unlockTurnId = evidenceTurnId + "-unlock";
+                Assert.That(tracker.NotifyParticipantTurnSubmitted(unlockTurnId), Is.True);
+                Assert.That(tracker.NotifyDialogueTurnCompleted(unlockTurnId), Is.True);
+                return;
+            }
+            Assert.That(tracker.NotifyDialogueTurnCompleted(evidenceTurnId), Is.True);
         }
 
         private sealed class FakeAsyncFallback : IAsyncStructuredGoalEvaluationFallback

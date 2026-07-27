@@ -63,7 +63,7 @@ MonoBehaviour:
     evidenceReference: scenetalkvr-rehearsal-baseline-v1
     notes: Approved operational fallback; may be revised after team review
   - decisionId: formal_max_turns
-    confirmedValue: 6
+    confirmedValue: 9
     status: 0
     confirmedBy: Project Lead
     confirmedAtUtc: 2026-07-20T00:00:00Z
@@ -77,7 +77,7 @@ MonoBehaviour:
     evidenceReference: scenetalkvr-rehearsal-baseline-v1
     notes: Approved operational fallback; may be revised after team review
   - decisionId: pilot_max_turns
-    confirmedValue: 5
+    confirmedValue: 8
     status: 0
     confirmedBy: Project Lead
     confirmedAtUtc: 2026-07-20T00:00:00Z

@@ -19,6 +19,7 @@ namespace SceneTalkVR.Tests.PlayMode
         private Component questionnaire;
         private Component manager;
         private Component rehearsal;
+        private string lastEvaluatedTurnId;
 
         [UnitySetUp]
         public IEnumerator SetUp()
@@ -92,8 +93,17 @@ namespace SceneTalkVR.Tests.PlayMode
         {
             Arm(out var assignment); StartFormalFlow(); yield return null; var selected = ConditionForTask(assignment, "hotel_check_in"); Click(Get(selected, "formalConditionCode") + "ModeButton"); yield return null;
             Assert.That(Evaluate("My name is Harry Potter."), Is.EqualTo(1)); yield return null;
-            var tracker = Get(lifecycle, "GoalTracker"); Assert.That(GoalState(tracker, "reservation_name"), Is.EqualTo("Confirmed")); Assert.That(TextOf("ReadOnlyTaskGoalPanel"), Does.Contain("1 / 4 completed"));
-            Assert.That(Evaluate("My name is Harry Potter."), Is.Zero); Evaluate("Is breakfast included?"); Evaluate("Could I have a room on a higher floor?"); Evaluate("What time is checkout?"); yield return null;
+            var reservationTurnId = lastEvaluatedTurnId; var tracker = Get(lifecycle, "GoalTracker"); Assert.That(GoalState(tracker, "reservation_name"), Is.EqualTo("Confirmed")); Assert.That(TextOf("ReadOnlyTaskGoalPanel"), Does.Contain("1 / 4 completed")); Assert.That(TextOf("ReadOnlyTaskGoalPanel"), Does.Not.Contain("breakfast"));
+            CompleteEvaluatedTurn(reservationTurnId, false); yield return null;
+            Assert.That(TextOf("ReadOnlyTaskGoalPanel"), Does.Contain("reservation name")); Assert.That(TextOf("ReadOnlyTaskGoalPanel"), Does.Not.Contain("breakfast"));
+            Assert.That(Evaluate("Is breakfast included?"), Is.Zero, "The first post-goal participant turn is the unlock dialogue, not evidence for the hidden next goal."); CompleteEvaluatedTurn(); yield return null;
+            Assert.That(TextOf("ReadOnlyTaskGoalPanel"), Does.Contain("breakfast")); Assert.That(TextOf("ReadOnlyTaskGoalPanel"), Does.Contain("reservation name"));
+            Assert.That(Evaluate("Is breakfast included?"), Is.EqualTo(1)); CompleteEvaluatedTurn(expectedAdvance: false);
+            Assert.That(Evaluate("Could I have a room on a higher floor?"), Is.Zero); CompleteEvaluatedTurn();
+            Assert.That(Evaluate("Could I have a room on a higher floor?"), Is.EqualTo(1)); CompleteEvaluatedTurn(expectedAdvance: false);
+            Assert.That(Evaluate("What time is checkout?"), Is.Zero); CompleteEvaluatedTurn();
+            Assert.That(Evaluate("What time is checkout?"), Is.EqualTo(1));
+            Assert.That(Get(questionnaire, "ActiveSession"), Is.Null, "The questionnaire must wait for the final Avatar reply."); CompleteEvaluatedTurn(); yield return null;
             Assert.That((int)Get(tracker, "ConfirmedCount"), Is.EqualTo(4)); Assert.That(Get(questionnaire, "ActiveSession"), Is.Not.Null); Assert.That(Get(Get(questionnaire, "ActiveSession"), "completionStatus").ToString(), Is.EqualTo("InProgress")); Assert.That(Active("QuestionnairePanel"), Is.True);
             AssertExitOverlay();
         }
@@ -125,7 +135,7 @@ namespace SceneTalkVR.Tests.PlayMode
 
         [UnityTest] public IEnumerator T07_ResumeKeepsMappingAndGoalSnapshot()
         {
-            Arm(out var assignment); StartFormalFlow(); yield return null; var selected = ConditionForTask(assignment, "hotel_check_in"); Click(Get(selected, "formalConditionCode") + "ModeButton"); yield return null; Evaluate("My name is Harry Potter."); yield return null;
+            Arm(out var assignment); StartFormalFlow(); yield return null; var selected = ConditionForTask(assignment, "hotel_check_in"); Click(Get(selected, "formalConditionCode") + "ModeButton"); yield return null; Evaluate("My name is Harry Potter."); CompleteEvaluatedTurn(expectedAdvance: false); yield return null;
             var mapping = Conditions(assignment).Select(x => Get(x, "formalConditionCode") + "=" + Get(Get(x, "task"), "taskId")).ToArray(); var participant = (string)Get(assignment, "participantId"); var session = (string)Get(assignment, "experimentSessionId");
             CallVoid(collection, "EndRuntimeSession"); Configure(); var args = new object[] { participant, session, true, null }; Assert.That((bool)collection.GetType().GetMethod("ArmParticipantSession").Invoke(collection, args), Is.True, args[3] as string); OutCall(collection, "BeginParticipantFlow"); yield return null;
             Assert.That(Conditions(Get(collection, "Assignment")).Select(x => Get(x, "formalConditionCode") + "=" + Get(Get(x, "task"), "taskId")), Is.EqualTo(mapping)); Assert.That(GoalState(Get(lifecycle, "GoalTracker"), "reservation_name"), Is.EqualTo("Confirmed"));
@@ -215,9 +225,10 @@ namespace SceneTalkVR.Tests.PlayMode
 
         private void Arm(out object assignment)
         { var token = Guid.NewGuid().ToString("N"); var args = new object[] { "PLAY-" + token, "SESSION-" + token, false, null }; Assert.That((bool)collection.GetType().GetMethod("ArmParticipantSession").Invoke(collection, args), Is.True, args[3] as string); assignment = Get(collection, "Assignment"); Assert.That((bool)Get(assignment, "collectionEligible"), Is.True); Assert.That((bool)Get(assignment, "developerTestAssignment"), Is.False); }
-        private int Evaluate(string transcript, string speaker = "participant") { var type = Type.GetType("SceneTalkVR.Core.GoalEvaluationOrchestrator, Assembly-CSharp"); return (int)type.GetMethod("EvaluateUserTranscript").Invoke(null, new object[] { lifecycle, Guid.NewGuid().ToString("N"), transcript, speaker }); }
+        private int Evaluate(string transcript, string speaker = "participant") { lastEvaluatedTurnId = Guid.NewGuid().ToString("N"); var type = Type.GetType("SceneTalkVR.Core.GoalEvaluationOrchestrator, Assembly-CSharp"); type.GetMethod("NotifyParticipantTurnSubmitted").Invoke(null, new object[] { lifecycle, null, lastEvaluatedTurnId, transcript, speaker }); return (int)type.GetMethod("EvaluateUserTranscript").Invoke(null, new object[] { lifecycle, lastEvaluatedTurnId, transcript, speaker }); }
+        private void CompleteEvaluatedTurn(string turnId = null, bool expectedAdvance = true) { var tracker = Get(lifecycle, "GoalTracker"); Assert.That((bool)tracker.GetType().GetMethod("NotifyDialogueTurnCompleted").Invoke(tracker, new object[] { turnId ?? lastEvaluatedTurnId }), Is.EqualTo(expectedAdvance)); }
         private void StartFormalFlow() { OutCall(collection, "BeginParticipantFlow"); }
-        private void CompleteTask(string task) { var phrases = new[] { "My name is Harry Potter.", "Is breakfast included?", "Could I have a room on a higher floor?", "What time is checkout?" }; foreach (var phrase in phrases) Evaluate(phrase); }
+        private void CompleteTask(string task) { var phrases = new[] { "My name is Harry Potter.", "Is breakfast included?", "Could I have a room on a higher floor?", "What time is checkout?" }; for (var i = 0; i < phrases.Length; i++) { Assert.That(Evaluate(phrases[i]), Is.EqualTo(1)); if (i == phrases.Length - 1) { CompleteEvaluatedTurn(); continue; } CompleteEvaluatedTurn(expectedAdvance: false); Assert.That(Evaluate(phrases[i + 1]), Is.Zero); CompleteEvaluatedTurn(); } }
         private void Select(string code, bool expected) { var method = collection.GetType().GetMethod("SelectFormalCondition"); var args = new object[] { Enum.Parse(method.GetParameters()[0].ParameterType, code), null }; Assert.That((bool)method.Invoke(collection, args), Is.EqualTo(expected), args[1] as string); }
         private void Configure() { var m = collection.GetType().GetMethod("Configure"); var p = m.GetParameters(); m.Invoke(collection, new[] { Asset("Assets/SceneTalkVR/ExperimentProtocol/ExperimentV11Protocol.asset", p[0].ParameterType), Asset("Assets/SceneTalkVR/ExperimentProtocol/ExperimentEditorCollectionResources.asset", p[1].ParameterType), Asset("Assets/SceneTalkVR/ExperimentProtocol/ExperimentVoiceProfileCatalog.asset", p[2].ParameterType), Asset("Assets/SceneTalkVR/ExperimentProtocol/ExperimentDeploymentCatalog.asset", p[3].ParameterType), Asset("Assets/SceneTalkVR/ExperimentProtocol/ExperimentQuestionnaireCatalog.asset", p[4].ParameterType), Asset("Assets/SceneTalkVR/ExperimentProtocol/ExperimentTaskCatalog.asset", p[5].ParameterType) }); }
         private static object ConditionForTask(object assignment, string task) => Conditions(assignment).Single(x => (string)Get(Get(x, "task"), "taskId") == task);

@@ -79,6 +79,7 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(tracker.SubmitGoalCandidate(tracker.Goals[0].goalId, "detector", Evidence("turn-1"), out var error), Is.True, error);
             Assert.That(tracker.Goals[0].state, Is.EqualTo(GoalProgressState.Confirmed));
             Assert.That(tracker.Goals[0].confirmedBy, Is.EqualTo(GoalProgressTracker.AutomaticConfirmationActor));
+            Assert.That(tracker.SequenceState, Is.EqualTo(GoalSequenceState.AwaitingParticipantTurn));
         }
 
         [Test] public void ManualPolicy_RemainsCandidateUntilExperimenterReview()
@@ -96,12 +97,19 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(error, Is.EqualTo("duplicate_goal_evidence"));
         }
 
-        [Test] public void AllConfirmed_RaisesExactlyOnce()
+        [Test] public void AllConfirmed_RaisesExactlyOnceAfterEveryAvatarReply()
         {
             var tracker = Tracker(GoalConfirmationPolicy.AutomaticOnValidatedDetection); var count = 0;
             tracker.OnAllGoalsConfirmed += _ => count++;
-            for (var i = 0; i < tracker.Goals.Count; i++) tracker.SubmitGoalCandidate(tracker.Goals[i].goalId, "detector", Evidence("turn-" + i), out _);
+            for (var i = 0; i < tracker.Goals.Count; i++)
+            {
+                var turnId = "turn-" + i;
+                tracker.SubmitGoalCandidate(tracker.ActiveGoal.goalId, "detector", Evidence(turnId), out _);
+                Assert.That(count, Is.Zero);
+                AdvanceAfterConfirmedGoal(tracker, turnId);
+            }
             Assert.That(count, Is.EqualTo(1)); Assert.That(tracker.AreAllConfirmed, Is.True);
+            Assert.That(tracker.IsSequenceCompleted, Is.True);
         }
 
         [Test] public void Reset_ClearsCompletionAndRevisions()
@@ -146,6 +154,17 @@ namespace SceneTalkVR.Tests.Editor
 
         private static GoalProgressTracker Tracker(GoalConfirmationPolicy policy)
         { var value = new GoalProgressTracker(); value.ResetGoals(Task(), Context(policy)); return value; }
+        private static void AdvanceAfterConfirmedGoal(GoalProgressTracker tracker, string evidenceTurnId)
+        {
+            if (tracker.SequenceState == GoalSequenceState.AwaitingParticipantTurn)
+            {
+                var unlockTurnId = evidenceTurnId + "-unlock";
+                Assert.That(tracker.NotifyParticipantTurnSubmitted(unlockTurnId), Is.True);
+                Assert.That(tracker.NotifyDialogueTurnCompleted(unlockTurnId), Is.True);
+                return;
+            }
+            Assert.That(tracker.NotifyDialogueTurnCompleted(evidenceTurnId), Is.True);
+        }
         private static GoalTrackingContext Context(GoalConfirmationPolicy policy) => new GoalTrackingContext
         { participantId = "P", sessionId = "S", conditionRunId = "run-1", taskAssignmentId = "assignment-1", confirmationPolicy = policy };
         private static GoalEvidence Evidence(string turn) => new GoalEvidence { turnId = turn, transcript = "validated transcript", confidence = .9f };

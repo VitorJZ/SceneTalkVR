@@ -409,7 +409,7 @@ namespace SceneTalkVR.Runtime.Services
                 "5. A keyword mention alone is not enough.\n" +
                 "6. Do not mark a goal achieved when the participant negates or rejects the goal, says they do not need or want it, describes an unrelated past event, quotes another person, uses a hypothetical or counterfactual statement, or merely repeats the goal wording without performing the required speech act.\n" +
                 "7. Goals such as no reservation, wrong dish, or dietary restriction may legitimately use negative language. Judge intended meaning, not the word not.\n" +
-                "8. Use the latest participant utterance and recent participant utterances from the same task when a goal is expressed across multiple turns.\n" +
+                "8. Use the latest participant utterance and only the supplied recent participant utterances from the CURRENT GOAL ACTIVATION window when a goal is expressed across multiple turns. Never reuse speech from before this goal became visible.\n" +
                 "9. Evidence must quote or closely reproduce participant words supporting the decision.\n" +
                 "10. If evidence is ambiguous, incomplete, contradictory, or unrelated, return achieved=false.\n" +
                 "11. Return strict JSON only, with no markdown or text outside JSON.\n\n" +
@@ -1630,29 +1630,49 @@ namespace SceneTalkVR.Runtime.Services
                 purpose);
         }
 
-        private async Task<T> ExecuteWithRetry<T>(
+        private Task<T> ExecuteWithRetry<T>(
             Func<int, Task<T>> requestAttempt,
             LlmRequestPurpose purpose,
             CancellationToken cancellationToken)
         {
             var retryAllowed = purpose == LlmRequestPurpose.Dialogue
                 || (purpose == LlmRequestPurpose.Correction && IsExperimentLocked());
-            var maxAttempts = 1 + (retryAllowed ? Mathf.Max(0, transientRetryCount) : 0);
-            var totalBudget = Mathf.Max(5, totalRequestBudgetSeconds);
+            return ExecuteWithRetryCore(
+                requestAttempt,
+                purpose,
+                cancellationToken,
+                retryAllowed ? Mathf.Max(0, transientRetryCount) : 0,
+                Mathf.Max(5, totalRequestBudgetSeconds),
+                Mathf.Max(5, firstAttemptTimeoutSeconds),
+                message => Debug.LogWarning(message),
+                (delayMilliseconds, token) => Task.Delay(delayMilliseconds, token));
+        }
+
+        private static async Task<T> ExecuteWithRetryCore<T>(
+            Func<int, Task<T>> requestAttempt,
+            LlmRequestPurpose purpose,
+            CancellationToken cancellationToken,
+            int retryCount,
+            int totalBudget,
+            int firstAttemptTimeout,
+            Action<string> onRetry,
+            Func<int, CancellationToken, Task> delayAsync)
+        {
+            var maxAttempts = 1 + retryCount;
             var timer = System.Diagnostics.Stopwatch.StartNew();
             LlmRequestException lastFailure = null;
 
             for (var attempt = 1; attempt <= maxAttempts; attempt++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var remainingSeconds = totalBudget - Mathf.CeilToInt((float)timer.Elapsed.TotalSeconds);
+                var remainingSeconds = totalBudget - (int)Math.Ceiling(timer.Elapsed.TotalSeconds);
                 if (remainingSeconds <= 0)
                 {
                     break;
                 }
 
                 var timeoutSeconds = attempt == 1
-                    ? Mathf.Min(Mathf.Max(5, firstAttemptTimeoutSeconds), remainingSeconds)
+                    ? Math.Min(firstAttemptTimeout, remainingSeconds)
                     : remainingSeconds;
                 try
                 {
@@ -1673,13 +1693,15 @@ namespace SceneTalkVR.Runtime.Services
                         throw;
                     }
 
-                    Debug.LogWarning(
+                    onRetry?.Invoke(
                         $"[RealLLMService] {purpose} request failed on attempt {attempt}/{maxAttempts}; "
-                        + $"retrying in {delaySeconds:0.0}s. {exception.Message}",
-                        this);
-                    await Task.Delay(
-                        Mathf.Max(1, Mathf.RoundToInt(delaySeconds * 1000f)),
-                        cancellationToken);
+                        + $"retrying in {delaySeconds:0.0}s. {exception.Message}");
+                    var delayMilliseconds = Math.Max(
+                        1,
+                        (int)Math.Round(
+                            delaySeconds * 1000f,
+                            MidpointRounding.AwayFromZero));
+                    await delayAsync(delayMilliseconds, cancellationToken);
                 }
             }
 
@@ -1694,7 +1716,7 @@ namespace SceneTalkVR.Runtime.Services
         {
             if (exception.RetryAfterSeconds > 0)
             {
-                return Mathf.Clamp(exception.RetryAfterSeconds, 0.25f, 5f);
+                return Math.Min(5f, Math.Max(0.25f, exception.RetryAfterSeconds));
             }
 
             if (exception.StatusCode == 429)
@@ -1702,8 +1724,8 @@ namespace SceneTalkVR.Runtime.Services
                 return 5f;
             }
 
-            var jitter = Mathf.Abs(Environment.TickCount % 251) / 1000f;
-            return Mathf.Min(5f, attempt) + jitter;
+            var jitter = Math.Abs(Environment.TickCount % 251) / 1000f;
+            return Math.Min(5f, attempt) + jitter;
         }
 
         private static LlmRequestException BuildRequestException(

@@ -88,6 +88,22 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(fake.Gate.State, Is.EqualTo(FeedbackFirstTurnState.TechnicalInvalid));
         }
 
+        [TestCase("You're welcome to take photos inside the museum, but flash photography is not allowed to protect the exhibits.")]
+        [TestCase("Breakfast is not included, but you can order it at the restaurant.")]
+        [TestCase("That table is not available until seven o'clock.")]
+        public void OrdinaryRoleplayNegation_IsNotCorrectionLeakage(string dialogueReply)
+        {
+            Assert.That(CorrectionTextGuards.LooksLikeCorrection(dialogueReply), Is.False);
+        }
+
+        [TestCase("Grammar tip: use 'are' here.")]
+        [TestCase("You should say, 'I would like a table for two.'")]
+        [TestCase("Try saying, 'Could I have the bill, please?'")]
+        public void ExplicitCorrectionLanguage_IsStillDetected(string dialogueReply)
+        {
+            Assert.That(CorrectionTextGuards.LooksLikeCorrection(dialogueReply), Is.True);
+        }
+
         [TestCase("correction_planner_timeout")]
         [TestCase("dialogue_timeout")]
         [TestCase("correction_tts_failure")]

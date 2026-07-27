@@ -1201,10 +1201,20 @@ namespace SceneTalkVR.Runtime
             if (taskGoalText == null || tracker == null || tracker.Goals.Count == 0) { if (taskGoalText != null) taskGoalText.text = string.Empty; return; }
             var taskName = string.IsNullOrWhiteSpace(tracker.Context.taskId) ? "Task" : tracker.Context.taskId;
             var builder = new System.Text.StringBuilder(taskName).AppendLine();
-            foreach (var goal in tracker.Goals)
+            for (var i = 0; i < tracker.Goals.Count; i++)
+            {
+                var goal = tracker.Goals[i];
+                if (goal.state != GoalProgressState.Confirmed && i != tracker.ActiveGoalIndex) continue;
                 builder.Append(goal.state == GoalProgressState.Confirmed ? "[✓] "
                     : goal.state == GoalProgressState.Candidate ? "[…] "
                     : goal.state == GoalProgressState.Rejected ? "[↻] " : "[ ] ").AppendLine(goal.goalText);
+            }
+            if (tracker.SequenceState == GoalSequenceState.AwaitingParticipantTurn)
+                builder.AppendLine().AppendLine("Goal completed. Speak once more to continue...");
+            else if (tracker.SequenceState == GoalSequenceState.AwaitingAvatarReply)
+                builder.AppendLine().AppendLine("Waiting for the Avatar's reply to finish...");
+            else if (tracker.SequenceState == GoalSequenceState.Completed)
+                builder.AppendLine().AppendLine("All goals completed.");
             builder.AppendLine().Append(tracker.ConfirmedCount).Append(" / ").Append(tracker.Goals.Count).Append(" completed");
             taskGoalText.text = builder.ToString();
         }
