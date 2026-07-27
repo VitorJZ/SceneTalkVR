@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace SceneTalkVR.Core
 {
-    public enum PilotParticipantStage { None, Setup, Instructions, TaskIntroduction, Dialogue, Questionnaire, Transition, FinalRanking, Completion }
+    public enum PilotParticipantStage { None, Setup, AppearanceSelection, TaskIntroduction, Dialogue, Questionnaire, FinalRanking, Completion }
 
     [Serializable]
     public sealed class PilotCollectionOperatorEvent
@@ -50,6 +50,8 @@ namespace SceneTalkVR.Core
         public string ParticipantId => RuntimeContext?.participantId??string.Empty;
         public string SessionId => RuntimeContext?.sessionId??string.Empty;
         public int CurrentPosition => currentPosition;
+        public bool HasActiveDialogueCondition => IsArmed&&Stage==PilotParticipantStage.Dialogue
+            &&currentPosition>=0&&workflow?.Current?.status==PilotRunStatus.Running;
         public ExperimentTaskDefinition CurrentTask { get { var taskId=workflow?.Current?.task?.taskId;if(string.IsNullOrWhiteSpace(taskId)&&Assignment?.conditions!=null&&currentPosition>=0&&currentPosition<Assignment.conditions.Length)taskId=Assignment.conditions[currentPosition].task?.taskId;return manager?.TaskCatalog?.Find(taskId); } }
         public string LastBundlePath => lastBundlePath??string.Empty;
         public static string CollectionRoot => Path.Combine(Application.persistentDataPath,"SceneTalkVR","PilotCollectionSessions");
@@ -70,7 +72,7 @@ namespace SceneTalkVR.Core
         public void OpenSetup(){if(IsArmed)EndSession();Stage=PilotParticipantStage.Setup;RefreshUi();}
         public bool OpenOrCreateAutomaticParticipantSession(out string error)
         {
-            if(IsArmed){if(Stage==PilotParticipantStage.None||Stage==PilotParticipantStage.Setup)Stage=PilotParticipantStage.Instructions;RefreshUi();error="";return true;}
+            if(IsArmed){if(Stage==PilotParticipantStage.None||Stage==PilotParticipantStage.Setup)Stage=PilotParticipantStage.AppearanceSelection;RefreshUi();error="";return true;}
             var previousParticipant=PlayerPrefs.GetString(LastParticipantKey,string.Empty);
             var previousSession=PlayerPrefs.GetString(LastSessionKey,string.Empty);
             var sessionRoot=ExperimentRuntimePlatform.IsPicoDeviceValidation?RehearsalSessionCoordinator.RehearsalRoot:CollectionRoot;
@@ -114,16 +116,17 @@ namespace SceneTalkVR.Core
                 currentPosition=Array.FindIndex(stored.conditions,x=>x.status==PilotRunStatus.Running||x.status==PilotRunStatus.AwaitingPilotQuestionnaire||x.status==PilotRunStatus.PilotQuestionnaireInProgress||x.status==PilotRunStatus.TechnicalInvalid);
                 if(currentPosition>=0&&stored.conditions[currentPosition].status!=PilotRunStatus.TechnicalInvalid){stored.conditions[currentPosition].status=PilotRunStatus.TechnicalInvalid;Persist();Write("PilotIncompleteAttemptPreservedForResumeRetry");}
                 rankingSubmitted=File.Exists(RankingSubmittedMarkerPath);
+                if(currentPosition>=0)currentPosition=-1;
                 Stage=stored.conditions.All(x=>x.status==PilotRunStatus.Completed)
                     ?(rankingSubmitted?PilotParticipantStage.Completion:PilotParticipantStage.FinalRanking)
-                    :currentPosition>=0?PilotParticipantStage.TaskIntroduction:PilotParticipantStage.Instructions;
+                    :PilotParticipantStage.AppearanceSelection;
             }
             else
             {
                 if(stored!=null){error="session_already_exists_use_resume";return FailArm();}
                 var allocator=new PilotAssignmentAllocator();
                 if(!allocator.TryCreateCollection(participantId,sessionId,protocol,tasks,presentations,RuntimeContext.resourceSnapshotId,out var created,out error)||!workflow.LoadAssignment(created,out error))return FailArm();
-                PilotAssignmentAllocator.Save(created,AssignmentPath);currentPosition=-1;Stage=PilotParticipantStage.Instructions;
+                PilotAssignmentAllocator.Save(created,AssignmentPath);currentPosition=-1;Stage=PilotParticipantStage.AppearanceSelection;
             }
             workflow.ConfigureRunLimits(5,8f);if(!resume)ResetFinalRankingUi();Write("PilotSessionArmed","resume="+resume);RefreshUi();error="";return true;
         }
@@ -144,9 +147,10 @@ namespace SceneTalkVR.Core
             if(resume&&currentPosition>=0&&Assignment.conditions[currentPosition].status!=PilotRunStatus.TechnicalInvalid)
             {Assignment.conditions[currentPosition].status=PilotRunStatus.TechnicalInvalid;Persist();Write("PilotIncompleteAttemptPreservedForResumeRetry");}
             rankingSubmitted=File.Exists(RankingSubmittedMarkerPath);
+            if(resume&&currentPosition>=0)currentPosition=-1;
             Stage=resume&&Assignment?.conditions?.All(x=>x.status==PilotRunStatus.Completed)==true
                 ?(rankingSubmitted?PilotParticipantStage.Completion:PilotParticipantStage.FinalRanking)
-                :resume&&currentPosition>=0?PilotParticipantStage.TaskIntroduction:PilotParticipantStage.Instructions;
+                :PilotParticipantStage.AppearanceSelection;
             if(!resume)ResetFinalRankingUi();
             Write("PilotDeviceValidationArmed","resume="+resume);
             Debug.Log($"[ExperimentRuntime] Pilot device validation armed. qualification=Rehearsal; "
@@ -154,7 +158,17 @@ namespace SceneTalkVR.Core
             RefreshUi();error="";return true;
         }
 
-        public void BeginPilot(){if(!IsArmed||Stage!=PilotParticipantStage.Instructions)return;currentPosition=NextAssigned();Stage=currentPosition>=0?PilotParticipantStage.TaskIntroduction:PilotParticipantStage.FinalRanking;Write("PilotInstructionsCompleted");RefreshUi();}
+        public void BeginPilot(){if(IsArmed)Stage=PilotParticipantStage.AppearanceSelection;RefreshUi();}
+        public bool SelectEmbodiment(PilotEmbodimentCondition embodiment,out string error)
+        {
+            if(!IsArmed||Stage!=PilotParticipantStage.AppearanceSelection){error="pilot_appearance_selection_not_available";return false;}
+            var items=Assignment?.conditions;var position=items==null?-1:Array.FindIndex(items,x=>x.embodimentCondition==embodiment);
+            if(position<0){error="pilot_embodiment_not_assigned";return false;}var selected=items[position];
+            if(selected.status!=PilotRunStatus.Assigned&&selected.status!=PilotRunStatus.TechnicalInvalid){error="pilot_embodiment_not_selectable:"+selected.status;return false;}
+            currentPosition=position;var order=Assignment.participantSelectionOrder?.ToList()??new System.Collections.Generic.List<PilotEmbodimentCondition>();
+            if(!order.Contains(embodiment))order.Add(embodiment);Assignment.participantSelectionOrder=order.ToArray();selected.participantSelectionPosition=order.IndexOf(embodiment);selected.selectedAtUtc=DateTime.UtcNow.ToString("o");
+            Persist();Stage=PilotParticipantStage.TaskIntroduction;Write("PilotEmbodimentSelected","embodiment="+PilotProtocolValues.Label(embodiment));RefreshUi();error="";return true;
+        }
         public bool BeginCurrentTask(out string error)
         {
             if(!IsArmed||Stage!=PilotParticipantStage.TaskIntroduction||currentPosition<0){error="pilot_task_introduction_not_active";return false;}
@@ -162,16 +176,15 @@ namespace SceneTalkVR.Core
             if(IsDeviceValidation)
             {
                 if(rehearsal==null){error="device_validation_rehearsal_session_missing";return false;}
-                if(!rehearsal.PrepareCurrentCondition(out error))return false;
+                if(!rehearsal.PreparePilotCondition(Assignment.conditions[currentPosition].embodimentCondition,out error))return false;
             }
             else if(!workflow.Prepare(currentPosition,retry,out error))return false;
             ExperimentSessionCoordinator.Active?.NotifyAttemptStarted(
-                ExperimentPhaseKind.Pilot,
                 PilotProtocolValues.Label(workflow.Current.embodimentCondition),
                 workflow.Current.task.taskId,
                 workflow.PilotRunId,
                 workflow.Current.runAttempt);
-            Persist();Stage=PilotParticipantStage.Dialogue;Write(retry?"PilotConditionRetryStarted":"PilotConditionStarted");orchestrator.LoadAssignedTask(workflow.Current.task.taskId);RefreshUi();return true;
+            Persist();Stage=PilotParticipantStage.Dialogue;Write(retry?"PilotConditionRetryStarted":"PilotConditionStarted");if(!IsDeviceValidation)orchestrator.LoadAssignedTask(workflow.Current.task.taskId);RefreshUi();return true;
         }
         public bool IsTaskPrepared(string taskId)=>IsArmed&&Stage==PilotParticipantStage.Dialogue&&workflow?.Current?.status==PilotRunStatus.Running&&string.Equals(workflow.Current.task?.taskId,taskId,StringComparison.OrdinalIgnoreCase);
         public bool SubmitQuestionnaire(out string error)
@@ -185,11 +198,12 @@ namespace SceneTalkVR.Core
             else if(!workflow.SubmitQuestionnaire(out error))return false;
             ExperimentSessionCoordinator.Active?.NotifyAttemptCompleted("questionnaire_submitted");
             Persist();
-            if(Assignment.conditions.All(x=>x.status==PilotRunStatus.Completed)){workflow.ResetPilotConditionBoundary();Stage=PilotParticipantStage.FinalRanking;}
-            else Stage=PilotParticipantStage.Transition;
+            workflow.ResetPilotConditionBoundary();currentPosition=-1;
+            if(Assignment.conditions.All(x=>x.status==PilotRunStatus.Completed)){Stage=PilotParticipantStage.FinalRanking;ExperimentSessionCoordinator.Active?.NotifyRankingOpened();}
+            else Stage=PilotParticipantStage.AppearanceSelection;
             Write("PilotQuestionnaireSubmitted");RefreshUi();return true;
         }
-        public void ContinueAfterTransition(){if(Stage!=PilotParticipantStage.Transition)return;workflow.ResetPilotConditionBoundary();currentPosition=NextAssigned();Stage=currentPosition>=0?PilotParticipantStage.TaskIntroduction:PilotParticipantStage.FinalRanking;Write("PilotNeutralTransitionCompleted");RefreshUi();}
+        public void ContinueAfterTransition(){if(IsArmed)Stage=PilotParticipantStage.AppearanceSelection;RefreshUi();}
         public bool SubmitFinalRanking(PreferenceRankingResponse value,out string error)
         {
             if(Stage!=PilotParticipantStage.FinalRanking){error="pilot_final_ranking_not_visible";return false;}
@@ -206,8 +220,28 @@ namespace SceneTalkVR.Core
         }
         public bool ExportBundle(out string error){if(IsDeviceValidation){if(rehearsal==null){error="device_validation_rehearsal_session_missing";return false;}var ok=rehearsal.ExportBundle(out error);lastBundlePath=rehearsal.LastBundlePath;return ok;}var result=PilotCollectionBundleExporter.Export(Path.GetDirectoryName(CurrentDataFolder),Assignment,manager.ExperimentProtocol,manager.QuestionnaireCatalog,rankingSubmitted,out lastBundlePath,out error);if(result)Write("PilotBundleExported",lastBundlePath);return result;}
         public bool AuditBundle(out string error){if(IsDeviceValidation){if(rehearsal==null){error="device_validation_rehearsal_session_missing";return false;}return rehearsal.AuditBundle(out error);}if(string.IsNullOrWhiteSpace(lastBundlePath)||!Directory.Exists(lastBundlePath)){error="pilot_bundle_missing";return false;}var report=SessionDataIntegrityAuditor.Audit(lastBundlePath,ParticipantId,SessionId);SessionDataIntegrityAuditor.WriteReport(report,lastBundlePath+"-manual-audit.json");error=report.result.ToString().ToUpperInvariant();return report.result!=DataIntegritySeverity.Fail;}
-        public void MarkTechnicalInvalid(string reason){if(!IsArmed)return;workflow.MarkTechnicalInvalid("experiment_operator",reason);ExperimentSessionCoordinator.Active?.NotifyAttemptTechnicalInvalid(reason);Persist();Stage=PilotParticipantStage.TaskIntroduction;Write("PilotTechnicalInvalid",reason);RefreshUi();}
-        public bool Retry(out string error){if(workflow?.Current?.status!=PilotRunStatus.TechnicalInvalid){error="pilot_retry_not_available";return false;}Stage=PilotParticipantStage.TaskIntroduction;return BeginCurrentTask(out error);}
+        public bool ReturnToAppearanceSelectionFromDialogue(string reason,out string error)
+        {
+            if(!HasActiveDialogueCondition){error="pilot_dialogue_not_active";return false;}
+            reason=string.IsNullOrWhiteSpace(reason)?"participant_return_to_selection":reason.Trim();
+            if(IsDeviceValidation)
+            {
+                if(rehearsal==null){error="device_validation_rehearsal_session_missing";return false;}
+                if(!rehearsal.ReturnToConditionSelectionFromDialogue(reason,out error))return false;
+            }
+            else
+            {
+                workflow.MarkTechnicalInvalid("ParticipantNavigation",reason);
+                Persist();
+                orchestrator?.ResetForConditionSelection();
+                workflow.ResetPilotConditionBoundary();
+            }
+            currentPosition=-1;Stage=PilotParticipantStage.AppearanceSelection;
+            Write("PilotReturnedToAppearanceSelection","reason="+reason,false,"participant");
+            RefreshUi();error="";return true;
+        }
+        public void MarkTechnicalInvalid(string reason){if(!IsArmed)return;workflow.MarkTechnicalInvalid("experiment_operator",reason);ExperimentSessionCoordinator.Active?.NotifyAttemptTechnicalInvalid(reason);Persist();currentPosition=-1;Stage=PilotParticipantStage.AppearanceSelection;Write("PilotTechnicalInvalid",reason);RefreshUi();}
+        public bool Retry(out string error){if(workflow?.Current?.status!=PilotRunStatus.TechnicalInvalid){error="pilot_retry_not_available";return false;}currentPosition=workflow.Current.conditionPosition;Stage=PilotParticipantStage.TaskIntroduction;return BeginCurrentTask(out error);}
         public void EndSession(){Write("PilotSessionEnded");if(IsDeviceValidation)rehearsal?.EndRuntimeSession();ResetRuntime();RuntimeContext=null;rehearsal=null;Stage=PilotParticipantStage.None;RefreshUi();}
         public void ExitAndEndSession(string reason)
         {
@@ -219,18 +253,21 @@ namespace SceneTalkVR.Core
         public void SuspendAndEndSession(string reason)
         {
             reason=string.IsNullOrWhiteSpace(reason)?"participant_exit_checkpoint":reason.Trim();
-            if(IsArmed&&workflow?.Current!=null&&workflow.Current.status!=PilotRunStatus.Completed
-                &&workflow.Current.status!=PilotRunStatus.TechnicalInvalid)
+            if(IsArmed)
             {
-                workflow.MarkTechnicalInvalid("ParticipantExitCheckpoint",reason);
-                Persist();
+                if(workflow?.Current!=null&&workflow.Current.status!=PilotRunStatus.Completed
+                    &&workflow.Current.status!=PilotRunStatus.TechnicalInvalid)
+                {
+                    workflow.MarkTechnicalInvalid("ParticipantExitCheckpoint",reason);
+                    Persist();
+                }
                 Write("PilotSessionSuspended","reason="+reason,false,"participant");
             }
             EndSession();
         }
 
         public bool PrepareCurrentPilotConditionForQa(out string error)
-        { if(Stage==PilotParticipantStage.Instructions)BeginPilot();if(Stage==PilotParticipantStage.Transition)ContinueAfterTransition();var ok=BeginCurrentTask(out error);if(ok)Write("QaPreparePilotCondition","",true);return ok; }
+        { if(Stage==PilotParticipantStage.AppearanceSelection){var next=NextAssigned();if(next<0){error="pilot_no_remaining_condition";return false;}if(!SelectEmbodiment(Assignment.conditions[next].embodimentCondition,out error))return false;}var ok=BeginCurrentTask(out error);if(ok)Write("QaPreparePilotCondition","",true);return ok; }
         public bool CompleteCurrentPilotGoalsForQa(out string error)
         {
             error="";if(!IsArmed||Stage!=PilotParticipantStage.Dialogue){error="pilot_dialogue_not_active";return false;}
@@ -243,10 +280,10 @@ namespace SceneTalkVR.Core
         public bool AutoFillPilotQuestionnaireForQa(out string error)
         { error="";var service=workflow?.Questionnaire;if(Stage!=PilotParticipantStage.Questionnaire||service?.ActiveSession==null||service.Definition==null){error="pilot_questionnaire_not_visible";return false;}foreach(var item in manager.QuestionnaireCatalog.GetEnabledItems(service.Definition.questionnaireId,manager.ExperimentProtocol)){var raw=item.itemType==QuestionnaireItemType.Likert?Mathf.Clamp(5,item.scaleMin,item.scaleMax).ToString():item.choiceValues!=null&&item.choiceValues.Length>0?item.choiceValues[0]:"QA response";if(!service.SetResponse(item.itemId,raw,out error))return false;}Write("QaAutoFillPilotQuestionnaire","",true);return true; }
         public bool SubmitPilotQuestionnaireForQa(out string error){var ok=SubmitQuestionnaire(out error);if(ok)Write("QaSubmitPilotQuestionnaire","",true);return ok;}
-        public bool PrepareNextPilotConditionForQa(out string error){if(Stage==PilotParticipantStage.Transition)ContinueAfterTransition();return PrepareCurrentPilotConditionForQa(out error);}
+        public bool PrepareNextPilotConditionForQa(out string error)=>PrepareCurrentPilotConditionForQa(out error);
         public void MarkPilotTechnicalInvalidForQa(){MarkTechnicalInvalid("qa_operator_injected");Write("QaMarkPilotTechnicalInvalid","",true);}
         public bool RetryPilotConditionForQa(out string error){var ok=Retry(out error);if(ok)Write("QaRetryPilotCondition","",true);return ok;}
-        public bool OpenPilotFinalRankingForQa(out string error){if(Assignment?.conditions==null||Assignment.conditions.Any(x=>x.status!=PilotRunStatus.Completed)){error="pilot_final_ranking_requires_three_valid_conditions";return false;}Stage=PilotParticipantStage.FinalRanking;Write("QaOpenPilotFinalRanking","",true);RefreshUi();error="";return true;}
+        public bool OpenPilotFinalRankingForQa(out string error){if(Assignment?.conditions==null||Assignment.conditions.Any(x=>x.status!=PilotRunStatus.Completed)){error="pilot_final_ranking_requires_three_valid_conditions";return false;}Stage=PilotParticipantStage.FinalRanking;ExperimentSessionCoordinator.Active?.NotifyRankingOpened();Write("QaOpenPilotFinalRanking","",true);RefreshUi();error="";return true;}
         public bool AutoFillPilotRankingForQa(out string error){if(Stage!=PilotParticipantStage.FinalRanking){error="pilot_final_ranking_not_visible";return false;}qaRankingDraft=new PreferenceRankingResponse{rankings=new[]{new PreferenceRankEntry{embodimentCondition="voice_only",rank=1},new PreferenceRankEntry{embodimentCondition="floating_orb",rank=2},new PreferenceRankEntry{embodimentCondition="humanoid_agent",rank=3}},preferredEmbodimentCondition="voice_only",reason="QA operator ranking"};Write("QaAutoFillPilotRanking","",true);error="";return true;}
         public bool SubmitPilotRankingForQa(out string error){if(qaRankingDraft==null){error="pilot_qa_ranking_not_filled";return false;}var ok=SubmitFinalRanking(qaRankingDraft,out error);if(ok){Write("QaSubmitPilotRanking","",true);qaRankingDraft=null;}return ok;}
         public void ResetPilotSessionForQa(){Write("QaResetPilotSession","",true);EndSession();PlayerPrefs.DeleteKey(LastParticipantKey);PlayerPrefs.DeleteKey(LastSessionKey);PlayerPrefs.Save();}

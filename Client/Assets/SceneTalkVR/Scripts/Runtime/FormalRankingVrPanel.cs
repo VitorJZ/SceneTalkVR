@@ -16,6 +16,7 @@ namespace SceneTalkVR.Runtime
         private TMP_Text validation;
         private TMP_Text completionMessage;
         private TMP_InputField reasonInput;
+        private SceneTalkOrchestrator orchestrator;
         private readonly Dictionary<FormalConditionCode, int> ranks = new Dictionary<FormalConditionCode, int>();
         private readonly Dictionary<string, Button> rankButtons = new Dictionary<string, Button>();
         private readonly Dictionary<FormalConditionCode, Button> preferredButtons = new Dictionary<FormalConditionCode, Button>();
@@ -25,6 +26,15 @@ namespace SceneTalkVR.Runtime
 
         private void Update()
         {
+            orchestrator ??= FindFirstObjectByType<SceneTalkOrchestrator>(FindObjectsInactive.Include);
+            if (ExperimentSessionCoordinator.Active?.HasActiveExperiment == true
+                && orchestrator?.CurrentState == SceneTalkState.ExperimentExitConfirm)
+            {
+                SetActive(panel, false);
+                SetActive(completionPanel, false);
+                return;
+            }
+
             var collection = EditorCollectionSessionCoordinator.Active;
             var rehearsal = RehearsalSessionCoordinator.Active;
             var collectionActive = collection?.IsArmed == true;
@@ -44,7 +54,7 @@ namespace SceneTalkVR.Runtime
                 EnsureBuilt(); SetActive(panel, false); SetActive(completionPanel, true);
                 if (completionMessage != null) completionMessage.text = deviceValidationActive
                     ? "PICO device validation completed.\nNOT PARTICIPANT DATA — collectionEligible=false."
-                    : "Thank you. Please contact the experimenter.\nYour session is ready for bundle export and integrity audit.";
+                    : "Thank you. You have completed the formal experiment.";
                 completionPanel.transform.SetAsLastSibling();
                 BringExitToFront();
             }
@@ -89,7 +99,7 @@ namespace SceneTalkVR.Runtime
             var completionImage = completionPanel.AddComponent<Image>(); completionImage.color = new Color(.035f, .05f, .08f, .98f);
             completionPanel.GetComponent<RectTransform>().sizeDelta = new Vector2(700, 300);
             Label(completionPanel.transform, "Title", "Experiment Completed", new Vector2(0, 66), new Vector2(620, 54), 32);
-            completionMessage = Label(completionPanel.transform, "Message", "Thank you. Please contact the experimenter.\nYour session is ready for bundle export and integrity audit.", new Vector2(0, -28), new Vector2(620, 110), 21);
+            completionMessage = Label(completionPanel.transform, "Message", "Thank you. You have completed the formal experiment.", new Vector2(0, -28), new Vector2(620, 110), 21);
             Button(completionPanel.transform, "FormalCompletionContinueButton", "Continue", new Vector2(0, -112), ContinueAfterCompletion, new Vector2(210, 46));
             completionPanel.SetActive(false);
         }
@@ -99,7 +109,7 @@ namespace SceneTalkVR.Runtime
             var experiment = ExperimentSessionCoordinator.Active;
             if (experiment?.HasActiveExperiment == true)
             {
-                experiment.ContinueAfterPhaseCompletion();
+                experiment.ContinueAfterExperimentCompletion();
                 return;
             }
             if (EditorCollectionSessionCoordinator.Active?.IsArmed == true)

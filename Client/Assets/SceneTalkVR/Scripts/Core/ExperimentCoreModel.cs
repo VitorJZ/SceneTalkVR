@@ -203,6 +203,7 @@ namespace SceneTalkVR.Core
         public string questionnaireReturnPolicy;
         public string assignmentAlgorithmVersion;
         public string randomSeedHash;
+        public string assistantEmbodimentSnapshot;
         public FormalConditionCode[] participantSelectionOrder = Array.Empty<FormalConditionCode>();
         public ConditionAssignment[] conditions = Array.Empty<ConditionAssignment>();
     }

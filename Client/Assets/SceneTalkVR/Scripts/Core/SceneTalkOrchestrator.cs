@@ -37,6 +37,10 @@ namespace SceneTalkVR.Runtime
         [SerializeField] private TMP_Text replyLabel;
         [SerializeField] private TMP_Text errorLabel;
 
+        [Header("Recoverable Dialogue Failure")]
+        [SerializeField, TextArea]
+        private string llmFailurePrompt = "Sorry, I didn't catch that. Could you say it again?";
+
         [Header("Events")]
         public UnityEvent<SceneTalkState> stateChanged = new UnityEvent<SceneTalkState>();
 
@@ -151,10 +155,7 @@ namespace SceneTalkVR.Runtime
         }
 
         public bool CanChangeCorrectionAssistantEmbodimentSetting => CanChangeCorrectionSetting
-            && string.Equals(
-                CorrectionProviderSetting,
-                ExperimentConditionManager.AssistantAgentProvider,
-                StringComparison.OrdinalIgnoreCase);
+            && ResolveExperimentConditionManager(false)?.CanUseManualAssistantEmbodiment == true;
 
         public string CorrectionSettingLockReason
         {
@@ -186,14 +187,18 @@ namespace SceneTalkVR.Runtime
         private ExperimentConditionManager subscribedExperimentConditionManager;
         private SpeechCaptureMode activeSpeechCaptureMode = SpeechCaptureMode.None;
         private string pendingHistorySessionId;
+        private bool experimentExitConfirmationActive;
+        private SceneTalkState? deferredStateDuringExperimentExit;
 
         private ISceneTalkSpeechInput SpeechInput => speechInputModule as ISceneTalkSpeechInput;
         private ISceneTalkManualSpeechInput ManualSpeechInput => speechInputModule as ISceneTalkManualSpeechInput;
         private ISceneTalkBrain Brain => brainModule as ISceneTalkBrain;
+        private ISceneTalkCancelableBrain CancelableBrain => brainModule as ISceneTalkCancelableBrain;
         private ISceneTalkScenePresenter ScenePresenter => scenePresenterModule as ISceneTalkScenePresenter;
         private ISceneTalkAvatarVoice AvatarVoice => avatarVoiceModule as ISceneTalkAvatarVoice;
         private ISceneTalkAvatarReplyContext AvatarReplyContext => avatarVoiceModule as ISceneTalkAvatarReplyContext;
         private ISceneTalkAvatarThinkingState AvatarThinkingState => avatarVoiceModule as ISceneTalkAvatarThinkingState;
+        private ISceneTalkAvatarRecoveryVoice AvatarRecoveryVoice => avatarVoiceModule as ISceneTalkAvatarRecoveryVoice;
         private ISceneTalkAvatarSessionReset AvatarSessionReset => avatarVoiceModule as ISceneTalkAvatarSessionReset;
         private ISceneTalkAvatarSessionPrepare AvatarSessionPrepare => avatarVoiceModule as ISceneTalkAvatarSessionPrepare;
         private ISceneTalkConversationContextReceiver ConversationContextReceiver => brainModule as ISceneTalkConversationContextReceiver;
@@ -233,7 +238,8 @@ namespace SceneTalkVR.Runtime
 
         private void Awake()
         {
-            ResolveExperimentConditionManager(true);
+            var manager = ResolveExperimentConditionManager(true);
+            manager?.TrySetManualAssistantEmbodiment(SceneTalkUserSettingsStore.Current.assistantEmbodiment);
             ResolveLearningMemoryService(true);
             RefreshUi();
         }
@@ -265,12 +271,20 @@ namespace SceneTalkVR.Runtime
 
         internal void SetExperimentNavigationState(SceneTalkState state)
         {
+            if (state == SceneTalkState.ExperimentExitConfirm)
+            {
+                experimentExitConfirmationActive = true;
+                deferredStateDuringExperimentExit = null;
+                SetState(state);
+                return;
+            }
+
             switch (state)
             {
-                case SceneTalkState.ExperimentMenu:
+                case SceneTalkState.ExperimentSelection:
                 case SceneTalkState.ExperimentPhase:
-                case SceneTalkState.ExperimentPhaseCompleted:
-                case SceneTalkState.ExperimentExitConfirm:
+                case SceneTalkState.ExperimentRanking:
+                case SceneTalkState.ExperimentCompleted:
                 case SceneTalkState.ExperimentHistoryLoading:
                 case SceneTalkState.ExperimentHistoryList:
                 case SceneTalkState.ExperimentHistoryActions:
@@ -282,6 +296,16 @@ namespace SceneTalkVR.Runtime
                     SetState(state);
                     break;
             }
+        }
+
+        internal void RestoreAfterExperimentExit(SceneTalkState state)
+        {
+            if (CurrentState != SceneTalkState.ExperimentExitConfirm) return;
+            var restoreState = deferredStateDuringExperimentExit ?? (state == SceneTalkState.ExperimentExitConfirm
+                ? SceneTalkState.ExperimentSelection
+                : state);
+            ClearExperimentExitConfirmation();
+            SetState(restoreState);
         }
 
         public void CloseSettings()
@@ -536,6 +560,7 @@ namespace SceneTalkVR.Runtime
                     ? ExperimentConditionManager.HumanoidAssistantEmbodiment
                     : ExperimentConditionManager.AudioOnlyAssistantEmbodiment;
             manager.TrySetManualAssistantEmbodiment(next);
+            SceneTalkUserSettingsStore.SetAssistantEmbodiment(next);
         }
 
         public void StartPractice()
@@ -900,6 +925,8 @@ namespace SceneTalkVR.Runtime
             CancelActiveSpeechCapture();
             if (currentTurn != null)
             {
+                CancelableBrain?.CancelActiveGeneration();
+                (AvatarVoice as ISceneTalkStreamingAvatarVoice)?.AbortStreaming();
                 StopCoroutine(currentTurn);
                 currentTurn = null;
             }
@@ -923,6 +950,7 @@ namespace SceneTalkVR.Runtime
 
         public void ReturnToInitialMenu()
         {
+            ClearExperimentExitConfirmation();
             finishRequested = true;
             var manager = ResolveExperimentConditionManager(false);
             manager?.RecordUserAction("exit");
@@ -935,6 +963,8 @@ namespace SceneTalkVR.Runtime
 
             if (currentTurn != null)
             {
+                CancelableBrain?.CancelActiveGeneration();
+                (AvatarVoice as ISceneTalkStreamingAvatarVoice)?.AbortStreaming();
                 StopCoroutine(currentTurn);
                 currentTurn = null;
             }
@@ -968,9 +998,16 @@ namespace SceneTalkVR.Runtime
 
         public void ResetForConditionSelection()
         {
+            ClearExperimentExitConfirmation();
             finishRequested = true;
             CancelActiveSpeechCapture();
-            if (currentTurn != null) { StopCoroutine(currentTurn); currentTurn = null; }
+            if (currentTurn != null)
+            {
+                CancelableBrain?.CancelActiveGeneration();
+                (AvatarVoice as ISceneTalkStreamingAvatarVoice)?.AbortStreaming();
+                StopCoroutine(currentTurn);
+                currentTurn = null;
+            }
             LastTranscript = string.Empty;
             LastScenePayload = null;
             LastError = string.Empty;
@@ -1000,6 +1037,8 @@ namespace SceneTalkVR.Runtime
             if (currentTurn != null)
             {
                 CancelActiveSpeechCapture();
+                CancelableBrain?.CancelActiveGeneration();
+                (AvatarVoice as ISceneTalkStreamingAvatarVoice)?.AbortStreaming();
                 StopCoroutine(currentTurn);
                 currentTurn = null;
             }
@@ -1030,6 +1069,8 @@ namespace SceneTalkVR.Runtime
                     return true;
                 }
 
+                CancelableBrain?.CancelActiveGeneration();
+                (AvatarVoice as ISceneTalkStreamingAvatarVoice)?.AbortStreaming();
                 StopCoroutine(currentTurn);
             }
 
@@ -1179,9 +1220,9 @@ namespace SceneTalkVR.Runtime
                 value => payload = value,
                 message => error = message);
 
-            if (HandleErrorOrFinish(error, "LLM/scene generation failed."))
+            if (HasGenerationFailure(error, payload))
             {
-                currentTurn = null;
+                yield return RecoverFromLlmFailure(error, "LLM/scene generation failed.");
                 yield break;
             }
 
@@ -1272,10 +1313,6 @@ namespace SceneTalkVR.Runtime
 
             LastTranscript = transcript;
             RefreshUi();
-            var goalManager = ResolveExperimentConditionManager(false);
-            GoalEvaluationOrchestrator.StartActiveTaskGoalEvaluation(this,
-                goalManager?.LifecycleCoordinator, PilotWorkflowCoordinator.Active,
-                goalManager?.CurrentTurnId, transcript);
             SetState(SceneTalkState.Processing);
             AvatarReplyContext?.SetReplyContext(false);
             AvatarThinkingState?.SetThinking(true);
@@ -1289,15 +1326,19 @@ namespace SceneTalkVR.Runtime
                 message => error = message);
             AvatarThinkingState?.SetThinking(false);
 
-            if (HandleErrorOrFinish(error, "Dialogue reply generation failed."))
+            if (HasGenerationFailure(error, payload))
             {
-                currentTurn = null;
+                yield return RecoverFromLlmFailure(error, "Dialogue reply generation failed.");
                 yield break;
             }
 
             ApplyExperimentConditionToPayload(payload);
             LastScenePayload = payload;
             RefreshUi();
+            var goalManager = ResolveExperimentConditionManager(false);
+            GoalEvaluationOrchestrator.StartActiveTaskGoalEvaluation(this,
+                goalManager?.LifecycleCoordinator, PilotWorkflowCoordinator.Active,
+                goalManager?.CurrentTurnId, transcript);
             try
             {
                 if (IsHistoryRecordingEnabled)
@@ -1564,7 +1605,7 @@ namespace SceneTalkVR.Runtime
                 feedbackSensitivity = realLlm == null ? "moderate" : realLlm.FeedbackSensitivity,
                 condition = condition,
                 experimentId = experimentLink?.experimentId ?? string.Empty,
-                experimentPhase = experimentLink?.phase.ToString() ?? string.Empty,
+                experimentKind = experimentLink?.kind.ToString() ?? string.Empty,
                 experimentAttemptId = experimentLink?.attemptId ?? string.Empty,
                 experimentRunId = experimentLink?.runId ?? string.Empty
             };
@@ -1723,6 +1764,77 @@ namespace SceneTalkVR.Runtime
             }
 
             return false;
+        }
+
+        private static bool HasGenerationFailure(string error, SpringScenePayload payload)
+        {
+            return !string.IsNullOrWhiteSpace(error)
+                || payload == null
+                || string.IsNullOrWhiteSpace(payload.dialogueReply);
+        }
+
+        private IEnumerator RecoverFromLlmFailure(string error, string fallbackMessage)
+        {
+            CancelableBrain?.CancelActiveGeneration();
+            (AvatarVoice as ISceneTalkStreamingAvatarVoice)?.AbortStreaming();
+            AvatarThinkingState?.SetThinking(false);
+
+            if (finishRequested)
+            {
+                currentTurn = null;
+                SetState(SceneTalkState.Finished);
+                yield break;
+            }
+
+            var technicalMessage = string.IsNullOrWhiteSpace(error)
+                ? "LLM returned an empty dialogue payload."
+                : error.Trim();
+            var manager = ResolveExperimentConditionManager(false);
+            manager?.RecordModuleFallback(fallbackMessage);
+
+            LastError = string.Empty;
+            SetState(SceneTalkState.AvatarSpeaking);
+            var recoveryError = string.Empty;
+            var prompt = string.IsNullOrWhiteSpace(llmFailurePrompt)
+                ? "Sorry, I didn't catch that. Could you say it again?"
+                : llmFailurePrompt.Trim();
+
+            if (AvatarRecoveryVoice != null)
+            {
+                yield return AvatarRecoveryVoice.PresentRecoveryPrompt(
+                    prompt,
+                    () => { },
+                    message => recoveryError = message);
+            }
+            else if (AvatarVoice != null)
+            {
+                var recoveryPayload = new SpringScenePayload
+                {
+                    dialogueReply = prompt,
+                    avatarRole = LastScenePayload?.avatarRole ?? new AvatarRoleData(),
+                    scene = LastScenePayload?.scene ?? new ScenePayload(),
+                    correctionFeedback = new CorrectionFeedbackData { hasFeedback = false }
+                };
+                yield return AvatarVoice.PresentReply(
+                    recoveryPayload,
+                    () => { },
+                    message => recoveryError = message);
+            }
+            else
+            {
+                recoveryError = "Avatar recovery voice is unavailable.";
+            }
+
+            if (!string.IsNullOrWhiteSpace(recoveryError))
+            {
+                Debug.LogWarning($"[SceneTalkVR] LLM recovery prompt playback failed: {recoveryError}", this);
+            }
+
+            Debug.LogError($"[SceneTalkVR] {fallbackMessage} {technicalMessage}", this);
+            currentTurn = null;
+            IsAwaitingTurnReviewAction = false;
+            LastError = "Please try again.";
+            SetState(SceneTalkState.Error);
         }
 
         private void EnterError(string message)
@@ -2052,9 +2164,23 @@ namespace SceneTalkVR.Runtime
 
         private void SetState(SceneTalkState state)
         {
+            if (experimentExitConfirmationActive
+                && CurrentState == SceneTalkState.ExperimentExitConfirm
+                && state != SceneTalkState.ExperimentExitConfirm)
+            {
+                deferredStateDuringExperimentExit = state;
+                return;
+            }
+
             CurrentState = state;
             stateChanged.Invoke(state);
             RefreshUi();
+        }
+
+        private void ClearExperimentExitConfirmation()
+        {
+            experimentExitConfirmationActive = false;
+            deferredStateDuringExperimentExit = null;
         }
 
         private void RefreshUi()
@@ -2119,30 +2245,41 @@ namespace SceneTalkVR.Runtime
                         brainError = err;
                     };
 
-                if (streamingBrain is ISceneTalkFeedbackFirstStreamingBrain feedbackFirstBrain
-                    && streamingVoice is ISceneTalkFeedbackFirstStreamingAvatarVoice feedbackFirstVoice)
+                try
                 {
-                    yield return feedbackFirstBrain.GenerateFeedbackFirstStreaming(
-                        transcript,
-                        feedbackFirstVoice.ResolveCorrectionPlan,
-                        sentenceReady,
-                        generationComplete,
-                        generationError);
+                    if (streamingBrain is ISceneTalkFeedbackFirstStreamingBrain feedbackFirstBrain
+                        && streamingVoice is ISceneTalkFeedbackFirstStreamingAvatarVoice feedbackFirstVoice)
+                    {
+                        yield return feedbackFirstBrain.GenerateFeedbackFirstStreaming(
+                            transcript,
+                            feedbackFirstVoice.ResolveCorrectionPlan,
+                            sentenceReady,
+                            generationComplete,
+                            generationError);
+                    }
+                    else
+                    {
+                        yield return streamingBrain.GenerateSceneAndReplyStreaming(
+                            transcript,
+                            sentenceReady,
+                            generationComplete,
+                            generationError);
+                    }
                 }
-                else
+                finally
                 {
-                    yield return streamingBrain.GenerateSceneAndReplyStreaming(
-                        transcript,
-                        sentenceReady,
-                        generationComplete,
-                        generationError);
+                    streamingVoice.SignalStreamingComplete();
                 }
-
-                streamingVoice.SignalStreamingComplete();
 
                 if (!string.IsNullOrEmpty(brainError))
                 {
                     onErrorCallback?.Invoke(brainError);
+                    yield break;
+                }
+
+                if (finalPayload == null || string.IsNullOrWhiteSpace(finalPayload.dialogueReply))
+                {
+                    onErrorCallback?.Invoke("LLM generation completed without a dialogue reply.");
                     yield break;
                 }
 

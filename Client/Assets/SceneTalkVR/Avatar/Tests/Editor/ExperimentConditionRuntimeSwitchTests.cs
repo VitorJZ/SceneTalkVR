@@ -368,6 +368,31 @@ namespace SceneTalkVR.AvatarSystem.Tests
             }
         }
 
+        [Test]
+        public void AssistantAppearanceSettingPersistsAcrossStoreReload()
+        {
+            var cache = typeof(SceneTalkUserSettingsStore).GetField(
+                "cachedSettings",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.That(cache, Is.Not.Null);
+
+            try
+            {
+                SceneTalkUserSettingsStore.ResetAll();
+                SceneTalkUserSettingsStore.SetAssistantEmbodiment(
+                    ExperimentConditionManager.HumanoidAssistantEmbodiment);
+                cache.SetValue(null, null);
+
+                Assert.That(
+                    SceneTalkUserSettingsStore.Current.assistantEmbodiment,
+                    Is.EqualTo(ExperimentConditionManager.HumanoidAssistantEmbodiment));
+            }
+            finally
+            {
+                SceneTalkUserSettingsStore.ResetAll();
+            }
+        }
+
         private static void SetBoolean(Object target, string propertyName, bool value)
         {
             var serializedObject = new SerializedObject(target);

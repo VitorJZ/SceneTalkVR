@@ -482,4 +482,64 @@ These test cases are used by `LLMPipelineTestRunner.cs` to execute regression te
   expectedRecastContains: "check out"
   recastForbiddenTermsAllowed: false
   dialogueReplyMayContainCorrectionWhenAssistantAgent: false
+
+- id: T041
+  scenarioId: restaurant_reservation
+  input: "TABLE FOR TWO PLEASE"
+  sttConfidence: 0.98
+  recordingDurationMs: 1800
+  expectedHasFeedback: false
+  expectedErrorType: none
+  expectedExplicitContains: ""
+  expectedRecastContains: ""
+  recastForbiddenTermsAllowed: false
+  dialogueReplyMayContainCorrectionWhenAssistantAgent: false
+
+- id: T042
+  scenarioId: hotel_check_in
+  input: "i'd like a quiet room"
+  sttConfidence: 0.98
+  recordingDurationMs: 1800
+  expectedHasFeedback: false
+  expectedErrorType: none
+  expectedExplicitContains: ""
+  expectedRecastContains: ""
+  recastForbiddenTermsAllowed: false
+  dialogueReplyMayContainCorrectionWhenAssistantAgent: false
+
+- id: T043
+  scenarioId: gym_membership
+  input: "dont you have a monthly plan"
+  sttConfidence: 0.97
+  recordingDurationMs: 1900
+  expectedHasFeedback: false
+  expectedErrorType: none
+  expectedExplicitContains: ""
+  expectedRecastContains: ""
+  recastForbiddenTermsAllowed: false
+  dialogueReplyMayContainCorrectionWhenAssistantAgent: false
+
+- id: T044
+  scenarioId: hotel_check_in
+  input: "when is check-out"
+  sttConfidence: 0.97
+  recordingDurationMs: 1600
+  expectedHasFeedback: false
+  expectedErrorType: none
+  expectedExplicitContains: ""
+  expectedRecastContains: ""
+  recastForbiddenTermsAllowed: false
+  dialogueReplyMayContainCorrectionWhenAssistantAgent: false
+
+- id: T045
+  scenarioId: furniture_shopping
+  input: "“i’d like—a well-made desk”"
+  sttConfidence: 0.96
+  recordingDurationMs: 2100
+  expectedHasFeedback: false
+  expectedErrorType: none
+  expectedExplicitContains: ""
+  expectedRecastContains: ""
+  recastForbiddenTermsAllowed: false
+  dialogueReplyMayContainCorrectionWhenAssistantAgent: false
 ```

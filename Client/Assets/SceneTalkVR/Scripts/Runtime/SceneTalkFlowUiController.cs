@@ -41,7 +41,6 @@ namespace SceneTalkVR.Runtime
         private GameObject historyDetailPanel;
         private GameObject historyDeletePanel;
         private GameObject historyErrorPanel;
-        private GameObject experimentMenuPanel;
         private GameObject experimentExitConfirmPanel;
         private GameObject experimentHistoryListPanel;
         private GameObject experimentHistoryActionsPanel;
@@ -66,7 +65,6 @@ namespace SceneTalkVR.Runtime
         private GameObject sessionNotPreparedPanel;
         private PilotCollectionParticipantUi pilotCollectionUi;
 
-        private Button startButton;
         private Button pilotButton;
         private Button settingsButton;
         private Button historyButton;
@@ -133,10 +131,7 @@ namespace SceneTalkVR.Runtime
         private TMP_Text historyDetailBodyText;
         private TMP_Text historyDeleteMessageText;
         private TMP_Text historyErrorText;
-        private TMP_Text experimentMenuSummaryText;
-        private TMP_Text experimentMenuPilotStatusText;
-        private TMP_Text experimentMenuFormalStatusText;
-        private TMP_Text experimentMenuMessageText;
+        private TMP_Text homeExperimentMessageText;
         private TMP_Text experimentHistoryEmptyText;
         private TMP_Text experimentHistoryPageText;
         private TMP_Text experimentHistoryActionsSummaryText;
@@ -271,13 +266,15 @@ namespace SceneTalkVR.Runtime
             CreateButton(sessionNotPreparedPanel.transform, "SessionNotPreparedBackButton", "Back", new Vector2(0f, -92f), new Vector2(160f, 44f), new Color(.24f, .36f, .42f, 1f))
                 .onClick.AddListener(() => { sessionPreparationBlocked = false; Refresh(); });
 
-            mainMenuPanel = CreatePanel(root, "InitialPanel", new Vector2(0f, 0f), new Vector2(430f, 500f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
-            CreateText(mainMenuPanel.transform, "Title", "SceneTalkVR", new Vector2(0f, 205f), new Vector2(360f, 54f), 34, TextAnchor.MiddleCenter, Color.white);
-            startButton = CreateButton(mainMenuPanel.transform, "NewExperimentButton", "New Experiment", new Vector2(0f, 132f), new Vector2(270f, 50f), new Color(0.16f, 0.38f, 0.68f, 1f));
-            pilotButton = CreateButton(mainMenuPanel.transform, "ExperimentHistoryButton", "Experiment History", new Vector2(0f, 70f), new Vector2(270f, 50f), new Color(0.18f, 0.48f, 0.58f, 1f));
-            historyButton = CreateButton(mainMenuPanel.transform, "HistoryButton", "History", new Vector2(0f, 8f), new Vector2(270f, 50f), new Color(0.24f, 0.36f, 0.42f, 1f));
-            settingsButton = CreateButton(mainMenuPanel.transform, "SettingsButton", "Settings", new Vector2(0f, -54f), new Vector2(270f, 50f), new Color(0.24f, 0.36f, 0.42f, 1f));
-            quitButton = CreateButton(mainMenuPanel.transform, "QuitButton", "Quit", new Vector2(0f, -116f), new Vector2(270f, 50f), ExitButtonColor);
+            mainMenuPanel = CreatePanel(root, "InitialPanel", new Vector2(0f, 0f), new Vector2(430f, 600f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
+            CreateText(mainMenuPanel.transform, "Title", "SceneTalkVR", new Vector2(0f, 255f), new Vector2(360f, 54f), 34, TextAnchor.MiddleCenter, Color.white);
+            experimentPilotButton = CreateButton(mainMenuPanel.transform, "PilotExperimentButton", "Pilot Experiment", new Vector2(0f, 172f), new Vector2(270f, 50f), new Color(0.18f, 0.48f, 0.58f, 1f));
+            experimentFormalButton = CreateButton(mainMenuPanel.transform, "FormalExperimentButton", "Formal Experiment", new Vector2(0f, 110f), new Vector2(270f, 50f), new Color(0.16f, 0.38f, 0.68f, 1f));
+            pilotButton = CreateButton(mainMenuPanel.transform, "ExperimentHistoryButton", "Experiment History", new Vector2(0f, 48f), new Vector2(270f, 50f), new Color(0.18f, 0.48f, 0.58f, 1f));
+            historyButton = CreateButton(mainMenuPanel.transform, "HistoryButton", "History", new Vector2(0f, -14f), new Vector2(270f, 50f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            settingsButton = CreateButton(mainMenuPanel.transform, "SettingsButton", "Settings", new Vector2(0f, -76f), new Vector2(270f, 50f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            quitButton = CreateButton(mainMenuPanel.transform, "QuitButton", "Quit", new Vector2(0f, -138f), new Vector2(270f, 50f), ExitButtonColor);
+            homeExperimentMessageText = CreateText(mainMenuPanel.transform, "ExperimentMessage", string.Empty, new Vector2(0f, -218f), new Vector2(360f, 74f), 16, TextAnchor.MiddleCenter, new Color(1f, .58f, .42f, 1f));
 
             BuildExperimentPanels(root);
 
@@ -450,16 +447,6 @@ namespace SceneTalkVR.Runtime
 
         private void BuildExperimentPanels(Transform root)
         {
-            experimentMenuPanel = CreatePanel(root, "ExperimentMenuPanel", Vector2.zero, new Vector2(820f, 500f), new Color(0.04f, 0.05f, 0.07f, 0.96f));
-            CreateText(experimentMenuPanel.transform, "Title", "Experiment", new Vector2(0f, 205f), new Vector2(700f, 48f), 31, TextAnchor.MiddleCenter, Color.white);
-            experimentMenuSummaryText = CreateText(experimentMenuPanel.transform, "Summary", string.Empty, new Vector2(0f, 153f), new Vector2(710f, 54f), 18, TextAnchor.MiddleCenter, new Color(.8f, .9f, 1f, 1f));
-            experimentPilotButton = CreateButton(experimentMenuPanel.transform, "EnterPilotButton", "Pilot Experiment", new Vector2(-155f, 58f), new Vector2(270f, 58f), new Color(.18f, .48f, .58f, 1f));
-            experimentMenuPilotStatusText = CreateText(experimentMenuPanel.transform, "PilotStatus", string.Empty, new Vector2(190f, 58f), new Vector2(300f, 56f), 18, TextAnchor.MiddleLeft, Color.white);
-            experimentFormalButton = CreateButton(experimentMenuPanel.transform, "EnterFormalButton", "Formal Experiment", new Vector2(-155f, -32f), new Vector2(270f, 58f), new Color(.16f, .38f, .68f, 1f));
-            experimentMenuFormalStatusText = CreateText(experimentMenuPanel.transform, "FormalStatus", string.Empty, new Vector2(190f, -32f), new Vector2(300f, 72f), 18, TextAnchor.MiddleLeft, Color.white);
-            CreateText(experimentMenuPanel.transform, "Hint", "Complete Pilot before Formal. Completed phases cannot be entered again.", new Vector2(0f, -117f), new Vector2(700f, 50f), 17, TextAnchor.MiddleCenter, new Color(.72f, .8f, .88f, 1f));
-            experimentMenuMessageText = CreateText(experimentMenuPanel.transform, "Message", string.Empty, new Vector2(0f, -180f), new Vector2(700f, 58f), 17, TextAnchor.MiddleCenter, new Color(1f, .58f, .42f, 1f));
-
             experimentExitConfirmPanel = CreatePanel(root, "ExperimentExitConfirmPanel", Vector2.zero, new Vector2(680f, 320f), new Color(.04f, .05f, .07f, .98f));
             CreateText(experimentExitConfirmPanel.transform, "Title", "Exit Experiment?", new Vector2(0f, 104f), new Vector2(580f, 48f), 30, TextAnchor.MiddleCenter, Color.white);
             CreateText(experimentExitConfirmPanel.transform, "Message", "This experiment is not complete. Your history will be kept, and you can continue it later from Experiment History.", new Vector2(0f, 25f), new Vector2(580f, 100f), 19, TextAnchor.MiddleCenter, new Color(.84f, .9f, 1f, 1f));
@@ -532,12 +519,6 @@ namespace SceneTalkVR.Runtime
 
         private void BindButtons()
         {
-            if (startButton != null)
-            {
-                startButton.onClick.RemoveAllListeners();
-                startButton.onClick.AddListener(StartNewExperiment);
-            }
-
             if (pilotButton != null)
             {
                 pilotButton.onClick.RemoveAllListeners();
@@ -816,23 +797,6 @@ namespace SceneTalkVR.Runtime
             return coordinator;
         }
 
-        private void StartNewExperiment()
-        {
-            if (experimentMenuMessageText != null) experimentMenuMessageText.text = string.Empty;
-            if (EditorCollectionSessionCoordinator.Active?.IsArmed == true
-                && !EditorCollectionSessionCoordinator.Active.ParticipantStarted)
-            {
-                HandleParticipantStart();
-                return;
-            }
-            var coordinator = GetExperimentCoordinator();
-            if (coordinator == null) return;
-            if (!coordinator.StartNewExperiment(out var error))
-            {
-                experimentMenuMessageText.text = HumanizeExperimentError(error);
-            }
-        }
-
         private void OpenExperimentHistory()
         {
             GetExperimentCoordinator()?.OpenExperimentHistory();
@@ -842,18 +806,18 @@ namespace SceneTalkVR.Runtime
         {
             var coordinator = GetExperimentCoordinator();
             if (coordinator == null) return;
-            if (experimentMenuMessageText != null) experimentMenuMessageText.text = string.Empty;
-            if (!coordinator.EnterPilot(out var error))
-                experimentMenuMessageText.text = HumanizeExperimentError(error);
+            if (homeExperimentMessageText != null) homeExperimentMessageText.text = string.Empty;
+            if (!coordinator.StartNewExperiment(ExperimentKind.Pilot, out var error))
+                homeExperimentMessageText.text = HumanizeExperimentError(error);
         }
 
         private void EnterFormalExperiment()
         {
             var coordinator = GetExperimentCoordinator();
             if (coordinator == null) return;
-            if (experimentMenuMessageText != null) experimentMenuMessageText.text = string.Empty;
-            if (!coordinator.EnterFormal(out var error))
-                experimentMenuMessageText.text = HumanizeExperimentError(error);
+            if (homeExperimentMessageText != null) homeExperimentMessageText.text = string.Empty;
+            if (!coordinator.StartNewExperiment(ExperimentKind.Formal, out var error))
+                homeExperimentMessageText.text = HumanizeExperimentError(error);
         }
 
         public void ShowDeveloperTaskSelectionForQa()
@@ -1017,7 +981,8 @@ namespace SceneTalkVR.Runtime
             if (!rehearsalActive) rehearsalFinalRankingVisible = false;
             var showFinalRanking = rehearsalActive && (rehearsalFinalRankingVisible || rehearsal.FinalRankingVisible);
             var rehearsalWaiting = rehearsalActive && string.IsNullOrWhiteSpace(rehearsal.CurrentTaskId);
-            var showFormalModeSelection = !showFinalRanking && !collectionFinal
+            var showFormalModeSelection = state != SceneTalkState.ExperimentExitConfirm
+                && !showFinalRanking && !collectionFinal
                 && (collectionArmed ? collection.AwaitingParticipantConditionChoice
                     : rehearsalActive && rehearsal.IsFormal && rehearsal.AwaitingParticipantConditionChoice);
             bool isFixedMode = orchestrator.RuntimeConfig != null && orchestrator.RuntimeConfig.UseFixedExperimentMode;
@@ -1029,7 +994,6 @@ namespace SceneTalkVR.Runtime
             var showHistoryDetail = state == SceneTalkState.HistoryDetail;
             var showHistoryDelete = state == SceneTalkState.HistoryDeleteConfirm;
             var showHistoryError = state == SceneTalkState.HistoryError;
-            var showExperimentMenu = state == SceneTalkState.ExperimentMenu;
             var showExperimentExitConfirm = state == SceneTalkState.ExperimentExitConfirm;
             var showExperimentHistoryList = state == SceneTalkState.ExperimentHistoryList;
             var showExperimentHistoryActions = state == SceneTalkState.ExperimentHistoryActions;
@@ -1073,8 +1037,8 @@ namespace SceneTalkVR.Runtime
             SetActive(historyDetailPanel, showHistoryDetail);
             SetActive(historyDeletePanel, showHistoryDelete);
             SetActive(historyErrorPanel, showHistoryError);
-            SetActive(experimentMenuPanel, showExperimentMenu);
             SetActive(experimentExitConfirmPanel, showExperimentExitConfirm);
+            if (showExperimentExitConfirm) experimentExitConfirmPanel.transform.SetAsLastSibling();
             SetActive(experimentHistoryListPanel, showExperimentHistoryList);
             SetActive(experimentHistoryActionsPanel, showExperimentHistoryActions);
             SetActive(experimentHistoryRecordPanel, showExperimentHistoryRecord);
@@ -1096,7 +1060,6 @@ namespace SceneTalkVR.Runtime
             RefreshHistoryDetail(showHistoryDetail);
             RefreshHistoryDelete(showHistoryDelete);
             RefreshHistoryError(showHistoryError);
-            RefreshExperimentMenu(showExperimentMenu);
             RefreshExperimentHistoryList(showExperimentHistoryList);
             RefreshExperimentHistoryActions(showExperimentHistoryActions);
             RefreshExperimentHistoryRecord(showExperimentHistoryRecord);
@@ -1322,7 +1285,7 @@ namespace SceneTalkVR.Runtime
             {
                 correctionAppearanceValueText.text = usesAssistantAgent
                     ? ResolveCorrectionAppearanceDisplayName(
-                        orchestrator.CorrectionAssistantEmbodimentSetting)
+                        SceneTalkUserSettingsStore.Current.assistantEmbodiment)
                     : "N/A";
             }
 
@@ -1340,40 +1303,9 @@ namespace SceneTalkVR.Runtime
                 correctionSettingsStatusText.text = !canChangeCorrection
                     ? orchestrator.CorrectionSettingLockReason
                     : usesAssistantAgent
-                        ? "Changes apply from the next turn."
+                        ? "Appearance is saved globally and locked when a Formal experiment starts."
                         : "Choose Assistant Agent to change its appearance.";
             }
-        }
-
-        private void RefreshExperimentMenu(bool isVisible)
-        {
-            if (!isVisible) return;
-            var coordinator = GetExperimentCoordinator();
-            var record = coordinator?.CurrentExperiment?.summary;
-            if (record == null)
-            {
-                if (experimentMenuSummaryText != null) experimentMenuSummaryText.text = "No active experiment.";
-                SetInteractable(experimentPilotButton, false);
-                SetInteractable(experimentFormalButton, false);
-                return;
-            }
-
-            if (experimentMenuSummaryText != null)
-                experimentMenuSummaryText.text = $"Participant: {record.participantId}  |  Updated: {FormatHistoryTime(record.updatedAtUnixMs)}";
-            if (experimentMenuPilotStatusText != null)
-                experimentMenuPilotStatusText.text = "Status: " + FriendlyPhaseStatus(record.pilotStatus);
-            if (experimentMenuFormalStatusText != null)
-            {
-                experimentMenuFormalStatusText.text = record.formalStatus == ExperimentPhaseStatus.Completed
-                    ? "Status: Completed"
-                    : record.pilotStatus != ExperimentPhaseStatus.Completed
-                        ? "Status: Locked\nComplete Pilot first"
-                        : string.IsNullOrWhiteSpace(record.preferredEmbodiment)
-                            ? "Status: Locked\nPilot preference missing"
-                            : "Status: " + FriendlyPhaseStatus(record.formalStatus);
-            }
-            SetInteractable(experimentPilotButton, coordinator.CanEnterPilot);
-            SetInteractable(experimentFormalButton, coordinator.CanEnterFormal);
         }
 
         private void RefreshExperimentHistoryList(bool isVisible)
@@ -1395,9 +1327,11 @@ namespace SceneTalkVR.Runtime
                 }
                 var item = items[i];
                 SetButtonLabel(button,
-                    $"{item.participantId}    {FormatHistoryTime(item.updatedAtUnixMs)}\n"
-                    + $"Pilot: {FriendlyPhaseStatus(item.pilotStatus)}  |  Formal: {FriendlyPhaseStatus(item.formalStatus)}"
-                    + (string.IsNullOrWhiteSpace(item.preferredEmbodiment) ? string.Empty : $"  |  Preference: {item.preferredEmbodiment}"));
+                    $"[{item.kind}] {item.participantId}    {FormatHistoryTime(item.updatedAtUnixMs)}\n"
+                    + $"Status: {FriendlyExperimentStatus(item.status)}"
+                    + (item.kind == ExperimentKind.Formal && !string.IsNullOrWhiteSpace(item.assistantEmbodimentSnapshot)
+                        ? $"  |  Appearance: {ResolveCorrectionAppearanceDisplayName(item.assistantEmbodimentSnapshot)}"
+                        : string.Empty));
                 if (!string.Equals(experimentHistoryRowIds[i], item.experimentId, System.StringComparison.Ordinal))
                 {
                     experimentHistoryRowIds[i] = item.experimentId;
@@ -1420,10 +1354,12 @@ namespace SceneTalkVR.Runtime
             if (experimentHistoryActionsSummaryText != null)
             {
                 experimentHistoryActionsSummaryText.text =
-                    $"Participant: {summary.participantId}\n"
-                    + $"Pilot: {FriendlyPhaseStatus(summary.pilotStatus)}  |  Formal: {FriendlyPhaseStatus(summary.formalStatus)}\n"
+                    $"{summary.kind} experiment  |  {FriendlyExperimentStatus(summary.status)}\n"
+                    + $"Participant: {summary.participantId}\n"
                     + $"Updated: {FormatHistoryTime(summary.updatedAtUnixMs)}"
-                    + (string.IsNullOrWhiteSpace(summary.preferredEmbodiment) ? string.Empty : $"\nPilot preference: {summary.preferredEmbodiment}");
+                    + (summary.kind == ExperimentKind.Formal && !string.IsNullOrWhiteSpace(summary.assistantEmbodimentSnapshot)
+                        ? $"\nAppearance: {ResolveCorrectionAppearanceDisplayName(summary.assistantEmbodimentSnapshot)}"
+                        : string.Empty);
             }
             SetInteractable(experimentHistoryContinueButton, summary.CanContinue);
             SetInteractable(experimentHistoryViewButton, true);
@@ -1448,7 +1384,7 @@ namespace SceneTalkVR.Runtime
                     {
                         isConversation = true,
                         id = conversation.sessionId,
-                        label = $"Conversation [{conversation.experimentPhase}]  {conversation.title}  |  {conversation.turnCount} turns  |  {FormatHistoryTime(conversation.updatedAtUnixMs)}"
+                        label = $"Conversation  {conversation.title}  |  {conversation.turnCount} turns  |  {FormatHistoryTime(conversation.updatedAtUnixMs)}"
                     });
                 }
                 foreach (var questionnaire in detail.questionnaires ?? System.Array.Empty<ExperimentQuestionnaireRecord>())
@@ -1458,7 +1394,7 @@ namespace SceneTalkVR.Runtime
                     {
                         isConversation = false,
                         id = questionnaire.questionnaireRecordId,
-                        label = $"Questionnaire [{questionnaire.phase}]  {session?.questionnaireId ?? "-"}  |  {session?.completionStatus}  |  {(session?.completionRate ?? 0f):P0}"
+                        label = $"Questionnaire  {session?.questionnaireId ?? "-"}  |  {session?.completionStatus}  |  {(session?.completionRate ?? 0f):P0}"
                     });
                 }
             }
@@ -1487,7 +1423,7 @@ namespace SceneTalkVR.Runtime
             if (experimentHistoryConversationSummaryText != null)
             {
                 experimentHistoryConversationSummaryText.text =
-                    $"{detail.summary.title}  |  {detail.summary.experimentPhase}  |  {detail.summary.turnCount} turns\n"
+                    $"{detail.summary.title}  |  {detail.summary.experimentKind}  |  {detail.summary.turnCount} turns\n"
                     + $"Task: {detail.summary.taskType}  |  Updated: {FormatHistoryTime(detail.summary.updatedAtUnixMs)}";
             }
             if (string.Equals(lastRenderedExperimentConversationId, detail.summary.sessionId, System.StringComparison.Ordinal)) return;
@@ -1542,32 +1478,39 @@ namespace SceneTalkVR.Runtime
         private static string BuildExperimentRecordText(ExperimentRecordDetail detail)
         {
             var builder = new StringBuilder();
+            builder.AppendLine($"Experiment: {detail.summary.kind}");
             builder.AppendLine($"Participant: {detail.summary.participantId}");
-            builder.AppendLine($"Overall: {detail.summary.status}  |  Created: {FormatHistoryTime(detail.summary.createdAtUnixMs)}");
-            if (!string.IsNullOrWhiteSpace(detail.summary.preferredEmbodiment))
-                builder.AppendLine("Pilot preferred embodiment: " + detail.summary.preferredEmbodiment);
-            foreach (var phase in new[] { ExperimentPhaseKind.Pilot, ExperimentPhaseKind.Formal })
+            builder.AppendLine($"Session: {detail.summary.sessionId}");
+            builder.AppendLine($"Status: {FriendlyExperimentStatus(detail.summary.status)}  |  Created: {FormatHistoryTime(detail.summary.createdAtUnixMs)}");
+            if (detail.summary.kind == ExperimentKind.Formal
+                && !string.IsNullOrWhiteSpace(detail.summary.assistantEmbodimentSnapshot))
+                builder.AppendLine("Assistant appearance: "
+                    + ResolveCorrectionAppearanceDisplayName(detail.summary.assistantEmbodimentSnapshot));
+
+            builder.AppendLine();
+            builder.AppendLine("ATTEMPTS");
+            var attempts = detail.attempts ?? System.Array.Empty<ExperimentAttemptRecord>();
+            if (attempts.Length == 0)
+                builder.AppendLine("No attempts recorded.");
+            foreach (var attempt in attempts.OrderBy(item => item.attemptIndex).ThenBy(item => item.startedAtUnixMs))
             {
-                var phaseRecord = detail.phases?.FirstOrDefault(item => item.phase == phase);
+                builder.Append($"Attempt {attempt.attemptIndex}: {ResolveText(attempt.conditionKey)} / {ResolveText(attempt.taskId)} - {attempt.status}");
+                if (!string.IsNullOrWhiteSpace(attempt.completionReason)) builder.Append(" (" + attempt.completionReason + ")");
                 builder.AppendLine();
-                builder.AppendLine($"{phase.ToString().ToUpperInvariant()} — {phaseRecord?.status.ToString() ?? "Missing"}");
-                foreach (var attempt in (detail.attempts ?? System.Array.Empty<ExperimentAttemptRecord>()).Where(item => item.phase == phase))
-                {
-                    builder.Append($"Attempt {attempt.attemptIndex}: {ResolveText(attempt.conditionKey)} / {ResolveText(attempt.taskId)} — {attempt.status}");
-                    if (!string.IsNullOrWhiteSpace(attempt.completionReason)) builder.Append(" (" + attempt.completionReason + ")");
-                    builder.AppendLine();
-                }
-                var ranking = detail.rankings?.FirstOrDefault(item => item.phase == phase)?.response;
-                if (ranking != null)
-                {
-                    var ranked = (ranking.rankings ?? System.Array.Empty<PreferenceRankEntry>())
-                        .OrderBy(item => item.rank)
-                        .Select(item => $"{item.rank}. {(string.IsNullOrWhiteSpace(item.conditionCode) ? item.embodimentCondition : item.conditionCode)}");
-                    builder.AppendLine("Ranking: " + string.Join("  ", ranked));
-                    var preferred = string.IsNullOrWhiteSpace(ranking.preferredConditionCode)
-                        ? ranking.preferredEmbodimentCondition : ranking.preferredConditionCode;
-                    builder.AppendLine($"Preferred: {ResolveText(preferred)}  |  Reason: {ResolveText(ranking.reason)}");
-                }
+            }
+
+            var ranking = detail.rankings?.FirstOrDefault()?.response;
+            if (ranking != null)
+            {
+                builder.AppendLine();
+                builder.AppendLine("FINAL RANKING");
+                var ranked = (ranking.rankings ?? System.Array.Empty<PreferenceRankEntry>())
+                    .OrderBy(item => item.rank)
+                    .Select(item => $"{item.rank}. {(string.IsNullOrWhiteSpace(item.conditionCode) ? item.embodimentCondition : item.conditionCode)}");
+                builder.AppendLine("Ranking: " + string.Join("  ", ranked));
+                var preferred = string.IsNullOrWhiteSpace(ranking.preferredConditionCode)
+                    ? ranking.preferredEmbodimentCondition : ranking.preferredConditionCode;
+                builder.AppendLine($"Preferred: {ResolveText(preferred)}  |  Reason: {ResolveText(ranking.reason)}");
             }
             return builder.ToString();
         }
@@ -1576,7 +1519,7 @@ namespace SceneTalkVR.Runtime
         {
             var session = record.session ?? new QuestionnaireSession();
             var builder = new StringBuilder();
-            builder.AppendLine($"Phase: {record.phase}  |  Questionnaire: {ResolveText(session.questionnaireId)}");
+            builder.AppendLine($"Questionnaire: {ResolveText(session.questionnaireId)}");
             builder.AppendLine($"Status: {session.completionStatus}  |  Completion: {session.completionRate:P0}  |  Missing: {session.hasMissing}");
             builder.AppendLine($"Task: {ResolveText(session.taskId)}  |  Condition run: {ResolveText(session.conditionRunId)}");
             builder.AppendLine();
@@ -1607,9 +1550,9 @@ namespace SceneTalkVR.Runtime
             scroll.verticalNormalizedPosition = 1f;
         }
 
-        private static string FriendlyPhaseStatus(ExperimentPhaseStatus status)
+        private static string FriendlyExperimentStatus(ExperimentRecordStatus status)
         {
-            return status == ExperimentPhaseStatus.NotStarted ? "Not started" : status.ToString();
+            return status == ExperimentRecordStatus.InProgress ? "In progress" : status.ToString();
         }
 
         private static string HumanizeExperimentError(string error)
@@ -1649,7 +1592,7 @@ namespace SceneTalkVR.Runtime
                     + $"{ResolveCorrectionSourceDisplayName(item.correctionProvider)} / "
                     + ResolveCorrectionStyleDisplayName(item.correctionStyle)
                     + (item.IsExperimentConversation
-                        ? $"  |  Experiment {ShortHistoryId(item.experimentId)} / {item.experimentPhase}"
+                        ? $"  |  Experiment {ShortHistoryId(item.experimentId)} / {item.experimentKind}"
                         : string.Empty));
 
                 if (!string.Equals(historyRowSessionIds[i], item.sessionId, System.StringComparison.Ordinal))
@@ -1690,7 +1633,7 @@ namespace SceneTalkVR.Runtime
                 historyDetailSummaryText.text =
                     $"{detail.summary.title}\n"
                     + (detail.summary.IsExperimentConversation
-                        ? $"Experiment: {detail.summary.experimentId}  |  Phase: {detail.summary.experimentPhase}\n"
+                        ? $"Experiment: {detail.summary.experimentId}  |  Kind: {detail.summary.experimentKind}\n"
                         : string.Empty)
                     + $"Created {FormatHistoryTime(detail.summary.createdAtUnixMs)}  |  Updated {FormatHistoryTime(detail.summary.updatedAtUnixMs)}\n"
                     + $"Scenario: {detail.summary.scenarioId}  |  Environment: {detail.summary.environmentType}\n"
@@ -2196,12 +2139,6 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
-            if (orchestrator.CurrentState == SceneTalkState.ExperimentMenu)
-            {
-                GetExperimentCoordinator()?.RequestLeaveExperiment();
-                return;
-            }
-
             if (orchestrator.CurrentState == SceneTalkState.ExperimentExitConfirm)
             {
                 GetExperimentCoordinator()?.CancelLeaveExperiment();
@@ -2234,32 +2171,32 @@ namespace SceneTalkVR.Runtime
             var experiment = GetExperimentCoordinator();
             if (experiment?.HasActiveExperiment == true)
             {
-                if (orchestrator.CurrentState == SceneTalkState.ExperimentPhaseCompleted)
+                if (orchestrator.CurrentState == SceneTalkState.ExperimentCompleted)
                 {
-                    experiment.ContinueAfterPhaseCompletion();
+                    experiment.ContinueAfterExperimentCompletion();
                     return;
                 }
-
-                var phaseRuntimeActive = PilotCollectionSessionCoordinator.Active?.Stage != PilotParticipantStage.None
-                    || EditorCollectionSessionCoordinator.Active?.IsArmed == true
-                    || RehearsalSessionCoordinator.Active?.IsActive == true;
-                if (phaseRuntimeActive || orchestrator.CurrentState == SceneTalkState.ExperimentPhase)
+                if (orchestrator.CurrentState == SceneTalkState.ExperimentExitConfirm)
+                    experiment.CancelLeaveExperiment();
+                else if (experiment.HasActiveConversation)
                 {
-                    experiment.ExitCurrentPhaseToMenu();
-                    return;
+                    if (!experiment.ReturnFromCurrentConversationToSelection(out var returnError))
+                        Debug.LogWarning("[Experiment] Could not return to condition selection: " + returnError, this);
                 }
-
-                if (orchestrator.CurrentState == SceneTalkState.ExperimentMenu
-                    || orchestrator.CurrentState == SceneTalkState.ExperimentExitConfirm)
-                {
-                    ExitCurrentView();
-                    return;
-                }
+                else
+                    experiment.RequestLeaveExperiment();
+                return;
             }
 
             var pilot = PilotCollectionSessionCoordinator.Active;
             if (pilot != null && pilot.Stage != PilotParticipantStage.None)
             {
+                if (pilot.HasActiveDialogueCondition)
+                {
+                    if (!pilot.ReturnToAppearanceSelectionFromDialogue("participant_return_to_selection", out var returnError))
+                        Debug.LogWarning("[Pilot] Could not return to appearance selection: " + returnError, this);
+                    return;
+                }
                 pilot.SuspendAndEndSession("participant_exit_checkpoint");
                 return;
             }
@@ -2267,6 +2204,12 @@ namespace SceneTalkVR.Runtime
             var collection = EditorCollectionSessionCoordinator.Active;
             if (collection?.IsArmed == true)
             {
+                if (collection.HasActiveDialogueCondition)
+                {
+                    if (!collection.ReturnToModeSelectionFromDialogue("participant_return_to_selection", out var returnError))
+                        Debug.LogWarning("[Formal] Could not return to mode selection: " + returnError, this);
+                    return;
+                }
                 collection.SuspendAndEndRuntimeSession("participant_exit_checkpoint");
                 return;
             }
@@ -2274,6 +2217,12 @@ namespace SceneTalkVR.Runtime
             var rehearsal = RehearsalSessionCoordinator.Active;
             if (rehearsal?.IsActive == true)
             {
+                if (rehearsal.HasActiveDialogueCondition)
+                {
+                    if (!rehearsal.ReturnToConditionSelectionFromDialogue("participant_return_to_selection", out var returnError))
+                        Debug.LogWarning("[Rehearsal] Could not return to condition selection: " + returnError, this);
+                    return;
+                }
                 rehearsal.SuspendSession("participant_exit_checkpoint");
                 return;
             }

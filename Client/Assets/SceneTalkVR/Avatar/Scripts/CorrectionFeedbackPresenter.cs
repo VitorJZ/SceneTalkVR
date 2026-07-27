@@ -307,7 +307,7 @@ namespace SceneTalkVR.AvatarSystem
                 var pilotPresenter = activePilotPresenter;
                 if (pilotPresenter != null && pilotPresenter.Profile != null)
                 {
-                    playbackRequest.audioSourceOverride = pilotPresenter.AudioSource;
+                    playbackRequest.audioSourceOverride = pilotPresenter.PrepareFeedbackAudioSource();
                     var timingStarted = playbackRequest.playbackStarted;
                     var timingEnded = playbackRequest.playbackEnded;
                     playbackRequest.playbackStarted = () => { timingStarted?.Invoke(); pilotPresenter.BeginFeedback(); PilotWorkflowCoordinator.Active?.RecordFeedback(text, true); };
@@ -321,7 +321,11 @@ namespace SceneTalkVR.AvatarSystem
                 if (correctionAgent != null)
                 {
                     Debug.Log($"[CorrectionFeedbackPresenter] Playing correction feedback via Assistant Agent: \"{text}\"");
-                    correctionAgent.SetVisible(true);
+                    // The voice anchor is parented below the Agent visual root.
+                    // Make it active synchronously before SpeechPlayer prepares
+                    // and attempts playback; an animated visibility request can
+                    // otherwise leave AudioSource inactive for this frame.
+                    correctionAgent.ShowImmediate();
                     playbackRequest.audioSourceOverride = correctionAgent.AudioSource;
                     var timingStarted = playbackRequest.playbackStarted;
                     var timingEnded = playbackRequest.playbackEnded;
@@ -386,6 +390,20 @@ namespace SceneTalkVR.AvatarSystem
             isSessionActive = false;
             currentFeedbackProvider = AssistantAgentProvider;
             ResolveCorrectionAgentPresenter(false)?.HideImmediate();
+        }
+
+        internal void StopPlaybackPreservingPresentation()
+        {
+            // A turn-level cancellation must stop any correction audio/animation,
+            // but the assistant belongs to the condition session and must remain
+            // visible until the actual session boundary is reset.
+            var pilotPresenter = PilotEmbodimentPresenter.Active;
+            if (pilotPresenter != null)
+            {
+                pilotPresenter.EndFeedback();
+            }
+            ResolveCorrectionAgentPresenter(false)?.EndSpeaking();
+            ApplyAssistantVisibility();
         }
 
         public void ResetSession() => ResetPresentation();

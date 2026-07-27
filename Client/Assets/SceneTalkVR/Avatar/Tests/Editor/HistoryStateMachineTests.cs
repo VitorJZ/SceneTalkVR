@@ -85,13 +85,14 @@ namespace SceneTalkVR.AvatarSystem.Tests.Editor
                 var flowUi = host.AddComponent<SceneTalkFlowUiController>();
                 flowUi.Configure(orchestrator, canvasObject.GetComponent<Canvas>(), null);
 
-                Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/InitialPanel/NewExperimentButton"), Is.Not.Null);
+                Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/InitialPanel/PilotExperimentButton"), Is.Not.Null);
+                Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/InitialPanel/FormalExperimentButton"), Is.Not.Null);
+                Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/InitialPanel/NewExperimentButton"), Is.Null);
                 Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/InitialPanel/ExperimentHistoryButton"), Is.Not.Null);
                 Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/InitialPanel/HistoryButton"), Is.Not.Null);
                 Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/InitialPanel/SettingsButton"), Is.Not.Null);
                 Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/InitialPanel/QuitButton"), Is.Not.Null);
-                Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/ExperimentMenuPanel/EnterPilotButton"), Is.Not.Null);
-                Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/ExperimentMenuPanel/EnterFormalButton"), Is.Not.Null);
+                Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/ExperimentMenuPanel"), Is.Null);
                 Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/ExperimentHistoryListPanel/ExperimentHistoryRow1"), Is.Not.Null);
                 Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/ExperimentHistoryActionsPanel/ViewExperimentRecordButton"), Is.Not.Null);
                 Assert.That(canvasObject.transform.Find("SceneTalkVR Flow UI/ExperimentHistoryDeleteConfirmPanel/ConfirmExperimentDeleteButton"), Is.Not.Null);

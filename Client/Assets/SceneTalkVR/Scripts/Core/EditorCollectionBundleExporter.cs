@@ -58,6 +58,7 @@ namespace SceneTalkVR.Core
                 assignmentAlgorithmVersion = assignment.assignmentAlgorithmVersion,
                 randomSeedHash = assignment.randomSeedHash,
                 deploymentProfile = "editor_collection", primaryAttemptPolicy = protocol.PrimaryAttemptPolicy,
+                assistantEmbodimentSnapshot = assignment.assistantEmbodimentSnapshot,
                 conditionToTaskMapping = assignment.conditions.Select(x => x.formalConditionCode + "=" + x.task.taskId).ToArray(),
                 conditionSelectionOrder = assignment.participantSelectionOrder.Select(x => x.ToString()).ToArray(),
                 conditionRunIds = assignment.conditions.Select(x => x.latestConditionRunId ?? string.Empty).ToArray(),

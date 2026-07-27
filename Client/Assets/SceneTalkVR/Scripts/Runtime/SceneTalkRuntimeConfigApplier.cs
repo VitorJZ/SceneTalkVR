@@ -127,6 +127,7 @@ namespace SceneTalkVR.Runtime
                 realLlmService.ConfigureApi(
                     ResolveServiceUrlForRuntime(config.DirectLlmApiUrl, 8788),
                     config.DirectLlmModelName);
+                realLlmService.ConfigureCorrectionPolicy(config.CorrectionPolicy);
                 realLlmService.ConfigureDialoguePacing(
                     config.Temperature,
                     config.MaxNonGoalQuestionsPerTask);

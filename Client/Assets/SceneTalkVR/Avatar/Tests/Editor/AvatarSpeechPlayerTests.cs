@@ -57,6 +57,128 @@ namespace SceneTalkVR.AvatarSystem.Tests
             }
         }
 
+        [UnityTest]
+        public IEnumerator Prepare_RecoveryPrompt_PrefersDedicatedLocalClip()
+        {
+            var gameObject = new GameObject("AvatarSpeechRecoveryTests");
+            var recoveryClip = AudioClip.Create("recovery", 1600, 1, 16000, false);
+            var demoClip = AudioClip.Create("demo", 1600, 1, 16000, false);
+            try
+            {
+                var context = new AvatarSpeechPlaybackContext
+                {
+                    defaultAudioSource = gameObject.AddComponent<AudioSource>(),
+                    recoveryPromptClip = recoveryClip,
+                    demoReplyClip = demoClip,
+                    useVoiceGatewayTts = false
+                };
+                PreparedAvatarSpeech preparedSpeech = null;
+
+                yield return new AvatarSpeechPlayer().Prepare(
+                    context,
+                    new SpringScenePayload(),
+                    new AvatarSpeechPlaybackRequest
+                    {
+                        text = "Sorry, I didn't catch that. Could you say it again?",
+                        logLabel = "Recovery",
+                        useRecoveryFallback = true
+                    },
+                    value => preparedSpeech = value);
+
+                Assert.That(preparedSpeech, Is.Not.Null);
+                Assert.That(preparedSpeech.clip, Is.SameAs(recoveryClip));
+                Assert.That(preparedSpeech.fallbackLevel, Is.EqualTo("recovery_clip"));
+                Assert.That(preparedSpeech.error, Is.Null.Or.Empty);
+            }
+            finally
+            {
+                Object.DestroyImmediate(recoveryClip);
+                Object.DestroyImmediate(demoClip);
+                Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator Prepare_RecoveryPromptWithoutAudio_ReturnsErrorInsteadOfSilentWait()
+        {
+            var gameObject = new GameObject("AvatarSpeechRecoveryMissingTests");
+            var demoClip = AudioClip.Create("unrelated-demo", 1600, 1, 16000, false);
+            try
+            {
+                PreparedAvatarSpeech preparedSpeech = null;
+                yield return new AvatarSpeechPlayer().Prepare(
+                    new AvatarSpeechPlaybackContext
+                    {
+                        defaultAudioSource = gameObject.AddComponent<AudioSource>(),
+                        demoReplyClip = demoClip,
+                        useVoiceGatewayTts = false
+                    },
+                    new SpringScenePayload(),
+                    new AvatarSpeechPlaybackRequest
+                    {
+                        text = "Retry",
+                        logLabel = "Recovery",
+                        useRecoveryFallback = true
+                    },
+                    value => preparedSpeech = value);
+
+                Assert.That(preparedSpeech, Is.Not.Null);
+                Assert.That(preparedSpeech.clip, Is.Null);
+                Assert.That(preparedSpeech.useSilentWait, Is.False);
+                Assert.That(preparedSpeech.fallbackLevel, Does.Not.Contain("demo_clip"));
+                Assert.That(preparedSpeech.error, Is.Not.Empty);
+            }
+            finally
+            {
+                Object.DestroyImmediate(demoClip);
+                Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator PlayPrepared_DisabledAudioSource_ReturnsFailureWithoutPlaybackEvents()
+        {
+            var gameObject = new GameObject("AvatarSpeechDisabledSourceTests");
+            var clip = AudioClip.Create("disabled-source", 1600, 1, 16000, false);
+            try
+            {
+                var source = gameObject.AddComponent<AudioSource>();
+                source.enabled = false;
+                var playbackStarted = false;
+                var playbackEnded = false;
+                AvatarSpeechPlaybackResult result = null;
+
+                yield return new AvatarSpeechPlayer().PlayPrepared(
+                    new AvatarSpeechPlaybackContext { defaultAudioSource = source },
+                    new AvatarSpeechPlaybackRequest
+                    {
+                        text = "Correction",
+                        audioSourceOverride = source,
+                        playbackStarted = () => playbackStarted = true,
+                        playbackEnded = () => playbackEnded = true
+                    },
+                    new PreparedAvatarSpeech
+                    {
+                        clip = clip,
+                        ownsClip = false,
+                        audioDurationMs = 100
+                    },
+                    value => result = value);
+
+                Assert.That(result, Is.Not.Null);
+                Assert.That(result.playbackCompleted, Is.False);
+                Assert.That(result.error, Does.Contain("disabled"));
+                Assert.That(playbackStarted, Is.False);
+                Assert.That(playbackEnded, Is.False);
+                Assert.That(source.clip, Is.Null);
+            }
+            finally
+            {
+                Object.DestroyImmediate(clip);
+                Object.DestroyImmediate(gameObject);
+            }
+        }
+
         [Test]
         public void CreateTurnId_CalledInSameFrame_ReturnsUniqueValues()
         {

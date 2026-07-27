@@ -50,6 +50,7 @@ namespace SceneTalkVR.Core
         [SerializeField] private ExperimentTaskCatalog taskCatalog;
         [SerializeField] private QuestionnaireCatalog questionnaireCatalog;
         [SerializeField] private PilotPresentationCatalog pilotPresentationCatalog;
+        [SerializeField] private EditorCollectionResourceCatalog editorCollectionResources;
         [SerializeField] private ExperimentVoiceProfileCatalog voiceProfileCatalog;
         [SerializeField] private ExperimentDeploymentCatalog deploymentCatalog;
         [SerializeField] private ExperimentDeploymentProfileId deploymentProfile = ExperimentDeploymentProfileId.DevelopmentEditor;
@@ -132,10 +133,7 @@ namespace SceneTalkVR.Core
             && !HasActiveTurn
             && !HasPendingTurnReview;
         public bool CanUseManualAssistantEmbodiment => CanUseManualRuntimeCondition
-            && string.Equals(
-                CurrentFeedbackProvider,
-                AssistantAgentProvider,
-                StringComparison.OrdinalIgnoreCase);
+            && string.Equals(CurrentFeedbackProvider, AssistantAgentProvider, StringComparison.OrdinalIgnoreCase);
         public string ManualRuntimeConditionLockReason
         {
             get
@@ -174,6 +172,7 @@ namespace SceneTalkVR.Core
         public ExperimentTaskCatalog TaskCatalog => taskCatalog;
         public QuestionnaireCatalog QuestionnaireCatalog => questionnaireCatalog;
         public PilotPresentationCatalog PilotPresentationCatalog => pilotPresentationCatalog;
+        public EditorCollectionResourceCatalog EditorCollectionResources => editorCollectionResources;
         public ExperimentVoiceProfileCatalog VoiceProfileCatalog => voiceProfileCatalog;
         public ExperimentDeploymentCatalog DeploymentCatalog => deploymentCatalog;
         public ExperimentDeploymentProfileId DeploymentProfile => deploymentProfile;
@@ -282,10 +281,16 @@ namespace SceneTalkVR.Core
             {
                 gameObject.AddComponent<FormalRankingVrPanel>();
             }
-            if (GetComponent<EditorCollectionSessionCoordinator>() == null)
-            {
-                gameObject.AddComponent<EditorCollectionSessionCoordinator>();
-            }
+            var editorCollection = GetComponent<EditorCollectionSessionCoordinator>();
+            if (editorCollection == null)
+                editorCollection = gameObject.AddComponent<EditorCollectionSessionCoordinator>();
+            editorCollection.Configure(
+                experimentProtocol,
+                editorCollectionResources,
+                voiceProfileCatalog,
+                deploymentCatalog,
+                questionnaireCatalog,
+                taskCatalog);
             if (GetComponent<PilotWorkflowCoordinator>() == null)
             {
                 gameObject.AddComponent<PilotWorkflowCoordinator>();

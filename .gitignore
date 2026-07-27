@@ -24,6 +24,7 @@ Client/Assets/_Recovery/
 *.booproj
 *.svd
 *.pdb
+*.pdb.meta
 *.mdb
 sysinfo.txt
 

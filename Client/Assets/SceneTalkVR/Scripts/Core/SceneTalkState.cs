@@ -4,9 +4,10 @@ namespace SceneTalkVR.Core
     {
         Idle,
         Settings,
-        ExperimentMenu,
+        ExperimentSelection,
         ExperimentPhase,
-        ExperimentPhaseCompleted,
+        ExperimentRanking,
+        ExperimentCompleted,
         ExperimentExitConfirm,
         ExperimentHistoryLoading,
         ExperimentHistoryList,

@@ -22,6 +22,7 @@ namespace SceneTalkVR.Core
         private RehearsalSessionCoordinator rehearsal;
         private QuestionnaireRuntimeController formalQuestionnaire;
         private bool subscribed;
+        private SceneTalkState exitReturnState = SceneTalkState.ExperimentSelection;
 
         public ExperimentRecordDetail CurrentExperiment { get; private set; }
         public ExperimentRecordPage CurrentHistoryPage { get; private set; }
@@ -32,13 +33,13 @@ namespace SceneTalkVR.Core
 
         public bool HasActiveExperiment => CurrentExperiment?.summary != null;
         public bool IsComplete => CurrentExperiment?.summary?.status == ExperimentRecordStatus.Completed;
-        public bool CanEnterPilot => HasActiveExperiment
-            && CurrentExperiment.summary.pilotStatus != ExperimentPhaseStatus.Completed;
-        public bool CanEnterFormal => HasActiveExperiment
-            && CurrentExperiment.summary.pilotStatus == ExperimentPhaseStatus.Completed
-            && CurrentExperiment.summary.formalStatus != ExperimentPhaseStatus.Completed
-            && !string.IsNullOrWhiteSpace(ResolvePreferredAssistantEmbodiment(
-                CurrentExperiment.summary.preferredEmbodiment));
+        public ExperimentKind? ActiveKind => CurrentExperiment?.summary == null
+            ? null
+            : CurrentExperiment.summary.kind;
+        public bool HasActiveConversation => HasActiveExperiment && (ActiveKind == ExperimentKind.Pilot
+            ? pilot?.HasActiveDialogueCondition == true
+            : formalCollection?.HasActiveDialogueCondition == true
+                || rehearsal?.IsFormal == true && rehearsal.HasActiveDialogueCondition);
 
         private void Awake()
         {
@@ -53,10 +54,7 @@ namespace SceneTalkVR.Core
             Subscribe();
         }
 
-        private void OnDisable()
-        {
-            Unsubscribe();
-        }
+        private void OnDisable() => Unsubscribe();
 
         private void OnDestroy()
         {
@@ -73,30 +71,44 @@ namespace SceneTalkVR.Core
             Subscribe();
         }
 
-        public bool StartNewExperiment(out string error)
+        public bool StartNewExperiment(ExperimentKind kind, out string error)
         {
             ResolveDependencies();
-            if (HasAnyPhaseRuntime())
+            RebindSubscriptionsAfterDependencyResolution();
+            if (HasAnyExperimentRuntime() || HasActiveExperiment)
             {
                 error = "another_experiment_runtime_is_active";
                 return false;
             }
 
             var token = Guid.NewGuid().ToString("N");
-            var participantId = $"EXP-P-{DateTime.UtcNow:yyyyMMdd-HHmmss}-{token.Substring(0, 6).ToUpperInvariant()}";
+            var timestamp = DateTime.UtcNow.ToString("yyyyMMddTHHmmssZ");
+            var prefix = kind == ExperimentKind.Pilot ? "PILOT" : "FORMAL";
+            var suffix = token.Substring(0, 6).ToUpperInvariant();
+            var participantId = $"{prefix}-P-{timestamp}-{suffix}";
+            var sessionId = $"{prefix}-S-{timestamp}-{suffix}";
+            var assistantSnapshot = kind == ExperimentKind.Formal
+                ? SceneTalkUserSettingsStore.Current.assistantEmbodiment
+                : string.Empty;
+
             try
             {
-                CurrentExperiment = history.CreateExperiment(participantId);
+                CurrentExperiment = history.CreateExperiment(
+                    kind,
+                    participantId,
+                    sessionId,
+                    assistantSnapshot);
                 SelectedExperiment = null;
                 ErrorMessage = string.Empty;
-                orchestrator.SetExperimentNavigationState(SceneTalkState.ExperimentMenu);
-                error = string.Empty;
-                return true;
+                if (StartRuntime(CurrentExperiment, false, out error)) return true;
+                ClearFailedStartContext(deleteRecord: true);
+                return false;
             }
             catch (Exception exception)
             {
                 error = exception.Message;
-                EnterError(error);
+                ClearFailedStartContext(deleteRecord: true);
+                Debug.LogError("[Experiment] Failed to start a new experiment: " + error, this);
                 return false;
             }
         }
@@ -104,11 +116,13 @@ namespace SceneTalkVR.Core
         public bool ContinueExperiment(string experimentId, out string error)
         {
             ResolveDependencies();
-            if (HasAnyPhaseRuntime())
+            RebindSubscriptionsAfterDependencyResolution();
+            if (HasAnyExperimentRuntime() || HasActiveExperiment)
             {
                 error = "another_experiment_runtime_is_active";
                 return false;
             }
+
             CurrentExperiment = history.GetExperiment(experimentId);
             if (CurrentExperiment?.summary == null)
             {
@@ -117,56 +131,86 @@ namespace SceneTalkVR.Core
             }
             if (!CurrentExperiment.summary.CanContinue)
             {
+                CurrentExperiment = null;
                 error = "experiment_already_completed";
                 return false;
             }
+
             history.ActivateExperiment(experimentId);
             history.SuspendInterruptedRuntime();
             CurrentExperiment = history.GetExperiment(experimentId);
             SelectedExperiment = null;
-            orchestrator.SetExperimentNavigationState(SceneTalkState.ExperimentMenu);
+            if (StartRuntime(CurrentExperiment, true, out error)) return true;
+            ClearFailedStartContext(deleteRecord: false);
+            return false;
+        }
+
+        private bool StartRuntime(ExperimentRecordDetail experiment, bool resume, out string error)
+        {
+            if (experiment?.summary == null)
+            {
+                error = "experiment_record_missing";
+                return false;
+            }
+
+            history.ActivateExperiment(experiment.summary.experimentId);
+            var started = experiment.summary.kind == ExperimentKind.Pilot
+                ? StartPilot(experiment.summary, resume, out error)
+                : StartFormal(experiment.summary, resume, out error);
+            if (!started) return false;
+
+            history.SetStatus(
+                ExperimentRecordStatus.InProgress,
+                ResolveSessionRoot(experiment.summary.kind == ExperimentKind.Pilot
+                    ? pilot?.CurrentDataFolder
+                    : formalCollection?.IsArmed == true
+                        ? formalCollection.CurrentDataFolder
+                        : rehearsal?.CurrentDataFolder));
+            RefreshCurrentExperiment();
+            orchestrator.SetExperimentNavigationState(ResolveRuntimeNavigationState(experiment.summary.kind));
             error = string.Empty;
             return true;
         }
 
-        public bool EnterPilot(out string error)
+        private SceneTalkState ResolveRuntimeNavigationState(ExperimentKind kind)
         {
-            RefreshCurrentExperiment();
-            if (!CanEnterPilot)
+            if (kind == ExperimentKind.Pilot)
             {
-                error = "pilot_phase_unavailable";
-                return false;
+                return pilot?.Stage == PilotParticipantStage.FinalRanking
+                    ? SceneTalkState.ExperimentRanking
+                    : pilot?.Stage == PilotParticipantStage.Completion
+                        ? SceneTalkState.ExperimentCompleted
+                        : SceneTalkState.ExperimentSelection;
             }
+
+            var rankingVisible = formalCollection?.FinalRankingVisible == true
+                || rehearsal?.FinalRankingVisible == true;
+            var completed = formalCollection?.ExperimentCompleted == true
+                || rehearsal?.ExperimentCompleted == true;
+            return completed
+                ? SceneTalkState.ExperimentCompleted
+                : rankingVisible
+                    ? SceneTalkState.ExperimentRanking
+                    : SceneTalkState.ExperimentSelection;
+        }
+
+        private bool StartPilot(ExperimentRecordSummary record, bool resume, out string error)
+        {
             conditionManager.ClearExperimentAssistantEmbodiment();
-            var phase = GetPhase(ExperimentPhaseKind.Pilot);
-            var resume = phase.status != ExperimentPhaseStatus.NotStarted;
-            if (!(resume
-                    ? pilot.ResumeSession(CurrentExperiment.summary.participantId, phase.sessionId, out error)
-                    : pilot.CreateSession(CurrentExperiment.summary.participantId, phase.sessionId, out error)))
-                return false;
-
-            history.ActivateExperiment(CurrentExperiment.summary.experimentId);
-            history.SetPhaseStatus(ExperimentPhaseKind.Pilot, ExperimentPhaseStatus.InProgress, ResolveSessionRoot(pilot.CurrentDataFolder));
-            RefreshCurrentExperiment();
-            orchestrator.SetExperimentNavigationState(SceneTalkState.ExperimentPhase);
-            error = string.Empty;
-            return true;
+            return resume
+                ? pilot.ResumeSession(record.participantId, record.sessionId, out error)
+                : pilot.CreateSession(record.participantId, record.sessionId, out error);
         }
 
-        public bool EnterFormal(out string error)
+        private bool StartFormal(ExperimentRecordSummary record, bool resume, out string error)
         {
-            RefreshCurrentExperiment();
-            if (!CanEnterFormal)
+            if (!conditionManager.SetExperimentAssistantEmbodiment(record.assistantEmbodimentSnapshot))
             {
-                error = "formal_phase_locked_until_pilot_completion";
+                error = "formal_assistant_embodiment_unavailable";
                 return false;
             }
-            if (!ApplyPilotEmbodiment(CurrentExperiment.summary.preferredEmbodiment, out error)) return false;
 
-            var phase = GetPhase(ExperimentPhaseKind.Formal);
-            var resume = phase.status != ExperimentPhaseStatus.NotStarted;
             bool armed;
-            string dataFolder;
             if (ExperimentRuntimePlatform.IsPicoDeviceValidation)
             {
                 var runtimeRehearsal = rehearsal ?? SceneTalkFlowUiController.EnsureRuntimeRehearsalCoordinator();
@@ -177,51 +221,40 @@ namespace SceneTalkVR.Core
                     Subscribe();
                 }
                 armed = resume
-                    ? rehearsal.LoadSession(ExperimentFlowMode.Formal, CurrentExperiment.summary.participantId, phase.sessionId, out error)
-                    : rehearsal.CreateFormalSession(CurrentExperiment.summary.participantId, phase.sessionId, out error);
-                dataFolder = rehearsal?.CurrentDataFolder;
+                    ? rehearsal.LoadSession(ExperimentFlowMode.Formal, record.participantId, record.sessionId, out error)
+                    : rehearsal.CreateFormalSession(record.participantId, record.sessionId, out error);
+                if (armed && !string.Equals(
+                        rehearsal.FormalAssignment?.assistantEmbodimentSnapshot,
+                        record.assistantEmbodimentSnapshot,
+                        StringComparison.Ordinal))
+                {
+                    error = "formal_assistant_embodiment_snapshot_changed";
+                    armed = false;
+                }
             }
             else
             {
-                armed = formalCollection.ArmParticipantSession(
-                    CurrentExperiment.summary.participantId, phase.sessionId, resume, out error);
+                formalCollection.SetAssistantEmbodimentSnapshot(record.assistantEmbodimentSnapshot);
+                armed = formalCollection.ArmParticipantSession(record.participantId, record.sessionId, resume, out error);
                 if (armed) armed = formalCollection.BeginParticipantFlow(out error);
-                dataFolder = formalCollection?.CurrentDataFolder;
-            }
-            if (!armed)
-            {
-                if (formalCollection?.IsArmed == true) formalCollection.EndRuntimeSession();
-                if (rehearsal?.IsActive == true) rehearsal.EndRuntimeSession();
-                conditionManager.ClearExperimentAssistantEmbodiment();
-                return false;
             }
 
-            history.ActivateExperiment(CurrentExperiment.summary.experimentId);
-            history.SetPhaseStatus(ExperimentPhaseKind.Formal, ExperimentPhaseStatus.InProgress, ResolveSessionRoot(dataFolder));
-            RefreshCurrentExperiment();
-            orchestrator.SetExperimentNavigationState(SceneTalkState.ExperimentPhase);
-            error = string.Empty;
-            return true;
+            if (armed) return true;
+            if (formalCollection?.IsArmed == true) formalCollection.EndRuntimeSession();
+            if (rehearsal?.IsActive == true) rehearsal.EndRuntimeSession();
+            conditionManager.ClearExperimentAssistantEmbodiment();
+            return false;
         }
 
-        public void NotifyAttemptStarted(
-            ExperimentPhaseKind phase,
-            string conditionKey,
-            string taskId,
-            string runId,
-            int attemptIndex)
+        public void NotifyAttemptStarted(string conditionKey, string taskId, string runId, int attemptIndex)
         {
             if (!HasActiveExperiment) return;
             history.ActivateExperiment(CurrentExperiment.summary.experimentId);
             var activeLink = history.CurrentConversationLink;
-            if (activeLink?.IsValid == true
-                && activeLink.phase == phase
-                && string.Equals(activeLink.runId, runId, StringComparison.Ordinal))
-            {
-                return;
-            }
-            history.BeginAttempt(phase, conditionKey, taskId, runId, attemptIndex);
+            if (activeLink?.IsValid == true && string.Equals(activeLink.runId, runId, StringComparison.Ordinal)) return;
+            history.BeginAttempt(conditionKey, taskId, runId, attemptIndex);
             RefreshCurrentExperiment();
+            orchestrator.SetExperimentNavigationState(SceneTalkState.ExperimentPhase);
         }
 
         public void NotifyAttemptCompleted(string reason)
@@ -229,6 +262,7 @@ namespace SceneTalkVR.Core
             if (!HasActiveExperiment) return;
             history.CompleteAttempt(ExperimentAttemptStatus.Completed, reason);
             RefreshCurrentExperiment();
+            orchestrator.SetExperimentNavigationState(SceneTalkState.ExperimentSelection);
         }
 
         public void NotifyAttemptTechnicalInvalid(string reason)
@@ -236,71 +270,171 @@ namespace SceneTalkVR.Core
             if (!HasActiveExperiment) return;
             history.CompleteAttempt(ExperimentAttemptStatus.TechnicalInvalid, reason);
             RefreshCurrentExperiment();
+            orchestrator.SetExperimentNavigationState(SceneTalkState.ExperimentSelection);
         }
 
-        public void ContinueAfterPhaseCompletion()
+        public bool ReturnFromCurrentConversationToSelection(out string error)
         {
-            if (pilot?.Stage == PilotParticipantStage.Completion) pilot.EndSession();
-            if (formalCollection?.IsArmed == true) formalCollection.EndRuntimeSession();
-            if (rehearsal?.IsActive == true) rehearsal.EndRuntimeSession();
-            orchestrator.ResetForConditionSelection();
+            ResolveDependencies();
+            if (!HasActiveExperiment)
+            {
+                error = "experiment_not_active";
+                return false;
+            }
+            if (!HasActiveConversation)
+            {
+                error = "experiment_conversation_not_active";
+                return false;
+            }
+
+            const string reason = "participant_return_to_selection";
+            bool returned;
+            if (ActiveKind == ExperimentKind.Pilot)
+                returned = pilot.ReturnToAppearanceSelectionFromDialogue(reason, out error);
+            else if (formalCollection?.HasActiveDialogueCondition == true)
+                returned = formalCollection.ReturnToModeSelectionFromDialogue(reason, out error);
+            else if (rehearsal != null)
+                returned = rehearsal.ReturnToConditionSelectionFromDialogue(reason, out error);
+            else
+            {
+                error = "experiment_runtime_missing";
+                return false;
+            }
+
+            if (!returned) return false;
+            history.CompleteAttempt(ExperimentAttemptStatus.Suspended, reason);
             RefreshCurrentExperiment();
-            orchestrator.SetExperimentNavigationState(SceneTalkState.ExperimentMenu);
+            orchestrator.SetExperimentNavigationState(SceneTalkState.ExperimentSelection);
+            error = string.Empty;
+            return true;
         }
 
-        public void ExitCurrentPhaseToMenu()
+        public void NotifyRankingOpened()
         {
-            if (!HasActiveExperiment) return;
-            var phase = pilot != null && pilot.Stage != PilotParticipantStage.None
-                ? ExperimentPhaseKind.Pilot
-                : rehearsal?.IsPilot == true
-                    ? ExperimentPhaseKind.Pilot
-                    : ExperimentPhaseKind.Formal;
-            if (pilot != null && pilot.Stage != PilotParticipantStage.None)
-                pilot.SuspendAndEndSession("participant_exit_checkpoint");
-            else if (formalCollection?.IsArmed == true)
-                formalCollection.SuspendAndEndRuntimeSession("participant_exit_checkpoint");
-            else if (rehearsal?.IsActive == true)
-                rehearsal.SuspendSession("participant_exit_checkpoint");
-            history.CompleteAttempt(ExperimentAttemptStatus.Suspended, "participant_exit_checkpoint");
-            if (GetPhase(phase).status != ExperimentPhaseStatus.Completed)
-                history.SetPhaseStatus(phase, ExperimentPhaseStatus.Suspended);
-            RefreshCurrentExperiment();
-            orchestrator.ResetForConditionSelection();
-            orchestrator.SetExperimentNavigationState(SceneTalkState.ExperimentMenu);
+            if (HasActiveExperiment)
+                orchestrator.SetExperimentNavigationState(SceneTalkState.ExperimentRanking);
+        }
+
+        public void ContinueAfterExperimentCompletion()
+        {
+            if (!IsComplete) return;
+            EndAllRuntimes();
+            ReturnHomeAndClearContext();
         }
 
         public void RequestLeaveExperiment()
         {
             if (!HasActiveExperiment) return;
-            if (IsComplete) LeaveExperiment(false);
-            else orchestrator.SetExperimentNavigationState(SceneTalkState.ExperimentExitConfirm);
+            if (IsComplete)
+            {
+                ContinueAfterExperimentCompletion();
+                return;
+            }
+
+            var currentState = orchestrator.CurrentState;
+            exitReturnState = currentState == SceneTalkState.Idle
+                || currentState == SceneTalkState.Finished
+                || currentState == SceneTalkState.ExperimentExitConfirm
+                    ? ResolveRuntimeNavigationState(ActiveKind.Value)
+                    : currentState;
+            orchestrator.SetExperimentNavigationState(SceneTalkState.ExperimentExitConfirm);
         }
 
         public void CancelLeaveExperiment()
         {
-            if (HasActiveExperiment) orchestrator.SetExperimentNavigationState(SceneTalkState.ExperimentMenu);
+            if (HasActiveExperiment)
+                orchestrator.RestoreAfterExperimentExit(exitReturnState);
         }
 
         public void ConfirmLeaveExperiment()
         {
-            LeaveExperiment(true);
+            if (!HasActiveExperiment) return;
+            SuspendAndEndCurrentRuntime();
+            history.CompleteAttempt(ExperimentAttemptStatus.Suspended, "participant_exit_checkpoint");
+            history.SetStatus(ExperimentRecordStatus.Suspended);
+            ReturnHomeAndClearContext();
         }
 
-        private void LeaveExperiment(bool suspendActivePhase)
+        private void SuspendAndEndCurrentRuntime()
         {
-            if (suspendActivePhase && HasAnyPhaseRuntime()) ExitCurrentPhaseToMenu();
+            if (HasPilotRuntime)
+                pilot.SuspendAndEndSession("participant_exit_checkpoint");
+            else if (formalCollection?.IsArmed == true)
+                formalCollection.SuspendAndEndRuntimeSession("participant_exit_checkpoint");
+            else if (rehearsal?.IsActive == true)
+                rehearsal.SuspendSession("participant_exit_checkpoint");
+            orchestrator.ResetForConditionSelection();
+        }
+
+        private void EndAllRuntimes()
+        {
+            if (HasPilotRuntime) pilot.EndSession();
+            if (formalCollection?.IsArmed == true) formalCollection.EndRuntimeSession();
+            if (rehearsal?.IsActive == true) rehearsal.EndRuntimeSession();
+            orchestrator.ResetForConditionSelection();
+        }
+
+        private void ClearFailedStartContext(bool deleteRecord)
+        {
+            var failedExperimentId = CurrentExperiment?.summary?.experimentId;
+            var dataRoot = ResolveSessionRoot(ResolveActiveDataFolder());
+            try
+            {
+                if (HasActiveExperiment && !IsComplete)
+                {
+                    history.ActivateExperiment(CurrentExperiment.summary.experimentId);
+                    history.SetStatus(ExperimentRecordStatus.Suspended, dataRoot);
+                }
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning("[ExperimentHistory] Failed to mark an experiment start as suspended: "
+                    + exception.Message, this);
+            }
+            EndAllRuntimes();
+
+            if (deleteRecord && !string.IsNullOrWhiteSpace(failedExperimentId))
+            {
+                try
+                {
+                    history.ClearRuntimeContext();
+                    history.DeleteExperiment(failedExperimentId, ExperimentDataRoots());
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogWarning("[ExperimentHistory] Failed to remove an experiment that never started: "
+                        + exception.Message, this);
+                }
+            }
+
+            ReturnHomeAndClearContext();
+        }
+
+        private string ResolveActiveDataFolder()
+        {
+            if (HasPilotRuntime) return pilot.CurrentDataFolder;
+            if (formalCollection?.IsArmed == true) return formalCollection.CurrentDataFolder;
+            return rehearsal?.IsActive == true ? rehearsal.CurrentDataFolder : string.Empty;
+        }
+
+        private static string[] ExperimentDataRoots() => new[]
+        {
+            PilotCollectionSessionCoordinator.CollectionRoot,
+            EditorCollectionSessionCoordinator.CollectionRoot,
+            RehearsalSessionCoordinator.RehearsalRoot,
+            HistoryStoragePaths.RootPath
+        };
+
+        private void ReturnHomeAndClearContext()
+        {
             conditionManager?.ClearExperimentAssistantEmbodiment();
             history?.ClearRuntimeContext();
             CurrentExperiment = null;
             SelectedExperiment = null;
-            orchestrator.ResetForConditionSelection();
+            orchestrator.ReturnToInitialMenu();
         }
 
-        public void OpenExperimentHistory()
-        {
-            LoadExperimentHistoryPage(0);
-        }
+        public void OpenExperimentHistory() => LoadExperimentHistoryPage(0);
 
         public void LoadExperimentHistoryPage(int pageIndex)
         {
@@ -317,15 +451,11 @@ namespace SceneTalkVR.Core
             catch (Exception exception) { EnterError(exception.Message); }
         }
 
-        public void OpenPreviousExperimentHistoryPage()
-        {
+        public void OpenPreviousExperimentHistoryPage() =>
             LoadExperimentHistoryPage((CurrentHistoryPage?.pageIndex ?? 0) - 1);
-        }
 
-        public void OpenNextExperimentHistoryPage()
-        {
+        public void OpenNextExperimentHistoryPage() =>
             LoadExperimentHistoryPage((CurrentHistoryPage?.pageIndex ?? 0) + 1);
-        }
 
         public void SelectExperiment(string experimentId)
         {
@@ -349,17 +479,16 @@ namespace SceneTalkVR.Core
         public void ContinueSelectedExperiment()
         {
             if (SelectedExperiment?.summary == null) return;
-            if (!ContinueExperiment(SelectedExperiment.summary.experimentId, out var error)) EnterError(error);
+            var id = SelectedExperiment.summary.experimentId;
+            SelectedExperiment = null;
+            if (!ContinueExperiment(id, out var error)) EnterError(error);
         }
 
         public void SelectExperimentConversation(string sessionId)
         {
             SelectedConversation = learningMemory.GetSession(sessionId);
             if (SelectedConversation == null) { EnterError("The selected conversation no longer exists."); return; }
-            if (!string.Equals(
-                    SelectedConversation.summary?.experimentId,
-                    SelectedExperiment?.summary?.experimentId,
-                    StringComparison.Ordinal))
+            if (!string.Equals(SelectedConversation.summary?.experimentId, SelectedExperiment?.summary?.experimentId, StringComparison.Ordinal))
             {
                 SelectedConversation = null;
                 EnterError("The selected conversation does not belong to this experiment.");
@@ -387,17 +516,10 @@ namespace SceneTalkVR.Core
             if (SelectedExperiment?.summary == null) return;
             try
             {
-                if (HasAnyPhaseRuntime())
+                if (HasAnyExperimentRuntime())
                     throw new InvalidOperationException("An experiment with an active run cannot be deleted.");
                 var page = CurrentHistoryPage?.pageIndex ?? 0;
-                var roots = new[]
-                {
-                    PilotCollectionSessionCoordinator.CollectionRoot,
-                    EditorCollectionSessionCoordinator.CollectionRoot,
-                    RehearsalSessionCoordinator.RehearsalRoot,
-                    HistoryStoragePaths.RootPath
-                };
-                history.DeleteExperiment(SelectedExperiment.summary.experimentId, roots);
+                history.DeleteExperiment(SelectedExperiment.summary.experimentId, ExperimentDataRoots());
                 SelectedExperiment = null;
                 LoadExperimentHistoryPage(page);
             }
@@ -427,84 +549,48 @@ namespace SceneTalkVR.Core
                     else if (CurrentHistoryPage != null)
                         orchestrator.SetExperimentNavigationState(SceneTalkState.ExperimentHistoryList);
                     else
-                        orchestrator.ResetForConditionSelection();
+                        orchestrator.ReturnToInitialMenu();
                     break;
                 default:
                     CurrentHistoryPage = null;
                     SelectedExperiment = null;
-                    orchestrator.ResetForConditionSelection();
+                    orchestrator.ReturnToInitialMenu();
                     break;
             }
         }
 
-        public bool ApplyPilotEmbodiment(string preferred, out string error)
-        {
-            var mapped = ResolvePreferredAssistantEmbodiment(preferred);
-            if (string.IsNullOrWhiteSpace(mapped))
-            {
-                error = "pilot_preferred_embodiment_invalid";
-                return false;
-            }
-            if (!conditionManager.SetExperimentAssistantEmbodiment(mapped))
-            {
-                error = "formal_assistant_embodiment_unavailable";
-                return false;
-            }
-            error = string.Empty;
-            return true;
-        }
-
-        public static string ResolvePreferredAssistantEmbodiment(string preferred) => preferred switch
-        {
-            "voice_only" => ExperimentConditionManager.AudioOnlyAssistantEmbodiment,
-            "floating_orb" => ExperimentConditionManager.OrbAssistantEmbodiment,
-            "humanoid_agent" => ExperimentConditionManager.HumanoidAssistantEmbodiment,
-            _ => string.Empty
-        };
-
         private void OnPilotCompleted(PreferenceRankingResponse response)
         {
-            if (!HasActiveExperiment) return;
-            history.RecordRanking(ExperimentPhaseKind.Pilot, response);
-            history.SetPhaseStatus(ExperimentPhaseKind.Pilot, ExperimentPhaseStatus.Completed, ResolveSessionRoot(pilot.CurrentDataFolder));
+            if (!HasActiveExperiment || ActiveKind != ExperimentKind.Pilot) return;
+            history.RecordRanking(response);
+            history.SetStatus(ExperimentRecordStatus.Completed, ResolveSessionRoot(pilot.CurrentDataFolder));
             RefreshCurrentExperiment();
-            orchestrator.SetExperimentNavigationState(SceneTalkState.ExperimentPhaseCompleted);
+            orchestrator.SetExperimentNavigationState(SceneTalkState.ExperimentCompleted);
         }
 
         private void OnFormalCompleted(PreferenceRankingResponse response)
         {
-            if (!HasActiveExperiment) return;
-            history.RecordRanking(ExperimentPhaseKind.Formal, response);
+            if (!HasActiveExperiment || ActiveKind != ExperimentKind.Formal) return;
+            history.RecordRanking(response);
             var folder = formalCollection?.IsArmed == true ? formalCollection.CurrentDataFolder : rehearsal?.CurrentDataFolder;
-            history.SetPhaseStatus(ExperimentPhaseKind.Formal, ExperimentPhaseStatus.Completed, ResolveSessionRoot(folder));
+            history.SetStatus(ExperimentRecordStatus.Completed, ResolveSessionRoot(folder));
             RefreshCurrentExperiment();
-            orchestrator.SetExperimentNavigationState(SceneTalkState.ExperimentPhaseCompleted);
+            orchestrator.SetExperimentNavigationState(SceneTalkState.ExperimentCompleted);
         }
 
-        private void OnPilotQuestionnaireChanged(QuestionnaireSession session)
-        {
-            RecordQuestionnaire(ExperimentPhaseKind.Pilot, session);
-        }
+        private void OnPilotQuestionnaireChanged(QuestionnaireSession session) => RecordQuestionnaire(session);
+        private void OnFormalQuestionnaireChanged(QuestionnaireSession session) => RecordQuestionnaire(session);
 
-        private void OnFormalQuestionnaireChanged(QuestionnaireSession session)
-        {
-            RecordQuestionnaire(ExperimentPhaseKind.Formal, session);
-        }
-
-        private void RecordQuestionnaire(ExperimentPhaseKind phase, QuestionnaireSession session)
+        private void RecordQuestionnaire(QuestionnaireSession session)
         {
             if (!HasActiveExperiment || session == null) return;
             history.RecordQuestionnaire(
-                phase,
                 history.CurrentConversationLink?.attemptId,
                 session,
                 conditionManager.QuestionnaireCatalog,
                 conditionManager.ExperimentProtocol);
             RefreshCurrentExperiment();
         }
-
-        private ExperimentPhaseRecord GetPhase(ExperimentPhaseKind phase) =>
-            CurrentExperiment.phases.First(x => x.phase == phase);
 
         private void RefreshCurrentExperiment()
         {
@@ -519,7 +605,9 @@ namespace SceneTalkVR.Core
             Debug.LogError("[ExperimentHistory] " + ErrorMessage, this);
         }
 
-        private bool HasAnyPhaseRuntime() => pilot?.Stage != PilotParticipantStage.None
+        private bool HasPilotRuntime => pilot != null && pilot.Stage != PilotParticipantStage.None;
+
+        private bool HasAnyExperimentRuntime() => HasPilotRuntime
             || formalCollection?.IsArmed == true
             || rehearsal?.IsActive == true;
 
@@ -555,6 +643,13 @@ namespace SceneTalkVR.Core
                 ?? FindFirstObjectByType<RehearsalSessionCoordinator>(FindObjectsInactive.Include);
             formalQuestionnaire ??= GetComponent<QuestionnaireRuntimeController>()
                 ?? FindFirstObjectByType<QuestionnaireRuntimeController>(FindObjectsInactive.Include);
+        }
+
+        private void RebindSubscriptionsAfterDependencyResolution()
+        {
+            if (!subscribed) return;
+            Unsubscribe();
+            Subscribe();
         }
 
         private void Subscribe()

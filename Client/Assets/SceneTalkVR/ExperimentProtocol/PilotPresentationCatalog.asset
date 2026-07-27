@@ -31,8 +31,8 @@ MonoBehaviour:
     visualPrefabKey: none
     visualPrefab: {fileID: 0}
     animatorController: {fileID: 0}
-    idleParameterOrState:
-    speakingParameterOrState:
+    idleParameterOrState: 
+    speakingParameterOrState: 
     spawnRotation: {x: 0, y: 0, z: 0}
     scale: {x: 1, y: 1, z: 1}
     audioSourceRequired: 1
@@ -58,8 +58,8 @@ MonoBehaviour:
     visualPrefabKey: generated_orb_v1
     visualPrefab: {fileID: 0}
     animatorController: {fileID: 0}
-    idleParameterOrState:
-    speakingParameterOrState:
+    idleParameterOrState: 
+    speakingParameterOrState: 
     spawnRotation: {x: 0, y: 0, z: 0}
     scale: {x: 1, y: 1, z: 1}
     audioSourceRequired: 1

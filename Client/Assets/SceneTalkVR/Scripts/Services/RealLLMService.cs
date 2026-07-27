@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using SceneTalkVR.Core;
 using SceneTalkVR.History;
@@ -16,6 +17,7 @@ namespace SceneTalkVR.Runtime.Services
     /// </summary>
     public sealed class RealLLMService : MonoBehaviour,
         ISceneTalkFeedbackFirstStreamingBrain,
+        ISceneTalkCancelableBrain,
         ILLMService,
         ISceneTalkSessionReset,
         ISceneTalkExperimentContextReceiver,
@@ -30,10 +32,16 @@ namespace SceneTalkVR.Runtime.Services
         [Header("Feedback Strategy")]
         [Tooltip("Feedback strictness: conservative (only severe errors), moderate (general errors), active (almost all errors)")]
         [SerializeField] private string feedbackSensitivity = "moderate"; // conservative | moderate | active
+        [SerializeField] private CorrectionPolicySettings correctionPolicy = new CorrectionPolicySettings();
 
         [Header("Avatar Dialogue Pacing")]
         [Range(0f, 1f)] [SerializeField] private float temperature = 0.7f;
         [Min(0)] [SerializeField] private int maxNonGoalQuestionsPerTask = 3;
+
+        [Header("LLM Reliability")]
+        [Min(5)] [SerializeField] private int totalRequestBudgetSeconds = 45;
+        [Min(5)] [SerializeField] private int firstAttemptTimeoutSeconds = 30;
+        [Min(0)] [SerializeField] private int transientRetryCount = 1;
 
         [Header("Prompts")]
         [TextArea(10, 20)]
@@ -84,6 +92,8 @@ namespace SceneTalkVR.Runtime.Services
         public string FeedbackSensitivity => string.IsNullOrWhiteSpace(feedbackSensitivity)
             ? "moderate"
             : feedbackSensitivity.Trim().ToLowerInvariant();
+        public CorrectionPolicySettings CorrectionPolicy =>
+            CorrectionPolicySettings.CloneNormalized(correctionPolicy);
         public float DialoguePacingTemperature => Mathf.Clamp01(temperature);
         public int MaxNonGoalQuestionsPerTask => Mathf.Max(0, maxNonGoalQuestionsPerTask);
         public int NonGoalQuestionsAsked => nonGoalQuestionsAsked;
@@ -103,6 +113,14 @@ namespace SceneTalkVR.Runtime.Services
         public float LastFirstSentenceLatencyMs { get; private set; } = -1f;
         private bool formalDialogueLeakageDetected;
         private float streamStartTime;
+        private CancellationTokenSource activeGenerationCancellation;
+
+        private enum LlmRequestPurpose
+        {
+            Dialogue,
+            Correction,
+            Auxiliary
+        }
 
         public void ConfigureApi(string runtimeApiUrl, string runtimeModelName)
         {
@@ -115,6 +133,11 @@ namespace SceneTalkVR.Runtime.Services
             {
                 modelName = runtimeModelName.Trim();
             }
+        }
+
+        public void ConfigureCorrectionPolicy(CorrectionPolicySettings runtimePolicy)
+        {
+            correctionPolicy = CorrectionPolicySettings.CloneNormalized(runtimePolicy);
         }
 
         public void ConfigureDialoguePacing(float pacingTemperature, int maximumQuestionsPerTask)
@@ -245,6 +268,8 @@ namespace SceneTalkVR.Runtime.Services
         public IEnumerator GenerateSceneAndReply(string userText, Action<SpringScenePayload> onComplete, Action<string> onError)
         {
             Debug.Log($"[RealLLMService] Generating scene and reply for: {userText}");
+            var generationCancellation = BeginGeneration();
+            var cancellationToken = generationCancellation.Token;
 
             RefreshSttMetadata(isStreaming: false);
 
@@ -254,9 +279,9 @@ namespace SceneTalkVR.Runtime.Services
 
             var timing = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include);
             timing?.RecordTimingEvent(ExperimentTimingEventType.CorrectionRequestStarted);
-            var correctionTask = ParseCorrectionFeedbackAsync(userText);
+            var correctionTask = ParseCorrectionFeedbackAsync(userText, cancellationToken);
             timing?.RecordTimingEvent(ExperimentTimingEventType.DialogueRequestStarted);
-            var dialogueTask = ParseDialogueContinuationNonStreamingAsync(userText, pacingDecision);
+            var dialogueTask = ParseDialogueContinuationNonStreamingAsync(userText, pacingDecision, cancellationToken);
             var correctionReadyLogged = false;
             var dialogueReadyLogged = false;
 
@@ -288,6 +313,7 @@ namespace SceneTalkVR.Runtime.Services
                     correctionFailed ? "CorrectionPlanner" : "DialogueGenerator",
                     ex?.Message ?? "parallel_request_failed");
                 onError?.Invoke(ex?.Message ?? "Parallel LLM tasks faulted.");
+                CompleteGeneration(generationCancellation);
                 yield break;
             }
 
@@ -313,6 +339,7 @@ namespace SceneTalkVR.Runtime.Services
             {
                 timing?.MarkTurnTechnicalInvalid("DialogueLeakageGuard", "correction_leakage_in_avatar_dialogue");
                 onError?.Invoke("Formal turn invalid: correction leakage detected in Avatar dialogue.");
+                CompleteGeneration(generationCancellation);
                 yield break;
             }
 
@@ -332,6 +359,7 @@ namespace SceneTalkVR.Runtime.Services
             }
 
             onComplete?.Invoke(payload);
+            CompleteGeneration(generationCancellation);
         }
 
         #region ILLMService Implementation
@@ -651,8 +679,11 @@ namespace SceneTalkVR.Runtime.Services
         private string BuildCorrectionSystemPrompt()
         {
             var builder = new StringBuilder();
+            var effectiveSensitivity = IsExperimentLocked()
+                ? "moderate"
+                : FeedbackSensitivity;
             builder.AppendLine("You are an English language tutor analyzing the user's speech in a VR oral practice context.");
-            builder.AppendLine("Your ONLY job is to analyze the user's input for grammar, vocabulary, pronunciation, or expression errors.");
+            builder.AppendLine("Your ONLY job is to analyze the user's input for clear grammar, vocabulary, or expression errors that are audible in spoken language.");
             builder.AppendLine("Do NOT continue the dialogue, do NOT act as the roleplay character, and do NOT generate any conversational replies.");
 
             if (currentCondition != null)
@@ -660,7 +691,6 @@ namespace SceneTalkVR.Runtime.Services
                 builder.AppendLine("\n=== EXPERIMENT & TASK CONTEXT ===");
                 builder.AppendLine($"- scenarioId: {currentCondition.scenarioId}");
                 builder.AppendLine($"- feedbackStyle: {currentCondition.style}");
-                builder.AppendLine($"- feedbackSensitivity: {feedbackSensitivity}");
                 if (!string.IsNullOrWhiteSpace(currentCondition.task?.context))
                 {
                     builder.AppendLine($"- taskContext: {currentCondition.task.context}");
@@ -671,13 +701,29 @@ namespace SceneTalkVR.Runtime.Services
             var isRecast = currentCondition != null
                            && string.Equals(currentCondition.style, "recast", StringComparison.OrdinalIgnoreCase);
 
+            builder.AppendLine("\n=== FEEDBACK SENSITIVITY ===");
+            builder.AppendLine($"- feedbackSensitivity: {effectiveSensitivity}");
+            builder.AppendLine("- conservative: correct only severe grammar or vocabulary errors that hinder understanding.");
+            builder.AppendLine("- moderate: correct clear grammar errors, vocabulary misuse, and clearly unnatural request or question constructions, even when the intended meaning is understandable.");
+            builder.AppendLine("- active: also correct minor slips, awkward phrasing, and informal wording.");
+
             builder.AppendLine("\n=== LANGUAGE CORRECTION INSTRUCTIONS ===");
-            builder.AppendLine("1. Detect at most ONE major error in the user's speech. If no clear error, set hasFeedback = false.");
-            builder.AppendLine("2. Respect the feedback sensitivity level. Ignore minor repetitions or normal self-corrections.");
+            builder.AppendLine("1. Detect at most ONE clear language error in the user's speech. If no clear error, set hasFeedback = false.");
+            builder.AppendLine("2. Apply the feedback sensitivity definition above exactly. Under moderate, do not dismiss a clear error merely because the listener can understand the meaning. Ignore only minor repetitions or normal self-corrections.");
+            builder.AppendLine("3. Treat the user input as an ASR transcript. Ignore capitalization, punctuation, whitespace, apostrophes, hyphens, quotation marks, and other writing-format differences because they are not audible language errors.");
+            builder.AppendLine("4. Do NOT evaluate pronunciation from transcript text. If a possible issue could instead be ASR confusion involving a homophone, personal name, proper noun, or uncertain transcription, set hasFeedback = false.");
+            builder.AppendLine("5. Correct only when the proposed correction changes the words actually spoken, a grammatical relationship, or meaning.");
+            builder.AppendLine("6. Accept natural conversational ellipsis and concise service phrases. Do NOT expand a correct utterance merely to make it fuller or more formal. Phrases such as 'table for two please', 'I'd like a quiet room', 'don't you have a monthly plan', and 'when is check-out' must receive no feedback when their only differences are writing format or optional conversational wording.");
+            builder.AppendLine("7. Detection examples for moderate sensitivity:");
+            builder.AppendLine("   * 'I'm asking for you to replace my dish.' is a clear unnatural request construction: set hasFeedback=true and correct it to 'Could you replace my dish?'.");
+            builder.AppendLine("   * 'Giving me some recommendations.' is an incorrect request form: set hasFeedback=true and correct it to 'Could you give me some recommendations?'.");
+            builder.AppendLine("   * 'How long the replacement will be?' has incorrect direct-question word order: set hasFeedback=true and correct it to 'How long will the replacement be?'.");
+            builder.AppendLine("   * 'Can you replace my dish?' is already natural: set hasFeedback=false.");
+            builder.AppendLine("   * Do not correct a grammatically natural statement only because its factual content may not match a private task goal.");
 
             if (isRecast)
             {
-                builder.AppendLine("3. Generate unified feedback text under 'recast' style:");
+                builder.AppendLine("8. Generate unified feedback text under 'recast' style:");
                 builder.AppendLine("   * Both Avatar and Agent MUST use the exact same recastText.");
                 builder.AppendLine("   * Recast text must be a natural confirmation or model utterance suitable for BOTH the main character and helper agent.");
                 builder.AppendLine("   * Recast text MUST use the SECOND person ('you', 'your', 'you'd like') from the speaker's perspective to confirm or recast what the user said. NEVER use the first person ('I', 'my', 'I'd like').");
@@ -690,15 +736,15 @@ namespace SceneTalkVR.Runtime.Services
             }
             else
             {
-                builder.AppendLine("3. Generate unified feedback text under 'explicit' style:");
+                builder.AppendLine("8. Generate unified feedback text under 'explicit' style:");
                 builder.AppendLine("   * Both Avatar and Agent MUST use the exact same explicit feedbackText.");
                 builder.AppendLine("   * You MUST use this exact format: 'Grammar tip: [one short rule]. Try: \"[correct expression]\".'");
                 builder.AppendLine("   * Example: 'Grammar tip: Use \"really\" before a verb, not \"very.\" Try: \"I really like this furniture.\"'");
                 builder.AppendLine("   * You MUST set recastText = \"\".");
             }
 
-            builder.AppendLine("4. Keep the text brief and natural for VR spoken TTS.");
-            builder.AppendLine("5. Output ONLY a valid JSON object matching this schema:");
+            builder.AppendLine("9. Keep the text brief and natural for VR spoken TTS.");
+            builder.AppendLine("10. Output ONLY a valid JSON object matching this schema:");
             builder.AppendLine("{");
             builder.AppendLine("  \"hasFeedback\": true/false,");
             builder.AppendLine("  \"errorType\": \"grammar|unnatural|vocabulary|incomplete|unknown\",");
@@ -721,11 +767,15 @@ namespace SceneTalkVR.Runtime.Services
             return builder.ToString();
         }
 
-        private async Task<CorrectionFeedbackData> ParseCorrectionFeedbackAsync(string userInput)
+        private async Task<CorrectionFeedbackData> ParseCorrectionFeedbackAsync(
+            string userInput,
+            CancellationToken cancellationToken = default)
         {
             if (ShouldSuppressCorrectionByStt(out var suppressionReason))
             {
-                return BuildCorrectionFallback(suppressionReason);
+                return FinalizeCorrectionFeedback(
+                    userInput,
+                    BuildCorrectionFallback(suppressionReason));
             }
 
             string systemPrompt = BuildCorrectionSystemPrompt();
@@ -734,7 +784,9 @@ namespace SceneTalkVR.Runtime.Services
                 userInput,
                 true,
                 () => FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)
-                    ?.RecordTimingEvent(ExperimentTimingEventType.CorrectionFirstToken));
+                    ?.RecordTimingEvent(ExperimentTimingEventType.CorrectionFirstToken),
+                cancellationToken,
+                LlmRequestPurpose.Correction);
 
             // responseText is the complete OpenAI response envelope. Do not run
             // content cleanup on it: reasoning_content can contain </think>, and
@@ -755,18 +807,28 @@ namespace SceneTalkVR.Runtime.Services
                 throw new Exception("Correction Planner returned malformed JSON content.");
             }
 
-            if (feedback.hasFeedback && currentCondition != null && string.Equals(currentCondition.style, "recast", StringComparison.OrdinalIgnoreCase))
-            {
-                feedback.recastText = string.IsNullOrEmpty(feedback.recastText) ? feedback.feedbackText : feedback.recastText;
-                feedback.feedbackText = feedback.recastText;
-            }
-
-            return feedback;
+            var plannerHasFeedback = feedback.hasFeedback;
+            var finalizedFeedback = FinalizeCorrectionFeedback(userInput, feedback);
+            var spokenText = string.Equals(
+                    finalizedFeedback.style,
+                    ExperimentConditionManager.RecastStyle,
+                    StringComparison.OrdinalIgnoreCase)
+                ? finalizedFeedback.recastText
+                : finalizedFeedback.feedbackText;
+            Debug.Log(
+                $"[RealLLMService] Correction decision - "
+                + $"plannerHasFeedback={plannerHasFeedback}, "
+                + $"finalHasFeedback={finalizedFeedback.hasFeedback}, "
+                + $"spokenTextPresent={!string.IsNullOrWhiteSpace(spokenText)}, "
+                + $"rationale={finalizedFeedback.rationaleTag}",
+                this);
+            return finalizedFeedback;
         }
 
         private async Task<SpringScenePayload> ParseDialogueContinuationNonStreamingAsync(
             string userInput,
-            AvatarDialoguePacingDecision pacingDecision)
+            AvatarDialoguePacingDecision pacingDecision,
+            CancellationToken cancellationToken = default)
         {
             string systemPrompt = BuildAvatarDialogueSystemPrompt(pacingDecision);
 
@@ -786,7 +848,12 @@ namespace SceneTalkVR.Runtime.Services
                 messagesList.Add(new OpenAiMessage { role = "user", content = userInput });
             }
 
-            string responseJson = await SendChatRequest(messagesList.ToArray(), true);
+            string responseJson = await SendChatRequest(
+                messagesList.ToArray(),
+                true,
+                null,
+                cancellationToken,
+                LlmRequestPurpose.Dialogue);
             try
             {
                 var response = JsonUtility.FromJson<OpenAiResponse>(responseJson);
@@ -822,55 +889,39 @@ namespace SceneTalkVR.Runtime.Services
 
         private SpringScenePayload TryParseDialoguePayload(string content)
         {
-            var fallbackContent = content;
-            if (!string.IsNullOrWhiteSpace(content))
+            if (string.IsNullOrWhiteSpace(content))
             {
-                try
-                {
-                    var payload = JsonUtility.FromJson<SpringScenePayload>(content);
-                    if (payload != null)
-                    {
-                        if (string.IsNullOrEmpty(payload.dialogueReply) && !string.IsNullOrEmpty(payload.dialogueContinuation))
-                        {
-                            payload.dialogueReply = payload.dialogueContinuation;
-                        }
-                        EnsureDialogueReplyPresent(payload);
-                        EnsurePayloadDefaults(payload);
-                        return payload;
-                    }
-                }
-                catch (FormatException ex)
-                {
-                    Debug.LogWarning($"[RealLLMService] Dialogue JSON parse fallback: {ex.Message}");
-                    if (content.TrimStart().StartsWith("{", StringComparison.Ordinal))
-                    {
-                        fallbackContent = "Sorry, I couldn't format that reply correctly. Could you say that again?";
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"[RealLLMService] Dialogue JSON parse fallback: {ex.Message}");
-                }
+                throw new FormatException("LLM dialogue response was empty.");
             }
 
-            return new SpringScenePayload
+            try
             {
-                dialogueReply = fallbackContent,
-                taskType = currentCondition == null ? string.Empty : currentCondition.scenarioId,
-                environmentType = currentCondition?.task == null
-                    ? string.Empty
-                    : currentCondition.task.fallbackEnvironmentType,
-                avatarRole = new AvatarRoleData(),
-                scene = new ScenePayload(),
-                correctionFeedback = currentCondition == null
-                    ? null
-                    : new CorrectionFeedbackData
+                var payload = JsonUtility.FromJson<SpringScenePayload>(content);
+                if (payload != null)
+                {
+                    if (string.IsNullOrEmpty(payload.dialogueReply)
+                        && !string.IsNullOrEmpty(payload.dialogueContinuation))
                     {
-                        hasFeedback = false,
-                        provider = currentCondition.provider,
-                        style = currentCondition.style
+                        payload.dialogueReply = payload.dialogueContinuation;
                     }
-            };
+
+                    EnsureDialogueReplyPresent(payload);
+                    EnsurePayloadDefaults(payload);
+                    return payload;
+                }
+            }
+            catch (FormatException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                throw new FormatException(
+                    $"LLM dialogue response was not valid SceneTalk JSON: {exception.Message}",
+                    exception);
+            }
+
+            throw new FormatException("LLM response did not contain a valid SceneTalk payload.");
         }
 
         private static void EnsureDialogueReplyPresent(SpringScenePayload payload)
@@ -916,6 +967,7 @@ namespace SceneTalkVR.Runtime.Services
 
             var task = currentCondition.task;
             bool locked = IsExperimentLocked();
+            var policy = CorrectionPolicy;
             string effectiveSensitivity = locked ? "moderate" : feedbackSensitivity;
             string historyCsv = (!locked && sessionErrorHistory.Count > 0) ? string.Join(", ", sessionErrorHistory) : "none";
 
@@ -955,13 +1007,16 @@ namespace SceneTalkVR.Runtime.Services
             builder.AppendLine(lastSttConfidenceAvailable
                 ? $"- sttConfidence: {lastSttConfidence}"
                 : "- sttConfidence: unavailable");
-            if (lastSttConfidenceAvailable && lastSttConfidence < 0.5f)
+            if (lastSttConfidenceAvailable
+                && lastSttConfidence < policy.LowSttConfidenceThreshold)
             {
-                builder.AppendLine("CRITICAL: STT/ASR confidence is extremely low. Do NOT perform any grammar correction (set hasFeedback = false) because the errors are likely STT recognition failures. Respond politely asking the user to repeat.");
+                builder.AppendLine($"CRITICAL: STT/ASR confidence is below {policy.LowSttConfidenceThreshold:0.##}. Do NOT perform any grammar correction (set hasFeedback = false) because the errors are likely STT recognition failures. Respond politely asking the user to repeat.");
             }
-            if (lastRecordingDurationMs > 0 && lastRecordingDurationMs < 500f)
+            if (policy.ShortRecordingThresholdMs > 0
+                && lastRecordingDurationMs > 0
+                && lastRecordingDurationMs < policy.ShortRecordingThresholdMs)
             {
-                builder.AppendLine("CRITICAL: The user recording was too short (under 500ms), probably a misclick or accidental cancel. Do NOT perform grammar correction (set hasFeedback = false). Respond politely asking the user to repeat.");
+                builder.AppendLine($"CRITICAL: The user recording was too short (under {policy.ShortRecordingThresholdMs}ms), probably a misclick or accidental cancel. Do NOT perform grammar correction (set hasFeedback = false). Respond politely asking the user to repeat.");
             }
 
             builder.AppendLine("\n=== LANGUAGE CORRECTION INSTRUCTIONS ===");
@@ -1020,6 +1075,116 @@ namespace SceneTalkVR.Runtime.Services
             return builder.ToString();
         }
 
+        private CorrectionFeedbackData FinalizeCorrectionFeedback(
+            string userInput,
+            CorrectionFeedbackData feedback)
+        {
+            if (feedback == null)
+            {
+                feedback = BuildCorrectionFallback("correction_feedback_missing");
+            }
+
+            feedback.provider = currentCondition != null
+                                && string.Equals(
+                                    currentCondition.provider,
+                                    ExperimentConditionManager.AssistantAgentProvider,
+                                    StringComparison.OrdinalIgnoreCase)
+                ? ExperimentConditionManager.AssistantAgentProvider
+                : ExperimentConditionManager.DialogueAvatarProvider;
+            feedback.style = currentCondition != null
+                             && string.Equals(
+                                 currentCondition.style,
+                                 ExperimentConditionManager.RecastStyle,
+                                 StringComparison.OrdinalIgnoreCase)
+                ? ExperimentConditionManager.RecastStyle
+                : ExperimentConditionManager.ExplicitStyle;
+
+            if (ShouldSuppressCorrectionByStt(out var sttSuppressionReason))
+            {
+                ClearCorrectionContent(feedback);
+                feedback.rationaleTag = AppendRationale(
+                    feedback.rationaleTag,
+                    sttSuppressionReason);
+                return feedback;
+            }
+
+            if (!feedback.hasFeedback)
+            {
+                ClearCorrectionContent(feedback);
+                return feedback;
+            }
+
+            var normalizedErrorType = string.IsNullOrWhiteSpace(feedback.errorType)
+                ? string.Empty
+                : feedback.errorType.Trim().ToLowerInvariant();
+            if (string.IsNullOrEmpty(normalizedErrorType) || !ValidErrorTypes.Contains(normalizedErrorType))
+            {
+                normalizedErrorType = "unknown";
+                feedback.rationaleTag = AppendRationale(
+                    feedback.rationaleTag,
+                    "invalid_error_type_repaired");
+            }
+            feedback.errorType = normalizedErrorType;
+
+            if (CorrectionPolicyEvaluator.ApplyNonAudibleDifferenceFilter(
+                    correctionPolicy,
+                    userInput,
+                    feedback))
+            {
+                return feedback;
+            }
+
+            if (string.Equals(
+                    feedback.style,
+                    ExperimentConditionManager.RecastStyle,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                feedback.recastText = string.IsNullOrWhiteSpace(feedback.recastText)
+                    ? feedback.feedbackText
+                    : feedback.recastText;
+                if (string.IsNullOrWhiteSpace(feedback.recastText))
+                {
+                    feedback.recastText = BuildMinimalRecast(feedback.correctedText);
+                    feedback.rationaleTag = AppendRationale(
+                        feedback.rationaleTag,
+                        "missing_spoken_feedback_repaired");
+                }
+                feedback.feedbackText = feedback.recastText;
+                if (CorrectionTextGuards.ViolatesRecastPurity(feedback.recastText))
+                {
+                    feedback.recastText = BuildMinimalRecast(feedback.correctedText);
+                    feedback.feedbackText = feedback.recastText;
+                    feedback.rationaleTag = AppendRationale(
+                        feedback.rationaleTag,
+                        "recast_purity_repaired");
+                }
+            }
+            else
+            {
+                feedback.recastText = string.Empty;
+                if (string.IsNullOrWhiteSpace(feedback.feedbackText))
+                {
+                    feedback.feedbackText = BuildMinimalExplicitCorrection(feedback.correctedText);
+                    feedback.rationaleTag = AppendRationale(
+                        feedback.rationaleTag,
+                        "missing_spoken_feedback_repaired");
+                }
+            }
+
+            return feedback;
+        }
+
+        private static void ClearCorrectionContent(CorrectionFeedbackData feedback)
+        {
+            feedback.hasFeedback = false;
+            feedback.errorType = "none";
+            feedback.originalText = string.Empty;
+            feedback.correctedText = string.Empty;
+            feedback.feedbackText = string.Empty;
+            feedback.recastText = string.Empty;
+            feedback.targetSpan = string.Empty;
+        }
+
         private static readonly System.Collections.Generic.HashSet<string> ValidErrorTypes = new System.Collections.Generic.HashSet<string>
         {
             "grammar",
@@ -1035,6 +1200,11 @@ namespace SceneTalkVR.Runtime.Services
         public void SetExperimentLocked(bool locked)
         {
             isLocked = locked;
+            if (isLocked)
+            {
+                feedbackSensitivity = "moderate";
+                correctionPolicy = CorrectionPolicySettings.CloneNormalized(correctionPolicy);
+            }
         }
 
         private bool IsExperimentLocked()
@@ -1045,8 +1215,11 @@ namespace SceneTalkVR.Runtime.Services
         private bool ShouldSuppressCorrectionByStt(out string sttSuppressionReason)
         {
             sttSuppressionReason = string.Empty;
+            var policy = CorrectionPolicy;
 
-            if (lastRecordingDurationMs > 0 && lastRecordingDurationMs < 500)
+            if (policy.ShortRecordingThresholdMs > 0
+                && lastRecordingDurationMs > 0
+                && lastRecordingDurationMs < policy.ShortRecordingThresholdMs)
             {
                 sttSuppressionReason = "short_recording_suppressed";
                 return true;
@@ -1054,7 +1227,7 @@ namespace SceneTalkVR.Runtime.Services
 
             if (lastSttConfidenceAvailable
                 && lastSttConfidence >= 0
-                && lastSttConfidence < 0.5f)
+                && lastSttConfidence < policy.LowSttConfidenceThreshold)
             {
                 sttSuppressionReason = "low_confidence_suppressed";
                 return true;
@@ -1115,7 +1288,17 @@ namespace SceneTalkVR.Runtime.Services
             {
                 return correctedText.Trim().TrimEnd('.') + ".";
             }
-            return string.Empty;
+            return "Could you say that again in a complete sentence?";
+        }
+
+        private static string BuildMinimalExplicitCorrection(string correctedText)
+        {
+            if (!string.IsNullOrWhiteSpace(correctedText))
+            {
+                return $"Grammar tip: Use this form. Try: \"{correctedText.Trim()}\".";
+            }
+
+            return "Grammar tip: Please try that again using a complete, natural English sentence.";
         }
 
         private static string AppendRationale(string current, string next)
@@ -1151,6 +1334,7 @@ namespace SceneTalkVR.Runtime.Services
                 feedback.originalText = "";
                 feedback.correctedText = "";
                 feedback.feedbackText = "";
+                feedback.recastText = "";
                 feedback.targetSpan = "";
             }
             else
@@ -1263,6 +1447,7 @@ namespace SceneTalkVR.Runtime.Services
 
         public void ResetSession()
         {
+            CancelActiveGeneration();
             if (chatHistory != null)
             {
                 chatHistory.Clear();
@@ -1276,22 +1461,53 @@ namespace SceneTalkVR.Runtime.Services
             Debug.Log("[RealLLMService] Chat history and session error history cleared on explicit session reset.");
         }
 
+        public void CancelActiveGeneration()
+        {
+            var cancellation = activeGenerationCancellation;
+            activeGenerationCancellation = null;
+            if (cancellation == null)
+            {
+                return;
+            }
+
+            cancellation.Cancel();
+            cancellation.Dispose();
+        }
+
+        private CancellationTokenSource BeginGeneration()
+        {
+            CancelActiveGeneration();
+            activeGenerationCancellation = new CancellationTokenSource();
+            return activeGenerationCancellation;
+        }
+
+        private void CompleteGeneration(CancellationTokenSource generationCancellation)
+        {
+            if (!ReferenceEquals(activeGenerationCancellation, generationCancellation))
+            {
+                return;
+            }
+
+            activeGenerationCancellation = null;
+            generationCancellation.Dispose();
+        }
+
+        private void OnDestroy()
+        {
+            CancelActiveGeneration();
+        }
+
         #endregion
 
         #region Send API Requests
 
-        private async Task<string> SendChatRequest(OpenAiMessage[] messages, bool useJsonObject, Action onFirstResponseBytes = null)
+        private async Task<string> SendChatRequest(
+            OpenAiMessage[] messages,
+            bool useJsonObject,
+            Action onFirstResponseBytes = null,
+            CancellationToken cancellationToken = default,
+            LlmRequestPurpose purpose = LlmRequestPurpose.Auxiliary)
         {
-            var requiresClientApiKey = RequiresClientApiKey(apiUrl);
-            string effectiveKey = string.IsNullOrEmpty(apiKey)
-                ? Environment.GetEnvironmentVariable("OPENAI_API_KEY")
-                : apiKey;
-
-            if (requiresClientApiKey && string.IsNullOrEmpty(effectiveKey))
-            {
-                throw new Exception("API Key is not set.");
-            }
-
             string jsonBody;
             if (useJsonObject)
             {
@@ -1312,53 +1528,256 @@ namespace SceneTalkVR.Runtime.Services
                 };
                 jsonBody = JsonUtility.ToJson(requestBody);
             }
-            
+
+            var firstBytesSignaled = 0;
+            Action signalFirstBytes = () =>
+            {
+                if (Interlocked.Exchange(ref firstBytesSignaled, 1) == 0)
+                {
+                    onFirstResponseBytes?.Invoke();
+                }
+            };
+
+            return await ExecuteWithRetry(
+                timeoutSeconds => SendChatRequestAttempt(
+                    jsonBody,
+                    timeoutSeconds,
+                    signalFirstBytes,
+                    cancellationToken),
+                purpose,
+                cancellationToken);
+        }
+
+        private async Task<string> SendChatRequestAttempt(
+            string jsonBody,
+            int timeoutSeconds,
+            Action onFirstResponseBytes,
+            CancellationToken cancellationToken)
+        {
+            var requiresClientApiKey = RequiresClientApiKey(apiUrl);
+            string effectiveKey = string.IsNullOrEmpty(apiKey)
+                ? Environment.GetEnvironmentVariable("OPENAI_API_KEY")
+                : apiKey;
+
+            if (requiresClientApiKey && string.IsNullOrEmpty(effectiveKey))
+            {
+                throw new LlmRequestException("API Key is not set.", 0, false, 0);
+            }
+
             using var webRequest = new UnityWebRequest(apiUrl, "POST");
             byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
             webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
             var responseHandler = new FirstResponseBytesDownloadHandler(onFirstResponseBytes);
             webRequest.downloadHandler = responseHandler;
             webRequest.SetRequestHeader("Content-Type", "application/json");
+            webRequest.SetRequestHeader("Accept", "application/json");
             if (requiresClientApiKey)
             {
                 webRequest.SetRequestHeader("Authorization", $"Bearer {effectiveKey}");
             }
 
-            webRequest.timeout = 45;
+            webRequest.timeout = Mathf.Max(1, timeoutSeconds);
             var operation = webRequest.SendWebRequest();
-            
-            while (!operation.isDone)
+            try
             {
-                await Task.Yield();
+                while (!operation.isDone)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await Task.Yield();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                webRequest.Abort();
+                throw;
             }
 
             if (webRequest.result != UnityWebRequest.Result.Success)
             {
-                string errorMsg = $"API Request Failed: {webRequest.error}";
-                if (webRequest.downloadHandler != null)
-                {
-                    errorMsg += $"\n{responseHandler.Text}";
-                }
-                throw new Exception(errorMsg);
+                throw BuildRequestException(webRequest, responseHandler.Text);
+            }
+
+            if (string.IsNullOrWhiteSpace(responseHandler.Text))
+            {
+                throw new LlmRequestException(
+                    "LLM returned HTTP success with an empty response body.",
+                    webRequest.responseCode,
+                    true,
+                    0);
             }
 
             return responseHandler.Text;
         }
 
-        private async Task<string> SendChatRequest(string sysPrompt, string userPrompt, bool useJsonObject, Action onFirstResponseBytes = null)
+        private async Task<string> SendChatRequest(
+            string sysPrompt,
+            string userPrompt,
+            bool useJsonObject,
+            Action onFirstResponseBytes = null,
+            CancellationToken cancellationToken = default,
+            LlmRequestPurpose purpose = LlmRequestPurpose.Auxiliary)
         {
             var messages = new[]
             {
                 new OpenAiMessage { role = "system", content = sysPrompt },
                 new OpenAiMessage { role = "user", content = userPrompt }
             };
-            return await SendChatRequest(messages, useJsonObject, onFirstResponseBytes);
+            return await SendChatRequest(
+                messages,
+                useJsonObject,
+                onFirstResponseBytes,
+                cancellationToken,
+                purpose);
+        }
+
+        private async Task<T> ExecuteWithRetry<T>(
+            Func<int, Task<T>> requestAttempt,
+            LlmRequestPurpose purpose,
+            CancellationToken cancellationToken)
+        {
+            var retryAllowed = purpose == LlmRequestPurpose.Dialogue
+                || (purpose == LlmRequestPurpose.Correction && IsExperimentLocked());
+            var maxAttempts = 1 + (retryAllowed ? Mathf.Max(0, transientRetryCount) : 0);
+            var totalBudget = Mathf.Max(5, totalRequestBudgetSeconds);
+            var timer = System.Diagnostics.Stopwatch.StartNew();
+            LlmRequestException lastFailure = null;
+
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var remainingSeconds = totalBudget - Mathf.CeilToInt((float)timer.Elapsed.TotalSeconds);
+                if (remainingSeconds <= 0)
+                {
+                    break;
+                }
+
+                var timeoutSeconds = attempt == 1
+                    ? Mathf.Min(Mathf.Max(5, firstAttemptTimeoutSeconds), remainingSeconds)
+                    : remainingSeconds;
+                try
+                {
+                    return await requestAttempt(timeoutSeconds);
+                }
+                catch (LlmRequestException exception)
+                {
+                    lastFailure = exception;
+                    if (!exception.Retryable || attempt >= maxAttempts)
+                    {
+                        throw;
+                    }
+
+                    var delaySeconds = ResolveRetryDelaySeconds(exception, attempt);
+                    var remainingAfterDelay = totalBudget - timer.Elapsed.TotalSeconds - delaySeconds;
+                    if (remainingAfterDelay < 2d)
+                    {
+                        throw;
+                    }
+
+                    Debug.LogWarning(
+                        $"[RealLLMService] {purpose} request failed on attempt {attempt}/{maxAttempts}; "
+                        + $"retrying in {delaySeconds:0.0}s. {exception.Message}",
+                        this);
+                    await Task.Delay(
+                        Mathf.Max(1, Mathf.RoundToInt(delaySeconds * 1000f)),
+                        cancellationToken);
+                }
+            }
+
+            throw lastFailure ?? new LlmRequestException(
+                $"LLM {purpose} request exceeded the {totalBudget}s total budget.",
+                0,
+                false,
+                0);
+        }
+
+        private static float ResolveRetryDelaySeconds(LlmRequestException exception, int attempt)
+        {
+            if (exception.RetryAfterSeconds > 0)
+            {
+                return Mathf.Clamp(exception.RetryAfterSeconds, 0.25f, 5f);
+            }
+
+            if (exception.StatusCode == 429)
+            {
+                return 5f;
+            }
+
+            var jitter = Mathf.Abs(Environment.TickCount % 251) / 1000f;
+            return Mathf.Min(5f, attempt) + jitter;
+        }
+
+        private static LlmRequestException BuildRequestException(
+            UnityWebRequest webRequest,
+            string responseBody)
+        {
+            var statusCode = webRequest == null ? 0 : webRequest.responseCode;
+            var requestError = webRequest == null || string.IsNullOrWhiteSpace(webRequest.error)
+                ? "unknown transport error"
+                : webRequest.error;
+            var retryable = webRequest != null
+                && (webRequest.result == UnityWebRequest.Result.ConnectionError
+                    || statusCode == 408
+                    || statusCode == 429
+                    || statusCode >= 500);
+            var retryAfterSeconds = 0;
+            if (webRequest != null)
+            {
+                int.TryParse(webRequest.GetResponseHeader("Retry-After"), out retryAfterSeconds);
+            }
+
+            var detail = BoundResponseDetail(responseBody);
+            var message = $"API Request Failed: {requestError}";
+            if (!string.IsNullOrWhiteSpace(detail))
+            {
+                message += $"\n{detail}";
+            }
+
+            return new LlmRequestException(
+                message,
+                statusCode,
+                retryable,
+                retryAfterSeconds);
+        }
+
+        private static string BoundResponseDetail(string responseBody)
+        {
+            if (string.IsNullOrWhiteSpace(responseBody))
+            {
+                return string.Empty;
+            }
+
+            var normalized = responseBody.Trim();
+            const int maxLength = 1024;
+            return normalized.Length <= maxLength
+                ? normalized
+                : normalized.Substring(0, maxLength) + "...";
+        }
+
+        private sealed class LlmRequestException : Exception
+        {
+            public long StatusCode { get; }
+            public bool Retryable { get; }
+            public int RetryAfterSeconds { get; }
+
+            public LlmRequestException(
+                string message,
+                long statusCode,
+                bool retryable,
+                int retryAfterSeconds)
+                : base(message)
+            {
+                StatusCode = statusCode;
+                Retryable = retryable;
+                RetryAfterSeconds = retryAfterSeconds;
+            }
         }
 
         private sealed class FirstResponseBytesDownloadHandler : DownloadHandlerScript
         {
             private readonly StringBuilder text = new StringBuilder();
             private readonly Action onFirstBytes;
+            private readonly Decoder decoder = Encoding.UTF8.GetDecoder();
+            private readonly char[] characterBuffer = new char[16384];
             private bool firstBytesReceived;
 
             public FirstResponseBytesDownloadHandler(Action onFirstBytes) : base(new byte[16384])
@@ -1376,8 +1795,29 @@ namespace SceneTalkVR.Runtime.Services
                     firstBytesReceived = true;
                     onFirstBytes?.Invoke();
                 }
-                text.Append(Encoding.UTF8.GetString(data, 0, dataLength));
+
+                AppendDecodedText(data, dataLength, false);
                 return true;
+            }
+
+            protected override void CompleteContent()
+            {
+                AppendDecodedText(Array.Empty<byte>(), 0, true);
+            }
+
+            private void AppendDecodedText(byte[] data, int dataLength, bool flush)
+            {
+                var characterCount = decoder.GetChars(
+                    data,
+                    0,
+                    dataLength,
+                    characterBuffer,
+                    0,
+                    flush);
+                if (characterCount > 0)
+                {
+                    text.Append(characterBuffer, 0, characterCount);
+                }
             }
         }
 
@@ -1464,6 +1904,8 @@ namespace SceneTalkVR.Runtime.Services
             Action<string> onError)
         {
             Debug.Log($"[RealLLMService] Generating streaming scene and reply for: {userText}");
+            var generationCancellation = BeginGeneration();
+            var cancellationToken = generationCancellation.Token;
             LastFirstTokenLatencyMs = -1f;
             LastFirstSentenceLatencyMs = -1f;
             streamStartTime = Time.realtimeSinceStartup;
@@ -1475,9 +1917,13 @@ namespace SceneTalkVR.Runtime.Services
             var timing = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include);
             formalDialogueLeakageDetected = false;
             timing?.RecordTimingEvent(ExperimentTimingEventType.CorrectionRequestStarted);
-            var correctionTask = ParseCorrectionFeedbackAsync(userText);
+            var correctionTask = ParseCorrectionFeedbackAsync(userText, cancellationToken);
             timing?.RecordTimingEvent(ExperimentTimingEventType.DialogueRequestStarted);
-            var dialogueTask = ParseDialogueContinuationStreamingAsync(userText, pacingDecision, onSentenceComplete);
+            var dialogueTask = ParseDialogueContinuationStreamingAsync(
+                userText,
+                pacingDecision,
+                onSentenceComplete,
+                cancellationToken);
             var correctionReadyLogged = false;
 
             while (!correctionTask.IsCompleted || !dialogueTask.IsCompleted)
@@ -1503,6 +1949,7 @@ namespace SceneTalkVR.Runtime.Services
                     correctionFailed ? "CorrectionPlanner" : "DialogueGenerator",
                     ex?.Message ?? "parallel_stream_failed");
                 onError?.Invoke(ex?.Message ?? "Parallel LLM streaming tasks faulted.");
+                CompleteGeneration(generationCancellation);
                 yield break;
             }
 
@@ -1522,6 +1969,7 @@ namespace SceneTalkVR.Runtime.Services
             {
                 timing?.MarkTurnTechnicalInvalid("DialogueLeakageGuard", "correction_leakage_in_avatar_dialogue");
                 onError?.Invoke("Formal turn invalid: correction leakage detected in Avatar dialogue.");
+                CompleteGeneration(generationCancellation);
                 yield break;
             }
 
@@ -1541,12 +1989,14 @@ namespace SceneTalkVR.Runtime.Services
             }
 
             onComplete?.Invoke(payload);
+            CompleteGeneration(generationCancellation);
         }
 
         private async Task<SpringScenePayload> ParseDialogueContinuationStreamingAsync(
             string userInput,
             AvatarDialoguePacingDecision pacingDecision,
-            Action<string> onSentenceComplete)
+            Action<string> onSentenceComplete,
+            CancellationToken cancellationToken = default)
         {
             string systemPrompt = BuildAvatarDialogueSystemPrompt(pacingDecision);
 
@@ -1586,7 +2036,7 @@ namespace SceneTalkVR.Runtime.Services
                         onSentenceComplete?.Invoke(s);
                     }
                 }
-            });
+            }, cancellationToken);
 
             fullResponse = CleanJsonString(fullResponse);
             var payload = TryParseDialoguePayload(fullResponse);
@@ -1608,18 +2058,11 @@ namespace SceneTalkVR.Runtime.Services
             return payload;
         }
 
-        private async Task<string> SendChatRequestStreaming(OpenAiMessage[] messages, Action<string> onChunkReceived)
+        private async Task<string> SendChatRequestStreaming(
+            OpenAiMessage[] messages,
+            Action<string> onChunkReceived,
+            CancellationToken cancellationToken = default)
         {
-            string effectiveKey = string.IsNullOrEmpty(apiKey)
-                ? Environment.GetEnvironmentVariable("OPENAI_API_KEY")
-                : apiKey;
-
-            if (RequiresClientApiKey(apiUrl) && string.IsNullOrEmpty(effectiveKey))
-            {
-                throw new Exception("API Key is not set.");
-            }
-
-            string jsonBody;
             var requestBody = new OpenAiRequest
             {
                 model = modelName,
@@ -1627,7 +2070,31 @@ namespace SceneTalkVR.Runtime.Services
                 response_format = new ResponseFormat { type = "json_object" },
                 stream = true
             };
-            jsonBody = JsonUtility.ToJson(requestBody);
+            var jsonBody = JsonUtility.ToJson(requestBody);
+            return await ExecuteWithRetry(
+                timeoutSeconds => SendChatRequestStreamingAttempt(
+                    jsonBody,
+                    timeoutSeconds,
+                    onChunkReceived,
+                    cancellationToken),
+                LlmRequestPurpose.Dialogue,
+                cancellationToken);
+        }
+
+        private async Task<string> SendChatRequestStreamingAttempt(
+            string jsonBody,
+            int timeoutSeconds,
+            Action<string> onChunkReceived,
+            CancellationToken cancellationToken)
+        {
+            string effectiveKey = string.IsNullOrEmpty(apiKey)
+                ? Environment.GetEnvironmentVariable("OPENAI_API_KEY")
+                : apiKey;
+
+            if (RequiresClientApiKey(apiUrl) && string.IsNullOrEmpty(effectiveKey))
+            {
+                throw new LlmRequestException("API Key is not set.", 0, false, 0);
+            }
 
             using var webRequest = new UnityWebRequest(apiUrl, "POST");
             byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
@@ -1635,7 +2102,7 @@ namespace SceneTalkVR.Runtime.Services
 
             var fullResponseBuilder = new StringBuilder();
             bool firstChunkReceived = false;
-            webRequest.downloadHandler = new StreamingDownloadHandler(chunk =>
+            Action<string> dispatchChunk = chunk =>
             {
                 if (!firstChunkReceived)
                 {
@@ -1646,7 +2113,9 @@ namespace SceneTalkVR.Runtime.Services
                 }
                 fullResponseBuilder.Append(chunk);
                 onChunkReceived?.Invoke(chunk);
-            });
+            };
+            var responseHandler = new StreamingDownloadHandler(dispatchChunk);
+            webRequest.downloadHandler = responseHandler;
 
             webRequest.SetRequestHeader("Content-Type", "application/json");
             webRequest.SetRequestHeader("Accept", "text/event-stream");
@@ -1656,21 +2125,89 @@ namespace SceneTalkVR.Runtime.Services
                 webRequest.SetRequestHeader("Authorization", $"Bearer {effectiveKey}");
             }
 
-            webRequest.timeout = 45;
+            webRequest.timeout = Mathf.Max(1, timeoutSeconds);
             var operation = webRequest.SendWebRequest();
-
-            while (!operation.isDone)
+            try
             {
-                await Task.Yield();
+                while (!operation.isDone)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await Task.Yield();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                webRequest.Abort();
+                throw;
             }
 
             if (webRequest.result != UnityWebRequest.Result.Success)
             {
-                string errorMsg = $"API Request Failed: {webRequest.error}";
-                throw new Exception(errorMsg);
+                var failure = BuildRequestException(webRequest, responseHandler.RawText);
+                if (fullResponseBuilder.Length > 0)
+                {
+                    failure = new LlmRequestException(
+                        failure.Message + "\nThe failed stream already emitted content; automatic retry was suppressed.",
+                        failure.StatusCode,
+                        false,
+                        failure.RetryAfterSeconds);
+                }
+                throw failure;
+            }
+
+            if (responseHandler.ParseFailureCount > 0)
+            {
+                Debug.LogWarning(
+                    $"[RealLLMService] Streaming response contained {responseHandler.ParseFailureCount} "
+                    + $"unparseable SSE event(s). Last error: {responseHandler.LastParseFailure}",
+                    this);
+            }
+
+            if (fullResponseBuilder.Length == 0)
+            {
+                var envelopeContent = TryExtractNonStreamingContent(responseHandler.RawText);
+                if (!string.IsNullOrWhiteSpace(envelopeContent))
+                {
+                    Debug.LogWarning(
+                        "[RealLLMService] Upstream returned a non-streaming envelope for a streaming request; "
+                        + "using choices[0].message.content.",
+                        this);
+                    dispatchChunk(envelopeContent);
+                }
+            }
+
+            if (fullResponseBuilder.Length == 0)
+            {
+                var detail = BoundResponseDetail(responseHandler.RawText);
+                throw new LlmRequestException(
+                    "LLM returned HTTP success without decodable dialogue content."
+                    + (string.IsNullOrWhiteSpace(detail) ? string.Empty : $"\n{detail}"),
+                    webRequest.responseCode,
+                    true,
+                    0);
             }
 
             return fullResponseBuilder.ToString();
+        }
+
+        private static string TryExtractNonStreamingContent(string rawResponse)
+        {
+            if (string.IsNullOrWhiteSpace(rawResponse))
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                var response = JsonUtility.FromJson<OpenAiResponse>(rawResponse.Trim());
+                return response?.choices != null && response.choices.Length > 0
+                    ? response.choices[0].message?.content ?? string.Empty
+                    : string.Empty;
+            }
+            catch (Exception)
+            {
+                return string.Empty;
+            }
         }
 
         private SpringScenePayload BuildSuppressedPayload(string suppressionReason)
@@ -1724,10 +2261,18 @@ namespace SceneTalkVR.Runtime.Services
             };
         }
 
-        private class StreamingDownloadHandler : DownloadHandlerScript
+        internal sealed class StreamingDownloadHandler : DownloadHandlerScript
         {
-            private Action<string> onChunkReceived;
-            private StringBuilder buffer = new StringBuilder();
+            private readonly Action<string> onChunkReceived;
+            private readonly StringBuilder lineBuffer = new StringBuilder();
+            private readonly StringBuilder rawText = new StringBuilder();
+            private readonly Decoder decoder = Encoding.UTF8.GetDecoder();
+            private readonly char[] characterBuffer = new char[16384];
+
+            public string RawText => rawText.ToString();
+            public int ParsedEventCount { get; private set; }
+            public int ParseFailureCount { get; private set; }
+            public string LastParseFailure { get; private set; } = string.Empty;
 
             public StreamingDownloadHandler(Action<string> onChunkReceived) : base(new byte[16384])
             {
@@ -1736,59 +2281,104 @@ namespace SceneTalkVR.Runtime.Services
 
             protected override bool ReceiveData(byte[] data, int dataLength)
             {
-                if (data == null || dataLength == 0)
+                if (data == null || dataLength <= 0)
                 {
-                    return false;
+                    return true;
                 }
 
-                string text = Encoding.UTF8.GetString(data, 0, dataLength);
-                buffer.Append(text);
+                var characterCount = decoder.GetChars(
+                    data,
+                    0,
+                    dataLength,
+                    characterBuffer,
+                    0,
+                    false);
+                ProcessDecodedText(new string(characterBuffer, 0, characterCount));
+                return true;
+            }
 
-                string fullText = buffer.ToString();
+            protected override void CompleteContent()
+            {
+                var characterCount = decoder.GetChars(
+                    Array.Empty<byte>(),
+                    0,
+                    0,
+                    characterBuffer,
+                    0,
+                    true);
+                if (characterCount > 0)
+                {
+                    ProcessDecodedText(new string(characterBuffer, 0, characterCount));
+                }
+
+                if (lineBuffer.Length > 0)
+                {
+                    ProcessLine(lineBuffer.ToString());
+                    lineBuffer.Clear();
+                }
+            }
+
+            private void ProcessDecodedText(string text)
+            {
+                if (string.IsNullOrEmpty(text))
+                {
+                    return;
+                }
+
+                rawText.Append(text);
+                lineBuffer.Append(text);
+
+                string fullText = lineBuffer.ToString();
                 int lineEnd;
                 int lastIndex = 0;
 
                 while ((lineEnd = fullText.IndexOf('\n', lastIndex)) != -1)
                 {
-                    string line = fullText.Substring(lastIndex, lineEnd - lastIndex).Trim();
+                    string line = fullText.Substring(lastIndex, lineEnd - lastIndex);
                     lastIndex = lineEnd + 1;
-
-                    if (line.StartsWith("data:"))
-                    {
-                        string dataVal = line.Substring(5).Trim();
-                        if (dataVal == "[DONE]")
-                        {
-                            break;
-                        }
-
-                        if (!string.IsNullOrEmpty(dataVal))
-                        {
-                            try
-                            {
-                                var chunkJson = JsonUtility.FromJson<OpenAiChunk>(dataVal);
-                                if (chunkJson != null && chunkJson.choices != null && chunkJson.choices.Length > 0)
-                                {
-                                    var content = chunkJson.choices[0].delta.content;
-                                    if (!string.IsNullOrEmpty(content))
-                                    {
-                                        onChunkReceived?.Invoke(content);
-                                    }
-                                }
-                            }
-                            catch
-                            {
-                                // Incomplete chunks can fail JsonUtility parsing silently
-                            }
-                        }
-                    }
+                    ProcessLine(line);
                 }
 
                 if (lastIndex > 0)
                 {
-                    buffer.Remove(0, lastIndex);
+                    lineBuffer.Remove(0, lastIndex);
+                }
+            }
+
+            private void ProcessLine(string rawLine)
+            {
+                var line = string.IsNullOrEmpty(rawLine) ? string.Empty : rawLine.Trim();
+                if (!line.StartsWith("data:", StringComparison.Ordinal))
+                {
+                    return;
                 }
 
-                return true;
+                string dataVal = line.Substring(5).Trim();
+                if (dataVal == "[DONE]" || string.IsNullOrEmpty(dataVal))
+                {
+                    return;
+                }
+
+                try
+                {
+                    var chunkJson = JsonUtility.FromJson<OpenAiChunk>(dataVal);
+                    if (chunkJson?.choices == null || chunkJson.choices.Length == 0)
+                    {
+                        return;
+                    }
+
+                    ParsedEventCount++;
+                    var content = chunkJson.choices[0].delta?.content;
+                    if (!string.IsNullOrEmpty(content))
+                    {
+                        onChunkReceived?.Invoke(content);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    ParseFailureCount++;
+                    LastParseFailure = exception.Message;
+                }
             }
         }
 

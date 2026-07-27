@@ -87,8 +87,9 @@ namespace SceneTalkVR.Runtime
         {
             if (lifecycle?.Assignment == null) { error = "assignment_missing"; return false; }
             var assignment = lifecycle.Assignment;
-            var path = Path.Combine(QuestionnaireSessionService.DefaultFolder,
-                $"{assignment.participantId}_{assignment.experimentSessionId}_{lifecycle.QuestionnaireLinkageKey}_questionnaire_draft.json");
+            var path = QuestionnaireSessionService.ResolveDraftPath(
+                QuestionnaireSessionService.DefaultFolder,
+                lifecycle.QuestionnaireLinkageKey);
             return service.Restore(path, lifecycle.QuestionnaireLinkageKey, assignment.protocolVersion,
                 conditionManager.QuestionnaireCatalog.CatalogVersion, out error);
         }

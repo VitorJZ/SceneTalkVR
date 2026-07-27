@@ -76,6 +76,9 @@ namespace SceneTalkVR.Core
         public string CurrentRunId => IsFormal ? formalLifecycle?.ConditionRunId ?? string.Empty : pilotWorkflow?.PilotRunId ?? string.Empty;
         public string CurrentTaskId => currentPosition < 0 ? string.Empty : IsFormal ? formalLifecycle?.CurrentConditionAssignment?.task?.taskId ?? string.Empty : pilotWorkflow?.Current?.task?.taskId ?? string.Empty;
         public bool AwaitingParticipantConditionChoice => IsFormal && currentPosition < 0 && FormalAssignment?.status != AssignmentStatus.Completed;
+        public bool HasActiveDialogueCondition => currentPosition >= 0 && (IsFormal
+            ? formalLifecycle?.CurrentConditionAssignment?.status == ConditionRunStatus.Running
+            : IsPilot && pilotWorkflow?.Current?.status == PilotRunStatus.Running);
         public string LastBundlePath => lastBundlePath ?? string.Empty;
         public bool RankingSubmitted => rankingSubmitted;
         public bool InterviewSaved => interviewSaved;
@@ -116,7 +119,15 @@ namespace SceneTalkVR.Core
             {
                 var allocator = new ExperimentAssignmentAllocator();
                 if (!allocator.TryCreateRehearsal(ParticipantId, SessionId, protocol, conditionManager.TaskCatalog,
-                    resources.ResourceSnapshotId, out var assignment, out error) || !formalLifecycle.LoadAssignment(assignment, out error)) return FailStart(error);
+                    resources.ResourceSnapshotId, out var assignment, out error)) return FailStart(error);
+                assignment.assistantEmbodimentSnapshot = conditionManager.ConfiguredAssistantEmbodiment;
+                if (string.IsNullOrWhiteSpace(assignment.assistantEmbodimentSnapshot)
+                    || !conditionManager.SetExperimentAssistantEmbodiment(assignment.assistantEmbodimentSnapshot)
+                    || !formalLifecycle.LoadAssignment(assignment, out error))
+                {
+                    if (string.IsNullOrWhiteSpace(error)) error = "formal_assistant_embodiment_snapshot_invalid";
+                    return FailStart(error);
+                }
             }
             else
             {
@@ -142,7 +153,13 @@ namespace SceneTalkVR.Core
             if (flow == ExperimentFlowMode.Formal)
             {
                 var value = ExperimentAssignmentAllocator.Load(Path.Combine(raw, "formal_assignment.json"));
-                if (!ValidateFormalRehearsal(value, out error) || !formalLifecycle.LoadAssignment(value, out error)) return FailStart(error);
+                if (!ValidateFormalRehearsal(value, out error)
+                    || !conditionManager.SetExperimentAssistantEmbodiment(value.assistantEmbodimentSnapshot)
+                    || !formalLifecycle.LoadAssignment(value, out error))
+                {
+                    if (string.IsNullOrWhiteSpace(error)) error = "formal_assistant_embodiment_snapshot_invalid";
+                    return FailStart(error);
+                }
                 currentPosition = Array.FindIndex(value.conditions, x => x.status == ConditionRunStatus.Running || x.status == ConditionRunStatus.AwaitingQuestionnaire || x.status == ConditionRunStatus.QuestionnaireInProgress);
             }
             else
@@ -151,7 +168,9 @@ namespace SceneTalkVR.Core
                 if (!ValidatePilotRehearsal(value, out error) || !pilotWorkflow.LoadAssignment(value, out error)) return FailStart(error);
                 currentPosition = Array.FindIndex(value.conditions, x => x.status == PilotRunStatus.Running || x.status == PilotRunStatus.AwaitingPilotQuestionnaire || x.status == PilotRunStatus.PilotQuestionnaireInProgress);
             }
-            finalRankingVisible = false; experimentCompleted = false;
+            finalRankingVisible = flow == ExperimentFlowMode.Formal
+                && FormalAssignment?.status == AssignmentStatus.Completed;
+            experimentCompleted = false;
             WriteOperator("LoadSession"); RefreshUi(); return true;
         }
 
@@ -172,12 +191,66 @@ namespace SceneTalkVR.Core
                 var items = PilotAssignment?.conditions;
                 var next = items == null ? -1 : Array.FindIndex(items, x => x.status == PilotRunStatus.Assigned || x.status == PilotRunStatus.TechnicalInvalid);
                 if (next < 0) { error = "pilot_rehearsal_no_remaining_condition"; return false; }
-                currentPosition = next;
-                if (!pilotWorkflow.Prepare(next, items[next].status == PilotRunStatus.TechnicalInvalid, out error)) return false;
-                orchestrator.LoadAssignedTask(items[next].task.taskId);
+                return PreparePilotConditionAt(next, out error);
             }
             NotifyAttemptStarted();
             PersistAssignments(); WriteOperator("PrepareCurrentCondition"); RefreshUi(); return true;
+        }
+
+        public bool PreparePilotCondition(PilotEmbodimentCondition embodiment, out string error)
+        {
+            if (!IsPilot)
+            {
+                error = "pilot_rehearsal_session_required";
+                return false;
+            }
+
+            var items = PilotAssignment?.conditions;
+            var position = items == null
+                ? -1
+                : Array.FindIndex(items, item => item.embodimentCondition == embodiment);
+            if (position < 0)
+            {
+                error = "pilot_embodiment_not_assigned";
+                return false;
+            }
+
+            return PreparePilotConditionAt(position, out error);
+        }
+
+        private bool PreparePilotConditionAt(int position, out string error)
+        {
+            var items = PilotAssignment?.conditions;
+            if (!IsPilot || items == null || position < 0 || position >= items.Length)
+            {
+                error = "pilot_rehearsal_condition_missing";
+                return false;
+            }
+
+            var selected = items[position];
+            if (selected.status != PilotRunStatus.Assigned
+                && selected.status != PilotRunStatus.TechnicalInvalid)
+            {
+                error = "pilot_embodiment_not_selectable:" + selected.status;
+                return false;
+            }
+
+            currentPosition = position;
+            if (!pilotWorkflow.Prepare(
+                    position,
+                    selected.status == PilotRunStatus.TechnicalInvalid,
+                    out error))
+            {
+                currentPosition = -1;
+                return false;
+            }
+
+            orchestrator.LoadAssignedTask(selected.task.taskId);
+            NotifyAttemptStarted();
+            PersistAssignments();
+            WriteOperator("PreparePilotCondition", detail: "embodiment=" + PilotProtocolValues.Label(selected.embodimentCondition));
+            RefreshUi();
+            return true;
         }
 
         public bool SelectFormalCondition(FormalConditionCode code, out string error)
@@ -254,6 +327,39 @@ namespace SceneTalkVR.Core
             PersistAssignments(); WriteOperator("MarkTechnicalInvalid", detail: reason); RefreshUi();
         }
 
+        public bool ReturnToConditionSelectionFromDialogue(string reason, out string error)
+        {
+            if (!HasActiveDialogueCondition)
+            {
+                error = "experiment_dialogue_not_active";
+                return false;
+            }
+
+            reason = string.IsNullOrWhiteSpace(reason) ? "participant_return_to_selection" : reason.Trim();
+            if (IsFormal)
+            {
+                formalLifecycle.MarkTechnicalInvalid(reason);
+                PersistAssignments();
+                orchestrator.ResetForConditionSelection();
+                formalLifecycle.ClearCurrentConditionBoundary();
+                formalLifecycle.RecordStudyEvent(StudyEventType.ReturnedToModeSelection, "participant", reason);
+                formalLifecycle.RecordStudyEvent(StudyEventType.FormalModeSelectionShown, "system");
+            }
+            else
+            {
+                pilotWorkflow.MarkTechnicalInvalid("ParticipantNavigation", reason);
+                PersistAssignments();
+                orchestrator.ResetForConditionSelection();
+                pilotWorkflow.ResetPilotConditionBoundary();
+            }
+
+            currentPosition = -1;
+            WriteOperator("ParticipantReturnedToConditionSelection", detail: "reason=" + reason);
+            RefreshUi();
+            error = string.Empty;
+            return true;
+        }
+
         public bool Retry(out string error)
         {
             var ok = IsFormal ? formalLifecycle.PrepareCondition(currentPosition, true, out error)
@@ -266,6 +372,7 @@ namespace SceneTalkVR.Core
             var ui = FindFirstObjectByType<SceneTalkFlowUiController>(FindObjectsInactive.Include);
             if (!IsActive || ui == null) { error = !IsActive ? "rehearsal_session_not_active" : "scene_talk_flow_ui_missing"; return false; }
             finalRankingVisible = true;
+            ExperimentSessionCoordinator.Active?.NotifyRankingOpened();
             if (!IsDeviceValidation) ui.ShowRehearsalRanking(IsPilot);
             WriteOperator("OpenFinalRanking"); RefreshUi(); error = string.Empty; return true;
         }
@@ -524,7 +631,6 @@ namespace SceneTalkVR.Core
                 var current = formalLifecycle?.CurrentConditionAssignment;
                 if (current == null) return;
                 ExperimentSessionCoordinator.Active?.NotifyAttemptStarted(
-                    ExperimentPhaseKind.Formal,
                     current.formalConditionCode.ToString(),
                     current.task?.taskId,
                     formalLifecycle.ConditionRunId,
@@ -536,7 +642,6 @@ namespace SceneTalkVR.Core
             var pilot = pilotWorkflow?.Current;
             if (pilot == null) return;
             ExperimentSessionCoordinator.Active?.NotifyAttemptStarted(
-                ExperimentPhaseKind.Pilot,
                 PilotProtocolValues.Label(pilot.embodimentCondition),
                 pilot.task?.taskId,
                 pilotWorkflow.PilotRunId,
@@ -572,7 +677,8 @@ namespace SceneTalkVR.Core
         private static bool ValidateFormalRehearsal(ExperimentAssignment value, out string error)
         {
             if (value == null || value.flowMode != ExperimentFlowMode.Formal || value.runQualification != ExperimentRunQualification.Rehearsal
-                || value.dataOrigin != "rehearsal" || value.collectionEligible || value.developerTestAssignment || value.demoMode)
+                || value.dataOrigin != "rehearsal" || value.collectionEligible || value.developerTestAssignment || value.demoMode
+                || string.IsNullOrWhiteSpace(value.assistantEmbodimentSnapshot))
             { error = "formal_rehearsal_assignment_invalid"; return false; }
             error = string.Empty; return true;
         }

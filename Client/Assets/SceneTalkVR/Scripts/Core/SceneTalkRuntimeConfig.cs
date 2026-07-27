@@ -36,6 +36,9 @@ namespace SceneTalkVR.Core
         [SerializeField] private string directLlmApiUrl = "https://models.sjtu.edu.cn/api/v1/chat/completions";
         [SerializeField] private string directLlmModelName = "deepseek-chat";
 
+        [Header("Correction Policy")]
+        [SerializeField] private CorrectionPolicySettings correctionPolicy = new CorrectionPolicySettings();
+
         [Header("Avatar Dialogue Pacing")]
         [Range(0f, 1f)] [SerializeField] private float temperature = 0.7f;
         [Min(0)] [SerializeField] private int maxNonGoalQuestionsPerTask = 3;
@@ -66,6 +69,8 @@ namespace SceneTalkVR.Core
         public string DirectLlmModelName => string.IsNullOrWhiteSpace(directLlmModelName)
             ? "deepseek-chat"
             : directLlmModelName.Trim();
+        public CorrectionPolicySettings CorrectionPolicy =>
+            CorrectionPolicySettings.CloneNormalized(correctionPolicy);
         public float Temperature => Mathf.Clamp01(temperature);
         public int MaxNonGoalQuestionsPerTask => Mathf.Max(0, maxNonGoalQuestionsPerTask);
         public string PanoramaModelName => string.IsNullOrWhiteSpace(panoramaModelName)

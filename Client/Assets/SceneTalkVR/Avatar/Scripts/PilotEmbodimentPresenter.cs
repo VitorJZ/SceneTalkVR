@@ -52,7 +52,7 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             var presenter = ResolvePresenter(true);
-            var appearanceId = ResolveAppearanceId(value.embodimentCondition);
+            var appearanceId = AppearanceIdFor(value.embodimentCondition);
             if (!presenter.SetAppearanceId(appearanceId))
             {
                 error = "formal_assistant_embodiment_unavailable";
@@ -89,6 +89,20 @@ namespace SceneTalkVR.AvatarSystem
             presenter.BeginSpeaking();
         }
 
+        public AudioSource PrepareFeedbackAudioSource()
+        {
+            if (profile == null) return null;
+            var presenter = ResolvePresenter(false);
+            if (presenter == null) return null;
+
+            // The AudioSource is a child of the assistant visual root. It must be
+            // active before AvatarSpeechPlayer calls AudioSource.Play(); waiting
+            // until playbackStarted is too late because that callback runs after
+            // Play() has already been attempted.
+            presenter.ShowImmediate();
+            return presenter.AudioSource;
+        }
+
         public void EndFeedback()
         {
             ResolvePresenter(false)?.EndSpeaking();
@@ -108,6 +122,14 @@ namespace SceneTalkVR.AvatarSystem
 
             if (Active == this) Active = null;
             profile = null;
+        }
+
+        private void OnDestroy()
+        {
+            if (ReferenceEquals(Active, this))
+            {
+                Active = null;
+            }
         }
 
         private CorrectionAgentPresenter ResolvePresenter(bool createIfMissing)
@@ -130,7 +152,7 @@ namespace SceneTalkVR.AvatarSystem
             };
         }
 
-        private static string ResolveAppearanceId(PilotEmbodimentCondition condition)
+        public static string AppearanceIdFor(PilotEmbodimentCondition condition)
         {
             return condition switch
             {
