@@ -16,12 +16,12 @@ MonoBehaviour:
   formalAvatarMappings:
   - taskId: hotel_check_in
     taskRole: hotel receptionist / front desk clerk
-    avatarPresetKey: barista_humanoid_v1
+    avatarPresetKey: barista_male_humanoid_v1
     approvedForRehearsal: 1
     approvedForCollection: 0
   - taskId: furniture_shopping
     taskRole: furniture salesperson
-    avatarPresetKey: teacher_humanoid_v1
+    avatarPresetKey: barista_male_humanoid_v1
     approvedForRehearsal: 1
     approvedForCollection: 0
   - taskId: gym_membership
@@ -31,7 +31,7 @@ MonoBehaviour:
     approvedForCollection: 0
   - taskId: tourist_assistance
     taskRole: tourist information officer
-    avatarPresetKey: teacher_female_humanoid_v1
+    avatarPresetKey: barista_male_humanoid_v1
     approvedForRehearsal: 1
     approvedForCollection: 0
   pilotHumanoidPrefab: {fileID: 996461390545780520, guid: f996e4fd27273468099629141107f6ed, type: 3}

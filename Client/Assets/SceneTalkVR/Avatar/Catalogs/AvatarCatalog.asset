@@ -34,8 +34,7 @@ MonoBehaviour:
     approvedForEditorCollection: 1
     replaceableAsset: 1
     evidenceReference: formal-editor-collection-directive-v1
-    scenarioIds:
-    - hotel_check_in
+    scenarioIds: []
     roles:
     - barista
     - cafe_worker
@@ -92,8 +91,7 @@ MonoBehaviour:
     approvedForEditorCollection: 1
     replaceableAsset: 1
     evidenceReference: formal-editor-collection-directive-v1
-    scenarioIds:
-    - furniture_shopping
+    scenarioIds: []
     roles:
     - teacher
     - instructor
@@ -151,7 +149,14 @@ MonoBehaviour:
     replaceableAsset: 1
     evidenceReference: formal-editor-collection-directive-v1
     scenarioIds:
+    - hotel_check_in
+    - furniture_shopping
     - gym_membership
+    - tourist_assistance
+    - pilot_restaurant
+    - pilot_restaurant_walk_in
+    - pilot_restaurant_ordering
+    - pilot_restaurant_wrong_dish
     roles:
     - barista
     - cafe_worker
@@ -207,8 +212,7 @@ MonoBehaviour:
     approvedForEditorCollection: 1
     replaceableAsset: 1
     evidenceReference: formal-editor-collection-directive-v1
-    scenarioIds:
-    - tourist_assistance
+    scenarioIds: []
     roles:
     - teacher
     - instructor
