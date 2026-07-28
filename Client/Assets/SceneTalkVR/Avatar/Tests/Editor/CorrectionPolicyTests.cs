@@ -178,6 +178,95 @@ namespace SceneTalkVR.AvatarSystem.Tests.Editor
             }
         }
 
+        [Test]
+        public void ExplicitCorrectionPrompt_StartsDirectlyWithRule()
+        {
+            var host = new GameObject("Correction Prompt Prefix Test");
+            try
+            {
+                var service = host.AddComponent<RealLLMService>();
+                service.SetExperimentCondition(new CorrectionExperimentCondition
+                {
+                    provider = ExperimentConditionManager.AssistantAgentProvider,
+                    style = ExperimentConditionManager.ExplicitStyle
+                });
+
+                var prompt = (string)InvokePrivate(service, "BuildCorrectionSystemPrompt");
+
+                Assert.That(prompt, Does.Contain("Start directly with the correction rule"));
+                Assert.That(prompt, Does.Contain("Do NOT add a heading or label"));
+                Assert.That(prompt, Does.Not.Contain("'Grammar tip: [one short rule]"));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(host);
+            }
+        }
+
+        [TestCase("Grammar tip: Use 'are' with 'you'.", "Use 'are' with 'you'.")]
+        [TestCase("grammar tips：Try: \"I am ready.\"", "Try: \"I am ready.\"")]
+        [TestCase("Grammar tip — Use the past tense.", "Use the past tense.")]
+        [TestCase("Grammar tip, Use the past tense.", "Use the past tense.")]
+        [TestCase("Use the past tense.", "Use the past tense.")]
+        [TestCase("Grammar tips are useful.", "Grammar tips are useful.")]
+        public void GrammarTipPrefixGuard_RemovesOnlyLeadingLabel(string input, string expected)
+        {
+            Assert.That(
+                CorrectionTextGuards.RemoveGrammarTipPrefix(input),
+                Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void RealLlmFinalization_RemovesLegacyGrammarTipPrefix()
+        {
+            var host = new GameObject("Correction Prefix Finalization Test");
+            try
+            {
+                var service = host.AddComponent<RealLLMService>();
+                service.SetExperimentCondition(new CorrectionExperimentCondition
+                {
+                    provider = ExperimentConditionManager.AssistantAgentProvider,
+                    style = ExperimentConditionManager.ExplicitStyle
+                });
+                var feedback = Feedback(
+                    original: "I is ready",
+                    corrected: "I am ready",
+                    provider: string.Empty,
+                    style: string.Empty);
+                feedback.feedbackText = "Grammar tip: Use 'am' with 'I'. Try: \"I am ready.\"";
+
+                var finalized = (CorrectionFeedbackData)InvokePrivate(
+                    service,
+                    "FinalizeCorrectionFeedback",
+                    feedback.originalText,
+                    feedback);
+
+                Assert.That(
+                    finalized.feedbackText,
+                    Is.EqualTo("Use 'am' with 'I'. Try: \"I am ready.\""));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(host);
+            }
+        }
+
+        [Test]
+        public void CorrectionPresenter_RemovesLegacyGrammarTipPrefixBeforeTts()
+        {
+            var feedback = new CorrectionFeedbackData
+            {
+                hasFeedback = true,
+                style = ExperimentConditionManager.ExplicitStyle,
+                correctedText = "I am ready.",
+                feedbackText = "Grammar tips: Use 'am' with 'I'. Try: \"I am ready.\""
+            };
+
+            Assert.That(
+                CorrectionFeedbackPresenter.ResolveFeedbackText(feedback),
+                Is.EqualTo("Use 'am' with 'I'. Try: \"I am ready.\""));
+        }
+
         [TestCase(ExperimentConditionManager.ExplicitStyle)]
         [TestCase(ExperimentConditionManager.RecastStyle)]
         public void RealLlmFinalization_RepairsMissingSpokenCorrectionText(string style)
@@ -207,6 +296,7 @@ namespace SceneTalkVR.AvatarSystem.Tests.Editor
 
                 Assert.That(finalized.hasFeedback, Is.True);
                 Assert.That(finalized.feedbackText, Is.Not.Empty);
+                Assert.That(finalized.feedbackText, Does.Not.StartWith("Grammar tip"));
                 if (style == ExperimentConditionManager.RecastStyle)
                 {
                     Assert.That(finalized.recastText, Is.Not.Empty);

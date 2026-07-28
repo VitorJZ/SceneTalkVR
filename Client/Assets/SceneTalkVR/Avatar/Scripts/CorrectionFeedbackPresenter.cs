@@ -576,7 +576,7 @@ namespace SceneTalkVR.AvatarSystem
             };
         }
 
-        private static string ResolveFeedbackText(CorrectionFeedbackData feedback)
+        internal static string ResolveFeedbackText(CorrectionFeedbackData feedback)
         {
             if (feedback == null)
             {
@@ -590,9 +590,10 @@ namespace SceneTalkVR.AvatarSystem
                     : !string.IsNullOrWhiteSpace(feedback.feedbackText) ? feedback.feedbackText : feedback.correctedText;
             }
 
-            return !string.IsNullOrWhiteSpace(feedback.feedbackText)
+            var explicitText = !string.IsNullOrWhiteSpace(feedback.feedbackText)
                 ? feedback.feedbackText
                 : feedback.correctedText;
+            return CorrectionTextGuards.RemoveGrammarTipPrefix(explicitText);
         }
 
         private static bool IsSupportedProvider(string provider)

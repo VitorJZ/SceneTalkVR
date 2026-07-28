@@ -738,8 +738,9 @@ namespace SceneTalkVR.Runtime.Services
             {
                 builder.AppendLine("8. Generate unified feedback text under 'explicit' style:");
                 builder.AppendLine("   * Both Avatar and Agent MUST use the exact same explicit feedbackText.");
-                builder.AppendLine("   * You MUST use this exact format: 'Grammar tip: [one short rule]. Try: \"[correct expression]\".'");
-                builder.AppendLine("   * Example: 'Grammar tip: Use \"really\" before a verb, not \"very.\" Try: \"I really like this furniture.\"'");
+                builder.AppendLine("   * Start directly with the correction rule. You MUST use this exact format: '[one short rule]. Try: \"[correct expression]\".'");
+                builder.AppendLine("   * Do NOT add a heading or label such as 'Grammar tip' before the rule.");
+                builder.AppendLine("   * Example: 'Use \"really\" before a verb, not \"very.\" Try: \"I really like this furniture.\"'");
                 builder.AppendLine("   * You MUST set recastText = \"\".");
             }
 
@@ -757,7 +758,7 @@ namespace SceneTalkVR.Runtime.Services
             }
             else
             {
-                builder.AppendLine("  \"feedbackText\": \"Grammar tip: [rule]. Try: \\\"[correct expression]\\\" (explicit style)\",");
+                builder.AppendLine("  \"feedbackText\": \"[rule]. Try: \\\"[correct expression]\\\" (explicit style, without a heading or label)\",");
                 builder.AppendLine("  \"recastText\": \"\",");
             }
             builder.AppendLine("  \"targetSpan\": \"wrong phrase/word\",");
@@ -1038,7 +1039,7 @@ namespace SceneTalkVR.Runtime.Services
             builder.AppendLine("5. Customize feedbackText based on feedbackStyle and feedbackProvider:");
             builder.AppendLine("   - If style is 'explicit':");
             builder.AppendLine("     * If provider is 'dialogue_avatar': Keep it brief, conversational, and character-appropriate. You MUST use this exact format: 'Small correction: you can say, \"[correct expression]\".' Example: 'Small correction: you can say, \"I really like this furniture.\"' Do NOT include any grammar rules or explanations.");
-            builder.AppendLine("     * If provider is 'assistant_agent': Act as an instructor helper. You MUST use this exact format: 'Grammar tip: [one short rule]. Try: \"[correct expression]\".' Example: 'Grammar tip: Use \"really\" before a verb, not \"very.\" Try: \"I really like this furniture.\"' Limit the rule explanation to one short, simple sentence (at most 2 sentences total including the recommendation).");
+            builder.AppendLine("     * If provider is 'assistant_agent': Act as an instructor helper. Start directly with the correction rule and do not add a heading or label. You MUST use this exact format: '[one short rule]. Try: \"[correct expression]\".' Example: 'Use \"really\" before a verb, not \"very.\" Try: \"I really like this furniture.\"' Limit the rule explanation to one short, simple sentence (at most 2 sentences total including the recommendation).");
             builder.AppendLine("   - If style is 'recast':");
             builder.AppendLine("     * Strict Recast Rule: NEVER use direct correction words. You are FORBIDDEN from using any of these terms in feedbackText: 'you mean', 'should', 'should say', 'say', 'correct', 'wrong', 'mistake', 'instead', 'instead of', 'grammar tip', 'better way', 'remember to'.");
             builder.AppendLine("     * If provider is 'dialogue_avatar': The feedbackText should sound like the character natural confirmation or continuation of the talk. Example: 'Oh, you really like this furniture?'");
@@ -1162,13 +1163,7 @@ namespace SceneTalkVR.Runtime.Services
             else
             {
                 feedback.recastText = string.Empty;
-                if (string.IsNullOrWhiteSpace(feedback.feedbackText))
-                {
-                    feedback.feedbackText = BuildMinimalExplicitCorrection(feedback.correctedText);
-                    feedback.rationaleTag = AppendRationale(
-                        feedback.rationaleTag,
-                        "missing_spoken_feedback_repaired");
-                }
+                NormalizeExplicitFeedback(feedback);
             }
 
             return feedback;
@@ -1295,10 +1290,35 @@ namespace SceneTalkVR.Runtime.Services
         {
             if (!string.IsNullOrWhiteSpace(correctedText))
             {
-                return $"Grammar tip: Use this form. Try: \"{correctedText.Trim()}\".";
+                return $"Use this form. Try: \"{correctedText.Trim()}\".";
             }
 
-            return "Grammar tip: Please try that again using a complete, natural English sentence.";
+            return "Please try that again using a complete, natural English sentence.";
+        }
+
+        private static void NormalizeExplicitFeedback(CorrectionFeedbackData feedback)
+        {
+            if (feedback == null
+                || !feedback.hasFeedback
+                || !string.Equals(
+                    feedback.style,
+                    ExperimentConditionManager.ExplicitStyle,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            feedback.feedbackText = CorrectionTextGuards.RemoveGrammarTipPrefix(
+                feedback.feedbackText);
+            if (!string.IsNullOrWhiteSpace(feedback.feedbackText))
+            {
+                return;
+            }
+
+            feedback.feedbackText = BuildMinimalExplicitCorrection(feedback.correctedText);
+            feedback.rationaleTag = AppendRationale(
+                feedback.rationaleTag,
+                "missing_spoken_feedback_repaired");
         }
 
         private static string AppendRationale(string current, string next)
@@ -1371,6 +1391,8 @@ namespace SceneTalkVR.Runtime.Services
             // Force override provider and style to match the experiment condition exactly
             feedback.provider = currentCondition.provider == "assistant_agent" ? "assistant_agent" : "dialogue_avatar";
             feedback.style = currentCondition.style == "recast" ? "recast" : "explicit";
+
+            NormalizeExplicitFeedback(feedback);
 
             // 2. Dialogue Reply Leakage Guard (Unconditional)
             if (string.Equals(feedback.provider, "assistant_agent", StringComparison.OrdinalIgnoreCase))

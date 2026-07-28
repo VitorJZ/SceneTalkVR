@@ -90,5 +90,53 @@ namespace SceneTalkVR.Core
 
             return false;
         }
+
+        public static string RemoveGrammarTipPrefix(string feedbackText)
+        {
+            if (string.IsNullOrWhiteSpace(feedbackText))
+            {
+                return string.Empty;
+            }
+
+            var trimmed = feedbackText.Trim();
+            var prefixLength = ResolveGrammarTipPrefixLength(trimmed, "Grammar tips");
+            if (prefixLength == 0)
+            {
+                prefixLength = ResolveGrammarTipPrefixLength(trimmed, "Grammar tip");
+            }
+
+            return prefixLength == 0
+                ? trimmed
+                : trimmed.Substring(prefixLength).TrimStart();
+        }
+
+        private static int ResolveGrammarTipPrefixLength(string text, string prefix)
+        {
+            if (!text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return 0;
+            }
+
+            if (text.Length == prefix.Length)
+            {
+                return prefix.Length;
+            }
+
+            var delimiter = text[prefix.Length];
+            if (delimiter == ':'
+                || delimiter == '：'
+                || delimiter == '-'
+                || delimiter == '–'
+                || delimiter == '—'
+                || delimiter == ','
+                || delimiter == '，'
+                || delimiter == '.'
+                || delimiter == '。')
+            {
+                return prefix.Length + 1;
+            }
+
+            return 0;
+        }
     }
 }
