@@ -90,6 +90,7 @@ namespace SceneTalkVR.Tests.PlayMode
         {
             Create();AssertExitOverlay();
             var coordinator=ActiveObject("SceneTalkVR.Core.PilotCollectionSessionCoordinator, Assembly-CSharp");
+            var conditionIndex=0;
             foreach(var condition in Conditions(coordinator).Reverse())
             {
                 Click(Get(condition,"embodimentCondition")+"AppearanceButton");yield return null;
@@ -98,8 +99,21 @@ namespace SceneTalkVR.Tests.PlayMode
                 foreach(var phrase in PhrasesForTask((string)Get(Get(condition,"task"),"taskId")))EvaluatePilot(phrase);
                 yield return new WaitForSecondsRealtime(1f);
                 Assert.That(Active("PilotQuestionnairePanel"),Is.True);AssertExitOverlay();
-                foreach(var item in new[]{"pilot_rc_01","pilot_sc_01","pilot_accept_01"})Click(item+"_4");
-                Click("PilotQuestionnaireSubmitButton");yield return null;
+                if(conditionIndex++==0)
+                {
+                    var skip=Button("PilotQuestionnaireSkipButton");var submit=Button("PilotQuestionnaireSubmitButton");
+                    Assert.That(skip.GetComponent<RectTransform>().anchoredPosition.x,Is.LessThan(submit.GetComponent<RectTransform>().anchoredPosition.x));
+                    Click("PilotQuestionnaireSkipButton");yield return null;
+                    Assert.That(Active("PilotQuestionnairePanel"),Is.True);
+                    Assert.That(skip.GetComponentInChildren<TMP_Text>(true).text,Is.EqualTo("确认跳过"));
+                    Click("PilotQuestionnaireSkipButton");yield return null;
+                    Assert.That(Get(condition,"status").ToString(),Is.EqualTo("Completed"));
+                }
+                else
+                {
+                    foreach(var item in new[]{"pilot_rc_01","pilot_sc_01","pilot_accept_01"})Click(item+"_4");
+                    Click("PilotQuestionnaireSubmitButton");yield return null;
+                }
             }
             var orchestrator=ActiveObject("SceneTalkVR.Runtime.SceneTalkOrchestrator, Assembly-CSharp");
             Assert.That(Get(orchestrator,"CurrentState").ToString(),Is.EqualTo("ExperimentRanking"));
@@ -142,6 +156,7 @@ namespace SceneTalkVR.Tests.PlayMode
             Assert.That((bool)Get(coordinator,"IsDeviceValidation"),Is.True);Assert.That((bool)Get(coordinator,"IsArmed"),Is.True);
             var context=Get(coordinator,"RuntimeContext");Assert.That((bool)Get(context,"collectionEligible"),Is.False);Assert.That(Get(context,"dataOrigin"),Is.EqualTo("rehearsal"));Assert.That(Get(context,"deploymentProfile"),Is.EqualTo("pico_device_validation"));
             var chosenOrder=Conditions(coordinator).Reverse().ToArray();
+            var deviceConditionIndex=0;
             foreach(var condition in chosenOrder)
             {
                 var embodiment=Get(condition,"embodimentCondition");
@@ -149,8 +164,8 @@ namespace SceneTalkVR.Tests.PlayMode
                 Click(embodiment+"AppearanceButton");yield return null;
                 Assert.That(Get(Get(coordinator,"CurrentTask"),"taskId"),Is.EqualTo(expectedTask));
                 Click("PilotTaskContinueButton");yield return null;CompletePilotGoalsForQa(coordinator);yield return new WaitForSecondsRealtime(1f);
-                foreach(var item in new[]{"pilot_rc_01","pilot_sc_01","pilot_accept_01"})Click(item+"_4");
-                Click("PilotQuestionnaireSubmitButton");yield return null;
+                if(deviceConditionIndex++==0){Click("PilotQuestionnaireSkipButton");Click("PilotQuestionnaireSkipButton");yield return null;}
+                else{foreach(var item in new[]{"pilot_rc_01","pilot_sc_01","pilot_accept_01"})Click(item+"_4");Click("PilotQuestionnaireSubmitButton");yield return null;}
             }
             var recordedOrder=((IEnumerable)Get(Get(coordinator,"Assignment"),"participantSelectionOrder")).Cast<object>().Select(x=>x.ToString()).ToArray();
             Assert.That(recordedOrder,Is.EqualTo(chosenOrder.Select(x=>Get(x,"embodimentCondition").ToString()).ToArray()));

@@ -133,6 +133,25 @@ namespace SceneTalkVR.Tests.PlayMode
             Assert.That(Get(Get(questionnaire, "ActiveSession"), "completionStatus").ToString(), Is.EqualTo("Submitted")); Assert.That(Active("QuestionnairePanel"), Is.False); Assert.That(Active("FormalModeSelectionPanel"), Is.True); Assert.That(Get(selected, "status").ToString(), Is.EqualTo("Completed"));
         }
 
+        [UnityTest] public IEnumerator T06B_QuestionnaireSkipRequiresConfirmationAndReturnsToModesWithoutAnswers()
+        {
+            Arm(out var assignment); StartFormalFlow(); yield return null; var selected = ConditionForTask(assignment, "hotel_check_in"); Click(Get(selected, "formalConditionCode") + "ModeButton"); yield return null; CompleteTask("hotel_check_in"); yield return null;
+            Assert.That(Active("QuestionnairePanel"), Is.True);
+            for (var i = 0; i < 10; i++) { Click("NextButton"); yield return null; }
+            var skip = Button("SkipButton"); var submit = Button("SubmitButton");
+            Assert.That(skip.gameObject.activeInHierarchy, Is.True);
+            Assert.That(skip.GetComponent<RectTransform>().anchoredPosition.x, Is.LessThan(submit.GetComponent<RectTransform>().anchoredPosition.x));
+            Click("SkipButton"); yield return null;
+            Assert.That(Active("QuestionnairePanel"), Is.True);
+            Assert.That(skip.GetComponentInChildren<TMP_Text>(true).text, Is.EqualTo("确认跳过"));
+            Assert.That(Get(Get(questionnaire, "ActiveSession"), "completionStatus").ToString(), Is.EqualTo("InProgress"));
+            Click("SkipButton"); yield return null;
+            Assert.That(Get(Get(questionnaire, "ActiveSession"), "completionStatus").ToString(), Is.EqualTo("Skipped"));
+            Assert.That(Active("QuestionnairePanel"), Is.False);
+            Assert.That(Active("FormalModeSelectionPanel"), Is.True);
+            Assert.That(Get(selected, "status").ToString(), Is.EqualTo("Completed"));
+        }
+
         [UnityTest] public IEnumerator T07_ResumeKeepsMappingAndGoalSnapshot()
         {
             Arm(out var assignment); StartFormalFlow(); yield return null; var selected = ConditionForTask(assignment, "hotel_check_in"); Click(Get(selected, "formalConditionCode") + "ModeButton"); yield return null; Evaluate("My name is Harry Potter."); CompleteEvaluatedTurn(expectedAdvance: false); yield return null;

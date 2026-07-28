@@ -86,6 +86,8 @@ namespace SceneTalkVR.Core
         public string previousRevisionId;
         public string startedAtUtc;
         public string submittedAtUtc;
+        public string skippedAtUtc;
+        public string completionReason;
         public int currentPage;
         public QuestionnaireResponse[] responses = Array.Empty<QuestionnaireResponse>();
         public QuestionnaireScoreResult[] sectionScores = Array.Empty<QuestionnaireScoreResult>();
@@ -98,6 +100,41 @@ namespace SceneTalkVR.Core
         public bool demoMode;
         public string demoProtocolVersion;
         public bool autoFilledForDemo;
+    }
+
+    [Serializable]
+    public sealed class QuestionnaireCompletionRecord
+    {
+        public string schemaVersion = "1.0";
+        public string eventType;
+        public string timestampUtc;
+        public string protocolVersion;
+        public string questionnaireCatalogVersion;
+        public string participantId;
+        public string sessionId;
+        public string sequenceId;
+        public string conditionRunId;
+        public string questionnaireLinkageKey;
+        public int conditionPosition;
+        public string formalConditionCode;
+        public string embodimentCondition;
+        public string conditionStatus;
+        public string taskId;
+        public string taskAssignmentId;
+        public string questionnaireId;
+        public string questionnaireStatus;
+        public float completionRate;
+        public int answeredCount;
+        public int totalItemCount;
+        public bool hasMissing;
+        public string technicalValidity;
+        public string completionReason;
+        public string runtimeMode;
+        public string dataOrigin;
+        public bool collectionEligible;
+        public bool developerTestAssignment;
+        public bool demoMode;
+        public string demoProtocolVersion;
     }
 
     [Serializable]
@@ -187,7 +224,7 @@ namespace SceneTalkVR.Core
 
         public bool SetResponse(string itemId, string rawValue, out string error)
         {
-            if (ActiveSession == null || Definition == null || ActiveSession.completionStatus == QuestionnaireCompletionStatus.Submitted)
+            if (ActiveSession == null || Definition == null || IsTerminal(ActiveSession.completionStatus))
             { error = "questionnaire_not_editable"; return false; }
             var item = catalog.GetEnabledItems(Definition.questionnaireId, protocol).FirstOrDefault(x => x.itemId == itemId);
             if (item == null) { error = "questionnaire_item_not_enabled"; return false; }
@@ -211,6 +248,7 @@ namespace SceneTalkVR.Core
         {
             if (ActiveSession == null || Definition == null) { error = "questionnaire_not_started"; return false; }
             if (ActiveSession.completionStatus == QuestionnaireCompletionStatus.Submitted) { error = "questionnaire_already_submitted"; return false; }
+            if (ActiveSession.completionStatus == QuestionnaireCompletionStatus.Skipped) { error = "questionnaire_already_skipped"; return false; }
             foreach (var item in catalog.GetEnabledItems(Definition.questionnaireId, protocol).Where(x => x.required))
             {
                 var answer = ActiveSession.responses?.FirstOrDefault(x => x.itemId == item.itemId);
@@ -219,22 +257,34 @@ namespace SceneTalkVR.Core
             error = string.Empty; return true;
         }
 
+        public bool CanSkip(out string error)
+        {
+            if (ActiveSession == null || Definition == null) { error = "questionnaire_not_started"; return false; }
+            if (ActiveSession.completionStatus == QuestionnaireCompletionStatus.Submitted) { error = "questionnaire_already_submitted"; return false; }
+            if (ActiveSession.completionStatus == QuestionnaireCompletionStatus.Skipped) { error = "questionnaire_already_skipped"; return false; }
+            if (ActiveSession.completionStatus != QuestionnaireCompletionStatus.InProgress
+                && ActiveSession.completionStatus != QuestionnaireCompletionStatus.Reopened)
+            { error = "questionnaire_not_skippable"; return false; }
+            if (ActiveSession.technicalValidity == ExperimentTechnicalValidity.TechnicalInvalid)
+            { error = "technical_invalid_condition"; return false; }
+            if (string.IsNullOrWhiteSpace(ActiveSession.conditionRunId)
+                || string.IsNullOrWhiteSpace(ActiveSession.questionnaireLinkageKey))
+            { error = "questionnaire_linkage_missing"; return false; }
+            error = string.Empty; return true;
+        }
+
         public bool Submit(string folder, out string error)
         {
             if (!CanSubmit(out error)) return false;
-            ActiveSession.submittedAtUtc = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
-            ActiveSession.completionStatus = QuestionnaireCompletionStatus.Submitted;
-            foreach (var response in ActiveSession.responses)
-            {
-                response.submittedAtUtc = ActiveSession.submittedAtUtc;
-                response.questionnaireStatus = QuestionnaireCompletionStatus.Submitted.ToString();
-                response.questionnaireSubmittedAtUtc = ActiveSession.submittedAtUtc;
-                response.conditionStatusEnumValue = (int)ConditionRunStatus.Completed;
-                response.conditionStatus = ConditionRunStatus.Completed.ToString();
-                response.conditionCompletedAtUtc = ActiveSession.submittedAtUtc;
-            }
-            RefreshSummary(); QuestionnaireResearchExporter.AppendResponses(folder, ActiveSession);
-            SaveDraft(); SessionChanged?.Invoke(ActiveSession); return true;
+            FinalizeSession(folder, QuestionnaireCompletionStatus.Submitted);
+            return true;
+        }
+
+        public bool Skip(string folder, out string error)
+        {
+            if (!CanSkip(out error)) return false;
+            FinalizeSession(folder, QuestionnaireCompletionStatus.Skipped);
+            return true;
         }
 
         public bool Restore(string path, string expectedLinkageKey, string expectedProtocolVersion, string expectedCatalogVersion, out string error)
@@ -315,12 +365,39 @@ namespace SceneTalkVR.Core
             }).ToArray();
         }
 
+        private void FinalizeSession(string folder, QuestionnaireCompletionStatus outcome)
+        {
+            var completedAt = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
+            var submitted = outcome == QuestionnaireCompletionStatus.Submitted;
+            ActiveSession.completionStatus = outcome;
+            ActiveSession.conditionStatus = ConditionRunStatus.Completed;
+            ActiveSession.submittedAtUtc = submitted ? completedAt : string.Empty;
+            ActiveSession.skippedAtUtc = submitted ? string.Empty : completedAt;
+            ActiveSession.completionReason = submitted ? "participant_submitted" : "participant_skipped";
+            foreach (var response in ActiveSession.responses ?? Array.Empty<QuestionnaireResponse>())
+            {
+                response.submittedAtUtc = submitted ? completedAt : string.Empty;
+                response.questionnaireStatus = outcome.ToString();
+                response.questionnaireSubmittedAtUtc = submitted ? completedAt : string.Empty;
+                response.conditionStatusEnumValue = (int)ConditionRunStatus.Completed;
+                response.conditionStatus = ConditionRunStatus.Completed.ToString();
+                response.conditionCompletedAtUtc = completedAt;
+            }
+            RefreshSummary();
+            QuestionnaireResearchExporter.AppendResponses(folder, ActiveSession);
+            QuestionnaireResearchExporter.AppendCompletion(folder, ActiveSession, completedAt);
+            SaveDraft();
+            SessionChanged?.Invoke(ActiveSession);
+        }
+
         private void SaveDraft()
         {
             try { Directory.CreateDirectory(DefaultFolder); File.WriteAllText(DraftPath, JsonUtility.ToJson(ActiveSession, true), Encoding.UTF8); }
             catch (Exception ex) { Debug.LogWarning("[Questionnaire] Draft save failed: " + ex.Message); }
         }
         public void Reset(){ActiveSession=null;Definition=null;SessionChanged?.Invoke(null);}
+        private static bool IsTerminal(QuestionnaireCompletionStatus status)
+            => status == QuestionnaireCompletionStatus.Submitted || status == QuestionnaireCompletionStatus.Skipped;
         private static string Safe(string value) => string.IsNullOrWhiteSpace(value) ? "unknown" : string.Concat(value.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
     }
 
@@ -338,6 +415,47 @@ namespace SceneTalkVR.Core
                 File.AppendAllText(json, JsonUtility.ToJson(r) + Environment.NewLine, Encoding.UTF8);
                 File.AppendAllText(csv, string.Join(",", new[] { r.schemaVersion,r.protocolVersion,r.questionnaireCatalogVersion,r.participantId,r.sessionId,r.sequenceId,r.conditionRunId,r.questionnaireLinkageKey,r.conditionPosition.ToString(),r.assignmentPolicyEnumValue.ToString(),r.assignmentPolicy,r.formalConditionEnumValue.ToString(),r.formalConditionCode,r.embodimentCondition,r.conditionStatusEnumValue.ToString(),r.conditionStatus,r.taskId,r.taskAssignmentId,r.questionnaireId,r.sectionId,r.itemId,r.itemVersion,r.rawValue,r.responseCapturedAtUtc,r.hasScoredValue?r.scoredValue.ToString(CultureInfo.InvariantCulture):"",r.reverseScored.ToString(),r.scaleMin.ToString(),r.scaleMax.ToString(),r.missing.ToString(),r.revision.ToString(),r.submittedAtUtc,r.questionnaireStatus,r.questionnaireSubmittedAtUtc,r.conditionCompletedAtUtc,r.technicalValidityEnumValue.ToString(),r.technicalValidity }.Select(Csv)) + Environment.NewLine, Encoding.UTF8);
             }
+        }
+        public static void AppendCompletion(string folder, QuestionnaireSession session, string completedAtUtc)
+        {
+            Directory.CreateDirectory(folder);
+            var submitted = session.completionStatus == QuestionnaireCompletionStatus.Submitted;
+            var responses = session.responses ?? Array.Empty<QuestionnaireResponse>();
+            var record = new QuestionnaireCompletionRecord
+            {
+                eventType = submitted ? "QuestionnaireSubmitted" : "QuestionnaireSkipped",
+                timestampUtc = completedAtUtc,
+                protocolVersion = session.protocolVersion,
+                questionnaireCatalogVersion = session.questionnaireCatalogVersion,
+                participantId = session.participantId,
+                sessionId = session.sessionId,
+                sequenceId = session.sequenceId,
+                conditionRunId = session.conditionRunId,
+                questionnaireLinkageKey = session.questionnaireLinkageKey,
+                conditionPosition = session.conditionPosition,
+                formalConditionCode = string.IsNullOrWhiteSpace(session.embodimentCondition) ? session.formalCondition.ToString() : string.Empty,
+                embodimentCondition = session.embodimentCondition ?? string.Empty,
+                conditionStatus = ConditionRunStatus.Completed.ToString(),
+                taskId = session.taskId,
+                taskAssignmentId = session.taskAssignmentId,
+                questionnaireId = session.questionnaireId,
+                questionnaireStatus = session.completionStatus.ToString(),
+                completionRate = session.completionRate,
+                answeredCount = responses.Count(x => !string.IsNullOrWhiteSpace(x.rawValue)),
+                totalItemCount = session.sectionScores?.Sum(x => x.itemCount) ?? 0,
+                hasMissing = session.hasMissing,
+                technicalValidity = session.technicalValidity.ToString(),
+                completionReason = session.completionReason,
+                runtimeMode = session.runtimeMode,
+                dataOrigin = session.dataOrigin,
+                collectionEligible = session.collectionEligible,
+                developerTestAssignment = session.developerTestAssignment,
+                demoMode = session.demoMode,
+                demoProtocolVersion = session.demoProtocolVersion
+            };
+            var path = Path.Combine(folder,
+                $"{FileToken(session.participantId)}_{FileToken(session.sessionId)}_questionnaire_events_v1.jsonl");
+            File.AppendAllText(path, JsonUtility.ToJson(record) + Environment.NewLine, Encoding.UTF8);
         }
         public static void AppendRanking(string folder, PreferenceRankingResponse response)
         { Directory.CreateDirectory(folder); File.AppendAllText(Path.Combine(folder, $"{FileToken(response.participantId)}_{FileToken(response.sessionId)}_ranking_v1.jsonl"), JsonUtility.ToJson(response) + Environment.NewLine, Encoding.UTF8); }

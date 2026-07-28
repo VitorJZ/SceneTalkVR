@@ -188,20 +188,29 @@ namespace SceneTalkVR.Core
         }
         public bool IsTaskPrepared(string taskId)=>IsArmed&&Stage==PilotParticipantStage.Dialogue&&workflow?.Current?.status==PilotRunStatus.Running&&string.Equals(workflow.Current.task?.taskId,taskId,StringComparison.OrdinalIgnoreCase);
         public bool SubmitQuestionnaire(out string error)
+            => CompleteQuestionnaire(false, out error);
+        public bool SkipQuestionnaire(out string error)
+            => CompleteQuestionnaire(true, out error);
+        private bool CompleteQuestionnaire(bool skip, out string error)
         {
             if(Stage!=PilotParticipantStage.Questionnaire){error="pilot_questionnaire_not_visible";return false;}
             if(IsDeviceValidation)
             {
                 if(rehearsal==null){error="device_validation_rehearsal_session_missing";return false;}
-                if(!rehearsal.SubmitQuestionnaire(out error))return false;
+                var completed=skip?rehearsal.SkipQuestionnaire(out error):rehearsal.SubmitQuestionnaire(out error);
+                if(!completed)return false;
             }
-            else if(!workflow.SubmitQuestionnaire(out error))return false;
-            ExperimentSessionCoordinator.Active?.NotifyAttemptCompleted("questionnaire_submitted");
+            else
+            {
+                var completed=skip?workflow.SkipQuestionnaire(out error):workflow.SubmitQuestionnaire(out error);
+                if(!completed)return false;
+            }
+            ExperimentSessionCoordinator.Active?.NotifyAttemptCompleted(skip?"questionnaire_skipped":"questionnaire_submitted");
             Persist();
             workflow.ResetPilotConditionBoundary();currentPosition=-1;
             if(Assignment.conditions.All(x=>x.status==PilotRunStatus.Completed)){Stage=PilotParticipantStage.FinalRanking;ExperimentSessionCoordinator.Active?.NotifyRankingOpened();}
             else Stage=PilotParticipantStage.AppearanceSelection;
-            Write("PilotQuestionnaireSubmitted");RefreshUi();return true;
+            Write(skip?"PilotQuestionnaireSkipped":"PilotQuestionnaireSubmitted");RefreshUi();return true;
         }
         public void ContinueAfterTransition(){if(IsArmed)Stage=PilotParticipantStage.AppearanceSelection;RefreshUi();}
         public bool SubmitFinalRanking(PreferenceRankingResponse value,out string error)

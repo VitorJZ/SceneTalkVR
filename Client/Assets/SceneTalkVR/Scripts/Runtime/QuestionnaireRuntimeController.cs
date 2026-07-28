@@ -67,7 +67,7 @@ namespace SceneTalkVR.Runtime
 
         public bool CompletePage(int pageIndex, out string error)
         {
-            if (ActiveSession == null || ActiveSession.completionStatus == QuestionnaireCompletionStatus.Submitted)
+            if (ActiveSession == null || IsTerminal(ActiveSession.completionStatus))
             { error = "questionnaire_not_editable"; return false; }
             ActiveSession.currentPage = Mathf.Max(0, pageIndex);
             lifecycle.RecordStudyEvent(StudyEventType.QuestionnairePageCompleted, "participant", "page:" + pageIndex);
@@ -81,6 +81,14 @@ namespace SceneTalkVR.Runtime
             if (!lifecycle.ValidateQuestionnaireSubmission(ActiveSession.conditionRunId, ActiveSession.questionnaireLinkageKey, out error)) return false;
             if (!service.Submit(QuestionnaireSessionService.DefaultFolder, out error)) return false;
             return lifecycle.CompleteQuestionnaireSubmission(ActiveSession.conditionRunId, ActiveSession.questionnaireLinkageKey, out error);
+        }
+
+        public bool Skip(out string error)
+        {
+            if (!service.CanSkip(out error)) return false;
+            if (!lifecycle.ValidateQuestionnaireSubmission(ActiveSession.conditionRunId, ActiveSession.questionnaireLinkageKey, out error)) return false;
+            if (!service.Skip(QuestionnaireSessionService.DefaultFolder, out error)) return false;
+            return lifecycle.CompleteQuestionnaireSkip(ActiveSession.conditionRunId, ActiveSession.questionnaireLinkageKey, out error);
         }
 
         public bool RestoreCurrentDraft(out string error)
@@ -126,5 +134,7 @@ namespace SceneTalkVR.Runtime
         }
 
         private void ForwardChanged(QuestionnaireSession session) => QuestionnaireChanged?.Invoke(session);
+        private static bool IsTerminal(QuestionnaireCompletionStatus status)
+            => status == QuestionnaireCompletionStatus.Submitted || status == QuestionnaireCompletionStatus.Skipped;
     }
 }

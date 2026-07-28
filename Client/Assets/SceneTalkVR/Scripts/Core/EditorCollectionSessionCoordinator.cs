@@ -443,10 +443,11 @@ namespace SceneTalkVR.Core
             RefreshUi();
         }
 
-        private void OnQuestionnaireSubmitted()
+        private void OnQuestionnaireCompleted(QuestionnaireCompletionStatus outcome)
         {
             if (!IsArmed) return;
-            ExperimentSessionCoordinator.Active?.NotifyAttemptCompleted("questionnaire_submitted");
+            var skipped = outcome == QuestionnaireCompletionStatus.Skipped;
+            ExperimentSessionCoordinator.Active?.NotifyAttemptCompleted(skipped ? "questionnaire_skipped" : "questionnaire_submitted");
             PersistGoalSnapshot();
             PersistAssignment();
             orchestrator.ResetForConditionSelection();
@@ -478,7 +479,7 @@ namespace SceneTalkVR.Core
         {
             if (subscribed || lifecycle == null) return;
             lifecycle.QuestionnaireRequested += OnQuestionnaireRequested;
-            lifecycle.QuestionnaireSubmitted += OnQuestionnaireSubmitted;
+            lifecycle.QuestionnaireCompleted += OnQuestionnaireCompleted;
             lifecycle.GoalTracker.OnGoalProgressChanged += OnGoalProgressChanged;
             subscribed = true;
         }
@@ -487,7 +488,7 @@ namespace SceneTalkVR.Core
         {
             if (!subscribed || lifecycle == null) return;
             lifecycle.QuestionnaireRequested -= OnQuestionnaireRequested;
-            lifecycle.QuestionnaireSubmitted -= OnQuestionnaireSubmitted;
+            lifecycle.QuestionnaireCompleted -= OnQuestionnaireCompleted;
             lifecycle.GoalTracker.OnGoalProgressChanged -= OnGoalProgressChanged;
             subscribed = false;
         }

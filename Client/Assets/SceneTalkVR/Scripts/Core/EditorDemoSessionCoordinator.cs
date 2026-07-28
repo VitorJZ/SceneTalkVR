@@ -233,6 +233,14 @@ namespace SceneTalkVR.Core
             return result;
         }
 
+        public bool SkipQuestionnaire(out string error)
+        {
+            var result = IsFormalDemo ? questionnaire.Skip(out error)
+                : IsPilotDemo ? pilot.SkipQuestionnaire(out error) : Fail(out error, "editor_demo_not_active");
+            if (result) { WriteOperator("SkipQuestionnaire"); PersistAssignments(); RefreshUi(); }
+            return result;
+        }
+
         public bool AutoFillFinalRanking(out string error)
         {
             error = string.Empty;

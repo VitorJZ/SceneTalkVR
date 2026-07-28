@@ -93,6 +93,8 @@ namespace SceneTalkVR.Runtime
             return value switch
             {
                 "questionnaire_already_submitted" => "此问卷已经提交。",
+                "questionnaire_already_skipped" => "此问卷已经跳过。",
+                "questionnaire_not_skippable" => "当前问卷不能跳过。",
                 "Avatar voice playback failed. Please retry." => "角色语音播放失败，请重试。",
                 "Please try again." => "请重试。",
                 "Failed to load default task definition." => "无法加载默认任务。",
@@ -156,6 +158,7 @@ namespace SceneTalkVR.Runtime
                 QuestionnaireCompletionStatus.InProgress => "填写中",
                 QuestionnaireCompletionStatus.Reopened => "已重新打开",
                 QuestionnaireCompletionStatus.Submitted => "已提交",
+                QuestionnaireCompletionStatus.Skipped => "已跳过",
                 QuestionnaireCompletionStatus.Incompatible => "不兼容",
                 QuestionnaireCompletionStatus.Rejected => "已拒绝",
                 _ => "未开始"

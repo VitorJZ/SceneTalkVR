@@ -17,13 +17,14 @@ namespace SceneTalkVR.Runtime
         private readonly Dictionary<string,Button> answerButtons=new(); private readonly Dictionary<PilotEmbodimentCondition,int> ranks=new();
         private readonly Dictionary<string,Button> rankButtons=new(); private PilotEmbodimentCondition? preferred;
         private readonly Dictionary<PilotEmbodimentCondition,Button> appearanceButtons=new(); private readonly Dictionary<PilotEmbodimentCondition,TMP_Text> appearanceStatuses=new();
+        private Button questionnaireSkipButton; private bool questionnaireSkipConfirmationArmed;
         private string questionnaireLinkage; private int builtTaskPosition=-2;
 
         public void Configure(Canvas targetCanvas,SceneTalkOrchestrator targetOrchestrator)
         {
             canvas=targetCanvas;orchestrator=targetOrchestrator;EnsureCoordinator();Build();
         }
-        public void ResetForCanvasRebuild(){setup=selection=introduction=questionnaire=ranking=completion=null;participantInput=sessionInput=reasonInput=null;setupError=introductionText=questionnaireError=rankingError=null;answerButtons.Clear();rankButtons.Clear();appearanceButtons.Clear();appearanceStatuses.Clear();ranks.Clear();questionnaireLinkage="";builtTaskPosition=-2;}
+        public void ResetForCanvasRebuild(){setup=selection=introduction=questionnaire=ranking=completion=null;participantInput=sessionInput=reasonInput=null;setupError=introductionText=questionnaireError=rankingError=null;questionnaireSkipButton=null;questionnaireSkipConfirmationArmed=false;answerButtons.Clear();rankButtons.Clear();appearanceButtons.Clear();appearanceStatuses.Clear();ranks.Clear();questionnaireLinkage="";builtTaskPosition=-2;}
         public void ResetFinalRankingDraft()
         {
             foreach(var condition in ranks.Keys.ToArray())ranks[condition]=0;
@@ -73,7 +74,8 @@ namespace SceneTalkVR.Runtime
             Label(questionnaire.transform,"Title","问卷",new Vector2(0,238),new Vector2(820,42),28);
             Label(questionnaire.transform,"Anchors","1 = 非常不同意     7 = 非常同意",new Vector2(0,198),new Vector2(820,34),17);
             questionnaireError=Label(questionnaire.transform,"Validation","",new Vector2(0,-214),new Vector2(800,34),17);
-            Button(questionnaire.transform,"PilotQuestionnaireSubmitButton","提交",new Vector2(0,-258),SubmitQuestionnaire,new Vector2(210,44));
+            questionnaireSkipButton=Button(questionnaire.transform,"PilotQuestionnaireSkipButton","跳过",new Vector2(-120,-258),SkipQuestionnaire,new Vector2(210,44));
+            Button(questionnaire.transform,"PilotQuestionnaireSubmitButton","提交",new Vector2(120,-258),SubmitQuestionnaire,new Vector2(210,44));
 
             ranking=Panel("PilotFinalRankingPanel",new Vector2(900,570));
             Label(ranking.transform,"Title","最终反馈排序",new Vector2(0,238),new Vector2(790,44),28);
@@ -99,13 +101,30 @@ namespace SceneTalkVR.Runtime
         private void BuildQuestionnaire()
         {
             var service=coordinator?.Workflow?.Questionnaire;var session=service?.ActiveSession;if(session==null||questionnaireLinkage==session.questionnaireLinkageKey)return;
-            questionnaireLinkage=session.questionnaireLinkageKey;foreach(var item in answerButtons.Values.Select(x=>x.gameObject).ToArray())Destroy(item.transform.parent.gameObject);answerButtons.Clear();
+            questionnaireLinkage=session.questionnaireLinkageKey;ResetQuestionnaireSkipConfirmation();foreach(var item in answerButtons.Values.Select(x=>x.gameObject).ToArray())Destroy(item.transform.parent.gameObject);answerButtons.Clear();
             var definition=service.Definition;var manager=FindFirstObjectByType<ExperimentConditionManager>();var enabled=manager.QuestionnaireCatalog.GetEnabledItems(definition.questionnaireId,manager.ExperimentProtocol).ToArray();
             for(var i=0;i<enabled.Length;i++){var item=enabled[i];var y=128-i*105;var row=new GameObject("PilotQuestion_"+item.itemId,typeof(RectTransform));row.transform.SetParent(questionnaire.transform,false);Label(row.transform,"Prompt",item.promptChinese,new Vector2(-175,y),new Vector2(470,68),17,TextAnchor.MiddleLeft);for(var value=1;value<=7;value++){var captured=value;var button=Button(row.transform,item.itemId+"_"+value,value.ToString(),new Vector2(92+(value-1)*48,y),()=>SetAnswer(item.itemId,captured),new Vector2(42,42));answerButtons[item.itemId+":"+value]=button;}}
         }
-        private void SetAnswer(string item,int value){coordinator.Workflow.Questionnaire.SetResponse(item,value.ToString(),out var error);questionnaireError.text=Humanize(error);RefreshAnswers();}
+        private void SetAnswer(string item,int value){ResetQuestionnaireSkipConfirmation();coordinator.Workflow.Questionnaire.SetResponse(item,value.ToString(),out var error);questionnaireError.text=Humanize(error);RefreshAnswers();}
         private void RefreshAnswers(){var responses=coordinator?.Workflow?.Questionnaire?.ActiveSession?.responses??Array.Empty<QuestionnaireResponse>();foreach(var pair in answerButtons){var split=pair.Key.LastIndexOf(':');var item=pair.Key[..split];var value=pair.Key[(split+1)..];var selected=responses.Any(x=>x.itemId==item&&x.rawValue==value);pair.Value.GetComponent<Image>().color=selected?new Color(.12f,.68f,.34f,1):new Color(.12f,.38f,.62f,1);}}
-        private void SubmitQuestionnaire(){if(!coordinator.SubmitQuestionnaire(out var error)){questionnaireError.text=Humanize(error);return;}questionnaireError.text="";}
+        private void SubmitQuestionnaire(){ResetQuestionnaireSkipConfirmation();if(!coordinator.SubmitQuestionnaire(out var error)){questionnaireError.text=Humanize(error);return;}questionnaireError.text="";}
+        private void SkipQuestionnaire()
+        {
+            if(!questionnaireSkipConfirmationArmed)
+            {
+                questionnaireSkipConfirmationArmed=true;
+                questionnaireError.text="跳过将保留已填写内容并继续实验，请再次点击“确认跳过”。";
+                questionnaireSkipButton.GetComponentInChildren<TMP_Text>().text="确认跳过";
+                return;
+            }
+            if(!coordinator.SkipQuestionnaire(out var error)){questionnaireError.text=Humanize(error);return;}
+            ResetQuestionnaireSkipConfirmation();questionnaireError.text="";
+        }
+        private void ResetQuestionnaireSkipConfirmation()
+        {
+            questionnaireSkipConfirmationArmed=false;
+            if(questionnaireSkipButton!=null)questionnaireSkipButton.GetComponentInChildren<TMP_Text>().text="跳过";
+        }
         private void SelectRank(PilotEmbodimentCondition condition,int rank)
         {
             var previousRank=ranks[condition];
@@ -128,6 +147,7 @@ namespace SceneTalkVR.Runtime
             if(stage==PilotParticipantStage.AppearanceSelection)RefreshAppearanceSelection();
             if(stage==PilotParticipantStage.TaskIntroduction&&builtTaskPosition!=coordinator.CurrentPosition){builtTaskPosition=coordinator.CurrentPosition;var task=coordinator.CurrentTask;if(task!=null)introductionText.text=SceneTalkChineseUiText.TaskName(task.taskId,task.displayName)+"\n\n"+SceneTalkChineseUiText.TaskContext(task.taskId,task.context)+"\n\n沟通目标：\n"+string.Join("\n",task.goals.Select(x=>"• "+SceneTalkChineseUiText.Goal(x.goalId,x.text)));}
             if(stage==PilotParticipantStage.Questionnaire){BuildQuestionnaire();RefreshAnswers();questionnaire.transform.SetAsLastSibling();}
+            else if(questionnaireSkipConfirmationArmed)ResetQuestionnaireSkipConfirmation();
             if(stage==PilotParticipantStage.FinalRanking)ranking.transform.SetAsLastSibling();if(stage==PilotParticipantStage.Completion)completion.transform.SetAsLastSibling();
             if(stage!=PilotParticipantStage.None)GetComponent<SceneTalkFlowUiController>()?.BringExitButtonToFront();
         }

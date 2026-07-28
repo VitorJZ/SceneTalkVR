@@ -66,6 +66,18 @@ namespace SceneTalkVR.Tests.Editor
         [Test] public void Auditor_FailsWhenQuestionnaireMissing()
         {WithTemp(root=>{var result=SyntheticDryRunEngine.RunFormal(root,"p","missing-q");File.Delete(Path.Combine(result.bundleDirectory,"questionnaire","questionnaire.jsonl"));var audit=SessionDataIntegrityAuditor.Audit(result.bundleDirectory,"p","missing-q");Assert.That(audit.result,Is.EqualTo(DataIntegritySeverity.Fail));Assert.That(audit.findings.Any(x=>x.checkId.Contains("questionnaire")||x.checkId.Contains("bundle")),Is.True);});}
 
+        [Test] public void Auditor_AcceptsSkippedQuestionnaireWithoutItemRows()
+        {WithTemp(root=>{WriteQuestionnaireAuditFixture(root,"{\"eventType\":\"QuestionnaireSkipped\",\"conditionRunId\":\"run\",\"questionnaireLinkageKey\":\"link\",\"questionnaireStatus\":\"Skipped\"}");var audit=SessionDataIntegrityAuditor.Audit(root,"p","s");Assert.That(audit.result,Is.EqualTo(DataIntegritySeverity.Pass),string.Join("; ",audit.findings.Select(x=>x.checkId+":"+x.message)));});}
+
+        [Test] public void Auditor_RejectsSubmittedQuestionnaireWithoutItemRows()
+        {WithTemp(root=>{WriteQuestionnaireAuditFixture(root,"{\"eventType\":\"QuestionnaireSubmitted\",\"conditionRunId\":\"run\",\"questionnaireLinkageKey\":\"link\",\"questionnaireStatus\":\"Submitted\"}");var audit=SessionDataIntegrityAuditor.Audit(root,"p","s");Assert.That(audit.result,Is.EqualTo(DataIntegritySeverity.Fail));Assert.That(audit.findings.Any(x=>x.checkId=="questionnaire_required_items_missing"),Is.True);});}
+
+        [Test] public void Auditor_RejectsQuestionnaireWithSubmittedAndSkippedTerminals()
+        {WithTemp(root=>{WriteQuestionnaireAuditFixture(root,"{\"eventType\":\"QuestionnaireSubmitted\",\"conditionRunId\":\"run\",\"questionnaireLinkageKey\":\"link\"}"+Environment.NewLine+"{\"eventType\":\"QuestionnaireSkipped\",\"conditionRunId\":\"run\",\"questionnaireLinkageKey\":\"link\"}");var audit=SessionDataIntegrityAuditor.Audit(root,"p","s");Assert.That(audit.result,Is.EqualTo(DataIntegritySeverity.Fail));Assert.That(audit.findings.Any(x=>x.checkId=="questionnaire_terminal_count"),Is.True);});}
+
+        [Test] public void Auditor_RejectsSkippedQuestionnaireWithoutLinkage()
+        {WithTemp(root=>{WriteQuestionnaireAuditFixture(root,"{\"eventType\":\"QuestionnaireSkipped\",\"conditionRunId\":\"run\",\"questionnaireStatus\":\"Skipped\"}");var audit=SessionDataIntegrityAuditor.Audit(root,"p","s");Assert.That(audit.result,Is.EqualTo(DataIntegritySeverity.Fail));Assert.That(audit.findings.Any(x=>x.checkId=="questionnaire_linkage_or_duplicate"),Is.True);});}
+
         [Test] public void ProtocolVersionChange_StillInvalidatesOldAssignment()
         {var a=new ExperimentAssignment{assignmentVersion=ExperimentAssignmentAllocator.AssignmentVersion,protocolVersion="old",taskCatalogVersion="tasks"};Assert.That(ExperimentAssignmentAllocator.IsCompatible(a,"new","tasks",out var reason),Is.False);Assert.That(reason,Is.EqualTo("protocol_version_changed"));}
 
@@ -75,6 +87,14 @@ namespace SceneTalkVR.Tests.Editor
             return new ProtocolDecisionIntakeDocument{decisions=ProtocolDecisionIntakeValidator.RequiredDecisionIds.Select(id=>new ProtocolDecisionIntakeItem{decisionId=id,proposedValue=Value(id),allowedValues=Array.Empty<string>(),confirmedBy=approved?"researcher":"",confirmedAtUtc=approved?"2026-07-19T00:00:00Z":"",evidenceReference=approved?"approval/minutes":"",approvalStatus=approved?"Approved":"Draft"}).ToArray()};
         }
         private static void AssertManifest(string bundle,string mode,int expected){var manifest=JsonUtility.FromJson<SessionBundleManifest>(File.ReadAllText(Path.Combine(bundle,"manifest.json")));Assert.That(manifest.dataOrigin,Is.EqualTo("synthetic_dry_run"));Assert.That(manifest.collectionEligible,Is.False);Assert.That(manifest.sessionMode,Is.EqualTo(mode));var assignment=File.ReadAllText(Path.Combine(bundle,"assignment","assignment.json"));StringAssert.Contains("\"developerTestAssignment\": true",assignment);StringAssert.Contains("\"collectionEligible\": false",assignment);if(mode=="formal")StringAssert.Contains("\"formalConditionLabel\": \"NE\"",assignment);else StringAssert.Contains("\"embodimentConditionLabel\": \"voice_only\"",assignment);Assert.That(expected,Is.GreaterThan(0));}
+        private static void WriteQuestionnaireAuditFixture(string root,string questionnaire)
+        {
+            var assignment=Path.Combine(root,"assignment");var study=Path.Combine(root,"study");var folder=Path.Combine(root,"questionnaire");
+            Directory.CreateDirectory(assignment);Directory.CreateDirectory(study);Directory.CreateDirectory(folder);
+            File.WriteAllText(Path.Combine(assignment,"assignment.json"),"{\"participantId\":\"p\",\"experimentSessionId\":\"s\"}");
+            File.WriteAllText(Path.Combine(study,"study.jsonl"),"{\"eventType\":\"ConditionCompleted\",\"conditionRunId\":\"run\",\"technicalValidity\":\"Valid\"}"+Environment.NewLine);
+            File.WriteAllText(Path.Combine(folder,"questionnaire.jsonl"),questionnaire+Environment.NewLine);
+        }
         private static void WithTemp(Action<string> body){var path=Path.Combine(Path.GetTempPath(),"SceneTalkVR-stage8-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(path);try{body(path);}finally{if(Directory.Exists(path))Directory.Delete(path,true);}}
     }
 }

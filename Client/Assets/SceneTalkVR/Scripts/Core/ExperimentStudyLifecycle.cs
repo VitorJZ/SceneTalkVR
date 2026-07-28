@@ -23,7 +23,7 @@ namespace SceneTalkVR.Core
         QuestionnaireOpened, QuestionnaireResponseChanged, ReturnedToModeSelection,
         AllFormalConditionsCompleted, FinalRankingOpened,
         GoalActivated, GoalAwaitingAvatarReply, GoalSequenceAdvanced, GoalSequenceCompleted,
-        GoalAwaitingParticipantTurn
+        GoalAwaitingParticipantTurn, QuestionnaireSkipped
     }
 
     [Serializable]
@@ -103,6 +103,7 @@ namespace SceneTalkVR.Core
 
         public event Action QuestionnaireRequested;
         public event Action QuestionnaireSubmitted;
+        public event Action<QuestionnaireCompletionStatus> QuestionnaireCompleted;
         public event Action<string> TaskLimitReached;
 
         public ExperimentAssignment Assignment => assignment;
@@ -425,14 +426,28 @@ namespace SceneTalkVR.Core
         }
 
         public bool CompleteQuestionnaireSubmission(string conditionRunId, string linkageKey, out string error, string actor = "participant")
+            => CompleteQuestionnaire(conditionRunId, linkageKey, QuestionnaireCompletionStatus.Submitted, out error, actor);
+
+        public bool CompleteQuestionnaireSkip(string conditionRunId, string linkageKey, out string error, string actor = "participant")
+            => CompleteQuestionnaire(conditionRunId, linkageKey, QuestionnaireCompletionStatus.Skipped, out error, actor);
+
+        private bool CompleteQuestionnaire(string conditionRunId, string linkageKey,
+            QuestionnaireCompletionStatus outcome, out string error, string actor)
         {
             if (!ValidateQuestionnaireSubmission(conditionRunId, linkageKey, out error)) return false;
-            currentCondition.status = ConditionRunStatus.QuestionnaireSubmitted;
-            WriteEvent(StudyEventType.QuestionnaireSubmitted, actor: actor);
+            var submitted = outcome == QuestionnaireCompletionStatus.Submitted;
+            if (!submitted && outcome != QuestionnaireCompletionStatus.Skipped)
+            { error = "questionnaire_completion_outcome_invalid"; return false; }
+            currentCondition.status = submitted
+                ? ConditionRunStatus.QuestionnaireSubmitted
+                : ConditionRunStatus.QuestionnaireSkipped;
+            WriteEvent(submitted ? StudyEventType.QuestionnaireSubmitted : StudyEventType.QuestionnaireSkipped,
+                reason: submitted ? "questionnaire_submitted" : "questionnaire_skipped", actor: actor);
             currentCondition.status = ConditionRunStatus.Completed;
             WriteEvent(StudyEventType.ConditionCompleted, reason: CompletionReason, actor: actor);
             if (AllConditionsCompleted()) { assignment.status = AssignmentStatus.Completed; WriteEvent(StudyEventType.AllFormalConditionsCompleted, actor: actor); }
-            QuestionnaireSubmitted?.Invoke();
+            if (submitted) QuestionnaireSubmitted?.Invoke();
+            QuestionnaireCompleted?.Invoke(outcome);
             error = string.Empty; return true;
         }
 

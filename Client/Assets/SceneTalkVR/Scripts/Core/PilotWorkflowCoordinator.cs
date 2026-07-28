@@ -57,7 +57,36 @@ namespace SceneTalkVR.Core
         {
             if(current==null||current.status!=PilotRunStatus.AwaitingPilotQuestionnaire){error="pilot_not_awaiting_questionnaire";return false;}var def=conditionManager.QuestionnaireCatalog?.Find("pilot_condition_v1");var context=new QuestionnaireSession{protocolVersion=assignment.pilotProtocolVersion,questionnaireCatalogVersion=conditionManager.QuestionnaireCatalog.CatalogVersion,participantId=assignment.participantId,sessionId=assignment.sessionId,sequenceId=assignment.sequenceId,conditionRunId=PilotRunId,questionnaireLinkageKey=QuestionnaireLinkageKey,conditionPosition=current.conditionPosition,embodimentCondition=PilotProtocolValues.Label(current.embodimentCondition),taskId=current.task.taskId,taskAssignmentId=current.task.taskAssignmentId,technicalValidity=ExperimentTechnicalValidity.Valid,conditionStatus=ConditionRunStatus.QuestionnaireInProgress,runtimeMode=assignment.runtimeMode.ToString(),dataOrigin=assignment.dataOrigin,collectionEligible=assignment.collectionEligible,developerTestAssignment=assignment.developerTestAssignment,demoMode=assignment.demoMode,demoProtocolVersion=assignment.demoProtocolVersion};questionnaire.Configure(conditionManager.QuestionnaireCatalog,conditionManager.ExperimentProtocol);if(!questionnaire.Begin(def,context,out error))return false;current.status=PilotRunStatus.PilotQuestionnaireInProgress;Write("PilotQuestionnaireStarted");RunStatusChanged?.Invoke(current.status);return true;
         }
-        public bool SubmitQuestionnaire(out string error){if(current==null||current.status!=PilotRunStatus.PilotQuestionnaireInProgress){error="pilot_questionnaire_not_in_progress";return false;}if(!questionnaire.Submit(PilotCollectionSessionCoordinator.Active?.CurrentDataFolder??QuestionnaireSessionService.DefaultFolder,out error))return false;current.status=PilotRunStatus.PilotQuestionnaireSubmitted;Write("PilotQuestionnaireSubmitted");current.status=PilotRunStatus.Completed;presenter.ResetSession();Write("PilotConditionCompleted");RunStatusChanged?.Invoke(current.status);return true;}
+        public bool SubmitQuestionnaire(out string error)
+            => CompleteQuestionnaire(QuestionnaireCompletionStatus.Submitted, out error);
+        public bool SkipQuestionnaire(out string error)
+            => CompleteQuestionnaire(QuestionnaireCompletionStatus.Skipped, out error);
+        private bool CompleteQuestionnaire(QuestionnaireCompletionStatus outcome, out string error)
+        {
+            if(current==null||current.status!=PilotRunStatus.PilotQuestionnaireInProgress)
+            {error="pilot_questionnaire_not_in_progress";return false;}
+            var folder=PilotCollectionSessionCoordinator.Active?.CurrentDataFolder??QuestionnaireSessionService.DefaultFolder;
+            var submitted=outcome==QuestionnaireCompletionStatus.Submitted;
+            if(submitted)
+            {
+                if(!questionnaire.Submit(folder,out error))return false;
+                current.status=PilotRunStatus.PilotQuestionnaireSubmitted;
+                Write("PilotQuestionnaireSubmitted");
+            }
+            else if(outcome==QuestionnaireCompletionStatus.Skipped)
+            {
+                if(!questionnaire.Skip(folder,out error))return false;
+                current.status=PilotRunStatus.PilotQuestionnaireSkipped;
+                Write("PilotQuestionnaireSkipped",reason:"questionnaire_skipped");
+            }
+            else {error="questionnaire_completion_outcome_invalid";return false;}
+            current.status=PilotRunStatus.Completed;
+            presenter.ResetSession();
+            Write("PilotConditionCompleted");
+            RunStatusChanged?.Invoke(current.status);
+            error="";
+            return true;
+        }
         public bool SubmitFinalRanking(PreferenceRankingResponse ranking,out string error)
         {
             if(assignment?.conditions==null||Array.Exists(assignment.conditions,x=>x.status!=PilotRunStatus.Completed)){error="pilot_final_ranking_requires_three_valid_conditions";return false;}

@@ -6,7 +6,7 @@ using UnityEngine;
 namespace SceneTalkVR.Core
 {
     public enum QuestionnaireItemType { Likert, SingleChoice, Ranking, ShortText, LongText, ExperimenterNote }
-    public enum QuestionnaireCompletionStatus { NotStarted, InProgress, Submitted, Reopened, Incompatible, Rejected }
+    public enum QuestionnaireCompletionStatus { NotStarted, InProgress, Submitted, Reopened, Incompatible, Rejected, Skipped }
     public enum QuestionnaireAudience { FormalCondition, PilotCondition, FormalFinal, PilotFinal, Interview }
 
     [Serializable]

@@ -19,9 +19,11 @@ namespace SceneTalkVR.Runtime
         private TMP_Text validationText;
         private Button previousButton;
         private Button nextButton;
+        private Button skipButton;
         private Button submitButton;
         private int page;
         private bool submitConfirmationArmed;
+        private bool skipConfirmationArmed;
         private readonly List<GameObject> pageObjects = new List<GameObject>();
         private readonly Dictionary<string, Button> likertButtons = new Dictionary<string, Button>();
         private readonly Dictionary<string, int> itemPages = new Dictionary<string, int>();
@@ -46,6 +48,7 @@ namespace SceneTalkVR.Runtime
         {
             if (session == null) { if (panel != null) panel.SetActive(false); return; }
             EnsureBuilt();
+            ResetConfirmations();
             if (!string.Equals(activeLinkageKey, session.questionnaireLinkageKey, StringComparison.Ordinal))
             {
                 activeLinkageKey = session.questionnaireLinkageKey;
@@ -53,7 +56,7 @@ namespace SceneTalkVR.Runtime
             }
             ShowPage(Mathf.Clamp(session.currentPage, 0, Mathf.Max(0, pageObjects.Count - 1)), false);
             RefreshLikertSelection(session);
-            panel.SetActive(session.completionStatus != QuestionnaireCompletionStatus.Submitted);
+            panel.SetActive(!IsTerminal(session.completionStatus));
             if (panel.activeSelf)
             {
                 panel.transform.SetAsLastSibling();
@@ -76,6 +79,7 @@ namespace SceneTalkVR.Runtime
             content = Node(panel.transform, "SectionContent").transform;
             previousButton = Button(panel.transform, "PreviousButton", "上一页", new Vector2(-260, -246), Previous);
             nextButton = Button(panel.transform, "NextButton", "下一页", new Vector2(0, -246), Next);
+            skipButton = Button(panel.transform, "SkipButton", "跳过", new Vector2(130, -246), Skip);
             submitButton = Button(panel.transform, "SubmitButton", "提交", new Vector2(260, -246), Submit);
             ApplyUserScale();
         }
@@ -122,12 +126,13 @@ namespace SceneTalkVR.Runtime
         private void ShowPage(int value, bool recordNavigation)
         {
             if (pageObjects.Count == 0) return;
-            page = Mathf.Clamp(value, 0, pageObjects.Count - 1); submitConfirmationArmed = false;
+            page = Mathf.Clamp(value, 0, pageObjects.Count - 1);
+            ResetConfirmations();
             for (var i = 0; i < pageObjects.Count; i++) pageObjects[i].SetActive(i == page);
             progressText.text = $"第 {page + 1} / {pageObjects.Count} 页";
             previousButton.interactable = page > 0; nextButton.interactable = page < pageObjects.Count - 1;
+            skipButton.gameObject.SetActive(page == pageObjects.Count - 1);
             submitButton.gameObject.SetActive(page == pageObjects.Count - 1);
-            submitButton.GetComponentInChildren<TMP_Text>().text = "提交";
             if (recordNavigation) controller.CompletePage(page, out _);
         }
         public void Previous() => ShowPage(page - 1);
@@ -135,6 +140,7 @@ namespace SceneTalkVR.Runtime
         public void Submit()
         {
             if (submissionInProgress) return;
+            CancelSkipConfirmation();
             if (!controller.Service.CanSubmit(out var error))
             {
                 validationText.text = Humanize(error);
@@ -152,6 +158,25 @@ namespace SceneTalkVR.Runtime
             validationText.text = "已提交"; panel.SetActive(false);
         }
 
+        public void Skip()
+        {
+            if (submissionInProgress) return;
+            CancelSubmitConfirmation();
+            if (!controller.Service.CanSkip(out var error))
+            { validationText.text = Humanize(error); return; }
+            if (!skipConfirmationArmed)
+            {
+                skipConfirmationArmed = true;
+                validationText.text = "跳过将保留已填写内容并继续实验，请再次点击“确认跳过”。";
+                skipButton.GetComponentInChildren<TMP_Text>().text = "确认跳过";
+                return;
+            }
+            submissionInProgress = true;
+            if (!controller.Skip(out error)) { submissionInProgress = false; validationText.text = Humanize(error); return; }
+            submissionInProgress = false;
+            validationText.text = "已跳过"; panel.SetActive(false);
+        }
+
         private void RefreshLikertSelection(QuestionnaireSession session)
         {
             var selected = (session.responses ?? Array.Empty<QuestionnaireResponse>())
@@ -164,9 +189,30 @@ namespace SceneTalkVR.Runtime
                 pair.Value.GetComponent<Image>().color = selected.TryGetValue(item, out var current) && current == value
                     ? new Color(.12f, .68f, .34f, 1f) : new Color(0.12f, 0.38f, 0.62f, 1f);
             }
-            if (validationText != null && session.completionStatus != QuestionnaireCompletionStatus.Submitted)
+            if (validationText != null && !IsTerminal(session.completionStatus))
                 validationText.text = session.hasMissing ? "请完成所有必答题。" : "所有必答题均已完成。";
         }
+
+        private void ResetConfirmations()
+        {
+            CancelSubmitConfirmation();
+            CancelSkipConfirmation();
+        }
+
+        private void CancelSubmitConfirmation()
+        {
+            submitConfirmationArmed = false;
+            if (submitButton != null) submitButton.GetComponentInChildren<TMP_Text>().text = "提交";
+        }
+
+        private void CancelSkipConfirmation()
+        {
+            skipConfirmationArmed = false;
+            if (skipButton != null) skipButton.GetComponentInChildren<TMP_Text>().text = "跳过";
+        }
+
+        private static bool IsTerminal(QuestionnaireCompletionStatus status)
+            => status == QuestionnaireCompletionStatus.Submitted || status == QuestionnaireCompletionStatus.Skipped;
 
         private static string Humanize(string error)
         {

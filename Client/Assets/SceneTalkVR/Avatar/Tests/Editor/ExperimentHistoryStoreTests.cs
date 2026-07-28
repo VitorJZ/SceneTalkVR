@@ -205,6 +205,38 @@ namespace SceneTalkVR.AvatarSystem.Tests.Editor
         }
 
         [Test]
+        public void SkippedQuestionnaireStatusAndPartialResponsesRoundTripWithoutMigration()
+        {
+            using var store = new SqliteLearningMemoryStore(databasePath);
+            store.Initialize();
+            store.CreateExperiment(CreateExperiment("exp-skipped-questionnaire", 1000, ExperimentKind.Formal));
+            store.UpsertQuestionnaire(new ExperimentQuestionnaireRecord
+            {
+                experimentId = "exp-skipped-questionnaire",
+                attemptId = "attempt-skip",
+                session = new QuestionnaireSession
+                {
+                    questionnaireId = "formal_condition_v1",
+                    questionnaireLinkageKey = "skip-linkage",
+                    completionStatus = QuestionnaireCompletionStatus.Skipped,
+                    completionRate = .25f,
+                    hasMissing = true,
+                    skippedAtUtc = "2026-07-28T00:00:00Z",
+                    completionReason = "participant_skipped",
+                    responses = new[] { new QuestionnaireResponse { itemId = "q1", rawValue = "5", questionnaireStatus = "Skipped" } }
+                }
+            });
+
+            var session = store.GetExperiment("exp-skipped-questionnaire").questionnaires.Single().session;
+            Assert.That(session.completionStatus, Is.EqualTo(QuestionnaireCompletionStatus.Skipped));
+            Assert.That(session.completionRate, Is.EqualTo(.25f));
+            Assert.That(session.hasMissing, Is.True);
+            Assert.That(session.skippedAtUtc, Is.EqualTo("2026-07-28T00:00:00Z"));
+            Assert.That(session.completionReason, Is.EqualTo("participant_skipped"));
+            Assert.That(session.responses.Single().questionnaireStatus, Is.EqualTo("Skipped"));
+        }
+
+        [Test]
         public void PilotAndFormalAreIndependentRecords()
         {
             using var store = new SqliteLearningMemoryStore(databasePath);

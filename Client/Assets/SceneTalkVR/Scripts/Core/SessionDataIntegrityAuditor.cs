@@ -84,9 +84,32 @@ namespace SceneTalkVR.Core
 
         private static void ValidateQuestionnaire(List<(Envelope item,string file,int line)> records,SessionBundleManifest m,List<DataIntegrityFinding> f)
         {
-            var q=records.Where(x=>x.file.IndexOf("questionnaire",StringComparison.OrdinalIgnoreCase)>=0).ToArray();var completed=records.Where(x=>x.item.eventType=="ConditionCompleted"&&!string.Equals(x.item.technicalValidity,"TechnicalInvalid",StringComparison.OrdinalIgnoreCase)).Select(x=>x.item.conditionRunId).Distinct().ToArray();foreach(var run in completed){var submits=q.Where(x=>x.item.conditionRunId==run&&(x.item.eventType=="QuestionnaireSubmitted"||x.item.questionnaireStatus=="Submitted")).Select(x=>x.item.questionnaireLinkageKey).Distinct().ToArray();if(submits.Length!=1)Add(f,DataIntegritySeverity.Fail,"questionnaire_submit_count",run);if(!q.Any(x=>x.item.conditionRunId==run&&x.item.eventType=="QuestionnaireItem"))Add(f,DataIntegritySeverity.Fail,"questionnaire_required_items_missing",run);}
+            var q=records.Where(x=>x.file.IndexOf("questionnaire",StringComparison.OrdinalIgnoreCase)>=0).ToArray();
+            var completed=records.Where(x=>x.item.eventType=="ConditionCompleted"&&!string.Equals(x.item.technicalValidity,"TechnicalInvalid",StringComparison.OrdinalIgnoreCase)).Select(x=>x.item.conditionRunId).Distinct().ToArray();
+            foreach(var run in completed)
+            {
+                var explicitTerminals=q.Where(x=>x.item.conditionRunId==run&&(x.item.eventType=="QuestionnaireSubmitted"||x.item.eventType=="QuestionnaireSkipped")).ToArray();
+                string outcome;
+                string linkage;
+                if(explicitTerminals.Length>0)
+                {
+                    var distinct=explicitTerminals.Select(x=>(outcome:x.item.eventType,linkage:x.item.questionnaireLinkageKey)).Distinct().ToArray();
+                    if(explicitTerminals.Length!=1||distinct.Length!=1)Add(f,DataIntegritySeverity.Fail,"questionnaire_terminal_count",run);
+                    outcome=distinct[0].outcome;
+                    linkage=distinct[0].linkage;
+                }
+                else
+                {
+                    var legacyLinks=q.Where(x=>x.item.conditionRunId==run&&x.item.questionnaireStatus=="Submitted").Select(x=>x.item.questionnaireLinkageKey).Distinct().ToArray();
+                    if(legacyLinks.Length!=1){Add(f,DataIntegritySeverity.Fail,"questionnaire_terminal_count",run);continue;}
+                    outcome="QuestionnaireSubmitted";
+                    linkage=legacyLinks[0];
+                }
+                if(string.IsNullOrWhiteSpace(linkage))Add(f,DataIntegritySeverity.Fail,"questionnaire_linkage_or_duplicate",run);
+                if(outcome=="QuestionnaireSubmitted"&&!q.Any(x=>x.item.conditionRunId==run&&x.item.eventType=="QuestionnaireItem"))
+                    Add(f,DataIntegritySeverity.Fail,"questionnaire_required_items_missing",run);
+            }
             foreach(var item in q.Where(x=>x.item.eventType=="QuestionnaireItem")){if(item.item.revision<1||string.IsNullOrWhiteSpace(item.item.rawValue)||item.item.scoredValue<1||item.item.scoredValue>7)Add(f,DataIntegritySeverity.Fail,"questionnaire_value_invalid",item.item.conditionRunId,item.file,item.line);if(item.item.reverseScored&&float.TryParse(item.item.rawValue,NumberStyles.Float,CultureInfo.InvariantCulture,out var raw)&&Math.Abs(item.item.scoredValue-(8-raw))>.001f)Add(f,DataIntegritySeverity.Fail,"reverse_score_invalid",item.item.conditionRunId,item.file,item.line);}
-            foreach(var link in q.Where(x=>x.item.eventType=="QuestionnaireSubmitted"||x.item.questionnaireStatus=="Submitted").GroupBy(x=>x.item.questionnaireLinkageKey))if(string.IsNullOrWhiteSpace(link.Key))Add(f,DataIntegritySeverity.Fail,"questionnaire_linkage_or_duplicate",link.Key??"<empty>");
         }
 
         private static void ValidateRankingInterview(List<(Envelope item,string file,int line)> records,SessionBundleManifest m,List<DataIntegrityFinding> f)
@@ -94,7 +117,7 @@ namespace SceneTalkVR.Core
             if(m==null)return;var formal=m.sessionMode?.IndexOf("formal",StringComparison.OrdinalIgnoreCase)>=0;var expected=formal?new[]{"NE","NR","SE","SR"}:new[]{"voice_only","floating_orb","humanoid_agent"};var type=formal?"FinalRankingEntry":"PilotFinalRankingEntry";var ranking=records.Where(x=>x.item.eventType==type).Select(x=>x.item).ToArray();if(ranking.Length!=expected.Length||ranking.Select(x=>x.rank).Distinct().Count()!=expected.Length||!new HashSet<string>(ranking.Select(x=>x.conditionLabel),StringComparer.OrdinalIgnoreCase).SetEquals(expected))Add(f,DataIntegritySeverity.Fail,"ranking_incomplete_or_duplicate",m.sessionMode);var lastCompleted=records.Where(x=>x.item.eventType=="ConditionCompleted").Select(x=>x.item.monotonicElapsedMs).DefaultIfEmpty(-1).Max();var submitted=records.FirstOrDefault(x=>x.item.eventType==(formal?"FinalRankingSubmitted":"PilotFinalRankingSubmitted")).item;if(submitted==null||submitted.monotonicElapsedMs<=lastCompleted)Add(f,DataIntegritySeverity.Fail,"ranking_submitted_too_early",m.sessionMode);if(formal&&!records.Any(x=>x.item.eventType=="InterviewSaved"&&!string.IsNullOrWhiteSpace(x.item.interviewLinkageKey)))Add(f,DataIntegritySeverity.Fail,"interview_linkage_missing","formal");if(!formal){var played=records.Where(x=>x.item.eventType=="CorrectionPlaybackStarted").Select(x=>x.item.feedbackTextHash).ToArray();if(played.Any(string.IsNullOrWhiteSpace))Add(f,DataIntegritySeverity.Fail,"pilot_feedback_hash_missing","pilot");}
         }
 
-        private static Envelope Parse(string json,string file,int line,List<DataIntegrityFinding> findings){try{var value=JsonUtility.FromJson<Envelope>(json);if(value==null)return null;if(string.IsNullOrWhiteSpace(value.conditionRunId))value.conditionRunId=value.pilotRunId;if(string.IsNullOrWhiteSpace(value.eventType)&&!string.IsNullOrWhiteSpace(value.itemId))value.eventType="QuestionnaireItem";if(value.eventType=="PilotConditionPrepared")value.eventType="ConditionPrepared";else if(value.eventType=="PilotConditionStarted")value.eventType="ConditionStarted";else if(value.eventType=="PilotConditionCompleted")value.eventType="ConditionCompleted";else if(value.eventType=="PilotConditionBoundaryReset")value.eventType="ConditionBoundaryReset";else if(value.eventType=="PilotTechnicalInvalid")value.eventType="ConditionTechnicalInvalid";else if(value.eventType=="PilotQuestionnaireSubmitted")value.eventType="QuestionnaireSubmitted";return value;}catch{Add(findings,DataIntegritySeverity.Fail,"json_parse","Invalid JSON record.",file,line);return null;}}
+        private static Envelope Parse(string json,string file,int line,List<DataIntegrityFinding> findings){try{var value=JsonUtility.FromJson<Envelope>(json);if(value==null)return null;if(string.IsNullOrWhiteSpace(value.conditionRunId))value.conditionRunId=value.pilotRunId;if(string.IsNullOrWhiteSpace(value.eventType)&&!string.IsNullOrWhiteSpace(value.itemId))value.eventType="QuestionnaireItem";if(value.eventType=="PilotConditionPrepared")value.eventType="ConditionPrepared";else if(value.eventType=="PilotConditionStarted")value.eventType="ConditionStarted";else if(value.eventType=="PilotConditionCompleted")value.eventType="ConditionCompleted";else if(value.eventType=="PilotConditionBoundaryReset")value.eventType="ConditionBoundaryReset";else if(value.eventType=="PilotTechnicalInvalid")value.eventType="ConditionTechnicalInvalid";else if(value.eventType=="PilotQuestionnaireSubmitted")value.eventType="QuestionnaireSubmitted";else if(value.eventType=="PilotQuestionnaireSkipped")value.eventType="QuestionnaireSkipped";return value;}catch{Add(findings,DataIntegritySeverity.Fail,"json_parse","Invalid JSON record.",file,line);return null;}}
         private static bool IsJsonData(string path)=>path.EndsWith(".json",StringComparison.OrdinalIgnoreCase)||path.EndsWith(".jsonl",StringComparison.OrdinalIgnoreCase);
         private static string[] Snapshot(string root)=>Directory.GetFiles(root,"*",SearchOption.AllDirectories).OrderBy(x=>x).Select(x=>$"{x}|{new FileInfo(x).Length}|{File.GetLastWriteTimeUtc(x).Ticks}").ToArray();
         private static SessionDataIntegrityReport Build(string p,string s,List<DataIntegrityFinding> list,DataIntegritySeverity severity,string id,string source){Add(list,severity,id,id,source);return new SessionDataIntegrityReport{generatedAtUtc=DateTime.UtcNow.ToString("o"),participantId=p,sessionId=s,result=severity,findings=list.ToArray()};}

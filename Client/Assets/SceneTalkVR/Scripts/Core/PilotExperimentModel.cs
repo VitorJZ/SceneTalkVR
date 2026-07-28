@@ -13,7 +13,7 @@ namespace SceneTalkVR.Core
     public enum PilotVisualMode { None, FloatingOrb, Humanoid }
     public enum PilotFeedbackStyleChoice { Undefined, Explicit, Recast }
     public enum PilotAudioSourcePolicy { Undefined, SpatialFixedSource, NonSpatialHeadLocked }
-    public enum PilotRunStatus { Assigned, Preparing, Running, TaskCompleted, AwaitingPilotQuestionnaire, PilotQuestionnaireInProgress, PilotQuestionnaireSubmitted, Completed, TechnicalInvalid, Aborted }
+    public enum PilotRunStatus { Assigned, Preparing, Running, TaskCompleted, AwaitingPilotQuestionnaire, PilotQuestionnaireInProgress, PilotQuestionnaireSubmitted, Completed, TechnicalInvalid, Aborted, PilotQuestionnaireSkipped }
 
     public static class PilotProtocolValues
     {

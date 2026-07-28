@@ -323,6 +323,19 @@ namespace SceneTalkVR.Core
             RefreshUi(); return ok;
         }
 
+        public bool SkipQuestionnaire(out string error)
+        {
+            var ok = IsFormal ? questionnaire.Skip(out error)
+                : IsPilot ? pilotWorkflow.SkipQuestionnaire(out error) : Fail(out error, "rehearsal_session_not_active");
+            if (ok)
+            {
+                ExperimentSessionCoordinator.Active?.NotifyAttemptCompleted("questionnaire_skipped");
+                PersistAssignments();
+                WriteOperator("SkipQuestionnaireBoundary");
+            }
+            RefreshUi(); return ok;
+        }
+
         public void MarkTechnicalInvalid(string reason)
         {
             if (IsFormal) formalLifecycle.MarkTechnicalInvalid(reason);
@@ -599,7 +612,7 @@ namespace SceneTalkVR.Core
         {
             if (lifecycleSubscribed || formalLifecycle == null) return;
             formalLifecycle.QuestionnaireRequested += OnQuestionnaireRequested;
-            formalLifecycle.QuestionnaireSubmitted += OnQuestionnaireSubmitted;
+            formalLifecycle.QuestionnaireCompleted += OnQuestionnaireCompleted;
             lifecycleSubscribed = true;
         }
 
@@ -607,7 +620,7 @@ namespace SceneTalkVR.Core
         {
             if (!lifecycleSubscribed || formalLifecycle == null) return;
             formalLifecycle.QuestionnaireRequested -= OnQuestionnaireRequested;
-            formalLifecycle.QuestionnaireSubmitted -= OnQuestionnaireSubmitted;
+            formalLifecycle.QuestionnaireCompleted -= OnQuestionnaireCompleted;
             lifecycleSubscribed = false;
         }
 
@@ -620,10 +633,11 @@ namespace SceneTalkVR.Core
             RefreshUi();
         }
 
-        private void OnQuestionnaireSubmitted()
+        private void OnQuestionnaireCompleted(QuestionnaireCompletionStatus outcome)
         {
             if (!IsFormal) return;
-            ExperimentSessionCoordinator.Active?.NotifyAttemptCompleted("questionnaire_submitted");
+            ExperimentSessionCoordinator.Active?.NotifyAttemptCompleted(
+                outcome == QuestionnaireCompletionStatus.Skipped ? "questionnaire_skipped" : "questionnaire_submitted");
             PersistAssignments();
             orchestrator?.ResetForConditionSelection();
             formalLifecycle?.ClearCurrentConditionBoundary();

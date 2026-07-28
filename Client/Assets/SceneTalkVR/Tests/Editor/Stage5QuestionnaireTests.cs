@@ -70,6 +70,48 @@ namespace SceneTalkVR.Tests.Editor
             var service = BeginService(); Assert.That(service.CanSubmit(out var error), Is.False); StringAssert.StartsWith("required_item_missing", error);
         }
 
+        [Test] public void EmptyQuestionnaire_CanSkipAndWritesAuditableTerminalRecord()
+        {
+            var folder = TempFolder(); try
+            {
+                var service = BeginService();
+                Assert.That(service.CanSkip(out var error), Is.True, error);
+                Assert.That(service.Skip(folder, out error), Is.True, error);
+                Assert.That(service.ActiveSession.completionStatus, Is.EqualTo(QuestionnaireCompletionStatus.Skipped));
+                Assert.That(service.ActiveSession.conditionStatus, Is.EqualTo(ConditionRunStatus.Completed));
+                Assert.That(service.ActiveSession.completionRate, Is.Zero);
+                Assert.That(service.ActiveSession.hasMissing, Is.True);
+                Assert.That(service.ActiveSession.skippedAtUtc, Is.Not.Empty);
+                Assert.That(service.ActiveSession.completionReason, Is.EqualTo("participant_skipped"));
+                var events = File.ReadAllText(Directory.GetFiles(folder, "*questionnaire_events_v1.jsonl").Single());
+                StringAssert.Contains("\"eventType\":\"QuestionnaireSkipped\"", events);
+                StringAssert.Contains("\"questionnaireLinkageKey\":\"ql-test\"", events);
+                Assert.That(service.Skip(folder, out error), Is.False);
+                Assert.That(error, Is.EqualTo("questionnaire_already_skipped"));
+                Assert.That(service.SetResponse("formal_rc_01", "4", out error), Is.False);
+                Assert.That(error, Is.EqualTo("questionnaire_not_editable"));
+            }
+            finally { DeleteFolder(folder); }
+        }
+
+        [Test] public void PartiallyAnsweredQuestionnaire_SkipPreservesResponsesWithoutSubmissionMetadata()
+        {
+            var folder = TempFolder(); try
+            {
+                var service = BeginService(); Assert.That(service.SetResponse("formal_rc_01", "5", out _), Is.True);
+                Assert.That(service.Skip(folder, out var error), Is.True, error);
+                var response = service.ActiveSession.responses.Single();
+                Assert.That(response.rawValue, Is.EqualTo("5"));
+                Assert.That(response.questionnaireStatus, Is.EqualTo("Skipped"));
+                Assert.That(response.submittedAtUtc, Is.Empty);
+                Assert.That(response.questionnaireSubmittedAtUtc, Is.Empty);
+                Assert.That(response.conditionStatus, Is.EqualTo("Completed"));
+                var json = File.ReadAllText(Directory.GetFiles(folder, "*questionnaire_responses_v1.jsonl").Single());
+                StringAssert.Contains("\"questionnaireStatus\":\"Skipped\"", json);
+            }
+            finally { DeleteFolder(folder); }
+        }
+
         [Test] public void LinkageMismatch_RejectsRestore()
         {
             var service = BeginService(); service.SetResponse("formal_rc_01", "4", out _);
@@ -116,7 +158,7 @@ namespace SceneTalkVR.Tests.Editor
             var folder = TempFolder(); try
             {
                 var service = BeginService(); FillRequired(service); service.Submit(folder, out _);
-                var json = File.ReadAllText(Directory.GetFiles(folder, "*.jsonl").Single()); var csv = File.ReadAllText(Directory.GetFiles(folder, "*.csv").Single());
+                var json = File.ReadAllText(Directory.GetFiles(folder, "*questionnaire_responses_v1.jsonl").Single()); var csv = File.ReadAllText(Directory.GetFiles(folder, "*.csv").Single());
                 StringAssert.Contains("\"formalConditionCode\":\"NE\"", json); StringAssert.Contains("formalConditionCode", csv); StringAssert.Contains("\"NE\"", csv);
             }
             finally { DeleteFolder(folder); }
@@ -130,6 +172,17 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(fixture.Coordinator.CurrentConditionAssignment.status, Is.EqualTo(ConditionRunStatus.QuestionnaireInProgress));
             FillRequired(fixture.Controller.Service); Assert.That(fixture.Controller.Submit(out error), Is.True, error);
             Assert.That(fixture.Coordinator.CurrentConditionAssignment.status, Is.EqualTo(ConditionRunStatus.Completed));
+        }
+
+        [Test] public void Lifecycle_SkipWithoutAnswers_CompletesConditionWithSkippedOutcome()
+        {
+            using var fixture = new LifecycleFixture("stage5-skip", protocol, catalog);
+            fixture.Coordinator.PrepareCondition(0, false, out _); fixture.Coordinator.CompleteTask("done");
+            Assert.That(fixture.Controller.StartCurrentConditionQuestionnaire(out var error), Is.True, error);
+            Assert.That(fixture.Controller.Skip(out error), Is.True, error);
+            Assert.That(fixture.Controller.ActiveSession.completionStatus, Is.EqualTo(QuestionnaireCompletionStatus.Skipped));
+            Assert.That(fixture.Coordinator.CurrentConditionAssignment.status, Is.EqualTo(ConditionRunStatus.Completed));
+            Assert.That(fixture.Coordinator.TechnicalValidity, Is.EqualTo(ExperimentTechnicalValidity.Valid));
         }
 
         [Test] public void Lifecycle_WrongRunOrLinkageCannotComplete()

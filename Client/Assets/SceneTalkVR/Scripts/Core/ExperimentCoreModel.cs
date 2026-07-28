@@ -127,7 +127,8 @@ namespace SceneTalkVR.Core
     public enum ConditionRunStatus
     {
         Assigned, Preparing, Running, TaskCompleted, AwaitingQuestionnaire,
-        QuestionnaireInProgress, QuestionnaireSubmitted, Completed, TechnicalInvalid, Aborted
+        QuestionnaireInProgress, QuestionnaireSubmitted, Completed, TechnicalInvalid, Aborted,
+        QuestionnaireSkipped
     }
 
     [Serializable]
