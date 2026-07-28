@@ -51,7 +51,7 @@ ISceneTalkSpeechInput / ISceneTalkManualSpeechInput
 
 也就是说，第一步采集用户语音，第二步让大模型生成结构化结果，第三步把场景显示出来，第四步让 Avatar 说话。这样的设计好处是模块可以替换：Demo 模块、真实 LLM、真实 STT/TTS、真实 Avatar 系统都可以通过同一套接口接入，不需要改 VR 底层交互代码。
 
-客户端使用 Unity 6，配合 OpenXR、XR Interaction Toolkit 和 PICO Unity Integration SDK。PICO 手柄通过射线点击世界空间 UI，用户可以 Start、Listen/End/Retry、Confirm 和 Speak/End；当射线没有指向按钮时，也可以按住扳机录音、松开结束录音，或退出和重置面板位置。
+客户端使用 Unity 6，配合 OpenXR、XR Interaction Toolkit 和 PICO Unity Integration SDK。PICO 手柄通过射线点击世界空间 UI，用户通过 Start、Listen/End/Retry、Confirm 和 Speak/End 按钮完成录音流程；扳机仅用于确认射线所指向的按钮，另有退出和重置面板位置的快捷操作。
 
 屏幕叠字：
 

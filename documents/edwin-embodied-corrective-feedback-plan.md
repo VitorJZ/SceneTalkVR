@@ -44,7 +44,7 @@ Edwin 的工作重点是让“反馈来源”真正具身化，并保证用户�
 ### 3.1 Edwin 负责
 
 - STT 输入链路：录音、上传语音网关、接收 transcript，并尽量提供置信度、低置信度提示或音频质量信息。
-- 手动录音控制：实现并维护 `ISceneTalkManualSpeechInput`，让 Vitor 的按钮和 PICO/OpenXR 空指向扳机可以停止或取消当前录音。
+- 手动录音控制：实现并维护 `ISceneTalkManualSpeechInput`，让 Vitor 的界面按钮可以停止或取消当前录音。
 - TTS 输出链路：根据纠错反馈文本生成语音，并区分主对话 Avatar 与辅助 Agent 的音色和播放入口。
 - 反馈来源路由：根据 `provider=dialogue_avatar|assistant_agent` 决定由主 Avatar 还是辅助 Agent 播放反馈。
 - 辅助 Agent 表现：实现漂浮式 AI 小助手的 prefab、出现/隐藏、说话动画、音频播放和 fallback。
@@ -116,7 +116,7 @@ P0 保持：
 
 - 返回 transcript。
 - 支持 `Listen/End/Retry` 与 `Speak/End` 两条 UI 路径触发的手动结束录音。
-- 支持 PICO/OpenXR 空指向扳机按住录音、松开同一只手柄结束录音。
+- 支持 PICO/OpenXR 射线点击界面按钮开始、结束或重试录音；空指向扳机不控制录音。
 - STT 失败时走 mock transcript 或错误回调。
 - 不改变现有 `ISceneTalkSpeechInput.CaptureSpeech(...)` 主接口；停止/取消通过 `ISceneTalkManualSpeechInput.RequestStopCapture()` 和 `CancelCapture()` 进入。
 
@@ -296,7 +296,7 @@ P0 验收标准：
 目标：让功能在真实语音输入和 PICO 设备上稳定工作。
 
 - [ ] PICO 4 真机验证麦克风录音、上传、STT、TTS 下载和播放。
-- [ ] PICO 4 真机回归空指向扳机按住录音、松开同一只手柄结束录音，并确认纠错反馈播放后能继续下一轮 `Speak/End`。
+- [ ] PICO 4 真机回归 `Speak/End` 按钮录音流程，并确认空指向扳机不会改变录音状态、纠错反馈播放后能继续下一轮。
 - [ ] STT 响应加入 confidence 或 audioQualityFlag。
 - [ ] 语音网关日志加入 STT/TTS 耗时和 fallbackLevel。
 - [x] 为辅助 Agent 配置独立 voiceId；Inspector 可从腾讯英文/中英双语 `VoiceType` 下拉框选择，默认 `WeJack (101050)`。高级音色资源包耗尽时，网关会回退到配置的腾讯基础音色并记录 `voice_type_fallback`，不会播放 mock 提示音。音色来源：[腾讯云语音合成音色列表](https://cloud.tencent.com/document/product/1073/92668)，核对日期 2026-07-10。

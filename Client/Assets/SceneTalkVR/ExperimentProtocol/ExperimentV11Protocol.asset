@@ -56,7 +56,7 @@ MonoBehaviour:
     status: 1
     confirmedValue: a=NE,b=NR,c=SE,d=SR
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
+    confirmedAtUtc: 2026-07-27T07:50:28.7806914Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   - decisionId: formal_task_no_replacement
@@ -64,7 +64,7 @@ MonoBehaviour:
     status: 1
     confirmedValue: strict_without_replacement
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
+    confirmedAtUtc: 2026-07-27T07:50:28.7806914Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   - decisionId: formal_social_comfort
@@ -72,7 +72,7 @@ MonoBehaviour:
     status: 1
     confirmedValue: excluded
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
+    confirmedAtUtc: 2026-07-27T07:50:28.7806914Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   - decisionId: pilot_feedback_style
@@ -80,7 +80,7 @@ MonoBehaviour:
     status: 1
     confirmedValue: explicit
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
+    confirmedAtUtc: 2026-07-27T07:50:28.7806914Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   - decisionId: voice_only_spatial_audio
@@ -88,7 +88,7 @@ MonoBehaviour:
     status: 1
     confirmedValue: non_spatial_head_locked
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
+    confirmedAtUtc: 2026-07-27T07:50:28.7806914Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   - decisionId: pilot_sequence_mapping
@@ -96,7 +96,7 @@ MonoBehaviour:
     status: 1
     confirmedValue: a=voice_only,b=floating_orb,c=humanoid_agent
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
+    confirmedAtUtc: 2026-07-27T07:50:28.7806914Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   - decisionId: formal_max_turns
@@ -104,7 +104,7 @@ MonoBehaviour:
     status: 1
     confirmedValue: 9
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
+    confirmedAtUtc: 2026-07-27T07:50:28.7806914Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   - decisionId: formal_max_duration
@@ -112,7 +112,7 @@ MonoBehaviour:
     status: 1
     confirmedValue: 10 minutes
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
+    confirmedAtUtc: 2026-07-27T07:50:28.7806914Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   - decisionId: pilot_max_turns
@@ -120,7 +120,7 @@ MonoBehaviour:
     status: 1
     confirmedValue: 8
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
+    confirmedAtUtc: 2026-07-27T07:50:28.7806914Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   - decisionId: pilot_max_duration
@@ -128,7 +128,7 @@ MonoBehaviour:
     status: 1
     confirmedValue: 8 minutes
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
+    confirmedAtUtc: 2026-07-27T07:50:28.7806914Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   - decisionId: questionnaire_scale_anchors
@@ -137,7 +137,7 @@ MonoBehaviour:
     confirmedValue: "1=Strongly disagree / \u975E\u5E38\u4E0D\u540C\u610F;7=Strongly
       agree / \u975E\u5E38\u540C\u610F"
     confirmedBy: ProjectLead
-    confirmedAtUtc: 2026-07-27T05:03:26.2995824Z
+    confirmedAtUtc: 2026-07-27T07:50:28.7806914Z
     evidenceReference: formal-editor-collection-directive-v1
     notes: 
   changeLog:

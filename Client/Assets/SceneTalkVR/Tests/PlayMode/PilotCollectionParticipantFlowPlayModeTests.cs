@@ -195,7 +195,46 @@ namespace SceneTalkVR.Tests.PlayMode
         private static void ForcePicoDeviceValidation(bool value){var type=Type.GetType("SceneTalkVR.Core.ExperimentRuntimePlatform, Assembly-CSharp");type.GetProperty("ForcePicoDeviceValidationForTests").SetValue(null,value);}
         private static void ResetUserSettings(){var type=Type.GetType("SceneTalkVR.Core.SceneTalkUserSettingsStore, Assembly-CSharp");type.GetMethod("ResetAll").Invoke(null,null);}
         private static void SetHideDialogueSubtitles(bool hidden){var type=Type.GetType("SceneTalkVR.Core.SceneTalkUserSettingsStore, Assembly-CSharp");type.GetMethod("SetHideDialogueSubtitles").Invoke(null,new object[]{hidden});}
-        private static void AssertTaskAboveFullWidthDialogue(){var task=Rect("ReadOnlyTaskGoalPanel");var dialogue=Rect("SubtitlePanel");var canvas=Resources.FindObjectsOfTypeAll<Canvas>().First(x=>x.gameObject.scene.IsValid()&&x.gameObject.name.StartsWith("SceneTalkVR World UI",StringComparison.Ordinal));var canvasRect=(RectTransform)canvas.transform;var taskLeft=task.anchoredPosition.x+task.rect.xMin;var taskTop=task.anchoredPosition.y+task.rect.yMax;var taskBottom=task.anchoredPosition.y+task.rect.yMin;var dialogueLeft=dialogue.anchoredPosition.x+dialogue.rect.xMin;var dialogueRight=dialogue.anchoredPosition.x+dialogue.rect.xMax;var dialogueTop=dialogue.anchoredPosition.y+dialogue.rect.yMax;var dialogueBottom=dialogue.anchoredPosition.y+dialogue.rect.yMin;Assert.That(taskBottom-dialogueTop,Is.GreaterThanOrEqualTo(20f),"Task goals must remain above the dialogue panel.");Assert.That(taskLeft,Is.GreaterThanOrEqualTo(canvasRect.rect.xMin));Assert.That(taskTop,Is.LessThanOrEqualTo(canvasRect.rect.yMax));Assert.That(task.anchoredPosition.x,Is.LessThan(0f));Assert.That(task.anchoredPosition.y,Is.GreaterThan(0f));Assert.That(dialogueLeft,Is.GreaterThanOrEqualTo(canvasRect.rect.xMin));Assert.That(dialogueRight,Is.LessThanOrEqualTo(canvasRect.rect.xMax));Assert.That(dialogueBottom,Is.GreaterThanOrEqualTo(canvasRect.rect.yMin));Assert.That(dialogue.rect.width,Is.GreaterThanOrEqualTo(800f),"Dialogue must use the full lower width.");Assert.That(dialogue.anchoredPosition.y,Is.LessThan(0f));}
+        private static void AssertTaskAboveFullWidthDialogue()
+        {
+            var task = Rect("ReadOnlyTaskGoalPanel");
+            var dialogue = Rect("SubtitlePanel");
+            var canvas = Resources.FindObjectsOfTypeAll<Canvas>().First(x => x.gameObject.scene.IsValid() && x.gameObject.name.StartsWith("SceneTalkVR World UI", StringComparison.Ordinal));
+            var canvasRect = (RectTransform)canvas.transform;
+            var taskCanvas = task.GetComponentInParent<Canvas>();
+            var taskCanvasRect = (RectTransform)taskCanvas.transform;
+            var taskCorners = new Vector3[4];
+            task.GetWorldCorners(taskCorners);
+            var taskCornersInMainCanvas = taskCorners.Select(canvasRect.InverseTransformPoint).ToArray();
+            var taskRight = taskCornersInMainCanvas.Max(x => x.x);
+            var taskTop = taskCornersInMainCanvas.Max(x => x.y);
+            var taskBottom = taskCornersInMainCanvas.Min(x => x.y);
+            var dialogueLeft = dialogue.anchoredPosition.x + dialogue.rect.xMin;
+            var dialogueRight = dialogue.anchoredPosition.x + dialogue.rect.xMax;
+            var dialogueTop = dialogue.anchoredPosition.y + dialogue.rect.yMax;
+            var dialogueBottom = dialogue.anchoredPosition.y + dialogue.rect.yMin;
+            var goalText = task.GetComponentsInChildren<TMP_Text>(true).First(x => x.name == "GoalStateText");
+            var interactionCamera = taskCanvas.worldCamera;
+            Assert.That(interactionCamera, Is.Not.Null, "Task canvas must use the interaction camera.");
+            var taskFacingDirection = Vector3.ProjectOnPlane(taskCanvas.transform.position - interactionCamera.transform.position, Vector3.up).normalized;
+
+            Assert.That(taskBottom - dialogueTop, Is.GreaterThanOrEqualTo(20f), "Task goals must remain above the dialogue panel.");
+            Assert.That(taskCanvas, Is.Not.SameAs(canvas), "Task goals must use a dedicated canvas.");
+            Assert.That(taskCanvas.transform.parent, Is.EqualTo(canvas.transform), "The task canvas must follow the main world canvas.");
+            Assert.That(taskCanvasRect.anchoredPosition.x, Is.LessThanOrEqualTo(-550f));
+            Assert.That(taskRight, Is.LessThan(canvasRect.rect.xMin), "Task goals must remain entirely left of the main canvas.");
+            Assert.That(taskTop, Is.LessThanOrEqualTo(canvasRect.rect.yMax));
+            Assert.That(task.rect.width * task.rect.height, Is.GreaterThanOrEqualTo(95000f), "Task goals must remain enlarged.");
+            Assert.That(goalText.fontSizeMax, Is.GreaterThanOrEqualTo(20f), "Task goal text must remain readable.");
+            Assert.That(Vector3.Dot(taskCanvas.transform.forward, taskFacingDirection), Is.GreaterThan(0.95f), "Task canvas must face the user.");
+            Assert.That(task.anchoredPosition, Is.EqualTo(Vector2.zero));
+            Assert.That(dialogueLeft, Is.GreaterThanOrEqualTo(canvasRect.rect.xMin));
+            Assert.That(dialogueRight, Is.LessThanOrEqualTo(canvasRect.rect.xMax));
+            Assert.That(dialogueTop, Is.LessThanOrEqualTo(-75f), "Dialogue must stay at the bottom perimeter and keep the center clear.");
+            Assert.That(dialogueBottom, Is.GreaterThanOrEqualTo(canvasRect.rect.yMin));
+            Assert.That(dialogue.rect.width, Is.GreaterThanOrEqualTo(800f), "Dialogue must keep the existing full-width layout.");
+            Assert.That(dialogue.anchoredPosition.y, Is.LessThan(0f));
+        }
         private static RectTransform Rect(string name)=>Resources.FindObjectsOfTypeAll<GameObject>().First(x=>x.name==name&&x.scene.IsValid()).GetComponent<RectTransform>();
         private static void AssertHomeNavigation(){Assert.That(Active("QuitButton"),Is.True);Assert.That(Label("QuitButton"),Is.EqualTo("退出"));Assert.That(Button("QuitButton").transform.parent.gameObject.name,Is.EqualTo("InitialPanel"));Assert.That(Active("ExitButton"),Is.False,"The home page must use Quit instead of the global Exit button.");}
         private static void AssertExitOverlay(){var button=Button("ExitButton");var rect=button.GetComponent<RectTransform>();var canvas=Resources.FindObjectsOfTypeAll<Canvas>().First(x=>x.gameObject.scene.IsValid()&&x.gameObject.name.StartsWith("SceneTalkVR World UI",StringComparison.Ordinal));Assert.That(button.gameObject.activeInHierarchy,Is.True);Assert.That(button.transform.parent,Is.EqualTo(canvas.transform));Assert.That(button.transform.GetSiblingIndex(),Is.EqualTo(canvas.transform.childCount-1));Assert.That(rect.anchorMin,Is.EqualTo(Vector2.one));Assert.That(rect.anchorMax,Is.EqualTo(Vector2.one));Assert.That(rect.anchoredPosition.x,Is.LessThan(0f));Assert.That(rect.anchoredPosition.y,Is.LessThan(0f));Assert.That(Active("QuitButton"),Is.False);if(Active("PilotQuestionnairePanel"))AssertOverlayText("PilotQuestionnairePanel");}

@@ -868,67 +868,6 @@ namespace SceneTalkVR.Runtime
             BeginDialogueSpeechCapture();
         }
 
-        public bool TryBeginControllerSpeechCapture()
-        {
-            if (IsSpeechRecording || currentTurn != null)
-            {
-                return false;
-            }
-
-            if (CurrentState == SceneTalkState.Error
-                && pendingRetryKind == RetryKind.AvatarReplyPlayback
-                && pendingAvatarReplyPayload != null)
-            {
-                RetryAfterError();
-                return false;
-            }
-
-            if (IsDialogueActive)
-            {
-                return BeginDialogueSpeechCapture();
-            }
-
-            if (CurrentState == SceneTalkState.Listening || CurrentState == SceneTalkState.Error)
-            {
-                return BeginRequestSpeechCapture();
-            }
-
-            return false;
-        }
-
-        public bool TryEndControllerSpeechCapture()
-        {
-            if (!IsSpeechRecording)
-            {
-                return false;
-            }
-
-            RequestStopSpeechCapture();
-            return true;
-        }
-
-        public bool CanUseControllerSpeechCapture()
-        {
-            if (IsSpeechRecording)
-            {
-                return true;
-            }
-
-            if (currentTurn != null)
-            {
-                return false;
-            }
-
-            if (IsDialogueActive)
-            {
-                return CurrentState == SceneTalkState.TurnReview
-                    || CurrentState == SceneTalkState.AvatarSpeaking
-                    || CurrentState == SceneTalkState.Error;
-            }
-
-            return CurrentState == SceneTalkState.Listening || CurrentState == SceneTalkState.Error;
-        }
-
         public void ContinueAfterFeedback()
         {
             if (!IsDialogueActive || currentTurn != null)

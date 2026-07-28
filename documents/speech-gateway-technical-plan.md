@@ -55,7 +55,7 @@ P0 最小实现已经完成。当前完成范围是 Unity Editor + 后端语音�
 
 - 已合入 Vitor 的 `SceneTalkOrchestrator.IsDialogueActive` / `StartDialogueTurn()` 框架；初始确认生成场景后，用户可在同一场景中继续触发下一轮 `CaptureSpeech(...) -> GenerateSceneAndReply(...) -> PresentReply(...)`。
 - Edwin 语音侧 adapter 仍按“每一轮一次 STT、每一轮一次 TTS”工作：`GatewaySpeechInputModule` 负责当前轮录音和 transcript，`AvatarPresentationVoiceModule` 负责当前轮 reply 的 TTS 和播放完成回调。
-- 2026-07-09 已接入 Unity 侧手动结束录音：`MicrophoneRecorder` 支持外部停止信号，`GatewaySpeechInputModule` 与 `DemoSpeechInputModule` 实现 `ISceneTalkManualSpeechInput`，Vitor 的 UI/扳机状态机可统一触发开始与结束录音。当前仍保持 turn-based 整段上传 STT，不引入流式 ASR。
+- 2026-07-09 已接入 Unity 侧手动结束录音：`MicrophoneRecorder` 支持外部停止信号，`GatewaySpeechInputModule` 与 `DemoSpeechInputModule` 实现 `ISceneTalkManualSpeechInput`，Vitor 的 UI 按钮状态机统一触发开始与结束录音。当前仍保持 turn-based 整段上传 STT，不引入流式 ASR。
 - 当前 Unity Brain 接口仍是 `GenerateSceneAndReply(string userText, ...)`；语音网关不保存 LLM 对话历史，也不决定上下文记忆。后续如果需要代词理解、连续纠错或长期任务状态，应由 Spring 的 LLM/Brain 层维护 history，并在必要时扩展 Brain 接口或 session 协议。
 - 因此 Edwin 当前可表述为：语音与 Avatar 播放链路已可被连续回合框架重复调用，但 Edwin 不负责“LLM 记住前几轮说过什么”。
 
@@ -467,7 +467,7 @@ public sealed class GatewaySpeechInputModule : MonoBehaviour, ISceneTalkSpeechIn
 职责：
 
 - 启动麦克风录音。
-- 允许 UI 按钮或 PICO/OpenXR 扳机请求结束录音。
+- 仅允许 UI 按钮请求结束录音；PICO/OpenXR 扳机用于点击射线所指向的按钮。
 - 保留最大录音时长作为安全上限，后续再补静音/VAD 结束。
 - 将音频转换为网关要求的格式。
 - 调用 `/api/voice/stt`。

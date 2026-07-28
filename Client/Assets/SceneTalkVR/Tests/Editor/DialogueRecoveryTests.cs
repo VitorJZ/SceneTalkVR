@@ -67,7 +67,7 @@ namespace SceneTalkVR.Tests.Editor
                 Assert.That(orchestrator.CurrentState, Is.EqualTo(SceneTalkState.Error));
                 Assert.That(orchestrator.LastError, Is.EqualTo("Please try again."));
                 Assert.That(orchestrator.IsTurnRunning, Is.False);
-                Assert.That(orchestrator.CanUseControllerSpeechCapture(), Is.True);
+                Assert.That(orchestrator.IsSpeechRecording, Is.False);
             }
             finally
             {
@@ -123,40 +123,18 @@ namespace SceneTalkVR.Tests.Editor
             }
         }
 
-        [UnityTest]
-        public IEnumerator ControllerSpeechTrigger_AvatarPlaybackErrorRetriesCachedReply()
+        [Test]
+        public void ControllerSpeechCaptureMechanism_IsRemoved()
         {
-            var host = new GameObject("AvatarPlaybackControllerRetryTests");
-            try
-            {
-                var orchestrator = host.AddComponent<SceneTalkOrchestrator>();
-                var voice = host.AddComponent<FakeRecoveryVoice>();
-                orchestrator.ConfigureModules(avatarVoice: voice);
-                var payload = new SpringScenePayload { dialogueReply = "Retry this reply." };
-                var handler = typeof(SceneTalkOrchestrator).GetMethod(
-                    "HandleAvatarVoiceErrorOrFinish",
-                    BindingFlags.Instance | BindingFlags.NonPublic);
-
-                LogAssert.Expect(
-                    LogType.Error,
-                    "[SceneTalkVR] Avatar voice playback failed: playback_stopped");
-                LogAssert.Expect(
-                    LogType.Error,
-                    "[SceneTalkVR] Avatar voice playback failed. Please retry.");
-                handler!.Invoke(orchestrator, new object[] { "playback_stopped", payload, false });
-
-                Assert.That(orchestrator.TryBeginControllerSpeechCapture(), Is.False);
-                yield return null;
-                yield return null;
-
-                Assert.That(voice.PresentReplyCount, Is.EqualTo(1));
-                Assert.That(voice.LastReplyPayload.dialogueReply, Is.EqualTo(payload.dialogueReply));
-                Assert.That(orchestrator.CurrentState, Is.EqualTo(SceneTalkState.TurnReview));
-            }
-            finally
-            {
-                UnityEngine.Object.DestroyImmediate(host);
-            }
+            Assert.That(typeof(SceneTalkOrchestrator).GetMethod("TryBeginControllerSpeechCapture"), Is.Null);
+            Assert.That(typeof(SceneTalkOrchestrator).GetMethod("TryEndControllerSpeechCapture"), Is.Null);
+            Assert.That(typeof(SceneTalkOrchestrator).GetMethod("CanUseControllerSpeechCapture"), Is.Null);
+            Assert.That(typeof(SceneTalkInteractionBootstrap).GetMethod(
+                "TryBeginSpeechTriggerCapture",
+                BindingFlags.Instance | BindingFlags.NonPublic), Is.Null);
+            Assert.That(typeof(SceneTalkInteractionBootstrap).GetMethod(
+                "TryEndSpeechTriggerCapture",
+                BindingFlags.Instance | BindingFlags.NonPublic), Is.Null);
         }
 
         private sealed class FakeRecoveryVoice : MonoBehaviour,

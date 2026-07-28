@@ -56,7 +56,7 @@ Idle
 
 - 实验条件控制：管理 provider/style/scenario 的当前条件。
 - VR 主状态机：在现有 `SceneTalkOrchestrator` 基础上加入纠错反馈状态。
-- 手动录音流程：复用现有 `Listen -> End -> Retry` 与 `Speak -> End -> Speak` 按钮状态，以及 PICO/OpenXR 空指向扳机按住录音、松开结束的交互。
+- 手动录音流程：复用现有 `Listen -> End -> Retry` 与 `Speak -> End -> Speak` 按钮状态；PICO/OpenXR 扳机仅用于点击射线所指向的界面按钮。
 - VR UI 呈现：显示用户原句、反馈状态、继续/重说/跳过等按钮。
 - 反馈时序控制：固定先播放纠错反馈、再播放普通对话回复，并决定是否允许跳过。
 - 实验任务流程：管理四个标准化场景、每个场景的任务说明和回合数量。
@@ -149,7 +149,7 @@ Questionnaire
 - 如果反馈播放失败，记录 fallback 并继续流程，不卡死。
 - 如果用户点击跳过，停止或忽略后续反馈播放，并记录 `skipped=true`。
 - 如果用户选择重说，进入新一轮 `Listening -> Recording -> Transcribing`，并记录 retry。
-- 如果用户在录音中点击 `End` 或松开启动录音的同一只手柄扳机，调用 Edwin 侧 `ISceneTalkManualSpeechInput.RequestStopCapture()`。
+- 如果用户在录音中点击 `End`，调用 Edwin 侧 `ISceneTalkManualSpeechInput.RequestStopCapture()`；松开手柄扳机不会改变录音状态。
 - 如果用户退出或实验员中断当前回合，调用 `ISceneTalkManualSpeechInput.CancelCapture()`，避免录音协程悬挂。
 
 ### 5.3 VR 反馈 UI
@@ -260,7 +260,7 @@ Vitor 侧应统一收集跨模块日志。建议一轮记录：
 P0 验收标准：
 
 - 四种条件在 Editor 中可以手动触发。
-- 反馈播放完成后能进入下一轮 `Listening`，并可通过按钮或空指向扳机开始下一次录音。
+- 反馈播放完成后能进入下一轮 `Listening`，并可通过界面按钮开始下一次录音。
 - 任一模块失败时可回到 Error 或 fallback，不造成死循环。
 
 ### P1：PICO 真机与正式实验流程

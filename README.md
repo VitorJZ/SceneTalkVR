@@ -33,8 +33,8 @@ SceneTalkVR 是一个面向 PICO/VR 的英语情景练习课程项目。当前�
 
 真机运行时，Demo 支持 PICO/OpenXR 通用手柄输入：
 
-- 左右手柄会显示轻量 3D 手柄代理和射线；任一扳机在射线命中世界空间 UI 按钮时确认点击，未命中按钮且处于需求录音或对话录音可用阶段时，按住开始录音、松开同一扳机结束录音。
-- `A / X`：保留为开始/确认快捷键；错误状态下用于重试。
+- 左右手柄会显示轻量 3D 手柄代理和射线；任一扳机仅在射线命中世界空间 UI 按钮时确认点击，录音、结束和重试均通过界面按钮操作。
+- `A / X`：仅确认当前射线指向的 UI 按钮；射线未指向按钮时不触发操作。
 - `B / Y` 或菜单键：返回初始界面。
 - 握持键或摇杆按下：把世界空间面板重新居中到当前头显正前方。
 - 初始界面的 `Quit` 按钮退出当前应用；非初始流程右上角的 `Exit` 按钮返回初始界面。
@@ -156,7 +156,7 @@ Spring 负责场景生成：
 ### 当前开发状态
 
 - Unity Editor 内 Demo 已能显示、点击并跑通假数据闭环。
-- PICO/OpenXR 手柄交互已接入：手柄射线 + 扳机确认点击，未指向按钮时按住扳机录音/松开结束，并保留开始/重试、结束、面板重居中的快捷操作。
+- PICO/OpenXR 手柄交互已接入：手柄射线 + 扳机确认点击；录音、结束和重试仅通过界面按钮操作，并保留退出与面板重居中的快捷操作。
 - Android/OpenXR/PICO 基础配置已完成，PICO 4 调试默认使用 OpenGLES3 规避 Vulkan 启动崩溃。
 - PICO 4 真机已能启动 Demo，仍需继续验证手柄操作、UI 面板位置和完整演示路径。
 - Spring 的真实 LLM/场景生成模块、Edwin 的真实 STT/TTS/Avatar 模块尚未替换当前 Demo 假模块。
@@ -195,8 +195,8 @@ SceneTalkVR is a PICO/VR English scenario practice project. The current architec
 
 On device, the demo supports generic PICO/OpenXR controller input:
 
-- Both controllers show lightweight 3D controller proxies and UI rays. Either trigger clicks a world-space UI button when the ray is over it. When the ray is not over a button and request/dialogue recording is available, hold either trigger to capture speech and release the same trigger to stop.
-- `A / X`: kept as a start/confirm shortcut; retries when the demo is in an error state.
+- Both controllers show lightweight 3D controller proxies and UI rays. Either trigger clicks a world-space UI button when the ray is over it. Recording, stopping, and retrying are controlled only through UI buttons; a trigger does nothing when no button is targeted.
+- `A / X`: confirms the UI button currently targeted by the controller ray; it does nothing when no button is targeted.
 - `B / Y` or menu: returns to the initial panel.
 - Grip or thumbstick click: recenter the world-space panel in front of the current headset pose.
 - The initial `Quit` button exits the application; the top-right `Exit` button during the flow returns to the initial panel.
@@ -279,7 +279,7 @@ All long-running work must use coroutines and report success through `onComplete
 ### Current Status
 
 - The Unity Editor demo can display, receive clicks, and complete the fake-data loop.
-- PICO/OpenXR controller interaction is wired for controller rays, trigger-confirmed UI clicks, hold-to-record trigger input when not pointing at buttons, start/retry, finish, and panel recentering.
+- PICO/OpenXR controller interaction is wired for controller rays and trigger-confirmed UI clicks; recording, stopping, and retrying use UI buttons, with finish and panel-recentering shortcuts retained.
 - Android/OpenXR/PICO baseline settings are in place, and PICO 4 debug builds default to OpenGLES3 to avoid Vulkan startup crashes.
 - PICO 4 can launch the demo; controller input, panel placement, and the full presentation path still need device verification.
 - Spring's real LLM/scene-generation module and Edwin's real STT/TTS/Avatar module still need to replace the demo adapters.

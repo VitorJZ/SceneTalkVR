@@ -28,7 +28,6 @@ namespace SceneTalkVR.Runtime
 
         private enum ControllerTriggerOwner
         {
-            None,
             Left,
             Right,
             Unknown
@@ -78,7 +77,6 @@ namespace SceneTalkVR.Runtime
         private bool leftTriggerHeld;
         private bool rightTriggerHeld;
         private bool unknownTriggerHeld;
-        private ControllerTriggerOwner activeSpeechTriggerOwner = ControllerTriggerOwner.None;
         private GameObject hoveredRayTarget;
         private PointerEventData hoveredRayPointerEventData;
 
@@ -568,7 +566,7 @@ namespace SceneTalkVR.Runtime
 
             if (ConsumePress(primaryPressed, ref primaryShortcutHeld))
             {
-                RunPrimaryAction();
+                ClickHoveredTarget();
             }
 
             var finishPressed = ReadAnyButton(CommonUsages.secondaryButton)
@@ -648,19 +646,16 @@ namespace SceneTalkVR.Runtime
 
             if (!hasLeftController)
             {
-                ReleaseMissingControllerTrigger(ControllerTriggerOwner.Left);
                 leftTriggerHeld = false;
             }
 
             if (!hasRightController)
             {
-                ReleaseMissingControllerTrigger(ControllerTriggerOwner.Right);
                 rightTriggerHeld = false;
             }
 
             if (!hasUnknownController)
             {
-                ReleaseMissingControllerTrigger(ControllerTriggerOwner.Unknown);
                 unknownTriggerHeld = false;
             }
 
@@ -1256,20 +1251,19 @@ namespace SceneTalkVR.Runtime
             {
                 SetControllerTriggerHeld(owner, true);
 
+                // Speech capture is intentionally button-driven. A trigger press only
+                // confirms the UI element currently targeted by the controller ray.
                 if (clickTarget != null)
                 {
                     DispatchRayClick(clickTarget, pointerEventData);
-                    return;
                 }
 
-                TryBeginSpeechTriggerCapture(owner);
                 return;
             }
 
             if (!isPressed && wasPressed)
             {
                 SetControllerTriggerHeld(owner, false);
-                TryEndSpeechTriggerCapture(owner);
             }
         }
 
@@ -1315,40 +1309,6 @@ namespace SceneTalkVR.Runtime
             }
         }
 
-        private void TryBeginSpeechTriggerCapture(ControllerTriggerOwner owner)
-        {
-            orchestrator = ResolveOrchestrator(orchestrator);
-            if (orchestrator == null || !orchestrator.CanUseControllerSpeechCapture())
-            {
-                return;
-            }
-
-            if (orchestrator.TryBeginControllerSpeechCapture())
-            {
-                activeSpeechTriggerOwner = owner;
-            }
-        }
-
-        private void TryEndSpeechTriggerCapture(ControllerTriggerOwner owner)
-        {
-            if (activeSpeechTriggerOwner != owner)
-            {
-                return;
-            }
-
-            orchestrator = ResolveOrchestrator(orchestrator);
-            orchestrator?.TryEndControllerSpeechCapture();
-            activeSpeechTriggerOwner = ControllerTriggerOwner.None;
-        }
-
-        private void ReleaseMissingControllerTrigger(ControllerTriggerOwner owner)
-        {
-            if (activeSpeechTriggerOwner == owner)
-            {
-                TryEndSpeechTriggerCapture(owner);
-            }
-        }
-
         private static bool IsLeftController(InputDevice device)
         {
             return (device.characteristics & InputDeviceCharacteristics.Left) != 0;
@@ -1359,57 +1319,12 @@ namespace SceneTalkVR.Runtime
             return (device.characteristics & InputDeviceCharacteristics.Right) != 0;
         }
 
-        private void RunPrimaryAction()
+        private void ClickHoveredTarget()
         {
-            orchestrator = ResolveOrchestrator(orchestrator);
-
-            if (orchestrator == null)
-            {
-                return;
-            }
-
             if (hoveredRayTarget != null)
             {
                 DispatchRayClick(hoveredRayTarget, hoveredRayPointerEventData ?? CreateFallbackPointerEventData());
-                return;
             }
-
-            if (orchestrator.CurrentState == SceneTalkState.Settings)
-            {
-                return;
-            }
-
-            if (orchestrator.IsSpeechRecording)
-            {
-                orchestrator.TryEndControllerSpeechCapture();
-                return;
-            }
-
-            if (orchestrator.IsTurnRunning)
-            {
-                return;
-            }
-
-            if (orchestrator.CurrentState == SceneTalkState.Error)
-            {
-                orchestrator.RetryAfterError();
-                return;
-            }
-
-            if (orchestrator.CurrentState == SceneTalkState.Listening
-                && !string.IsNullOrWhiteSpace(orchestrator.LastTranscript))
-            {
-                orchestrator.ConfirmPracticeRequest();
-                return;
-            }
-
-            if (orchestrator.IsDialogueActive)
-            {
-                orchestrator.StartDialogueTurn();
-                return;
-            }
-
-            orchestrator.StartPractice();
         }
 
         private bool ReadAnyButton(InputFeatureUsage<bool> usage)
