@@ -27,6 +27,7 @@ namespace SceneTalkVR.Runtime
         [SerializeField] private AvatarPresentationVoiceModule avatarVoiceModule;
         [SerializeField] private VoiceGatewayClient voiceGatewayClient;
         [SerializeField] private ExperimentConditionManager experimentConditionManager;
+        [SerializeField] private GatewayTransportRouter gatewayTransportRouter;
 
         public SceneTalkRuntimeConfig Config => config;
 
@@ -81,6 +82,7 @@ namespace SceneTalkVR.Runtime
                 enabled = false;
                 return;
             }
+            ConfigureGatewayTransport();
             ConfigureVoiceGateway();
             ConfigureBrain();
             ConfigureSceneServices();
@@ -106,6 +108,59 @@ namespace SceneTalkVR.Runtime
             avatarVoiceModule = Resolve(avatarVoiceModule);
             voiceGatewayClient = Resolve(voiceGatewayClient);
             experimentConditionManager = Resolve(experimentConditionManager);
+            gatewayTransportRouter = Resolve(gatewayTransportRouter);
+            if (gatewayTransportRouter == null)
+            {
+                gatewayTransportRouter = gameObject.AddComponent<GatewayTransportRouter>();
+            }
+        }
+
+        private void ConfigureGatewayTransport()
+        {
+            if (gatewayTransportRouter == null)
+            {
+                return;
+            }
+
+            var preference = config.TransportPreference;
+            var lanVoiceUrl = config.HasVoiceGatewayBaseUrl
+                ? ResolveServiceUrlForRuntime(config.VoiceGatewayBaseUrl, 8787)
+                : voiceGatewayClient?.GatewayBaseUrl ?? string.Empty;
+            var lanLlmUrl = ResolveServiceUrlForRuntime(config.DirectLlmApiUrl, 8788);
+            var allowMockProvider = config.AllowMockTtsProvider;
+
+            if (TryResolveActiveVoiceDeployment(out var deployment))
+            {
+                preference = deployment.transportPreference;
+                if (!string.IsNullOrWhiteSpace(deployment.voiceGatewayBaseUrl))
+                {
+                    lanVoiceUrl = ResolveServiceUrlForRuntime(deployment.voiceGatewayBaseUrl, 8787);
+                }
+
+                if (!string.IsNullOrWhiteSpace(deployment.llmGatewayApiUrl))
+                {
+                    lanLlmUrl = ResolveServiceUrlForRuntime(deployment.llmGatewayApiUrl, 8788);
+                }
+
+                allowMockProvider = deployment.profileId == ExperimentDeploymentProfileId.MockOffline;
+            }
+
+            gatewayTransportRouter.Configure(new GatewayTransportConfiguration
+            {
+                preference = preference,
+                usbVoiceBaseUrl = config.UsbVoiceGatewayBaseUrl,
+                usbLlmApiUrl = config.UsbLlmApiUrl,
+                lanVoiceBaseUrl = lanVoiceUrl,
+                lanLlmApiUrl = lanLlmUrl,
+                probeTimeoutSeconds = config.GatewayProbeTimeoutSeconds,
+                requireLiveTransport = config.UseVoiceGatewaySpeech
+                    && config.UseVoiceGatewayTts
+                    && config.BrainMode == SceneTalkBrainRuntimeMode.DirectRealLlm
+                    && !allowMockProvider
+            });
+
+            voiceGatewayClient?.ConfigureTransportRouter(gatewayTransportRouter);
+            realLlmService?.ConfigureTransportRouter(gatewayTransportRouter);
         }
 
         private void ConfigureVoiceGateway()
@@ -148,6 +203,7 @@ namespace SceneTalkVR.Runtime
             ResolveModules();
             if (config != null)
             {
+                ConfigureGatewayTransport();
                 ConfigureVoiceGateway();
             }
         }
@@ -190,6 +246,7 @@ namespace SceneTalkVR.Runtime
                 realLlmService.ConfigureDialoguePacing(
                     config.Temperature,
                     config.MaxNonGoalQuestionsPerTask);
+                realLlmService.ConfigureTransportRouter(gatewayTransportRouter);
             }
         }
 
@@ -280,6 +337,7 @@ namespace SceneTalkVR.Runtime
                 + $"voiceTimeout={voiceGatewayClient?.EffectiveRequestTimeoutSeconds ?? config.VoiceGatewayRequestTimeoutSeconds}s, "
                 + $"ttsProvider={voiceGatewayClient?.EffectiveExpectedTtsProvider ?? config.ExpectedTtsProvider}, "
                 + $"llm={effectiveLlmUrl}, "
+                + $"transport={gatewayTransportRouter?.State.ToString() ?? "legacy"}, "
                 + $"avatarPacingTemperature={config.Temperature:0.###}, "
                 + $"maxNonGoalQuestionsPerTask={config.MaxNonGoalQuestionsPerTask}, "
                 + $"holodeck={(config.UseHolodeckBackend ? config.HolodeckBackendUrl : "mock layout")}, "

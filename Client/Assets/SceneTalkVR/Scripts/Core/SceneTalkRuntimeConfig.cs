@@ -20,6 +20,13 @@ namespace SceneTalkVR.Core
         [SerializeField] private bool useFixedExperimentMode = true;
         [SerializeField] private bool useDeveloperTextConsole = false;
 
+        [Header("Gateway Transport")]
+        [SerializeField] private int gatewayTransportConfigurationVersion;
+        [SerializeField] private GatewayTransportPreference gatewayTransportPreference = GatewayTransportPreference.UsbPreferred;
+        [SerializeField] private string usbVoiceGatewayBaseUrl = "http://127.0.0.1:8787";
+        [SerializeField] private string usbLlmApiUrl = "http://127.0.0.1:8788/api/llm/chat/completions";
+        [SerializeField, Range(1, 10)] private int gatewayProbeTimeoutSeconds = 3;
+
         [Header("LAN Services")]
         [SerializeField] private string voiceGatewayBaseUrl = string.Empty;
         [SerializeField, Min(1)] private int voiceGatewayRequestTimeoutSeconds = 30;
@@ -56,6 +63,13 @@ namespace SceneTalkVR.Core
         public bool UseVoiceGatewayTts => useVoiceGatewayTts;
         public bool UseFixedExperimentMode => useFixedExperimentMode;
         public bool UseDeveloperTextConsole => useDeveloperTextConsole;
+        public GatewayTransportPreference TransportPreference =>
+            gatewayTransportConfigurationVersion > 0
+                ? gatewayTransportPreference
+                : GatewayTransportPreference.LanOnly;
+        public string UsbVoiceGatewayBaseUrl => NormalizeUrl(usbVoiceGatewayBaseUrl);
+        public string UsbLlmApiUrl => NormalizeUrl(usbLlmApiUrl);
+        public int GatewayProbeTimeoutSeconds => Mathf.Clamp(gatewayProbeTimeoutSeconds, 1, 10);
         public string VoiceGatewayBaseUrl => NormalizeUrl(voiceGatewayBaseUrl);
         public bool HasVoiceGatewayBaseUrl => !string.IsNullOrWhiteSpace(VoiceGatewayBaseUrl);
         public int VoiceGatewayRequestTimeoutSeconds => Mathf.Max(1, voiceGatewayRequestTimeoutSeconds);
@@ -118,6 +132,11 @@ namespace SceneTalkVR.Core
             useVoiceGatewaySpeech = true;
             useVoiceGatewayTts = true;
             useFixedExperimentMode = true;
+            gatewayTransportConfigurationVersion = 1;
+            gatewayTransportPreference = GatewayTransportPreference.UsbPreferred;
+            usbVoiceGatewayBaseUrl = "http://127.0.0.1:8787";
+            usbLlmApiUrl = "http://127.0.0.1:8788/api/llm/chat/completions";
+            gatewayProbeTimeoutSeconds = 3;
             voiceGatewayRequestTimeoutSeconds = 30;
             expectedTtsProvider = "tencent";
             allowMockTtsProvider = false;

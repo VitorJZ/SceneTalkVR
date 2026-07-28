@@ -2,7 +2,7 @@
 
 Minimal P0 voice gateway for SceneTalkVR.
 
-Current PICO real-device network notes live in `../../documents/pico-real-device-gateway-runbook-2026-07-13.md`.
+Current PICO USB/LAN operation notes live in `../../documents/pico-usb-data-channel-implementation-2026-07-28.md`.
 
 The gateway hides cloud-provider credentials from Unity/PICO clients and exposes a stable local protocol:
 
@@ -49,7 +49,7 @@ Current project smoke-test example:
 http://192.168.137.1:8787
 ```
 
-PICO and other teammates cannot use `127.0.0.1` to reach your computer. On those devices, `127.0.0.1` points to themselves.
+Without an ADB reverse tunnel, PICO and other devices cannot use `127.0.0.1` to reach the computer. For USB-first PICO runs, start `../gateway-launcher/scenetalk_gateway_launcher.py`; it maps PICO loopback port `8787` to this PC service over the data cable.
 
 For PICO, start the gateway on all interfaces:
 

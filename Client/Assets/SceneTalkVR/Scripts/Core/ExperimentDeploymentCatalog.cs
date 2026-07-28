@@ -12,6 +12,8 @@ namespace SceneTalkVR.Core
     {
         public ExperimentDeploymentProfileId profileId;
         public string voiceGatewayBaseUrl;
+        public string llmGatewayApiUrl;
+        public GatewayTransportPreference transportPreference;
         public int requestTimeoutSeconds = 30;
         public string sttProvider;
         public string ttsProvider;
@@ -51,13 +53,18 @@ namespace SceneTalkVR.Core
             if (!profile.approvedForCollection || string.IsNullOrWhiteSpace(profile.evidenceReference)) issues.Add("deployment_profile_unapproved");
             if (profile.requestTimeoutSeconds <= 0) issues.Add("deployment_timeout_invalid");
             if (profile.networkRequired && string.IsNullOrWhiteSpace(profile.voiceGatewayBaseUrl)) issues.Add("deployment_endpoint_empty");
-            if ((id == ExperimentDeploymentProfileId.PicoLab || id == ExperimentDeploymentProfileId.PicoPortable) && IsLoopback(profile.voiceGatewayBaseUrl)) issues.Add("pico_endpoint_loopback_forbidden");
+            if ((id == ExperimentDeploymentProfileId.PicoLab || id == ExperimentDeploymentProfileId.PicoPortable)
+                && (IsLoopback(profile.voiceGatewayBaseUrl) || IsLoopback(profile.llmGatewayApiUrl))
+                && profile.transportPreference == GatewayTransportPreference.LanOnly)
+                issues.Add("pico_endpoint_loopback_forbidden");
             if (id == ExperimentDeploymentProfileId.EditorCollection
                 && (profile.target != ExperimentDeploymentTarget.UnityEditor || !profile.approvedForEditorCollection
                     || !profile.loopbackAllowed || profile.picoRequired || !IsLoopback(profile.voiceGatewayBaseUrl)))
                 issues.Add("editor_collection_deployment_invalid");
             if (ContainsMock(profile.sttProvider) || ContainsMock(profile.ttsProvider)) issues.Add("mock_provider_forbidden_for_collection");
-            if (ContainsSecretMaterial(profile.voiceGatewayBaseUrl)) issues.Add("deployment_endpoint_contains_secret_material");
+            if (ContainsSecretMaterial(profile.voiceGatewayBaseUrl)
+                || ContainsSecretMaterial(profile.llmGatewayApiUrl))
+                issues.Add("deployment_endpoint_contains_secret_material");
             error = string.Join("; ", issues); return issues.Count == 0;
         }
 
@@ -76,12 +83,16 @@ namespace SceneTalkVR.Core
                     || profile.target != ExperimentDeploymentTarget.UnityEditor || profile.picoRequired))
                 issues.Add("rehearsal_editor_deployment_invalid");
             if (id == ExperimentDeploymentProfileId.PicoDeviceValidation
-                && (profile.loopbackAllowedForRehearsal || IsLoopback(profile.voiceGatewayBaseUrl)
+                && (profile.loopbackAllowedForRehearsal
+                    || profile.transportPreference == GatewayTransportPreference.LanOnly
+                        && (IsLoopback(profile.voiceGatewayBaseUrl) || IsLoopback(profile.llmGatewayApiUrl))
                     || profile.target != ExperimentDeploymentTarget.Pico || !profile.picoRequired))
                 issues.Add("pico_device_validation_deployment_invalid");
             if (profile.requestTimeoutSeconds <= 0 || string.IsNullOrWhiteSpace(profile.sttProvider) || string.IsNullOrWhiteSpace(profile.ttsProvider)) issues.Add("rehearsal_live_pipeline_invalid");
             if (ContainsMock(profile.sttProvider) || ContainsMock(profile.ttsProvider)) issues.Add("rehearsal_mock_provider_forbidden");
-            if (ContainsSecretMaterial(profile.voiceGatewayBaseUrl)) issues.Add("deployment_endpoint_contains_secret_material");
+            if (ContainsSecretMaterial(profile.voiceGatewayBaseUrl)
+                || ContainsSecretMaterial(profile.llmGatewayApiUrl))
+                issues.Add("deployment_endpoint_contains_secret_material");
             error = string.Join("; ", issues); return issues.Count == 0;
         }
 

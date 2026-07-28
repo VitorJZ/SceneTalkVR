@@ -1009,6 +1009,8 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
+            GatewayTransportRouter.Active?.RequestBoundaryProbe(GatewayRequestStage.Retry);
+
             if (pendingRetryKind == RetryKind.AvatarReplyPlayback
                 && pendingAvatarReplyPayload != null)
             {

@@ -16,6 +16,8 @@ MonoBehaviour:
   profiles:
   - profileId: 5
     voiceGatewayBaseUrl: http://127.0.0.1:8787
+    llmGatewayApiUrl: http://127.0.0.1:8788/api/llm/chat/completions
+    transportPreference: 0
     requestTimeoutSeconds: 30
     sttProvider: voice_gateway_live_stt
     ttsProvider: tencent
@@ -34,6 +36,8 @@ MonoBehaviour:
     evidenceReference: scenetalkvr-rehearsal-baseline-v1
   - profileId: 7
     voiceGatewayBaseUrl: http://192.168.137.1:8787
+    llmGatewayApiUrl: http://192.168.137.1:8788/api/llm/chat/completions
+    transportPreference: 1
     requestTimeoutSeconds: 30
     sttProvider: voice_gateway_live_stt
     ttsProvider: tencent

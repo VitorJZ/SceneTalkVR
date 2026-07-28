@@ -131,6 +131,7 @@ namespace SceneTalkVR.Runtime
         private TMP_Text correctionAppearanceValueText;
         private TMP_Text correctionStyleValueText;
         private TMP_Text correctionSettingsStatusText;
+        private TMP_Text transportStatusText;
         private TMP_Text historyEmptyText;
         private TMP_Text historyPageText;
         private TMP_Text historyDetailSummaryText;
@@ -351,7 +352,7 @@ namespace SceneTalkVR.Runtime
 
             settingsPanel = CreatePanel(root, "SettingsPanel", new Vector2(0f, 0f), new Vector2(820f, 500f), new Color(0.04f, 0.05f, 0.07f, 0.92f));
             settingsTitleText = CreateText(settingsPanel.transform, "Title", "设置", new Vector2(0f, 210f), new Vector2(480f, 44f), 30, TextAnchor.MiddleCenter, Color.white);
-            settingsPageText = CreateText(settingsPanel.transform, "Page", "显示与纠错", new Vector2(0f, 174f), new Vector2(700f, 30f), 18, TextAnchor.MiddleCenter, new Color(0.74f, 0.86f, 1f, 1f));
+            settingsPageText = CreateText(settingsPanel.transform, "Page", "显示、纠错与连接", new Vector2(0f, 174f), new Vector2(700f, 30f), 18, TextAnchor.MiddleCenter, new Color(0.74f, 0.86f, 1f, 1f));
 
             settingsGeneralGroup = new GameObject("GeneralSettings");
             settingsGeneralGroup.transform.SetParent(settingsPanel.transform, false);
@@ -381,7 +382,9 @@ namespace SceneTalkVR.Runtime
             correctionStyleValueText = CreateText(settingsGeneralGroup.transform, "CorrectionStyleValue", string.Empty, new Vector2(110f, -142f), new Vector2(190f, 44f), 18, TextAnchor.MiddleCenter, Color.white);
             correctionStyleChangeButton = CreateButton(settingsGeneralGroup.transform, "CorrectionStyleChangeButton", "切换", new Vector2(293f, -142f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
 
-            correctionSettingsStatusText = CreateText(settingsGeneralGroup.transform, "CorrectionSettingsStatus", string.Empty, new Vector2(0f, -202f), new Vector2(700f, 30f), 15, TextAnchor.MiddleCenter, new Color(0.72f, 0.8f, 0.86f, 1f));
+            CreateText(settingsGeneralGroup.transform, "TransportLabel", "数据通道", new Vector2(-240f, -184f), new Vector2(320f, 34f), 19, TextAnchor.MiddleLeft, Color.white);
+            transportStatusText = CreateText(settingsGeneralGroup.transform, "TransportStatus", "正在连接", new Vector2(196f, -184f), new Vector2(360f, 34f), 18, TextAnchor.MiddleCenter, new Color(0.74f, 0.86f, 1f, 1f));
+            correctionSettingsStatusText = CreateText(settingsGeneralGroup.transform, "CorrectionSettingsStatus", string.Empty, new Vector2(0f, -222f), new Vector2(700f, 24f), 14, TextAnchor.MiddleCenter, new Color(0.72f, 0.8f, 0.86f, 1f));
 
             requestPanel = CreatePanel(root, "RequestPanel", new Vector2(0f, 0f), new Vector2(700f, 380f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
             requestTitleText = CreateText(requestPanel.transform, "Title", "场景与角色需求", new Vector2(0f, 146f), new Vector2(640f, 42f), 26, TextAnchor.MiddleCenter, Color.white);
@@ -1269,7 +1272,15 @@ namespace SceneTalkVR.Runtime
 
             if (settingsPageText != null)
             {
-                settingsPageText.text = "显示与纠错";
+                settingsPageText.text = "显示、纠错与连接";
+            }
+
+            if (transportStatusText != null)
+            {
+                var router = GatewayTransportRouter.Active;
+                transportStatusText.text = router == null
+                    ? "局域网备用"
+                    : router.ChineseStatus;
             }
 
             if (fontValueText != null)

@@ -220,6 +220,7 @@ namespace SceneTalkVR.Core
         {
             error = string.Empty;
             if (!AwaitingParticipantConditionChoice) { error = "formal_mode_selection_not_available"; return false; }
+            if (!GatewayTransportRouter.CanStartLiveAttempt(out error)) return false;
             var items = Assignment?.conditions;
             var position = items == null ? -1 : Array.FindIndex(items, x => x.formalConditionCode == code);
             if (position < 0) { error = "formal_condition_not_assigned"; return false; }

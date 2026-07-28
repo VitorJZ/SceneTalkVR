@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Linq;
+using System.Reflection;
 using NUnit.Framework;
 using TMPro;
 using UnityEngine;
@@ -175,6 +176,24 @@ namespace SceneTalkVR.Tests.PlayMode
             Assert.That(Active("PilotExperimentCompletionPanel"),Is.True);Assert.That((bool)Get(Get(coordinator,"Assignment"),"collectionEligible"),Is.False);
             var rehearsal=ActiveObject("SceneTalkVR.Core.RehearsalSessionCoordinator, Assembly-CSharp");Assert.That((bool)Get(rehearsal,"ExperimentCompleted"),Is.True);
         }
+        [UnityTest]public IEnumerator PicoDeviceValidation_StartsTaskWithSingleGatewayAuthorization()
+        {
+            ForcePicoDeviceValidation(true);Create();yield return null;
+            var coordinator=ActiveObject("SceneTalkVR.Core.PilotCollectionSessionCoordinator, Assembly-CSharp");
+            var condition=Conditions(coordinator).First();
+            Click(Get(condition,"embodimentCondition")+"AppearanceButton");yield return null;
+            var transportHost=InstallReadyUsbTransport(out var previousRouter);
+            try
+            {
+                Click("PilotTaskContinueButton");yield return null;
+                Assert.That(Get(coordinator,"Stage").ToString(),Is.EqualTo("Dialogue"));
+                Assert.That(Active("ReadOnlyTaskGoalPanel"),Is.True);
+            }
+            finally
+            {
+                RestoreGatewayTransport(transportHost,previousRouter);
+            }
+        }
         [UnityTest]public IEnumerator SuspendedPilotResumesAtIntroductionAndCreatesNewAttempt()
         {
             Create();Click("VoiceOnlyAppearanceButton");yield return null;Click("PilotTaskContinueButton");yield return null;
@@ -210,6 +229,42 @@ namespace SceneTalkVR.Tests.PlayMode
         private static void ForcePicoDeviceValidation(bool value){var type=Type.GetType("SceneTalkVR.Core.ExperimentRuntimePlatform, Assembly-CSharp");type.GetProperty("ForcePicoDeviceValidationForTests").SetValue(null,value);}
         private static void ResetUserSettings(){var type=Type.GetType("SceneTalkVR.Core.SceneTalkUserSettingsStore, Assembly-CSharp");type.GetMethod("ResetAll").Invoke(null,null);}
         private static void SetHideDialogueSubtitles(bool hidden){var type=Type.GetType("SceneTalkVR.Core.SceneTalkUserSettingsStore, Assembly-CSharp");type.GetMethod("SetHideDialogueSubtitles").Invoke(null,new object[]{hidden});}
+        private static GameObject InstallReadyUsbTransport(out object previousRouter)
+        {
+            var routerType=Type.GetType("SceneTalkVR.Core.GatewayTransportRouter, Assembly-CSharp",true);
+            var activeField=routerType.GetField("<Active>k__BackingField",BindingFlags.Static|BindingFlags.NonPublic);
+            previousRouter=activeField.GetValue(null);
+            var host=new GameObject("ReadyUsbTransportForPilotTest");
+            var router=host.AddComponent(routerType);
+            ((Behaviour)router).enabled=false;
+            var configurationType=Type.GetType("SceneTalkVR.Core.GatewayTransportConfiguration, Assembly-CSharp",true);
+            var preferenceType=Type.GetType("SceneTalkVR.Core.GatewayTransportPreference, Assembly-CSharp",true);
+            var configuration=Activator.CreateInstance(configurationType);
+            SetField(configuration,"preference",Enum.Parse(preferenceType,"UsbPreferred"));
+            SetField(configuration,"usbVoiceBaseUrl","http://127.0.0.1:8787");
+            SetField(configuration,"usbLlmApiUrl","http://127.0.0.1:8788/api/llm/chat/completions");
+            SetField(configuration,"lanVoiceBaseUrl","http://192.168.137.1:8787");
+            SetField(configuration,"lanLlmApiUrl","http://192.168.137.1:8788/api/llm/chat/completions");
+            SetField(configuration,"requireLiveTransport",true);
+            routerType.GetMethod("Configure").Invoke(router,new[]{configuration});
+            var stateMachine=routerType.GetField("stateMachine",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(router);
+            var routeType=Type.GetType("SceneTalkVR.Core.GatewayRouteSnapshot, Assembly-CSharp",true);
+            var transportType=Type.GetType("SceneTalkVR.Core.GatewayTransportKind, Assembly-CSharp",true);
+            var route=Activator.CreateInstance(routeType);
+            SetField(route,"transport",Enum.Parse(transportType,"Usb"));
+            SetField(route,"voiceBaseUrl","http://127.0.0.1:8787");
+            SetField(route,"llmApiUrl","http://127.0.0.1:8788/api/llm/chat/completions");
+            SetField(route,"selectedAtUtc","2026-07-28T00:00:00.0000000Z");
+            stateMachine.GetType().GetMethod("MarkReady").Invoke(stateMachine,new[]{route});
+            return host;
+        }
+        private static void RestoreGatewayTransport(GameObject host,object previousRouter)
+        {
+            var routerType=Type.GetType("SceneTalkVR.Core.GatewayTransportRouter, Assembly-CSharp",true);
+            routerType.GetField("<Active>k__BackingField",BindingFlags.Static|BindingFlags.NonPublic).SetValue(null,previousRouter);
+            UnityEngine.Object.Destroy(host);
+        }
+        private static void SetField(object target,string name,object value)=>target.GetType().GetField(name).SetValue(target,value);
         private static void AssertTaskAboveFullWidthDialogue()
         {
             var task = Rect("ReadOnlyTaskGoalPanel");

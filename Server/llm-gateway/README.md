@@ -2,7 +2,7 @@
 
 Local PC-side gateway for SceneTalkVR real-device LLM calls.
 
-Current PICO real-device network notes live in `../../documents/pico-real-device-gateway-runbook-2026-07-13.md`.
+Current PICO USB/LAN operation notes live in `../../documents/pico-usb-data-channel-implementation-2026-07-28.md`.
 
 ```text
 PICO/Unity -> LLM Gateway -> OpenAI-compatible Chat Completions API
@@ -44,6 +44,8 @@ http://192.168.137.1:8788/api/llm/chat/completions
 ```
 
 The concrete LAN IP changes when the PC changes Wi-Fi/hotspot/VPN environment. After a network change, update Unity runtime config and rebuild/reinstall the PICO APK.
+
+For USB-first PICO runs, start `../gateway-launcher/scenetalk_gateway_launcher.py`. It maps PICO `127.0.0.1:8788` to this gateway through ADB while keeping the LAN URL as an automatic fallback.
 
 ## Configuration
 

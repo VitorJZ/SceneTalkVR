@@ -370,6 +370,14 @@ namespace SceneTalkVR.EditorTools
             AppendCheck(report, HasRequiredSceneReferences(configAppliers, experimentManagers), "Required runtime, protocol, and avatar catalog references are assigned");
             AppendCheck(report, !string.IsNullOrWhiteSpace(effectiveVoiceUrl), "Voice gateway URL is configured");
             AppendCheck(report, !SceneTalkRuntimeConfig.IsLoopbackUrl(effectiveVoiceUrl), $"Voice gateway URL is not localhost for PICO: `{DisplayEndpoint(effectiveVoiceUrl)}`");
+            var usbTransportConfigured = runtimeConfig == null
+                || runtimeConfig.TransportPreference == GatewayTransportPreference.LanOnly
+                || SceneTalkRuntimeConfig.IsLoopbackUrl(runtimeConfig.UsbVoiceGatewayBaseUrl)
+                    && SceneTalkRuntimeConfig.IsLoopbackUrl(runtimeConfig.UsbLlmApiUrl);
+            AppendCheck(report, usbTransportConfigured,
+                runtimeConfig?.TransportPreference == GatewayTransportPreference.LanOnly
+                    ? "USB ADB transport is disabled; LAN-only compatibility mode is active"
+                    : "USB ADB transport uses explicit Voice and LLM loopback endpoints");
             AppendCheck(report, !usesHolodeckBackend || !string.IsNullOrWhiteSpace(effectiveHolodeckUrl), usesHolodeckBackend
                 ? "Holodeck backend URL is configured"
                 : "Holodeck backend is disabled for this build");
@@ -421,7 +429,7 @@ namespace SceneTalkVR.EditorTools
             report.AppendLine("- Keep Android Graphics APIs set to OpenGLES3 only for PICO 4 debug builds; Vulkan can crash on startup with this project stack.");
             report.AppendLine("- For local Build & Run, keep custom keystore disabled. Enable a private keystore only for release builds.");
             report.AppendLine("- Connect PICO 4 with developer mode enabled, then build and run the Android APK.");
-            report.AppendLine("- For real PICO runs, set `Assets/SceneTalkVR/RuntimeConfig/SceneTalkRuntimeConfig.asset` `voiceGatewayBaseUrl` to the PC/server LAN URL, not `127.0.0.1`.");
+            report.AppendLine("- Start `Server/gateway-launcher/scenetalk_gateway_launcher.py` for USB-first PICO runs. Keep LAN gateway fields non-loopback for automatic fallback; only the explicit USB Voice/LLM fields use `127.0.0.1`.");
             report.AppendLine("- If Holodeck backend is enabled, set its URL to a LAN-reachable service; otherwise keep backend disabled and use mock layout / panorama fallback.");
             report.AppendLine("- Replace demo Spring/Edwin adapters with real LLM, STT, TTS, Avatar, and scene-generation modules.");
 

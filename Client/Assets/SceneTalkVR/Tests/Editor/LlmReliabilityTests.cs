@@ -94,6 +94,33 @@ namespace SceneTalkVR.Tests.Editor
 
             Assert.That(GetProperty<int>(handler, "ParseFailureCount"), Is.EqualTo(1));
             Assert.That(GetProperty<string>(handler, "LastParseFailure"), Is.Not.Empty);
+            Assert.That(GetProperty<bool>(handler, "HasReceivedBytes"), Is.True);
+        }
+
+        [Test]
+        public void RouteSwitch_IsAllowedOnlyBeforeAnyLlmResponseBytes()
+        {
+            service.ConfigureTransportRouter(new FakeRouteProvider());
+            var exceptionType = typeof(RealLLMService).GetNestedType(
+                "LlmRequestException",
+                BindingFlags.NonPublic)!;
+            var constructor = exceptionType.GetConstructor(
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                null,
+                new[]
+                {
+                    typeof(string), typeof(long), typeof(bool), typeof(int),
+                    typeof(bool), typeof(bool)
+                },
+                null)!;
+            var zeroBytes = constructor.Invoke(new object[] { "transport", 0L, true, 0, true, false });
+            var partialResponse = constructor.Invoke(new object[] { "transport", 0L, false, 0, true, true });
+            var method = typeof(RealLLMService).GetMethod(
+                "CanSwitchRoute",
+                BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+            Assert.That((bool)method.Invoke(service, new[] { zeroBytes })!, Is.True);
+            Assert.That((bool)method.Invoke(service, new[] { partialResponse })!, Is.False);
         }
 
         [Test]
@@ -320,6 +347,37 @@ namespace SceneTalkVR.Tests.Editor
         private static string EscapeJson(string value)
         {
             return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+        }
+
+        private sealed class FakeRouteProvider : IGatewayTransportRouteProvider
+        {
+            public GatewayTransportPreference Preference => GatewayTransportPreference.UsbPreferred;
+            public GatewayTransportState State => GatewayTransportState.UsbReady;
+            public GatewayRouteSnapshot CurrentRoute => new GatewayRouteSnapshot
+            {
+                transport = GatewayTransportKind.Usb,
+                voiceBaseUrl = "http://127.0.0.1:8787",
+                llmApiUrl = "http://127.0.0.1:8788/api/llm/chat/completions"
+            };
+            public bool IsReady => true;
+            public bool RequiresLiveTransport => true;
+
+            public Task<GatewayRouteSnapshot> AcquireRouteAsync(
+                bool refreshUsb,
+                GatewayRequestStage stage,
+                CancellationToken cancellationToken = default)
+                => Task.FromResult(CurrentRoute);
+
+            public Task<GatewayRouteSnapshot> RecoverFromTransportFailureAsync(
+                GatewayRouteSnapshot failedRoute,
+                GatewayRequestStage stage,
+                string failureReason,
+                CancellationToken cancellationToken = default)
+                => Task.FromResult(CurrentRoute);
+
+            public void RequestBoundaryProbe(GatewayRequestStage stage)
+            {
+            }
         }
     }
 }

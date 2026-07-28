@@ -178,7 +178,11 @@ namespace SceneTalkVR.Core
                 if(rehearsal==null){error="device_validation_rehearsal_session_missing";return false;}
                 if(!rehearsal.PreparePilotCondition(Assignment.conditions[currentPosition].embodimentCondition,out error))return false;
             }
-            else if(!workflow.Prepare(currentPosition,retry,out error))return false;
+            else
+            {
+                if(!GatewayTransportRouter.CanStartLiveAttempt(out error))return false;
+                if(!workflow.Prepare(currentPosition,retry,out error))return false;
+            }
             ExperimentSessionCoordinator.Active?.NotifyAttemptStarted(
                 PilotProtocolValues.Label(workflow.Current.embodimentCondition),
                 workflow.Current.task.taskId,

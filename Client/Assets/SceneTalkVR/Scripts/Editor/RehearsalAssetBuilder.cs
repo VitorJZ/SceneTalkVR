@@ -49,6 +49,8 @@ namespace SceneTalkVR.EditorTools
                 new ExperimentDeploymentProfile
                 {
                     profileId = ExperimentDeploymentProfileId.RehearsalEditor, voiceGatewayBaseUrl = "http://127.0.0.1:8787",
+                    llmGatewayApiUrl = "http://127.0.0.1:8788/api/llm/chat/completions",
+                    transportPreference = GatewayTransportPreference.LanOnly,
                     requestTimeoutSeconds = 30, sttProvider = "voice_gateway_live_stt", ttsProvider = "tencent",
                     microphonePolicy = "UnityEditor default microphone", networkRequired = true,
                     approvedForRehearsal = true, loopbackAllowedForRehearsal = true,
@@ -59,6 +61,8 @@ namespace SceneTalkVR.EditorTools
                 new ExperimentDeploymentProfile
                 {
                     profileId = ExperimentDeploymentProfileId.PicoDeviceValidation, voiceGatewayBaseUrl = "http://192.168.137.1:8787",
+                    llmGatewayApiUrl = "http://192.168.137.1:8788/api/llm/chat/completions",
+                    transportPreference = GatewayTransportPreference.UsbPreferred,
                     requestTimeoutSeconds = 30, sttProvider = "voice_gateway_live_stt", ttsProvider = "tencent",
                     microphonePolicy = "runtime_permission_required", networkRequired = true,
                     approvedForRehearsal = true, loopbackAllowedForRehearsal = false,

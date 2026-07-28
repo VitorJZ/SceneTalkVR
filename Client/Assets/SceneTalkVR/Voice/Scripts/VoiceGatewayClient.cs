@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.Text;
+using System.Threading.Tasks;
+using SceneTalkVR.Core;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -40,6 +42,7 @@ namespace SceneTalkVR.Voice
         private int runtimeRequestTimeoutSeconds;
         private string runtimeExpectedTtsProvider;
         private bool? runtimeAllowMockTtsProvider;
+        private IGatewayTransportRouteProvider transportRouter;
 
         public string GatewayBaseUrl => !string.IsNullOrWhiteSpace(runtimeGatewayBaseUrl)
             ? NormalizeBaseUrl(runtimeGatewayBaseUrl)
@@ -80,6 +83,11 @@ namespace SceneTalkVR.Voice
             runtimeAllowMockTtsProvider = options.AllowMockProvider;
         }
 
+        public void ConfigureTransportRouter(IGatewayTransportRouteProvider router)
+        {
+            transportRouter = router;
+        }
+
         public IEnumerator RequestStt(
             SttRequest request,
             Action<SttResponse> onComplete,
@@ -91,28 +99,78 @@ namespace SceneTalkVR.Voice
                 yield break;
             }
 
+            GatewayRouteSnapshot route = null;
+            string routeError = null;
+            yield return AcquireRoute(
+                true,
+                GatewayRequestStage.TurnBoundary,
+                value => route = value,
+                value => routeError = value);
+            if (!string.IsNullOrWhiteSpace(routeError))
+            {
+                onError?.Invoke(routeError);
+                yield break;
+            }
+
+            var json = JsonUtility.ToJson(request);
+            string responseBody = null;
+            VoiceRequestFailure failure = null;
             yield return PostJson(
+                route.voiceBaseUrl,
                 "/api/voice/stt",
-                JsonUtility.ToJson(request),
-                body =>
+                json,
+                GatewayRequestStage.Stt,
+                body => responseBody = body,
+                value => failure = value);
+
+            if (failure?.IsTransportFailure == true && transportRouter != null)
+            {
+                GatewayRouteSnapshot fallback = null;
+                string recoveryError = null;
+                yield return RecoverRoute(
+                    route,
+                    GatewayRequestStage.Stt,
+                    failure.Message,
+                    value => fallback = value,
+                    value => recoveryError = value);
+                if (!string.IsNullOrWhiteSpace(recoveryError))
                 {
-                    var response = JsonUtility.FromJson<SttResponse>(body);
-                    if (response == null || string.IsNullOrWhiteSpace(response.transcript))
-                    {
-                        onError?.Invoke("Voice gateway STT response did not include a transcript.");
-                        return;
-                    }
+                    onError?.Invoke(recoveryError);
+                    yield break;
+                }
 
-                    if (!EffectiveAllowMockProvider
-                        && IsMockProvider(response.provider, response.fallbackLevel))
-                    {
-                        onError?.Invoke("Voice gateway returned mock STT data in a live voice profile.");
-                        return;
-                    }
+                failure = null;
+                responseBody = null;
+                yield return PostJson(
+                    fallback.voiceBaseUrl,
+                    "/api/voice/stt",
+                    json,
+                    GatewayRequestStage.Stt,
+                    body => responseBody = body,
+                    value => failure = value);
+            }
 
-                    onComplete?.Invoke(response);
-                },
-                onError);
+            if (failure != null)
+            {
+                onError?.Invoke(failure.Message);
+                yield break;
+            }
+
+            var response = JsonUtility.FromJson<SttResponse>(responseBody);
+            if (response == null || string.IsNullOrWhiteSpace(response.transcript))
+            {
+                onError?.Invoke("Voice gateway STT response did not include a transcript.");
+                yield break;
+            }
+
+            if (!EffectiveAllowMockProvider
+                && IsMockProvider(response.provider, response.fallbackLevel))
+            {
+                onError?.Invoke("Voice gateway returned mock STT data in a live voice profile.");
+                yield break;
+            }
+
+            onComplete?.Invoke(response);
         }
 
         public IEnumerator RequestTtsAudioClip(
@@ -126,70 +184,255 @@ namespace SceneTalkVR.Voice
                 yield break;
             }
 
+            GatewayRouteSnapshot route = null;
+            string routeError = null;
+            yield return AcquireRoute(
+                false,
+                GatewayRequestStage.TtsRequest,
+                value => route = value,
+                value => routeError = value);
+            if (!string.IsNullOrWhiteSpace(routeError))
+            {
+                onError?.Invoke(routeError);
+                yield break;
+            }
+
             TtsResponse response = null;
-            string error = null;
-            yield return PostJson(
-                "/api/voice/tts",
-                JsonUtility.ToJson(request),
-                body =>
-                {
-                    response = JsonUtility.FromJson<TtsResponse>(body);
-                    if (response == null || string.IsNullOrWhiteSpace(response.audioUrl))
-                    {
-                        error = "Voice gateway TTS response did not include an audioUrl.";
-                    }
-                    else if (!ValidateTtsProvider(response, out var providerError))
-                    {
-                        error = providerError;
-                    }
-                    else if (!ValidateTtsTextAcknowledgement(
-                        request.text,
-                        response.textCharacters,
-                        out var textError))
-                    {
-                        error = textError;
-                    }
-                },
-                message => error = message);
-
-            if (!string.IsNullOrWhiteSpace(error))
-            {
-                onError?.Invoke(error);
-                yield break;
-            }
-
             AudioClip clip = null;
-            yield return DownloadAudioClip(
-                ToAbsoluteUrl(response.audioUrl),
-                value => clip = value,
-                message => error = message);
+            VoiceRequestFailure failure = null;
+            yield return RequestTtsOnRoute(
+                request,
+                route,
+                (value, audio) =>
+                {
+                    response = value;
+                    clip = audio;
+                },
+                value => failure = value);
 
-            if (!string.IsNullOrWhiteSpace(error))
+            if (failure?.IsTransportFailure == true && transportRouter != null)
             {
-                onError?.Invoke(error);
-                yield break;
+                if (clip != null)
+                {
+                    Destroy(clip);
+                    clip = null;
+                }
+
+                GatewayRouteSnapshot fallback = null;
+                string recoveryError = null;
+                yield return RecoverRoute(
+                    route,
+                    failure.Stage,
+                    failure.Message,
+                    value => fallback = value,
+                    value => recoveryError = value);
+                if (!string.IsNullOrWhiteSpace(recoveryError))
+                {
+                    onError?.Invoke(recoveryError);
+                    yield break;
+                }
+
+                failure = null;
+                response = null;
+                yield return RequestTtsOnRoute(
+                    request,
+                    fallback,
+                    (value, audio) =>
+                    {
+                        response = value;
+                        clip = audio;
+                    },
+                    value => failure = value);
             }
 
-            if (clip == null || clip.samples <= 0 || clip.length <= 0.05f)
+            if (failure != null)
             {
                 if (clip != null)
                 {
                     Destroy(clip);
                 }
-                onError?.Invoke("Voice gateway TTS audio download did not contain a playable AudioClip.");
+                onError?.Invoke(failure.Message);
                 yield break;
             }
 
             onComplete?.Invoke(response, clip);
         }
 
-        private IEnumerator PostJson(
-            string route,
-            string json,
-            Action<string> onComplete,
+        private IEnumerator RequestTtsOnRoute(
+            TtsRequest request,
+            GatewayRouteSnapshot route,
+            Action<TtsResponse, AudioClip> onComplete,
+            Action<VoiceRequestFailure> onError)
+        {
+            TtsResponse response = null;
+            VoiceRequestFailure failure = null;
+            yield return PostJson(
+                route.voiceBaseUrl,
+                "/api/voice/tts",
+                JsonUtility.ToJson(request),
+                GatewayRequestStage.TtsRequest,
+                body =>
+                {
+                    response = JsonUtility.FromJson<TtsResponse>(body);
+                    if (response == null || string.IsNullOrWhiteSpace(response.audioUrl))
+                    {
+                        failure = new VoiceRequestFailure(
+                            "Voice gateway TTS response did not include an audioUrl.",
+                            false,
+                            GatewayRequestStage.TtsRequest);
+                    }
+                    else if (!ValidateTtsProvider(response, out var providerError))
+                    {
+                        failure = new VoiceRequestFailure(
+                            providerError,
+                            false,
+                            GatewayRequestStage.TtsRequest);
+                    }
+                    else if (!ValidateTtsTextAcknowledgement(
+                        request.text,
+                        response.textCharacters,
+                        out var textError))
+                    {
+                        failure = new VoiceRequestFailure(
+                            textError,
+                            false,
+                            GatewayRequestStage.TtsRequest);
+                    }
+                },
+                value => failure = value);
+
+            if (failure != null)
+            {
+                onError?.Invoke(failure);
+                yield break;
+            }
+
+            AudioClip clip = null;
+            yield return DownloadAudioClip(
+                ToAbsoluteUrl(route.voiceBaseUrl, response.audioUrl),
+                value => clip = value,
+                value => failure = value);
+            if (failure != null)
+            {
+                onError?.Invoke(failure);
+                yield break;
+            }
+
+            if (!ValidateDownloadedAudioClip(response, clip, out var audioError))
+            {
+                if (clip != null)
+                {
+                    Destroy(clip);
+                }
+                onError?.Invoke(new VoiceRequestFailure(
+                    audioError,
+                    false,
+                    GatewayRequestStage.TtsAudioDownload));
+                yield break;
+            }
+
+            onComplete?.Invoke(response, clip);
+        }
+
+        private IEnumerator AcquireRoute(
+            bool refreshUsb,
+            GatewayRequestStage stage,
+            Action<GatewayRouteSnapshot> onComplete,
             Action<string> onError)
         {
-            var url = $"{GatewayBaseUrl}{route}";
+            if (transportRouter == null)
+            {
+                onComplete?.Invoke(new GatewayRouteSnapshot
+                {
+                    transport = GatewayTransportKind.Lan,
+                    voiceBaseUrl = GatewayBaseUrl,
+                    llmApiUrl = "legacy",
+                    selectedAtUtc = DateTime.UtcNow.ToString("o")
+                });
+                yield break;
+            }
+
+            Task<GatewayRouteSnapshot> task;
+            try
+            {
+                task = transportRouter.AcquireRouteAsync(refreshUsb, stage);
+            }
+            catch (Exception error)
+            {
+                onError?.Invoke(error.Message);
+                yield break;
+            }
+
+            while (!task.IsCompleted)
+            {
+                yield return null;
+            }
+
+            if (task.IsCanceled)
+            {
+                onError?.Invoke("gateway_transport_route_request_cancelled");
+            }
+            else if (task.IsFaulted)
+            {
+                onError?.Invoke(task.Exception?.GetBaseException().Message
+                    ?? "gateway_transport_unavailable");
+            }
+            else
+            {
+                onComplete?.Invoke(task.Result);
+            }
+        }
+
+        private IEnumerator RecoverRoute(
+            GatewayRouteSnapshot failedRoute,
+            GatewayRequestStage stage,
+            string failureReason,
+            Action<GatewayRouteSnapshot> onComplete,
+            Action<string> onError)
+        {
+            Task<GatewayRouteSnapshot> task;
+            try
+            {
+                task = transportRouter.RecoverFromTransportFailureAsync(
+                    failedRoute,
+                    stage,
+                    failureReason);
+            }
+            catch (Exception error)
+            {
+                onError?.Invoke(error.Message);
+                yield break;
+            }
+
+            while (!task.IsCompleted)
+            {
+                yield return null;
+            }
+
+            if (task.IsCanceled)
+            {
+                onError?.Invoke("gateway_transport_recovery_cancelled");
+            }
+            else if (task.IsFaulted)
+            {
+                onError?.Invoke(task.Exception?.GetBaseException().Message
+                    ?? "gateway_transport_fallback_unavailable");
+            }
+            else
+            {
+                onComplete?.Invoke(task.Result);
+            }
+        }
+
+        private IEnumerator PostJson(
+            string baseUrl,
+            string route,
+            string json,
+            GatewayRequestStage stage,
+            Action<string> onComplete,
+            Action<VoiceRequestFailure> onError)
+        {
+            var url = $"{NormalizeBaseUrl(baseUrl)}{route}";
             var bodyRaw = Encoding.UTF8.GetBytes(json);
             var maxAttempts = Mathf.Max(1, transientRetryCount + 1);
             for (var attempt = 1; attempt <= maxAttempts; attempt++)
@@ -214,13 +457,19 @@ namespace SceneTalkVR.Voice
                         continue;
                     }
 
-                    onError?.Invoke(BuildGatewayRequestError(request, responseBody, attempt));
+                    onError?.Invoke(new VoiceRequestFailure(
+                        BuildGatewayRequestError(request, responseBody, attempt),
+                        IsTransportFailure(request),
+                        stage));
                     yield break;
                 }
 
                 if (string.IsNullOrWhiteSpace(responseBody))
                 {
-                    onError?.Invoke("Voice gateway returned an empty response.");
+                    onError?.Invoke(new VoiceRequestFailure(
+                        "Voice gateway returned an empty response.",
+                        false,
+                        stage));
                     yield break;
                 }
 
@@ -243,6 +492,13 @@ namespace SceneTalkVR.Voice
 
             var statusCode = request.responseCode;
             return statusCode == 408 || statusCode == 429 || statusCode >= 500;
+        }
+
+        private static bool IsTransportFailure(UnityWebRequest request)
+        {
+            return request != null
+                && request.result == UnityWebRequest.Result.ConnectionError
+                && request.responseCode <= 0;
         }
 
         private static string BuildGatewayRequestError(
@@ -297,44 +553,102 @@ namespace SceneTalkVR.Voice
         private IEnumerator DownloadAudioClip(
             string url,
             Action<AudioClip> onComplete,
-            Action<string> onError)
+            Action<VoiceRequestFailure> onError)
         {
-            using var request = UnityWebRequestMultimedia.GetAudioClip(url, AudioType.WAV);
-            request.timeout = EffectiveRequestTimeoutSeconds;
-            yield return request.SendWebRequest();
-
-            if (request.result != UnityWebRequest.Result.Success)
+            var maxAttempts = Mathf.Max(1, transientRetryCount + 1);
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
             {
-                onError?.Invoke($"Voice gateway audio download failed: {request.error}");
+                using var request = UnityWebRequestMultimedia.GetAudioClip(url, AudioType.WAV);
+                request.timeout = EffectiveRequestTimeoutSeconds;
+                yield return request.SendWebRequest();
+
+                if (request.result != UnityWebRequest.Result.Success)
+                {
+                    if (attempt < maxAttempts && IsTransientFailure(request))
+                    {
+                        yield return new WaitForSecondsRealtime(0.25f * attempt);
+                        continue;
+                    }
+
+                    onError?.Invoke(new VoiceRequestFailure(
+                        $"Voice gateway audio download failed: {request.error}",
+                        IsTransportFailure(request),
+                        GatewayRequestStage.TtsAudioDownload));
+                    yield break;
+                }
+
+                var clip = DownloadHandlerAudioClip.GetContent(request);
+                if (clip == null)
+                {
+                    onError?.Invoke(new VoiceRequestFailure(
+                        "Downloaded voice gateway audio could not be decoded as WAV.",
+                        false,
+                        GatewayRequestStage.TtsAudioDownload));
+                    yield break;
+                }
+
+                onComplete?.Invoke(clip);
                 yield break;
             }
-
-            var clip = DownloadHandlerAudioClip.GetContent(request);
-            if (clip == null)
-            {
-                onError?.Invoke("Downloaded voice gateway audio could not be decoded as WAV.");
-                yield break;
-            }
-
-            onComplete?.Invoke(clip);
         }
 
-        private string ToAbsoluteUrl(string routeOrUrl)
+        private static string ToAbsoluteUrl(string baseUrl, string routeOrUrl)
         {
             if (string.IsNullOrWhiteSpace(routeOrUrl))
             {
-                return GatewayBaseUrl;
+                return NormalizeBaseUrl(baseUrl);
             }
 
             if (routeOrUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
                 || routeOrUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
+                if (Uri.TryCreate(routeOrUrl, UriKind.Absolute, out var audioUri)
+                    && Uri.TryCreate(NormalizeBaseUrl(baseUrl), UriKind.Absolute, out var routeBase))
+                {
+                    var pinned = new UriBuilder(routeBase)
+                    {
+                        Path = audioUri.AbsolutePath,
+                        Query = audioUri.Query.TrimStart('?'),
+                        Fragment = string.Empty
+                    };
+                    return pinned.Uri.AbsoluteUri;
+                }
+
                 return routeOrUrl;
             }
 
             return routeOrUrl.StartsWith("/", StringComparison.Ordinal)
-                ? $"{GatewayBaseUrl}{routeOrUrl}"
-                : $"{GatewayBaseUrl}/{routeOrUrl}";
+                ? $"{NormalizeBaseUrl(baseUrl)}{routeOrUrl}"
+                : $"{NormalizeBaseUrl(baseUrl)}/{routeOrUrl}";
+        }
+
+        internal static bool ValidateDownloadedAudioClip(
+            TtsResponse response,
+            AudioClip clip,
+            out string error)
+        {
+            error = string.Empty;
+            if (clip == null || clip.samples <= 0 || clip.channels <= 0
+                || clip.frequency <= 0 || clip.length <= 0.05f)
+            {
+                error = "Voice gateway TTS audio download did not contain a complete playable AudioClip.";
+                return false;
+            }
+
+            if (response == null
+                || !string.Equals(response.format, "wav", StringComparison.OrdinalIgnoreCase))
+            {
+                error = "Voice gateway TTS response did not describe WAV audio.";
+                return false;
+            }
+
+            if (response.sampleRate > 0 && response.sampleRate != clip.frequency)
+            {
+                error = "Voice gateway TTS WAV sample rate did not match the response metadata.";
+                return false;
+            }
+
+            return true;
         }
 
         private static string NormalizeBaseUrl(string value)
@@ -415,6 +729,23 @@ namespace SceneTalkVR.Voice
             return string.Equals(normalizedProvider, "mock", StringComparison.Ordinal)
                 || normalizedFallback.StartsWith("mock_", StringComparison.Ordinal)
                 || normalizedFallback.StartsWith("mock_after_", StringComparison.Ordinal);
+        }
+
+        private sealed class VoiceRequestFailure
+        {
+            public VoiceRequestFailure(
+                string message,
+                bool isTransportFailure,
+                GatewayRequestStage stage)
+            {
+                Message = message ?? string.Empty;
+                IsTransportFailure = isTransportFailure;
+                Stage = stage;
+            }
+
+            public string Message { get; }
+            public bool IsTransportFailure { get; }
+            public GatewayRequestStage Stage { get; }
         }
     }
 

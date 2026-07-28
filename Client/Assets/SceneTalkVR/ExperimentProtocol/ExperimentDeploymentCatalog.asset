@@ -16,6 +16,8 @@ MonoBehaviour:
   profiles:
   - profileId: 6
     voiceGatewayBaseUrl: http://127.0.0.1:8787
+    llmGatewayApiUrl: http://127.0.0.1:8788/api/llm/chat/completions
+    transportPreference: 0
     requestTimeoutSeconds: 30
     sttProvider: voice_gateway_live_stt
     ttsProvider: tencent

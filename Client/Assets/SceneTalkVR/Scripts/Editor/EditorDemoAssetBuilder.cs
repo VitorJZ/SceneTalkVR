@@ -55,6 +55,8 @@ namespace SceneTalkVR.EditorTools
             {
                 profileId = ExperimentDeploymentProfileId.EditorDemo,
                 voiceGatewayBaseUrl = "http://127.0.0.1:8787",
+                llmGatewayApiUrl = "http://127.0.0.1:8788/api/llm/chat/completions",
+                transportPreference = GatewayTransportPreference.LanOnly,
                 requestTimeoutSeconds = 30,
                 sttProvider = "actual_editor_gateway",
                 ttsProvider = "tencent",

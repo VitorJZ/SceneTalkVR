@@ -114,6 +114,7 @@ namespace SceneTalkVR.Runtime.Services
         private bool formalDialogueLeakageDetected;
         private float streamStartTime;
         private CancellationTokenSource activeGenerationCancellation;
+        private IGatewayTransportRouteProvider transportRouter;
 
         private enum LlmRequestPurpose
         {
@@ -1523,6 +1524,32 @@ namespace SceneTalkVR.Runtime.Services
 
         #region Send API Requests
 
+        private async Task<GatewayRouteSnapshot> AcquireLlmRouteAsync(
+            GatewayRequestStage stage,
+            CancellationToken cancellationToken)
+        {
+            if (transportRouter == null)
+            {
+                return new GatewayRouteSnapshot
+                {
+                    transport = GatewayTransportKind.Lan,
+                    voiceBaseUrl = "legacy",
+                    llmApiUrl = apiUrl,
+                    selectedAtUtc = DateTime.UtcNow.ToString("o")
+                };
+            }
+
+            return await transportRouter.AcquireRouteAsync(false, stage, cancellationToken);
+        }
+
+        private bool CanSwitchRoute(LlmRequestException failure)
+        {
+            return transportRouter != null
+                && failure != null
+                && failure.TransportFailure
+                && !failure.ResponseBytesReceived;
+        }
+
         private async Task<string> SendChatRequest(
             OpenAiMessage[] messages,
             bool useJsonObject,
@@ -1560,23 +1587,51 @@ namespace SceneTalkVR.Runtime.Services
                 }
             };
 
-            return await ExecuteWithRetry(
-                timeoutSeconds => SendChatRequestAttempt(
-                    jsonBody,
-                    timeoutSeconds,
-                    signalFirstBytes,
-                    cancellationToken),
-                purpose,
-                cancellationToken);
+            var route = await AcquireLlmRouteAsync(GatewayRequestStage.Llm, cancellationToken);
+            try
+            {
+                return await ExecuteWithRetry(
+                    timeoutSeconds => SendChatRequestAttempt(
+                        route.llmApiUrl,
+                        jsonBody,
+                        timeoutSeconds,
+                        signalFirstBytes,
+                        cancellationToken),
+                    purpose,
+                    cancellationToken);
+            }
+            catch (LlmRequestException failure) when (CanSwitchRoute(failure))
+            {
+                var fallback = await transportRouter.RecoverFromTransportFailureAsync(
+                    route,
+                    GatewayRequestStage.Llm,
+                    failure.Message,
+                    cancellationToken);
+                return await ExecuteWithRetry(
+                    timeoutSeconds => SendChatRequestAttempt(
+                        fallback.llmApiUrl,
+                        jsonBody,
+                        timeoutSeconds,
+                        signalFirstBytes,
+                        cancellationToken),
+                    purpose,
+                    cancellationToken);
+            }
+        }
+
+        public void ConfigureTransportRouter(IGatewayTransportRouteProvider router)
+        {
+            transportRouter = router;
         }
 
         private async Task<string> SendChatRequestAttempt(
+            string requestUrl,
             string jsonBody,
             int timeoutSeconds,
             Action onFirstResponseBytes,
             CancellationToken cancellationToken)
         {
-            var requiresClientApiKey = RequiresClientApiKey(apiUrl);
+            var requiresClientApiKey = RequiresClientApiKey(requestUrl);
             string effectiveKey = string.IsNullOrEmpty(apiKey)
                 ? Environment.GetEnvironmentVariable("OPENAI_API_KEY")
                 : apiKey;
@@ -1586,7 +1641,7 @@ namespace SceneTalkVR.Runtime.Services
                 throw new LlmRequestException("API Key is not set.", 0, false, 0);
             }
 
-            using var webRequest = new UnityWebRequest(apiUrl, "POST");
+            using var webRequest = new UnityWebRequest(requestUrl, "POST");
             byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
             webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
             var responseHandler = new FirstResponseBytesDownloadHandler(onFirstResponseBytes);
@@ -1616,7 +1671,10 @@ namespace SceneTalkVR.Runtime.Services
 
             if (webRequest.result != UnityWebRequest.Result.Success)
             {
-                throw BuildRequestException(webRequest, responseHandler.Text);
+                throw BuildRequestException(
+                    webRequest,
+                    responseHandler.Text,
+                    responseHandler.HasReceivedBytes);
             }
 
             if (string.IsNullOrWhiteSpace(responseHandler.Text))
@@ -1752,7 +1810,8 @@ namespace SceneTalkVR.Runtime.Services
 
         private static LlmRequestException BuildRequestException(
             UnityWebRequest webRequest,
-            string responseBody)
+            string responseBody,
+            bool responseBytesReceived = false)
         {
             var statusCode = webRequest == null ? 0 : webRequest.responseCode;
             var requestError = webRequest == null || string.IsNullOrWhiteSpace(webRequest.error)
@@ -1763,6 +1822,9 @@ namespace SceneTalkVR.Runtime.Services
                     || statusCode == 408
                     || statusCode == 429
                     || statusCode >= 500);
+            var transportFailure = webRequest != null
+                && webRequest.result == UnityWebRequest.Result.ConnectionError
+                && statusCode <= 0;
             var retryAfterSeconds = 0;
             if (webRequest != null)
             {
@@ -1780,7 +1842,9 @@ namespace SceneTalkVR.Runtime.Services
                 message,
                 statusCode,
                 retryable,
-                retryAfterSeconds);
+                retryAfterSeconds,
+                transportFailure,
+                responseBytesReceived);
         }
 
         private static string BoundResponseDetail(string responseBody)
@@ -1802,17 +1866,32 @@ namespace SceneTalkVR.Runtime.Services
             public long StatusCode { get; }
             public bool Retryable { get; }
             public int RetryAfterSeconds { get; }
+            public bool TransportFailure { get; }
+            public bool ResponseBytesReceived { get; }
 
             public LlmRequestException(
                 string message,
                 long statusCode,
                 bool retryable,
                 int retryAfterSeconds)
+                : this(message, statusCode, retryable, retryAfterSeconds, false, false)
+            {
+            }
+
+            public LlmRequestException(
+                string message,
+                long statusCode,
+                bool retryable,
+                int retryAfterSeconds,
+                bool transportFailure,
+                bool responseBytesReceived)
                 : base(message)
             {
                 StatusCode = statusCode;
                 Retryable = retryable;
                 RetryAfterSeconds = retryAfterSeconds;
+                TransportFailure = transportFailure;
+                ResponseBytesReceived = responseBytesReceived;
             }
         }
 
@@ -1830,6 +1909,7 @@ namespace SceneTalkVR.Runtime.Services
             }
 
             public string Text => text.ToString();
+            public bool HasReceivedBytes => firstBytesReceived;
 
             protected override bool ReceiveData(byte[] data, int dataLength)
             {
@@ -2115,17 +2195,40 @@ namespace SceneTalkVR.Runtime.Services
                 stream = true
             };
             var jsonBody = JsonUtility.ToJson(requestBody);
-            return await ExecuteWithRetry(
-                timeoutSeconds => SendChatRequestStreamingAttempt(
-                    jsonBody,
-                    timeoutSeconds,
-                    onChunkReceived,
-                    cancellationToken),
-                LlmRequestPurpose.Dialogue,
-                cancellationToken);
+            var route = await AcquireLlmRouteAsync(GatewayRequestStage.LlmStream, cancellationToken);
+            try
+            {
+                return await ExecuteWithRetry(
+                    timeoutSeconds => SendChatRequestStreamingAttempt(
+                        route.llmApiUrl,
+                        jsonBody,
+                        timeoutSeconds,
+                        onChunkReceived,
+                        cancellationToken),
+                    LlmRequestPurpose.Dialogue,
+                    cancellationToken);
+            }
+            catch (LlmRequestException failure) when (CanSwitchRoute(failure))
+            {
+                var fallback = await transportRouter.RecoverFromTransportFailureAsync(
+                    route,
+                    GatewayRequestStage.LlmStream,
+                    failure.Message,
+                    cancellationToken);
+                return await ExecuteWithRetry(
+                    timeoutSeconds => SendChatRequestStreamingAttempt(
+                        fallback.llmApiUrl,
+                        jsonBody,
+                        timeoutSeconds,
+                        onChunkReceived,
+                        cancellationToken),
+                    LlmRequestPurpose.Dialogue,
+                    cancellationToken);
+            }
         }
 
         private async Task<string> SendChatRequestStreamingAttempt(
+            string requestUrl,
             string jsonBody,
             int timeoutSeconds,
             Action<string> onChunkReceived,
@@ -2135,12 +2238,12 @@ namespace SceneTalkVR.Runtime.Services
                 ? Environment.GetEnvironmentVariable("OPENAI_API_KEY")
                 : apiKey;
 
-            if (RequiresClientApiKey(apiUrl) && string.IsNullOrEmpty(effectiveKey))
+            if (RequiresClientApiKey(requestUrl) && string.IsNullOrEmpty(effectiveKey))
             {
                 throw new LlmRequestException("API Key is not set.", 0, false, 0);
             }
 
-            using var webRequest = new UnityWebRequest(apiUrl, "POST");
+            using var webRequest = new UnityWebRequest(requestUrl, "POST");
             byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
             webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
 
@@ -2164,7 +2267,7 @@ namespace SceneTalkVR.Runtime.Services
             webRequest.SetRequestHeader("Content-Type", "application/json");
             webRequest.SetRequestHeader("Accept", "text/event-stream");
             webRequest.SetRequestHeader("Cache-Control", "no-cache");
-            if (RequiresClientApiKey(apiUrl))
+            if (RequiresClientApiKey(requestUrl))
             {
                 webRequest.SetRequestHeader("Authorization", $"Bearer {effectiveKey}");
             }
@@ -2187,14 +2290,19 @@ namespace SceneTalkVR.Runtime.Services
 
             if (webRequest.result != UnityWebRequest.Result.Success)
             {
-                var failure = BuildRequestException(webRequest, responseHandler.RawText);
-                if (fullResponseBuilder.Length > 0)
+                var failure = BuildRequestException(
+                    webRequest,
+                    responseHandler.RawText,
+                    responseHandler.HasReceivedBytes);
+                if (responseHandler.HasReceivedBytes)
                 {
                     failure = new LlmRequestException(
-                        failure.Message + "\nThe failed stream already emitted content; automatic retry was suppressed.",
+                        failure.Message + "\nThe failed stream already received bytes; automatic retry was suppressed.",
                         failure.StatusCode,
                         false,
-                        failure.RetryAfterSeconds);
+                        failure.RetryAfterSeconds,
+                        failure.TransportFailure,
+                        true);
                 }
                 throw failure;
             }
@@ -2227,8 +2335,10 @@ namespace SceneTalkVR.Runtime.Services
                     "LLM returned HTTP success without decodable dialogue content."
                     + (string.IsNullOrWhiteSpace(detail) ? string.Empty : $"\n{detail}"),
                     webRequest.responseCode,
-                    true,
-                    0);
+                    !responseHandler.HasReceivedBytes,
+                    0,
+                    false,
+                    responseHandler.HasReceivedBytes);
             }
 
             return fullResponseBuilder.ToString();
@@ -2317,6 +2427,7 @@ namespace SceneTalkVR.Runtime.Services
             public int ParsedEventCount { get; private set; }
             public int ParseFailureCount { get; private set; }
             public string LastParseFailure { get; private set; } = string.Empty;
+            public bool HasReceivedBytes { get; private set; }
 
             public StreamingDownloadHandler(Action<string> onChunkReceived) : base(new byte[16384])
             {
@@ -2329,6 +2440,8 @@ namespace SceneTalkVR.Runtime.Services
                 {
                     return true;
                 }
+
+                HasReceivedBytes = true;
 
                 var characterCount = decoder.GetChars(
                     data,

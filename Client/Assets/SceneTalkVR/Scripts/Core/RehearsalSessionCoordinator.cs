@@ -182,6 +182,7 @@ namespace SceneTalkVR.Core
         {
             error = string.Empty;
             if (!IsActive) { error = "rehearsal_session_not_active"; return false; }
+            if (!GatewayTransportRouter.CanStartLiveAttempt(out error)) return false;
             if (IsFormal)
             {
                 var items = FormalAssignment?.conditions;
@@ -206,6 +207,11 @@ namespace SceneTalkVR.Core
             if (!IsPilot)
             {
                 error = "pilot_rehearsal_session_required";
+                return false;
+            }
+
+            if (!GatewayTransportRouter.CanStartLiveAttempt(out error))
+            {
                 return false;
             }
 
@@ -261,6 +267,7 @@ namespace SceneTalkVR.Core
         {
             error = string.Empty;
             if (!IsFormal) { error = "formal_rehearsal_session_required"; return false; }
+            if (!GatewayTransportRouter.CanStartLiveAttempt(out error)) return false;
             if (currentPosition >= 0 && formalLifecycle?.CurrentConditionAssignment != null
                 && (formalLifecycle.CurrentConditionAssignment.status == ConditionRunStatus.Preparing
                     || formalLifecycle.CurrentConditionAssignment.status == ConditionRunStatus.Running
@@ -379,6 +386,7 @@ namespace SceneTalkVR.Core
 
         public bool Retry(out string error)
         {
+            if (!GatewayTransportRouter.CanStartLiveAttempt(out error)) return false;
             var ok = IsFormal ? formalLifecycle.PrepareCondition(currentPosition, true, out error)
                 : IsPilot ? pilotWorkflow.RetryCurrent(out error) : Fail(out error, "rehearsal_session_not_active");
             if (ok) { PersistAssignments(); WriteOperator("Retry"); } return ok;
