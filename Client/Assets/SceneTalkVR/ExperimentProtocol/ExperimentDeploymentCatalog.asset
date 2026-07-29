@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d96bab79c29fb79439b971b211928eca, type: 3}
   m_Name: ExperimentDeploymentCatalog
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentDeploymentCatalog
-  catalogVersion: 1.2-editor-collection
+  catalogVersion: 1.3-pico-collection
   profiles:
   - profileId: 6
     voiceGatewayBaseUrl: http://127.0.0.1:8787
@@ -34,3 +34,23 @@ MonoBehaviour:
     picoRequired: 0
     approvedForEditorCollection: 1
     evidenceReference: formal-editor-collection-directive-v1
+  - profileId: 1
+    voiceGatewayBaseUrl: http://192.168.137.1:8787
+    llmGatewayApiUrl: http://192.168.137.1:8788/api/llm/chat/completions
+    transportPreference: 1
+    requestTimeoutSeconds: 30
+    sttProvider: voice_gateway_live_stt
+    ttsProvider: tencent
+    microphonePolicy: runtime_permission_required
+    networkRequired: 1
+    approvedForCollection: 1
+    approvedForEditorDemo: 0
+    loopbackAllowedForEditorDemo: 0
+    approvedForRehearsal: 0
+    loopbackAllowedForRehearsal: 0
+    collectionAllowed: 1
+    target: 2
+    loopbackAllowed: 0
+    picoRequired: 1
+    approvedForEditorCollection: 0
+    evidenceReference: project-lead-pico-collection-directive-2026-07-29

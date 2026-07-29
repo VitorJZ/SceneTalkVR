@@ -191,6 +191,12 @@ namespace SceneTalkVR.Core
         public void EnterEditorCollectionMode(ExperimentV11ProtocolConfig protocol, ExperimentTaskCatalog tasks,
             QuestionnaireCatalog questionnaires, ExperimentVoiceProfileCatalog voices,
             ExperimentDeploymentCatalog deployments)
+            => EnterCollectionMode(protocol, tasks, questionnaires, voices, deployments,
+                ExperimentDeploymentProfileId.EditorCollection);
+
+        public void EnterCollectionMode(ExperimentV11ProtocolConfig protocol, ExperimentTaskCatalog tasks,
+            QuestionnaireCatalog questionnaires, ExperimentVoiceProfileCatalog voices,
+            ExperimentDeploymentCatalog deployments, ExperimentDeploymentProfileId targetDeploymentProfile)
         {
             if (!formalExperiment)
             {
@@ -205,7 +211,7 @@ namespace SceneTalkVR.Core
             questionnaireCatalog = questionnaires;
             voiceProfileCatalog = voices;
             deploymentCatalog = deployments;
-            deploymentProfile = ExperimentDeploymentProfileId.EditorCollection;
+            deploymentProfile = targetDeploymentProfile;
             formalExperiment = true;
             debugMode = false;
             showDebugLabel = false;
@@ -1149,7 +1155,11 @@ namespace SceneTalkVR.Core
                 taskCompletionRate = lifecycle?.GoalTracker?.GetCompletionRate() ?? 0f,
                 turnsToCompletion = lifecycle?.TurnsToCompletion ?? 0,
                 completionReason = lifecycle?.CompletionReason ?? string.Empty,
-                runtimeMode = collection != null && collection.IsArmed ? ExperimentRuntimeMode.EditorCollectionFormal.ToString() : editorDemo != null && editorDemo.IsDemoMode ? editorDemo.RuntimeMode.ToString() : formalExperiment ? ExperimentRuntimeMode.LockedFormalCollection.ToString() : ExperimentRuntimeMode.DeveloperManual.ToString(),
+                runtimeMode = collection != null && collection.IsArmed
+                    ? collection.Assignment?.runtimeMode.ToString() ?? ExperimentRuntimeMode.EditorCollectionFormal.ToString()
+                    : editorDemo != null && editorDemo.IsDemoMode ? editorDemo.RuntimeMode.ToString()
+                    : formalExperiment ? ExperimentRuntimeMode.LockedFormalCollection.ToString()
+                    : ExperimentRuntimeMode.DeveloperManual.ToString(),
                 dataOrigin = rehearsal != null && rehearsal.IsActive ? "rehearsal" : editorDemo != null && editorDemo.IsDemoMode ? "editor_demo" : studyAssignment?.dataOrigin ?? string.Empty,
                 collectionEligible = rehearsal != null && rehearsal.IsActive ? false : editorDemo != null && editorDemo.IsDemoMode ? false : studyAssignment?.collectionEligible ?? false,
                 developerTestAssignment = rehearsal != null && rehearsal.IsActive ? false : editorDemo != null && editorDemo.IsDemoMode || (studyAssignment?.developerTestAssignment ?? false),

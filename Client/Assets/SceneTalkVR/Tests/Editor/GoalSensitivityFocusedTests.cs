@@ -32,9 +32,14 @@ namespace SceneTalkVR.Tests.Editor
         [TestCase("hotel_check_in", "reservation_name", "The reservation should be in Zhang's name.")]
         [TestCase("pilot_restaurant_walk_in", "no_reservation", "I don't, uh, have a reservation.")]
         [TestCase("pilot_restaurant_walk_in", "party_size", "We're a group of three.")]
+        [TestCase("pilot_restaurant_walk_in", "window_table_availability", "Could we sit at a table by the window?")]
+        [TestCase("pilot_restaurant_walk_in", "menu_request", "Could you bring us a menu, please?")]
         [TestCase("pilot_restaurant_ordering", "recommendation", "Could you suggest something popular?")]
-        [TestCase("pilot_restaurant_ordering", "dietary_restriction", "I can't eat nuts.")]
+        [TestCase("pilot_restaurant_ordering", "dish_price", "Could you tell me the price of the salmon?")]
         [TestCase("pilot_restaurant_wrong_dish", "wrong_dish", "You brought me somebody else's order.")]
+        [TestCase("pilot_restaurant_wrong_dish", "dietary_restriction", "I can't eat nuts.")]
+        [TestCase("pilot_restaurant_wrong_dish", "extra_charge", "Will I be charged extra for the replacement?")]
+        [TestCase("pilot_restaurant_wrong_dish", "replacement_preparation_time", "When will the replacement be ready?")]
         public void NaturalApprovedExpressions_AreDeterministicallyDetected(string taskId, string goalId, string transcript)
         {
             Assert.That(Evaluate(taskId, goalId, transcript).achieved, Is.True);
@@ -42,9 +47,17 @@ namespace SceneTalkVR.Tests.Editor
 
         [TestCase("furniture_shopping", "delivery", "I do not need home delivery.")]
         [TestCase("gym_membership", "trial", "I already used my free trial last year.")]
-        [TestCase("pilot_restaurant_walk_in", "table_availability", "There is no table available.")]
+        [TestCase("pilot_restaurant_walk_in", "window_table_availability", "There is a table by the window.")]
+        [TestCase("pilot_restaurant_walk_in", "menu_request", "The menu looks nice.")]
         [TestCase("pilot_restaurant_ordering", "recommendation", "I do not want a recommendation.")]
+        [TestCase("pilot_restaurant_ordering", "dish_price", "This dish is expensive.")]
+        [TestCase("pilot_restaurant_ordering", "dish_price", "How much is it?")]
         [TestCase("pilot_restaurant_wrong_dish", "wrong_dish", "This is not the wrong dish.")]
+        [TestCase("pilot_restaurant_wrong_dish", "dietary_restriction", "I have no food allergies.")]
+        [TestCase("pilot_restaurant_wrong_dish", "dietary_restriction", "I am not allergic to peanuts.")]
+        [TestCase("pilot_restaurant_wrong_dish", "dietary_restriction", "I am not vegetarian.")]
+        [TestCase("pilot_restaurant_wrong_dish", "extra_charge", "There is no extra charge.")]
+        [TestCase("pilot_restaurant_wrong_dish", "replacement_preparation_time", "It took a long time yesterday.")]
         public void NegatedOrAmbiguousMentions_AreDeferredInsteadOfConfirmed(string taskId, string goalId, string transcript)
         {
             var result = Evaluate(taskId, goalId, transcript);
@@ -200,6 +213,26 @@ namespace SceneTalkVR.Tests.Editor
                 }
             }
             return tracker;
+        }
+
+        [UnityTest]
+        public IEnumerator AmbiguousDishPrice_UsesStructuredFallbackWithRecentTurns()
+        {
+            var task = catalog.Find("pilot_restaurant_ordering");
+            var definition = task.goals.Single(x => x.goalId == "dish_price");
+            var tracker = Tracker(task, definition.goalId);
+            var fallback = new FakeAsyncFallback(.90f, "How much is it?");
+            GoalEvaluationOrchestrator.AsyncStructuredFallback = fallback;
+            var request = Request(task, new[] { definition }, "How much is it?", "turn-price-context");
+            request.recentUserTurns = new[] { "What do you recommend?", "I will have the salmon.", "How much is it?" };
+
+            yield return GoalEvaluationOrchestrator.EvaluateActiveTaskGoalsAsync(
+                request, tracker, () => true, () => false, null);
+
+            Assert.That(fallback.Called, Is.True);
+            CollectionAssert.AreEqual(request.recentUserTurns, fallback.Request.recentUserTurns);
+            Assert.That(tracker.Goals.Single(x => x.goalId == "dish_price").state,
+                Is.EqualTo(GoalProgressState.Confirmed));
         }
 
         private static void AdvanceAfterConfirmedGoal(GoalProgressTracker tracker, string evidenceTurnId)

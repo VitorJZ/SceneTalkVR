@@ -12,9 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 47a1baef50f84d24a9ef4dffcf66b833, type: 3}
   m_Name: ExperimentBuildInfo
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentBuildInfo
-  gitCommit: 92ebf2369b44904021590f1d983b5e2e411670c0
+  gitCommit: 7de4eab72af75b722c7a8700d52e55e4a659cfc9
   activeBranch: main
   buildVersion: editor-collection-20260727
-  buildTimestampUtc: 2026-07-28T09:05:41.1096353Z
+  buildTimestampUtc: 2026-07-29T08:01:00.5751817Z
   unityVersion: 6000.3.16f1
   protocolVersion: 1.4.0-participant-turn-gated-goals

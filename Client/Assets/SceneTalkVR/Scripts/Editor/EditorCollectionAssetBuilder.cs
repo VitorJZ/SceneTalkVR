@@ -73,7 +73,7 @@ namespace SceneTalkVR.EditorTools
                 feedback.voiceProfileKey, new[] { dialogue, feedback });
 
             var deployments = AssetDatabase.LoadAssetAtPath<ExperimentDeploymentCatalog>(DeploymentPath);
-            deployments.EditorSet("1.2-editor-collection", new[]
+            deployments.EditorSet("1.3-pico-collection", new[]
             {
                 new ExperimentDeploymentProfile
                 {
@@ -88,6 +88,20 @@ namespace SceneTalkVR.EditorTools
                     approvedForCollection = true, approvedForEditorCollection = true,
                     collectionAllowed = true, loopbackAllowed = true, picoRequired = false,
                     evidenceReference = "formal-editor-collection-directive-v1"
+                },
+                new ExperimentDeploymentProfile
+                {
+                    profileId = ExperimentDeploymentProfileId.PicoLab,
+                    target = ExperimentDeploymentTarget.Pico,
+                    voiceGatewayBaseUrl = "http://192.168.137.1:8787",
+                    llmGatewayApiUrl = "http://192.168.137.1:8788/api/llm/chat/completions",
+                    transportPreference = GatewayTransportPreference.UsbPreferred,
+                    requestTimeoutSeconds = 30,
+                    sttProvider = "voice_gateway_live_stt", ttsProvider = "tencent",
+                    microphonePolicy = "runtime_permission_required", networkRequired = true,
+                    approvedForCollection = true, approvedForEditorCollection = false,
+                    collectionAllowed = true, loopbackAllowed = false, picoRequired = true,
+                    evidenceReference = "project-lead-pico-collection-directive-2026-07-29"
                 }
             });
 
@@ -164,7 +178,7 @@ namespace SceneTalkVR.EditorTools
                     task.goals[i].minimumConfidence = .85f;
                 }
             }
-            catalog.EditorSet("1.2.1-pilot-collection", catalog.Tasks.ToArray());
+            catalog.EditorSet("1.3.0-pilot-task-redesign", catalog.Tasks.ToArray());
         }
 
         private static NonGoalQuestionDefinition[] NonGoalQuestions(string taskId)

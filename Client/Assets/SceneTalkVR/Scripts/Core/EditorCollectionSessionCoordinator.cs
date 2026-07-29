@@ -74,6 +74,7 @@ namespace SceneTalkVR.Core
 
         public ExperimentRuntimeContext RuntimeContext { get; private set; }
         public bool IsArmed => RuntimeContext != null && RuntimeContext.IsCollection && RuntimeContext.flowMode == ExperimentFlowMode.Formal;
+        public bool IsPicoCollection => IsArmed && RuntimeContext.deploymentTarget == ExperimentDeploymentTarget.Pico;
         public bool ParticipantStarted => participantStarted;
         public bool AwaitingParticipantConditionChoice => IsArmed && participantStarted && currentPosition < 0
             && !finalRankingVisible && !experimentCompleted && Assignment?.status != AssignmentStatus.Completed;
@@ -132,29 +133,38 @@ namespace SceneTalkVR.Core
         {
             error = string.Empty;
             ResolveDependencies();
-            if (!Application.isEditor) { error = "editor_collection_requires_unity_editor"; return false; }
+            var picoCollection = ExperimentRuntimePlatform.IsPicoCollection;
+            if (!Application.isEditor && !picoCollection) { error = "collection_runtime_not_supported"; return false; }
+            var deploymentProfile = picoCollection
+                ? ExperimentDeploymentProfileId.PicoLab
+                : ExperimentDeploymentProfileId.EditorCollection;
             if (RehearsalSessionCoordinator.Active?.IsActive == true || EditorDemoSessionCoordinator.Active?.IsDemoMode == true)
             { error = "qa_session_must_be_closed_before_collection"; return false; }
             if (string.IsNullOrWhiteSpace(participantId) || string.IsNullOrWhiteSpace(sessionId))
             { error = "participant_and_session_required"; return false; }
             if (conditionManager == null || lifecycle == null || questionnaire == null || orchestrator == null)
             { error = "editor_collection_scene_bindings_missing"; return false; }
-            conditionManager.EnterEditorCollectionMode(protocol, taskCatalog, questionnaireCatalog, voiceCatalog, deploymentCatalog);
+            conditionManager.EnterCollectionMode(protocol, taskCatalog, questionnaireCatalog, voiceCatalog,
+                deploymentCatalog, deploymentProfile);
             questionnaire.Configure(conditionManager, lifecycle);
-            if (protocol == null || !protocol.ValidateForFormalMode(out error)) return false;
-            if (resources == null || !resources.Validate(taskCatalog, voiceCatalog, deploymentCatalog, out error)) return false;
-            if (!conditionManager.ValidateFormalProtocol(out error)) return false;
-            if (!TryApplyConfirmedRunLimits(out error)) return false;
+            if (protocol == null || !protocol.ValidateForFormalMode(out error)) return FailArm();
+            if (resources == null || !resources.Validate(taskCatalog, voiceCatalog, deploymentCatalog,
+                    deploymentProfile, out error)) return FailArm();
+            if (!conditionManager.ValidateFormalProtocol(out error)) return FailArm();
+            if (!TryApplyConfirmedRunLimits(out error)) return FailArm();
 
             var requestedSnapshot = string.IsNullOrWhiteSpace(requestedAssistantEmbodimentSnapshot)
                 ? conditionManager.ConfiguredAssistantEmbodiment
                 : requestedAssistantEmbodimentSnapshot;
             if (!conditionManager.SetExperimentAssistantEmbodiment(requestedSnapshot))
-            { error = "formal_assistant_embodiment_unavailable"; return false; }
+            { error = "formal_assistant_embodiment_unavailable"; return FailArm(); }
 
             ResetRuntimeOnly();
-            RuntimeContext = ExperimentRuntimeContext.CreateEditorCollection(participantId, sessionId,
-                protocol.ProtocolSnapshotId, resources.ResourceSnapshotId);
+            RuntimeContext = picoCollection
+                ? ExperimentRuntimeContext.CreatePicoCollection(ExperimentFlowMode.Formal, participantId, sessionId,
+                    protocol.ProtocolSnapshotId, resources.ResourceSnapshotId)
+                : ExperimentRuntimeContext.CreateEditorCollection(participantId, sessionId,
+                    protocol.ProtocolSnapshotId, resources.ResourceSnapshotId);
             Directory.CreateDirectory(CurrentDataFolder);
             var path = AssignmentPath;
             var stored = ExperimentAssignmentAllocator.Load(path);
@@ -177,6 +187,10 @@ namespace SceneTalkVR.Core
                 var allocator = new ExperimentAssignmentAllocator();
                 if (!allocator.TryCreateEditorCollection(ParticipantId, SessionId, protocol, taskCatalog,
                     resources.ResourceSnapshotId, out var created, out error)) return FailArm();
+                created.runtimeMode = picoCollection
+                    ? ExperimentRuntimeMode.PicoCollectionFormal
+                    : ExperimentRuntimeMode.EditorCollectionFormal;
+                created.deploymentProfile = RuntimeContext.deploymentProfile;
                 created.assistantEmbodimentSnapshot = requestedSnapshot;
                 if (!lifecycle.LoadAssignment(created, out error)) return FailArm();
                 currentPosition = -1;
@@ -186,7 +200,8 @@ namespace SceneTalkVR.Core
             finalRankingVisible = Assignment?.status == AssignmentStatus.Completed && !rankingSubmitted;
             experimentCompleted = false;
             WriteOperator(StudyEventType.ParticipantSessionArmed.ToString(), "resume=" + resume);
-            lifecycle.RecordStudyEvent(StudyEventType.ParticipantSessionArmed, "experiment_operator", "deploymentProfile=editor_collection");
+            lifecycle.RecordStudyEvent(StudyEventType.ParticipantSessionArmed, "experiment_operator",
+                "deploymentProfile=" + RuntimeContext.deploymentProfile);
             RefreshUi();
             error = string.Empty;
             return true;
@@ -537,6 +552,7 @@ namespace SceneTalkVR.Core
                 participantId = ParticipantId, sessionId = SessionId,
                 protocolVersion = protocol.ProtocolVersion, protocolSnapshotId = protocol.ProtocolSnapshotId,
                 resourceSnapshotId = resources.ResourceSnapshotId, qaAutomationUsed = qa,
+                deploymentProfile = RuntimeContext.deploymentProfile,
                 actor = !string.IsNullOrWhiteSpace(actor) ? actor : qa ? "qa_recovery_operator" : "experiment_operator",
                 detail = detail ?? string.Empty
             };
@@ -550,7 +566,10 @@ namespace SceneTalkVR.Core
                 || value.runQualification != ExperimentRunQualification.Collection
                 || value.dataOrigin != "participant_collection" || !value.collectionEligible
                 || value.developerTestAssignment || value.demoMode || value.synthetic
-                || value.deploymentProfile != "editor_collection"
+                || value.deploymentProfile != RuntimeContext?.deploymentProfile
+                || value.runtimeMode != (IsPicoCollection
+                    ? ExperimentRuntimeMode.PicoCollectionFormal
+                    : ExperimentRuntimeMode.EditorCollectionFormal)
                 || string.IsNullOrWhiteSpace(value.assistantEmbodimentSnapshot))
             { error = "editor_collection_assignment_invalid"; return false; }
             return ExperimentAssignmentAllocator.ValidateAssignment(value, taskCatalog, out error);
@@ -572,7 +591,13 @@ namespace SceneTalkVR.Core
             return true;
         }
 
-        private bool FailArm() { RuntimeContext = null; return false; }
+        private bool FailArm()
+        {
+            conditionManager?.ExitEditorCollectionMode();
+            ResetRuntimeOnly();
+            RuntimeContext = null;
+            return false;
+        }
         private void ResetRuntimeOnly()
         {
             orchestrator?.ResetForConditionSelection();

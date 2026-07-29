@@ -32,7 +32,7 @@ namespace SceneTalkVR.Core
         public string pilotProtocolVersion; public string pilotAssignmentVersion; public string taskCatalogVersion;
         public string participantId; public string sessionId; public string sequenceId; public string assignmentSeed;
         public string createdAtUtc; public bool developerTestAssignment; public string dataOrigin; public bool collectionEligible; public PilotFeedbackStyleChoice feedbackStyle; public string feedbackStyleLabel;
-        public ExperimentRuntimeMode runtimeMode; public bool demoMode; public string demoProtocolVersion;
+        public ExperimentRuntimeMode runtimeMode; public string deploymentProfile; public bool demoMode; public string demoProtocolVersion;
         public ExperimentFlowMode flowMode; public ExperimentRunQualification runQualification; public string protocolSnapshotId; public string resourceSnapshotId;
         public PilotAudioSourcePolicy voiceOnlyAudioPolicy; public string voiceOnlyAudioPolicyLabel; public PilotEmbodimentCondition[] participantSelectionOrder = Array.Empty<PilotEmbodimentCondition>(); public PilotConditionAssignment[] conditions = Array.Empty<PilotConditionAssignment>();
     }
@@ -134,6 +134,7 @@ namespace SceneTalkVR.Core
                 createdAtUtc=DateTime.UtcNow.ToString("o"),developerTestAssignment=false,
                 dataOrigin="participant_collection",collectionEligible=true,feedbackStyle=style,
                 feedbackStyleLabel=PilotProtocolValues.Label(style),runtimeMode=ExperimentRuntimeMode.EditorCollectionPilot,
+                deploymentProfile="editor_collection",
                 demoMode=false,demoProtocolVersion="",flowMode=ExperimentFlowMode.Pilot,
                 runQualification=ExperimentRunQualification.Collection,protocolSnapshotId=protocolSnapshotId,
                 resourceSnapshotId=resourceSnapshotId,voiceOnlyAudioPolicy=audio,

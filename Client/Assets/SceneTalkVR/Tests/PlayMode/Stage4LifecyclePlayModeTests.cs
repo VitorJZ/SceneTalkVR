@@ -25,7 +25,7 @@ namespace SceneTalkVR.Tests.PlayMode
         {
             "Provide the reservation name.",
             "Ask whether breakfast is included.",
-            "Ask whether a high-floor room can be arranged.",
+            "Request a room on a higher floor.",
             "Ask about the check-out time."
         };
 

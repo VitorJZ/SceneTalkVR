@@ -160,6 +160,9 @@ namespace SceneTalkVR.Tests.Editor
                 ttsProvider = "tencent",
                 networkRequired = true,
                 approvedForCollection = true,
+                collectionAllowed = true,
+                target = ExperimentDeploymentTarget.Pico,
+                picoRequired = true,
                 evidenceReference = "usb-test"
             };
         }

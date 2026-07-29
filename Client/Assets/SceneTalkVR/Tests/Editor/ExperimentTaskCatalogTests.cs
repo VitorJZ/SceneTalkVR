@@ -100,7 +100,7 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(task.initialQuestion,Is.Not.Empty); Assert.That(task.goals.Length,Is.EqualTo(count));
         }
 
-        [TestCase("hotel_check_in", "Provide the reservation name.|Ask whether breakfast is included.|Ask whether a high-floor room can be arranged.|Ask about the check-out time.")]
+        [TestCase("hotel_check_in", "Provide the reservation name.|Ask whether breakfast is included.|Request a room on a higher floor.|Ask about the check-out time.")]
         [TestCase("furniture_shopping", "Describe the desk size needed.|Ask about available materials.|State or ask about the maximum budget.|Ask whether home delivery is available.")]
         [TestCase("gym_membership", "Explain a fitness goal.|Ask about the monthly membership price.|Ask about a suitable workout plan.|Ask whether a free trial is available.")]
         [TestCase("tourist_assistance", "Ask how to reach the city museum.|Ask whether a ticket is required.|Ask whether indoor photography is allowed.|Ask for another nearby attraction recommendation.")]

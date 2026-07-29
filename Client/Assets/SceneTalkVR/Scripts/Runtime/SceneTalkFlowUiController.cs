@@ -451,6 +451,12 @@ namespace SceneTalkVR.Runtime
                     + $"resourcesBound={manager?.DeviceValidationResources != null}; voiceCatalogBound={manager?.DeviceValidationVoiceCatalog != null}; "
                     + $"deploymentCatalogBound={manager?.DeviceValidationDeploymentCatalog != null}", this);
             }
+            else if (ExperimentRuntimePlatform.IsPicoCollection)
+            {
+                Debug.Log("[ExperimentRuntime] PICO formal collection UI ready. "
+                    + "qualification=Collection; dataOrigin=participant_collection; collectionEligible=true; "
+                    + "profile=pico_lab", this);
+            }
 
             BindButtons();
             CaptureBaseFontSizes(worldCanvas.transform);
@@ -853,8 +859,16 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
-            // An unarmed start is a rehearsal. On PICO it is explicitly a device-validation
-            // session and remains ineligible for participant collection.
+            if (ExperimentRuntimePlatform.IsPicoCollection)
+            {
+                sessionPreparationBlocked = true;
+                Debug.LogError("[ExperimentRuntime] PICO collection session is not armed.", this);
+                Refresh();
+                return;
+            }
+
+            // An unarmed editor start is a rehearsal. Explicit PICO device-validation test
+            // mode also remains ineligible for participant collection.
             // This keeps the four-condition participant UI usable without requiring an
             // operator-window pre-step, while preserving the armed collection boundary.
             var rehearsal = RehearsalSessionCoordinator.Active
@@ -1125,16 +1139,8 @@ namespace SceneTalkVR.Runtime
                 || PilotCollectionSessionCoordinator.Active?.IsDeviceValidation == true;
             if (deviceValidation)
             {
-                SetActive(demoBanner, true); SetActive(demoStatusPanel, true);
-                if (demoBannerText != null) demoBannerText.text = "PICO 设备验证——非参与者数据";
-                if (demoStatusText != null)
-                {
-                    var mode = rehearsal?.IsFormal == true ? "正式实验" : rehearsal?.IsPilot == true ? "预实验" : "尚未开始";
-                    demoStatusText.text = $"模式：PICO 设备验证（{mode}）\n"
-                        + $"资格：演练\n数据来源：演练\n可用于正式收集：否\n"
-                        + $"配置：pico_device_validation\n会话：{rehearsal?.SessionId ?? string.Empty}";
-                }
-                demoBanner?.transform.SetAsLastSibling();
+                SetActive(demoBanner, false);
+                SetActive(demoStatusPanel, false);
                 return;
             }
             if (rehearsal != null && rehearsal.IsActive)

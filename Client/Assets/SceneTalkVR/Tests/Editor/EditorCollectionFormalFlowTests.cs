@@ -63,6 +63,9 @@ namespace SceneTalkVR.Tests.Editor
         [Test] public void T15_EditorDeploymentIsCollectionApproved()
         { Assert.That(deployments.ValidateForCollection(ExperimentDeploymentProfileId.EditorCollection, out var error), Is.True, error); deployments.TryGet(ExperimentDeploymentProfileId.EditorCollection, out var profile); Assert.That(profile.target, Is.EqualTo(ExperimentDeploymentTarget.UnityEditor)); Assert.That(profile.EndpointHost, Is.EqualTo("127.0.0.1")); }
 
+        [Test] public void T15B_PicoDeploymentIsCollectionApprovedAndUsbPreferred()
+        { Assert.That(deployments.ValidateForCollection(ExperimentDeploymentProfileId.PicoLab, out var error), Is.True, error); Assert.That(resources.Validate(tasks, voices, deployments, ExperimentDeploymentProfileId.PicoLab, out var resourceError), Is.True, resourceError); deployments.TryGet(ExperimentDeploymentProfileId.PicoLab, out var profile); Assert.That(profile.target, Is.EqualTo(ExperimentDeploymentTarget.Pico)); Assert.That(profile.transportPreference, Is.EqualTo(GatewayTransportPreference.UsbPreferred)); Assert.That(profile.picoRequired, Is.True); Assert.That(profile.collectionAllowed, Is.True); }
+
         [Test] public void T16_CurrentPilotResourcesRemainValid()
         { Assert.That(pilot.ValidateLocked(protocol, out var error), Is.True, error); Assert.That(pilot.Find(PilotEmbodimentCondition.VoiceOnly).visualMode, Is.EqualTo(PilotVisualMode.None)); Assert.That(pilot.Find(PilotEmbodimentCondition.FloatingOrb).visualPrefabKey, Is.EqualTo("generated_orb_v1")); Assert.That(pilot.Find(PilotEmbodimentCondition.HumanoidAgent).visualPrefabKey, Is.EqualTo("correction_assistant_woman")); }
 

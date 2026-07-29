@@ -13,8 +13,8 @@ namespace SceneTalkVR.Tests.PlayMode
 {
     public sealed class PilotCollectionParticipantFlowPlayModeTests
     {
-        [UnitySetUp]public IEnumerator SetUp(){ForcePicoDeviceValidation(false);ResetUserSettings();if(SceneManager.GetActiveScene().name!="SampleScene"){SceneManager.LoadScene("SampleScene");yield return null;}yield return null;CallActive("SceneTalkVR.Core.EditorCollectionSessionCoordinator, Assembly-CSharp","EndRuntimeSession");CallActive("SceneTalkVR.Core.RehearsalSessionCoordinator, Assembly-CSharp","ResetSession");}
-        [UnityTearDown]public IEnumerator TearDown(){CallActive("SceneTalkVR.Core.PilotCollectionSessionCoordinator, Assembly-CSharp","ResetPilotSessionForQa");CallActive("SceneTalkVR.Core.ExperimentSessionCoordinator, Assembly-CSharp","ConfirmLeaveExperiment");ForcePicoDeviceValidation(false);ResetUserSettings();yield return null;}
+        [UnitySetUp]public IEnumerator SetUp(){ForcePicoDeviceValidation(false);ForcePicoCollection(false);ResetUserSettings();if(SceneManager.GetActiveScene().name!="SampleScene"){SceneManager.LoadScene("SampleScene");yield return null;}yield return null;CallActive("SceneTalkVR.Core.EditorCollectionSessionCoordinator, Assembly-CSharp","EndRuntimeSession");CallActive("SceneTalkVR.Core.RehearsalSessionCoordinator, Assembly-CSharp","ResetSession");}
+        [UnityTearDown]public IEnumerator TearDown(){CallActive("SceneTalkVR.Core.PilotCollectionSessionCoordinator, Assembly-CSharp","ResetPilotSessionForQa");CallActive("SceneTalkVR.Core.ExperimentSessionCoordinator, Assembly-CSharp","ConfirmLeaveExperiment");ForcePicoDeviceValidation(false);ForcePicoCollection(false);ResetUserSettings();yield return null;}
         [UnityTest]public IEnumerator MainMenu_HasIndependentFormalAndPilotRoutes()
         {Assert.That(Label("PilotExperimentButton"),Is.EqualTo("预实验"));Assert.That(Label("FormalExperimentButton"),Is.EqualTo("正式实验"));Assert.That(Label("ExperimentHistoryButton"),Is.EqualTo("实验历史"));Assert.That(Resources.FindObjectsOfTypeAll<Button>().Any(x=>x.name=="NewExperimentButton"),Is.False);AssertHomeNavigation();Click("PilotExperimentButton");yield return null;Assert.That(Active("PilotAppearanceSelectionPanel"),Is.True);Assert.That(Active("PilotSessionSetupPanel"),Is.False);Assert.That(Active("ExperimentMenuPanel"),Is.False);Assert.That(Active("FormalModeSelectionPanel"),Is.False);Assert.That(Active("TaskSelectionPanel"),Is.False);AssertOverlayText("PilotAppearanceSelectionPanel");AssertExitOverlay();}
         [UnityTest]public IEnumerator PilotCreateSession_PersistsLockedMappingAndShowsAppearanceSelection()
@@ -47,7 +47,7 @@ namespace SceneTalkVR.Tests.PlayMode
         [UnityTest]public IEnumerator IncompleteExperimentExitRequiresConfirmationAndKeepsRecord()
         {Create();yield return null;var experiment=ActiveObject("SceneTalkVR.Core.ExperimentSessionCoordinator, Assembly-CSharp");var id=(string)Get(Get(Get(experiment,"CurrentExperiment"),"summary"),"experimentId");Click("ExitButton");yield return null;Assert.That(Active("ExperimentExitConfirmPanel"),Is.True);Assert.That(Active("PilotAppearanceSelectionPanel"),Is.False);Click("ContinueExperimentButton");yield return null;Assert.That(Active("PilotAppearanceSelectionPanel"),Is.True);Click("ExitButton");yield return null;Click("ConfirmExitExperimentButton");yield return null;AssertHomeNavigation();Click("ExperimentHistoryButton");yield return null;Assert.That(Active("ExperimentHistoryListPanel"),Is.True);var items=((IEnumerable)Get(Get(experiment,"CurrentHistoryPage"),"items")).Cast<object>();Assert.That(items.Any(x=>(string)Get(x,"experimentId")==id),Is.True);}
         [UnityTest]public IEnumerator BeginPilot_ShowsAssignedTaskWithoutEmbodimentMetadata()
-        {Create();var coordinator=ActiveObject("SceneTalkVR.Core.PilotCollectionSessionCoordinator, Assembly-CSharp");var selected=Conditions(coordinator).First();var expectedTask=(string)Get(Get(selected,"task"),"taskId");Click(Get(selected,"embodimentCondition")+"AppearanceButton");yield return null;Assert.That(Active("PilotConditionTaskIntroductionPanel"),Is.True);var text=Text("PilotConditionTaskIntroductionPanel");Assert.That(text,Does.Contain("Communication goals:"));Assert.That(text,Does.Not.Contain("voice_only"));Assert.That(text,Does.Not.Contain("floating_orb"));Assert.That(text,Does.Not.Contain("humanoid_agent"));Click("PilotTaskContinueButton");yield return new WaitForSecondsRealtime(1f);Assert.That(Active("ReadOnlyTaskGoalPanel"),Is.True);AssertTaskAboveFullWidthDialogue();SetHideDialogueSubtitles(true);yield return null;AssertTaskAboveFullWidthDialogue();SetHideDialogueSubtitles(false);yield return null;var task=Get(coordinator,"CurrentTask");var orchestrator=ActiveObject("SceneTalkVR.Runtime.SceneTalkOrchestrator, Assembly-CSharp");var payload=Get(orchestrator,"LastScenePayload");Assert.That(Get(task,"taskId"),Is.EqualTo(expectedTask));Assert.That(Get(payload,"taskType"),Is.EqualTo(expectedTask));}
+        {Create();var coordinator=ActiveObject("SceneTalkVR.Core.PilotCollectionSessionCoordinator, Assembly-CSharp");var selected=Conditions(coordinator).First();var expectedTask=(string)Get(Get(selected,"task"),"taskId");Click(Get(selected,"embodimentCondition")+"AppearanceButton");yield return null;Assert.That(Active("PilotConditionTaskIntroductionPanel"),Is.True);var text=Text("PilotConditionTaskIntroductionPanel");Assert.That(text,Does.Contain("沟通目标："));Assert.That(text,Does.Not.Contain("voice_only"));Assert.That(text,Does.Not.Contain("floating_orb"));Assert.That(text,Does.Not.Contain("humanoid_agent"));Click("PilotTaskContinueButton");yield return new WaitForSecondsRealtime(1f);Assert.That(Active("ReadOnlyTaskGoalPanel"),Is.True);AssertTaskAboveFullWidthDialogue();SetHideDialogueSubtitles(true);yield return null;AssertTaskAboveFullWidthDialogue();SetHideDialogueSubtitles(false);yield return null;var task=Get(coordinator,"CurrentTask");var orchestrator=ActiveObject("SceneTalkVR.Runtime.SceneTalkOrchestrator, Assembly-CSharp");var payload=Get(orchestrator,"LastScenePayload");Assert.That(Get(task,"taskId"),Is.EqualTo(expectedTask));Assert.That(Get(payload,"taskType"),Is.EqualTo(expectedTask));}
         [UnityTest]public IEnumerator SelectedPilotAppearanceSurvivesConditionBroadcast_AndDialogueExitReturnsToSelection()
         {
             Create();var coordinator=ActiveObject("SceneTalkVR.Core.PilotCollectionSessionCoordinator, Assembly-CSharp");
@@ -204,13 +204,28 @@ namespace SceneTalkVR.Tests.PlayMode
             var experiment=ActiveObject("SceneTalkVR.Core.ExperimentSessionCoordinator, Assembly-CSharp");var attempts=((IEnumerable)Get(Get(experiment,"CurrentExperiment"),"attempts")).Cast<object>().ToArray();
             Assert.That(attempts,Has.Length.EqualTo(2));Assert.That(Get(attempts[0],"status").ToString(),Is.EqualTo("Suspended"));Assert.That(Get(attempts[1],"status").ToString(),Is.EqualTo("Running"));
         }
+        [UnityTest]public IEnumerator PicoProductionPilotUsesCollectionQualificationAndPicoDeployment()
+        {
+            ForcePicoCollection(true);Create();yield return null;
+            var coordinator=ActiveObject("SceneTalkVR.Core.PilotCollectionSessionCoordinator, Assembly-CSharp");
+            Assert.That((bool)Get(coordinator,"IsDeviceValidation"),Is.False);
+            var context=Get(coordinator,"RuntimeContext");
+            Assert.That(Get(context,"qualification").ToString(),Is.EqualTo("Collection"));
+            Assert.That(Get(context,"dataOrigin"),Is.EqualTo("participant_collection"));
+            Assert.That((bool)Get(context,"collectionEligible"),Is.True);
+            Assert.That(Get(context,"deploymentTarget").ToString(),Is.EqualTo("Pico"));
+            Assert.That(Get(context,"deploymentProfile"),Is.EqualTo("pico_lab"));
+            var assignment=Get(coordinator,"Assignment");
+            Assert.That(Get(assignment,"runtimeMode").ToString(),Is.EqualTo("PicoCollectionPilot"));
+            Assert.That(Get(assignment,"deploymentProfile"),Is.EqualTo("pico_lab"));
+        }
         private static void Create(){Click("PilotExperimentButton");}
         private static object[] Conditions(object coordinator)=>((IEnumerable)Get(Get(coordinator,"Assignment"),"conditions")).Cast<object>().ToArray();
         private static string[] PhrasesForTask(string taskId)=>taskId switch
         {
-            "pilot_restaurant_walk_in"=>new[]{"No, I don't have a reservation.","There are four of us.","Do you have a table available?","How long is the wait?"},
-            "pilot_restaurant_ordering"=>new[]{"What do you recommend?","I'd like the grilled chicken.","I don't eat seafood.","I'd like a glass of water."},
-            _=>new[]{"This isn't what I ordered.","I ordered the beef pasta.","Could you replace it, please?","How long will the replacement take?"}
+            "pilot_restaurant_walk_in"=>new[]{"No, I don't have a reservation.","There are four of us.","Do you have any tables by the window?","May I have a menu, please?"},
+            "pilot_restaurant_ordering"=>new[]{"What do you recommend?","I'd like the grilled chicken.","How much does the grilled chicken cost?","I'd like a glass of water."},
+            _=>new[]{"This isn't what I ordered.","I am allergic to peanuts.","Will I be charged extra?","How long will the new dish take to prepare?"}
         };
         private static TMP_InputField Input(string name)=>Resources.FindObjectsOfTypeAll<TMP_InputField>().First(x=>x.name==name&&x.gameObject.scene.IsValid());
         private static Button Button(string name)=>Resources.FindObjectsOfTypeAll<Button>().First(x=>x.name==name&&x.gameObject.scene.IsValid());
@@ -227,6 +242,7 @@ namespace SceneTalkVR.Tests.PlayMode
         private static void CallActive(string typeName,string method){var value=ActiveObject(typeName);value?.GetType().GetMethod(method)?.Invoke(value,null);}
         private static void CompletePilotGoalsForQa(object coordinator){var args=new object[]{null};Assert.That((bool)coordinator.GetType().GetMethod("CompleteCurrentPilotGoalsForQa").Invoke(coordinator,args),Is.True,args[0] as string);}
         private static void ForcePicoDeviceValidation(bool value){var type=Type.GetType("SceneTalkVR.Core.ExperimentRuntimePlatform, Assembly-CSharp");type.GetProperty("ForcePicoDeviceValidationForTests").SetValue(null,value);}
+        private static void ForcePicoCollection(bool value){var type=Type.GetType("SceneTalkVR.Core.ExperimentRuntimePlatform, Assembly-CSharp");type.GetProperty("ForcePicoCollectionForTests").SetValue(null,value);}
         private static void ResetUserSettings(){var type=Type.GetType("SceneTalkVR.Core.SceneTalkUserSettingsStore, Assembly-CSharp");type.GetMethod("ResetAll").Invoke(null,null);}
         private static void SetHideDialogueSubtitles(bool hidden){var type=Type.GetType("SceneTalkVR.Core.SceneTalkUserSettingsStore, Assembly-CSharp");type.GetMethod("SetHideDialogueSubtitles").Invoke(null,new object[]{hidden});}
         private static GameObject InstallReadyUsbTransport(out object previousRouter)

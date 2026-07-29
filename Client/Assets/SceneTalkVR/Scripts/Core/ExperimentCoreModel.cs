@@ -22,7 +22,9 @@ namespace SceneTalkVR.Core
         LockedFormalCollection,
         LockedPilotCollection,
         EditorCollectionFormal,
-        EditorCollectionPilot
+        EditorCollectionPilot,
+        PicoCollectionFormal,
+        PicoCollectionPilot
     }
 
     [Serializable]
@@ -73,10 +75,23 @@ namespace SceneTalkVR.Core
 
         public static ExperimentRuntimeContext CreateEditorCollection(string participantId, string sessionId,
             string protocolSnapshotId, string resourceSnapshotId)
+            => CreateCollection(ExperimentFlowMode.Formal, participantId, sessionId, protocolSnapshotId,
+                resourceSnapshotId, ExperimentDeploymentTarget.UnityEditor, "editor_collection");
+
+        public static ExperimentRuntimeContext CreatePicoCollection(ExperimentFlowMode flow, string participantId,
+            string sessionId, string protocolSnapshotId, string resourceSnapshotId)
+            => CreateCollection(flow, participantId, sessionId, protocolSnapshotId, resourceSnapshotId,
+                ExperimentDeploymentTarget.Pico, "pico_lab");
+
+        private static ExperimentRuntimeContext CreateCollection(ExperimentFlowMode flow, string participantId,
+            string sessionId, string protocolSnapshotId, string resourceSnapshotId,
+            ExperimentDeploymentTarget deploymentTarget, string deploymentProfile)
         {
+            if (flow != ExperimentFlowMode.Formal && flow != ExperimentFlowMode.Pilot)
+                throw new ArgumentOutOfRangeException(nameof(flow), "Collection requires Formal or Pilot flow.");
             return new ExperimentRuntimeContext
             {
-                flowMode = ExperimentFlowMode.Formal,
+                flowMode = flow,
                 qualification = ExperimentRunQualification.Collection,
                 participantId = participantId?.Trim() ?? string.Empty,
                 sessionId = sessionId?.Trim() ?? string.Empty,
@@ -84,8 +99,8 @@ namespace SceneTalkVR.Core
                 resourceSnapshotId = resourceSnapshotId?.Trim() ?? string.Empty,
                 dataOrigin = "participant_collection",
                 collectionEligible = true,
-                deploymentTarget = ExperimentDeploymentTarget.UnityEditor,
-                deploymentProfile = "editor_collection"
+                deploymentTarget = deploymentTarget,
+                deploymentProfile = deploymentProfile
             };
         }
 
@@ -99,18 +114,26 @@ namespace SceneTalkVR.Core
     }
 
     /// <summary>
-    /// Keeps runtime platform decisions explicit and testable. A PICO build may run the
-    /// non-collection device-validation rehearsal, but it never becomes collection eligible.
+    /// Keeps runtime platform decisions explicit and testable. Production PICO builds use
+    /// collection qualification; device validation remains an explicit test-only mode.
     /// </summary>
     public static class ExperimentRuntimePlatform
     {
         public static bool ForcePicoDeviceValidationForTests { get; set; }
-        public static bool IsPicoDeviceValidation => ForcePicoDeviceValidationForTests
+        public static bool ForcePicoCollectionForTests { get; set; }
+        public static bool IsPicoRuntime => ForcePicoCollectionForTests
             || (!Application.isEditor && Application.platform == RuntimePlatform.Android);
-        public static bool IsEditorRehearsal => Application.isEditor && !ForcePicoDeviceValidationForTests;
+        public static bool IsPicoDeviceValidation => ForcePicoDeviceValidationForTests;
+        public static bool IsPicoCollection => IsPicoRuntime && !IsPicoDeviceValidation;
+        public static bool IsEditorRehearsal => Application.isEditor
+            && !ForcePicoDeviceValidationForTests && !ForcePicoCollectionForTests;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetForRuntime() => ForcePicoDeviceValidationForTests = false;
+        private static void ResetForRuntime()
+        {
+            ForcePicoDeviceValidationForTests = false;
+            ForcePicoCollectionForTests = false;
+        }
     }
 
     [Serializable]

@@ -100,7 +100,7 @@ namespace SceneTalkVR.Core
 
     public sealed class GoalAchievementEvaluator
     {
-        public const string EvaluatorVersion = "goal_evaluator_v1.2.1";
+        public const string EvaluatorVersion = "goal_evaluator_v1.3.0";
         public const float SemanticFallbackMinimumConfidence = 0.75f;
         private readonly IStructuredGoalEvaluationFallback fallback;
 
@@ -190,6 +190,26 @@ namespace SceneTalkVR.Core
                 case "ticket": return Has(text, "ticket") && Any(text, "need", "required", "buy", "admission", "have to");
                 case "photography": return Any(text, "take photos", "take pictures", "photography", "photos allowed", "pictures allowed") && Any(text, "inside", "indoor", "allowed", "can i");
                 case "nearby_attraction": return Any(text, "another attraction", "nearby attraction", "other place to visit", "recommend nearby", "else should i visit", "nearby place");
+                case "window_table_availability": return Has(text, "window")
+                    && Any(text, "table", "tables", "seat", "seats")
+                    && (LooksLikeQuestionOrRequest(text) || Any(text,
+                        "is a window table available", "window table available", "window seat available"));
+                case "menu_request": return Has(text, "menu") && Any(text,
+                    "could i have", "can i have", "may i have", "can we see", "could we see",
+                    "could you bring", "can you bring", "please bring", "i would like a menu",
+                    "can i get", "could i get", "show me", "show us");
+                case "dish_price": return (Any(text, "price", "cost") && Any(text,
+                        "what is", "what does", "how much", "could you", "can you", "may i", "tell me"))
+                    || (Has(text, "how much") && Any(text, "dish", "meal", "course", "item", "food",
+                        "chicken", "pasta", "steak", "salmon", "burger"));
+                case "dietary_restriction": return Any(text, "allergic to", "allergy to", "intolerant to",
+                    "cannot eat", "do not eat", "need to avoid", "please avoid", "vegetarian", "vegan",
+                    "gluten free", "no peanuts", "no nuts", "no shellfish", "no seafood");
+                case "extra_charge": return Any(text, "extra charge", "charged extra", "additional charge",
+                    "additional fee", "extra fee", "extra cost", "cost extra", "pay extra", "surcharge")
+                    && LooksLikeQuestionOrRequest(text);
+                case "replacement_preparation_time": return Any(text, "how long", "when will")
+                    && Any(text, "prepare", "preparation", "make", "cook", "replacement", "new dish", "ready");
                 default: return false;
             }
         }
@@ -231,7 +251,10 @@ namespace SceneTalkVR.Core
             var intent = (goal?.evaluationIntent ?? string.Empty).Trim().ToLowerInvariant();
             if (intent == "wrong_dish" && Any(text, "not the wrong dish", "is not wrong", "correct dish")) return true;
             if (intent == "no_reservation" && Any(text, "do not need a reservation", "do not want a reservation")) return true;
-            if (intent == "dietary_restriction" && Any(text, "no dietary restriction", "do not have an allergy")) return true;
+            if (intent == "dietary_restriction" && Any(text, "no dietary restriction", "no dietary restrictions",
+                "do not have an allergy", "do not have allergies", "have no allergy", "have no allergies",
+                "no food allergy", "no food allergies", "no restrictions", "not allergic", "not intolerant",
+                "not vegetarian", "not vegan")) return true;
 
             var legitimateNegativeIntent = intent == "no_reservation" || intent == "wrong_dish" || intent == "dietary_restriction";
             var rejection = Any(text, "do not need", "do not want", "not interested", "no thank", "decline");
@@ -241,7 +264,11 @@ namespace SceneTalkVR.Core
             if (rejection || unrelatedPast || quoted || hypothetical) return true;
             if (!legitimateNegativeIntent && Regex.IsMatch(text, @"\b(no|not|never|cannot|do not|does not|did not)\b")) return true;
 
-            if (intent == "table_availability" && !LooksLikeQuestionOrRequest(text)) return true;
+            if (intent == "window_table_availability" && !MatchesIntent(intent, text)) return true;
+            if (intent == "menu_request" && !MatchesIntent(intent, text)) return true;
+            if (intent == "dish_price" && !MatchesIntent(intent, text)) return true;
+            if (intent == "extra_charge" && !MatchesIntent(intent, text)) return true;
+            if (intent == "replacement_preparation_time" && !MatchesIntent(intent, text)) return true;
             if (intent == "recommendation" && !Any(text, "recommend", "suggest", "what is good", "what would you", "what do you")) return true;
             if (intent == "delivery" && !Any(text, "do you", "can you", "could you", "is delivery", "delivery available", "deliver", "bring", "send")) return true;
             if (intent == "trial" && !Any(text, "is there", "do you", "can i", "could i", "available", "offer", "try the gym", "test the gym", "trial session")) return true;
@@ -250,7 +277,9 @@ namespace SceneTalkVR.Core
 
         private static bool LooksLikeQuestionOrRequest(string text) => Any(text,
             "do you", "does", "is there", "are there", "have you", "can you", "could you",
-            "would you", "will you", "may i", "can i", "could i", "any table", "table for");
+            "would you", "will you", "will i", "do i", "may i", "can i", "could i", "can we", "could we",
+            "would like", "please", "any table", "any tables", "any extra", "window seat", "table for",
+            "how long", "when will");
     }
 
     public static class GoalEvaluationOrchestrator

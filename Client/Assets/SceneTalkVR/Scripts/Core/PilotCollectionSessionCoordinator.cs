@@ -98,15 +98,24 @@ namespace SceneTalkVR.Core
             if(string.IsNullOrWhiteSpace(sessionId))sessionId=$"PILOT-{participantId}-{DateTime.UtcNow:yyyyMMddTHHmmssZ}";
             if(!ValidIdentity(sessionId,out error))return false;
             if(ExperimentRuntimePlatform.IsPicoDeviceValidation)return ArmDeviceValidation(participantId,sessionId,resume,out error);
-            if(!Application.isEditor){error="pilot_collection_requires_unity_editor";return false;}
+            var picoCollection=ExperimentRuntimePlatform.IsPicoCollection;
+            if(!Application.isEditor&&!picoCollection){error="pilot_collection_runtime_not_supported";return false;}
             if(EditorCollectionSessionCoordinator.Active?.IsArmed==true||RehearsalSessionCoordinator.Active?.IsActive==true||EditorDemoSessionCoordinator.Active?.IsDemoMode==true){error="another_experiment_runtime_is_active";return false;}
             if(manager==null||workflow==null||orchestrator==null){error="pilot_collection_scene_bindings_missing";return false;}
             var protocol=manager.ExperimentProtocol;var tasks=manager.TaskCatalog;var presentations=manager.PilotPresentationCatalog;
-            if(protocol==null||!protocol.ValidateForFormalMode(out error))return false;
-            if(!protocol.TryResolvePilotDecisions(out var style,out var audio,out error)||style!=PilotFeedbackStyleChoice.Explicit||audio!=PilotAudioSourcePolicy.NonSpatialHeadLocked)return false;
-            if(presentations==null||!presentations.ValidateLocked(protocol,out error))return false;
-            if(!ExperimentTaskCatalog.ValidatePilotTasks(tasks?.GetTasks(ExperimentTaskPhase.Pilot).ToArray(),out error))return false;
-            ResetRuntime();RuntimeContext=ExperimentRuntimeContext.CreatePilotEditorCollection(participantId,sessionId,protocol.ProtocolSnapshotId,"pilot-resources-"+presentations.CatalogVersion);
+            var deploymentProfile=picoCollection?ExperimentDeploymentProfileId.PicoLab:ExperimentDeploymentProfileId.EditorCollection;
+            manager.EnterCollectionMode(protocol,tasks,manager.QuestionnaireCatalog,manager.VoiceProfileCatalog,
+                manager.DeploymentCatalog,deploymentProfile);
+            if(protocol==null||!protocol.ValidateForFormalMode(out error))return FailArm();
+            if(manager.EditorCollectionResources==null||!manager.EditorCollectionResources.Validate(tasks,
+                manager.VoiceProfileCatalog,manager.DeploymentCatalog,deploymentProfile,out error))return FailArm();
+            if(!manager.ValidateFormalProtocol(out error))return FailArm();
+            if(!protocol.TryResolvePilotDecisions(out var style,out var audio,out error)||style!=PilotFeedbackStyleChoice.Explicit||audio!=PilotAudioSourcePolicy.NonSpatialHeadLocked)return FailArm();
+            if(presentations==null||!presentations.ValidateLocked(protocol,out error))return FailArm();
+            if(!ExperimentTaskCatalog.ValidatePilotTasks(tasks?.GetTasks(ExperimentTaskPhase.Pilot).ToArray(),out error))return FailArm();
+            ResetRuntime();RuntimeContext=picoCollection
+                ?ExperimentRuntimeContext.CreatePicoCollection(ExperimentFlowMode.Pilot,participantId,sessionId,protocol.ProtocolSnapshotId,"pilot-resources-"+presentations.CatalogVersion)
+                :ExperimentRuntimeContext.CreatePilotEditorCollection(participantId,sessionId,protocol.ProtocolSnapshotId,"pilot-resources-"+presentations.CatalogVersion);
             Directory.CreateDirectory(CurrentDataFolder);
             var stored=PilotAssignmentAllocator.Load(AssignmentPath);
             if(resume)
@@ -125,7 +134,10 @@ namespace SceneTalkVR.Core
             {
                 if(stored!=null){error="session_already_exists_use_resume";return FailArm();}
                 var allocator=new PilotAssignmentAllocator();
-                if(!allocator.TryCreateCollection(participantId,sessionId,protocol,tasks,presentations,RuntimeContext.resourceSnapshotId,out var created,out error)||!workflow.LoadAssignment(created,out error))return FailArm();
+                if(!allocator.TryCreateCollection(participantId,sessionId,protocol,tasks,presentations,RuntimeContext.resourceSnapshotId,out var created,out error))return FailArm();
+                created.runtimeMode=picoCollection?ExperimentRuntimeMode.PicoCollectionPilot:ExperimentRuntimeMode.EditorCollectionPilot;
+                created.deploymentProfile=RuntimeContext.deploymentProfile;
+                if(!workflow.LoadAssignment(created,out error))return FailArm();
                 PilotAssignmentAllocator.Save(created,AssignmentPath);currentPosition=-1;Stage=PilotParticipantStage.AppearanceSelection;
             }
             if(!TryApplyConfirmedRunLimits(protocol,out error))return FailArm();if(!resume)ResetFinalRankingUi();Write("PilotSessionArmed","resume="+resume);RefreshUi();error="";return true;
@@ -255,7 +267,7 @@ namespace SceneTalkVR.Core
         }
         public void MarkTechnicalInvalid(string reason){if(!IsArmed)return;workflow.MarkTechnicalInvalid("experiment_operator",reason);ExperimentSessionCoordinator.Active?.NotifyAttemptTechnicalInvalid(reason);Persist();currentPosition=-1;Stage=PilotParticipantStage.AppearanceSelection;Write("PilotTechnicalInvalid",reason);RefreshUi();}
         public bool Retry(out string error){if(workflow?.Current?.status!=PilotRunStatus.TechnicalInvalid){error="pilot_retry_not_available";return false;}currentPosition=workflow.Current.conditionPosition;Stage=PilotParticipantStage.TaskIntroduction;return BeginCurrentTask(out error);}
-        public void EndSession(){Write("PilotSessionEnded");if(IsDeviceValidation)rehearsal?.EndRuntimeSession();ResetRuntime();RuntimeContext=null;rehearsal=null;Stage=PilotParticipantStage.None;RefreshUi();}
+        public void EndSession(){Write("PilotSessionEnded");if(IsDeviceValidation)rehearsal?.EndRuntimeSession();else manager?.ExitEditorCollectionMode();ResetRuntime();RuntimeContext=null;rehearsal=null;Stage=PilotParticipantStage.None;RefreshUi();}
         public void ExitAndEndSession(string reason)
         {
             reason=string.IsNullOrWhiteSpace(reason)?"participant_exit":reason.Trim();
@@ -321,11 +333,11 @@ namespace SceneTalkVR.Core
         private void Persist(){if(IsArmed&&Assignment!=null)PilotAssignmentAllocator.Save(Assignment,AssignmentPath);}
         private void PersistGoals(){if(!IsArmed||string.IsNullOrWhiteSpace(workflow.PilotRunId)||workflow.Current==null)return;Directory.CreateDirectory(CurrentDataFolder);var file=$"pilot_goals_{workflow.Current.conditionPosition}_{workflow.Current.runAttempt}.json";File.WriteAllText(Path.Combine(CurrentDataFolder,file),JsonUtility.ToJson(new PilotGoalSnapshot{participantId=ParticipantId,sessionId=SessionId,pilotRunId=workflow.PilotRunId,taskId=workflow.Current.task.taskId,savedAtUtc=DateTime.UtcNow.ToString("o"),goals=workflow.Goals.Goals.ToArray(),sequence=workflow.Goals.CaptureSequenceSnapshot()},true),Encoding.UTF8);}
         private bool TryApplyConfirmedRunLimits(ExperimentV11ProtocolConfig protocol,out string error){if(protocol==null||!protocol.TryGetConfirmedDecision("pilot_max_turns",out var turnsValue)||!int.TryParse(turnsValue,out var turns)||turns<=0){error="pilot_max_turns_invalid";return false;}if(!protocol.TryGetConfirmedDecision("pilot_max_duration",out var durationValue)){error="pilot_max_duration_invalid";return false;}var token=new string(durationValue.TakeWhile(c=>char.IsDigit(c)||c=='.').ToArray());if(!float.TryParse(token,System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var minutes)||minutes<=0f){error="pilot_max_duration_invalid";return false;}workflow.ConfigureRunLimits(turns,minutes);error="";return true;}
-        private bool ValidateAssignment(PilotAssignment value,out string error){if(value==null||value.flowMode!=ExperimentFlowMode.Pilot||value.runQualification!=ExperimentRunQualification.Collection||value.dataOrigin!="participant_collection"||!value.collectionEligible||value.developerTestAssignment||value.demoMode||value.conditions?.Length!=3){error="pilot_collection_assignment_invalid";return false;}return PilotAssignmentAllocator.IsCompatible(value,manager.ExperimentProtocol.ProtocolVersion,manager.TaskCatalog.CatalogVersion,out error);}
-        private bool FailArm(){RuntimeContext=null;Stage=PilotParticipantStage.Setup;return false;}
+        private bool ValidateAssignment(PilotAssignment value,out string error){var expectedMode=RuntimeContext?.deploymentTarget==ExperimentDeploymentTarget.Pico?ExperimentRuntimeMode.PicoCollectionPilot:ExperimentRuntimeMode.EditorCollectionPilot;if(value==null||value.flowMode!=ExperimentFlowMode.Pilot||value.runQualification!=ExperimentRunQualification.Collection||value.dataOrigin!="participant_collection"||!value.collectionEligible||value.developerTestAssignment||value.demoMode||value.conditions?.Length!=3||value.runtimeMode!=expectedMode||value.deploymentProfile!=RuntimeContext?.deploymentProfile){error="pilot_collection_assignment_invalid";return false;}return PilotAssignmentAllocator.IsCompatible(value,manager.ExperimentProtocol.ProtocolVersion,manager.TaskCatalog.CatalogVersion,out error);}
+        private bool FailArm(){manager?.ExitEditorCollectionMode();ResetRuntime();RuntimeContext=null;Stage=PilotParticipantStage.Setup;return false;}
         private void ResetRuntime(){questionnaireTransitionPending=false;qaRankingDraft=null;StopAllCoroutines();workflow?.ResetPilotConditionBoundary();workflow?.ClearAssignmentForRuntimeMode();orchestrator?.ResetForConditionSelection();currentPosition=-1;rankingSubmitted=false;}
         private void ResetFinalRankingUi()=>(GetComponent<PilotCollectionParticipantUi>()??FindFirstObjectByType<PilotCollectionParticipantUi>(FindObjectsInactive.Include))?.ResetFinalRankingDraft();
-        private void Write(string type,string detail="",bool qa=false,string actor=""){if(!IsArmed)return;Directory.CreateDirectory(CurrentDataFolder);var item=workflow?.Current;var value=new PilotCollectionOperatorEvent{timestampUtc=DateTime.UtcNow.ToString("o"),eventType=type,participantId=ParticipantId,sessionId=SessionId,pilotRunId=workflow?.PilotRunId??"",sequenceId=Assignment?.sequenceId??"",conditionPosition=item?.conditionPosition??-1,embodiment=item==null?"":PilotProtocolValues.Label(item.embodimentCondition),taskId=item?.task?.taskId??"",detail=detail,runQualification=IsDeviceValidation?"rehearsal":"collection",dataOrigin=IsDeviceValidation?"rehearsal":"participant_collection",collectionEligible=!IsDeviceValidation,deploymentProfile=IsDeviceValidation?"pico_device_validation":"editor_collection",qaAutomationUsed=qa,actor=!string.IsNullOrWhiteSpace(actor)?actor:qa?"qa_operator":IsDeviceValidation?"device_validation_participant":"experiment_operator"};var file=IsDeviceValidation?"pilot_device_validation_operator_events.jsonl":"pilot_collection_operator_events.jsonl";File.AppendAllText(Path.Combine(CurrentDataFolder,file),JsonUtility.ToJson(value)+Environment.NewLine,Encoding.UTF8);}
+        private void Write(string type,string detail="",bool qa=false,string actor=""){if(!IsArmed)return;Directory.CreateDirectory(CurrentDataFolder);var item=workflow?.Current;var value=new PilotCollectionOperatorEvent{timestampUtc=DateTime.UtcNow.ToString("o"),eventType=type,participantId=ParticipantId,sessionId=SessionId,pilotRunId=workflow?.PilotRunId??"",sequenceId=Assignment?.sequenceId??"",conditionPosition=item?.conditionPosition??-1,embodiment=item==null?"":PilotProtocolValues.Label(item.embodimentCondition),taskId=item?.task?.taskId??"",detail=detail,runQualification=RuntimeContext?.qualification.ToString().ToLowerInvariant()??"",dataOrigin=RuntimeContext?.dataOrigin??"",collectionEligible=RuntimeContext?.collectionEligible==true,deploymentProfile=RuntimeContext?.deploymentProfile??"",qaAutomationUsed=qa,actor=!string.IsNullOrWhiteSpace(actor)?actor:qa?"qa_operator":IsDeviceValidation?"device_validation_participant":"experiment_operator"};var file=IsDeviceValidation?"pilot_device_validation_operator_events.jsonl":"pilot_collection_operator_events.jsonl";File.AppendAllText(Path.Combine(CurrentDataFolder,file),JsonUtility.ToJson(value)+Environment.NewLine,Encoding.UTF8);}
         private static bool ValidIdentity(string value,out string error){if(string.IsNullOrWhiteSpace(value)){error="participant_or_session_required";return false;}if(value.IndexOfAny(Path.GetInvalidFileNameChars())>=0||value.Contains("/")||value.Contains("\\")){error="participant_or_session_contains_invalid_path_character";return false;}error="";return true;}
         private static string Safe(string value)=>new string((value??"").Select(c=>char.IsLetterOrDigit(c)||c=='-'||c=='_'?c:'_').ToArray());
         private static void RefreshUi()=>FindFirstObjectByType<SceneTalkFlowUiController>(FindObjectsInactive.Include)?.RefreshExternalState();

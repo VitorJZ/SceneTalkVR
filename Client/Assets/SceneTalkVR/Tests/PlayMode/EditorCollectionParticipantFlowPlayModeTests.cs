@@ -25,6 +25,7 @@ namespace SceneTalkVR.Tests.PlayMode
         public IEnumerator SetUp()
         {
             ForcePicoDeviceValidation(false);
+            ForcePicoCollection(false);
             ResetUserSettings();
             if (SceneManager.GetActiveScene().name != "SampleScene") { SceneManager.LoadScene("SampleScene"); yield return null; }
             yield return null;
@@ -39,7 +40,7 @@ namespace SceneTalkVR.Tests.PlayMode
             Configure();
         }
 
-        [UnityTearDown] public IEnumerator TearDown() { CallVoid(collection, "EndRuntimeSession"); CallVoid(rehearsal, "ResetSession"); CallVoid(Find("SceneTalkVR.Core.ExperimentSessionCoordinator, Assembly-CSharp"), "ConfirmLeaveExperiment"); ForcePicoDeviceValidation(false); ResetUserSettings(); yield return null; }
+        [UnityTearDown] public IEnumerator TearDown() { CallVoid(collection, "EndRuntimeSession"); CallVoid(rehearsal, "ResetSession"); CallVoid(Find("SceneTalkVR.Core.ExperimentSessionCoordinator, Assembly-CSharp"), "ConfirmLeaveExperiment"); ForcePicoDeviceValidation(false); ForcePicoCollection(false); ResetUserSettings(); yield return null; }
 
         [UnityTest] public IEnumerator T01_HomeShowsIndependentPilotAndFormalRoutesWithoutIntermediateMenu()
         {
@@ -246,6 +247,25 @@ namespace SceneTalkVR.Tests.PlayMode
             Assert.That(events, Does.Contain("\"actor\":\"participant\""));
         }
 
+        [UnityTest] public IEnumerator T11_PicoProductionUsesCollectionQualificationAndPicoDeployment()
+        {
+            ForcePicoCollection(true);
+            Click("FormalExperimentButton");
+            yield return null;
+            var context = Get(collection, "RuntimeContext");
+            Assert.That(Get(context, "qualification").ToString(), Is.EqualTo("Collection"));
+            Assert.That(Get(context, "dataOrigin"), Is.EqualTo("participant_collection"));
+            Assert.That((bool)Get(context, "collectionEligible"), Is.True);
+            Assert.That(Get(context, "deploymentTarget").ToString(), Is.EqualTo("Pico"));
+            Assert.That(Get(context, "deploymentProfile"), Is.EqualTo("pico_lab"));
+            var assignment = Get(collection, "Assignment");
+            Assert.That(Get(assignment, "runtimeMode").ToString(), Is.EqualTo("PicoCollectionFormal"));
+            Assert.That(Get(assignment, "deploymentProfile"), Is.EqualTo("pico_lab"));
+            Assert.That(rehearsal == null || !(bool)Get(rehearsal, "IsActive"), Is.True);
+            Assert.That(Active("EditorDemoBanner"), Is.False);
+            Assert.That(Active("EditorDemoStatusPanel"), Is.False);
+        }
+
         private void Arm(out object assignment)
         { var token = Guid.NewGuid().ToString("N"); var args = new object[] { "PLAY-" + token, "SESSION-" + token, false, null }; Assert.That((bool)collection.GetType().GetMethod("ArmParticipantSession").Invoke(collection, args), Is.True, args[3] as string); assignment = Get(collection, "Assignment"); Assert.That((bool)Get(assignment, "collectionEligible"), Is.True); Assert.That((bool)Get(assignment, "developerTestAssignment"), Is.False); }
         private int Evaluate(string transcript, string speaker = "participant") { lastEvaluatedTurnId = Guid.NewGuid().ToString("N"); var type = Type.GetType("SceneTalkVR.Core.GoalEvaluationOrchestrator, Assembly-CSharp"); type.GetMethod("NotifyParticipantTurnSubmitted").Invoke(null, new object[] { lifecycle, null, lastEvaluatedTurnId, transcript, speaker }); return (int)type.GetMethod("EvaluateUserTranscript").Invoke(null, new object[] { lifecycle, lastEvaluatedTurnId, transcript, speaker }); }
@@ -267,6 +287,7 @@ namespace SceneTalkVR.Tests.PlayMode
         private static Button Button(string name) => Resources.FindObjectsOfTypeAll<Button>().First(x => x.gameObject.name == name);
         private static TMP_InputField Input(string name) => Resources.FindObjectsOfTypeAll<TMP_InputField>().First(x => x.gameObject.name == name);
         private static void ForcePicoDeviceValidation(bool value) { var type = Type.GetType("SceneTalkVR.Core.ExperimentRuntimePlatform, Assembly-CSharp"); type.GetProperty("ForcePicoDeviceValidationForTests").SetValue(null, value); }
+        private static void ForcePicoCollection(bool value) { var type = Type.GetType("SceneTalkVR.Core.ExperimentRuntimePlatform, Assembly-CSharp"); type.GetProperty("ForcePicoCollectionForTests").SetValue(null, value); }
         private static void Click(string name) => Button(name).onClick.Invoke();
         private static void AssertSelectedRanks(params string[] selectedNames)
         {

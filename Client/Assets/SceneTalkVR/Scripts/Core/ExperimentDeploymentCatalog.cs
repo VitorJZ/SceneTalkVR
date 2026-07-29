@@ -51,12 +51,16 @@ namespace SceneTalkVR.Core
             var issues = new List<string>();
             if (!TryGet(id, out var profile)) { error = "deployment_profile_missing"; return false; }
             if (!profile.approvedForCollection || string.IsNullOrWhiteSpace(profile.evidenceReference)) issues.Add("deployment_profile_unapproved");
+            if (!profile.collectionAllowed) issues.Add("deployment_collection_not_allowed");
             if (profile.requestTimeoutSeconds <= 0) issues.Add("deployment_timeout_invalid");
             if (profile.networkRequired && string.IsNullOrWhiteSpace(profile.voiceGatewayBaseUrl)) issues.Add("deployment_endpoint_empty");
             if ((id == ExperimentDeploymentProfileId.PicoLab || id == ExperimentDeploymentProfileId.PicoPortable)
                 && (IsLoopback(profile.voiceGatewayBaseUrl) || IsLoopback(profile.llmGatewayApiUrl))
                 && profile.transportPreference == GatewayTransportPreference.LanOnly)
                 issues.Add("pico_endpoint_loopback_forbidden");
+            if ((id == ExperimentDeploymentProfileId.PicoLab || id == ExperimentDeploymentProfileId.PicoPortable)
+                && (profile.target != ExperimentDeploymentTarget.Pico || !profile.picoRequired))
+                issues.Add("pico_collection_deployment_invalid");
             if (id == ExperimentDeploymentProfileId.EditorCollection
                 && (profile.target != ExperimentDeploymentTarget.UnityEditor || !profile.approvedForEditorCollection
                     || !profile.loopbackAllowed || profile.picoRequired || !IsLoopback(profile.voiceGatewayBaseUrl)))

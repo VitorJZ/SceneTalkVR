@@ -93,13 +93,21 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(profile.picoRequired,Is.True);Assert.That(profile.approvedForCollection,Is.False);Assert.That(profile.collectionAllowed,Is.False);
             Assert.That(ExperimentDeploymentCatalog.IsLoopback(profile.voiceGatewayBaseUrl),Is.False);
         }
-        [Test] public void T49_PicoRuntimeContextCanNeverBecomeCollectionEligible()
+        [Test] public void T49_PicoValidationContextCanNeverBecomeCollectionEligible()
         {
             var context=ExperimentRuntimeContext.CreateRehearsal(ExperimentFlowMode.Formal,"PICO-VALIDATION","S01",
                 protocol.ProtocolSnapshotId,resources.ResourceSnapshotId,ExperimentDeploymentTarget.Pico,"pico_device_validation");
             Assert.That(context.IsRehearsal,Is.True);Assert.That(context.IsCollection,Is.False);
             Assert.That(context.dataOrigin,Is.EqualTo("rehearsal"));Assert.That(context.collectionEligible,Is.False);
             Assert.That(context.deploymentTarget,Is.EqualTo(ExperimentDeploymentTarget.Pico));
+        }
+        [Test] public void T50_PicoProductionContextIsCollectionEligible()
+        {
+            var context=ExperimentRuntimeContext.CreatePicoCollection(ExperimentFlowMode.Formal,"PICO-P","S01",
+                protocol.ProtocolSnapshotId,resources.ResourceSnapshotId);
+            Assert.That(context.IsCollection,Is.True);Assert.That(context.IsRehearsal,Is.False);
+            Assert.That(context.dataOrigin,Is.EqualTo("participant_collection"));Assert.That(context.collectionEligible,Is.True);
+            Assert.That(context.deploymentTarget,Is.EqualTo(ExperimentDeploymentTarget.Pico));Assert.That(context.deploymentProfile,Is.EqualTo("pico_lab"));
         }
 
         private static void AssertIsolation(ExperimentAssignment a){Assert.That(a.flowMode,Is.EqualTo(ExperimentFlowMode.Formal));Assert.That(a.runQualification,Is.EqualTo(ExperimentRunQualification.Rehearsal));Assert.That(a.dataOrigin,Is.EqualTo("rehearsal"));Assert.That(a.collectionEligible,Is.False);Assert.That(a.developerTestAssignment,Is.False);Assert.That(a.demoMode,Is.False);}

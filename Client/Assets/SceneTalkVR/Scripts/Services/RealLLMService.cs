@@ -414,7 +414,7 @@ namespace SceneTalkVR.Runtime.Services
                 "9. Evidence must quote or closely reproduce participant words supporting the decision.\n" +
                 "10. If evidence is ambiguous, incomplete, contradictory, or unrelated, return achieved=false.\n" +
                 "11. Return strict JSON only, with no markdown or text outside JSON.\n\n" +
-                "Output schema: {\"taskId\":\"<task id>\",\"turnId\":\"<turn id>\",\"evaluations\":[{\"goalId\":\"<goal id>\",\"achieved\":true,\"confidence\":0.0,\"evidence\":\"<participant evidence or empty string>\",\"reason\":\"<brief semantic reason>\",\"evaluatorVersion\":\"goal_evaluator_v1.2.1+structured_llm\"}]}.\n" +
+                "Output schema: {\"taskId\":\"<task id>\",\"turnId\":\"<turn id>\",\"evaluations\":[{\"goalId\":\"<goal id>\",\"achieved\":true,\"confidence\":0.0,\"evidence\":\"<participant evidence or empty string>\",\"reason\":\"<brief semantic reason>\",\"evaluatorVersion\":\"" + GoalAchievementEvaluator.EvaluatorVersion + "+structured_llm\"}]}.\n" +
                 "Confidence: 0.90-1.00 direct and unambiguous; 0.75-0.89 clear paraphrase or completion distributed across recent participant turns; 0.50-0.74 plausible but incomplete or ambiguous; below 0.50 unsupported or contradictory.";
             var responseJson = await SendChatRequest(systemPrompt, requestJson, true);
             var response = JsonUtility.FromJson<OpenAiResponse>(responseJson);

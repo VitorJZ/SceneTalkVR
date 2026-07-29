@@ -53,6 +53,11 @@ namespace SceneTalkVR.Core
 
         public bool Validate(ExperimentTaskCatalog tasks, ExperimentVoiceProfileCatalog voices,
             ExperimentDeploymentCatalog deployments, out string error)
+            => Validate(tasks, voices, deployments, ExperimentDeploymentProfileId.EditorCollection, out error);
+
+        public bool Validate(ExperimentTaskCatalog tasks, ExperimentVoiceProfileCatalog voices,
+            ExperimentDeploymentCatalog deployments, ExperimentDeploymentProfileId deploymentProfile,
+            out string error)
         {
             var issues = new List<string>();
             if (string.IsNullOrWhiteSpace(ResourceSnapshotId)) issues.Add("editor_collection_resource_snapshot_missing");
@@ -81,7 +86,7 @@ namespace SceneTalkVR.Core
             var voiceError = "editor_collection_voice_catalog_missing";
             if (voices == null || !voices.ValidateForLockedCollection(formal.Select(x => x.voiceProfileKey), out voiceError)) issues.Add(voiceError);
             var deploymentError = "editor_collection_deployment_catalog_missing";
-            if (deployments == null || !deployments.ValidateForCollection(ExperimentDeploymentProfileId.EditorCollection, out deploymentError)) issues.Add(deploymentError);
+            if (deployments == null || !deployments.ValidateForCollection(deploymentProfile, out deploymentError)) issues.Add(deploymentError);
             error = string.Join(";", issues.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct());
             return string.IsNullOrWhiteSpace(error);
         }

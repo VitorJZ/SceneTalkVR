@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4c7590b75c2b47d689fe3a3316a325f1, type: 3}
   m_Name: ExperimentTaskCatalog
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentTaskCatalog
-  catalogVersion: 1.2.1-pilot-collection
+  catalogVersion: 1.3.0-pilot-task-redesign
   tasks:
   - taskId: hotel_check_in
     scenarioId: hotel_check_in
@@ -48,7 +48,7 @@ MonoBehaviour:
         provides or asks for this goal intent. Avatar and agent speech are excluded.
       minimumConfidence: 0.85
     - goalId: higher_floor
-      text: Ask whether a high-floor room can be arranged.
+      text: Request a room on a higher floor.
       evaluationIntent: higher_floor
       deterministicPatterns:
       - higher floor
@@ -323,23 +323,32 @@ MonoBehaviour:
       - table for two
       llmCriteria: Confirm only when the participant states the party size.
       minimumConfidence: 0.85
-    - goalId: table_availability
-      text: Ask whether a table is available.
-      evaluationIntent: table_availability
+    - goalId: window_table_availability
+      text: Ask whether a window table is available.
+      evaluationIntent: window_table_availability
       deterministicPatterns:
-      - table available
-      - have a table
-      - any tables
-      llmCriteria: Confirm only when the participant asks about table availability.
+      - do you have a window table
+      - is a window table available
+      - any tables by the window
+      - table by the window
+      - table near the window
+      - could we sit by the window
+      - window seat available
+      llmCriteria: Confirm only when the participant explicitly asks whether a table
+        or seat by or near a window is available.
       minimumConfidence: 0.85
-    - goalId: wait_time
-      text: Ask how long the wait will be.
-      evaluationIntent: wait_time
+    - goalId: menu_request
+      text: Ask for a menu.
+      evaluationIntent: menu_request
       deterministicPatterns:
-      - how long is the wait
-      - waiting time
-      - how long do we have to wait
-      llmCriteria: Confirm only when the participant asks about the wait time.
+      - could i have a menu
+      - can we see the menu
+      - may i have the menu
+      - could you bring the menu
+      - please bring us a menu
+      - can i get a menu
+      llmCriteria: Confirm only when the participant directly requests to receive
+        or see a menu. Merely mentioning a menu is insufficient.
       minimumConfidence: 0.85
     initialQuestion: Good evening! Welcome to Riverside Restaurant. Do you have a
       reservation?
@@ -390,18 +399,18 @@ MonoBehaviour:
       - i will have the
       llmCriteria: Confirm only when the participant orders a main course.
       minimumConfidence: 0.85
-    - goalId: dietary_restriction
-      text: Explain a dietary requirement or food restriction.
-      evaluationIntent: dietary_restriction
+    - goalId: dish_price
+      text: Ask about the price of a dish.
+      evaluationIntent: dish_price
       deterministicPatterns:
-      - allergic to
-      - don't eat seafood
-      - do not eat seafood
-      - vegetarian
-      - i cannot eat
-      - i am allergic to
-      - i do not eat
-      llmCriteria: Confirm only when the participant states a dietary restriction.
+      - how much is this dish
+      - how much does this dish cost
+      - what is the price
+      - what does the main course cost
+      - how much is the grilled chicken
+      - could you tell me the price
+      llmCriteria: Confirm only when the participant asks for the price or cost of
+        a dish. A statement that something is expensive or cheap is insufficient.
       minimumConfidence: 0.85
     - goalId: drink
       text: Order a drink.
@@ -453,35 +462,52 @@ MonoBehaviour:
       - you brought the wrong meal
       llmCriteria: Confirm only when the participant says the dish is wrong.
       minimumConfidence: 0.85
-    - goalId: original_order
-      text: State what was originally ordered.
-      evaluationIntent: original_order
+    - goalId: dietary_restriction
+      text: State a dietary restriction or allergen.
+      evaluationIntent: dietary_restriction
       deterministicPatterns:
-      - i ordered the beef pasta
-      - originally ordered
-      - my order was
-      llmCriteria: Confirm only when the participant states the original order.
+      - allergic to
+      - i cannot eat
+      - i am allergic to
+      - i do not eat
+      - i have an allergy to
+      - my allergy is
+      - please avoid
+      - without peanuts
+      - no shellfish for me
+      - vegetarian
+      llmCriteria: Confirm only when the participant states a concrete dietary restriction,
+        food they avoid, or allergen. Saying that there are no restrictions or allergies
+        is insufficient.
       minimumConfidence: 0.85
-    - goalId: replacement_request
-      text: Ask for the dish to be replaced.
-      evaluationIntent: replacement_request
+    - goalId: extra_charge
+      text: Ask whether there will be an extra charge.
+      evaluationIntent: extra_charge
       deterministicPatterns:
-      - could you replace it
-      - replace this
-      - bring the correct dish
-      llmCriteria: Confirm only when the participant requests a replacement.
+      - is there an extra charge
+      - will i be charged extra
+      - do i have to pay extra
+      - is there an additional fee
+      - does the replacement cost extra
+      - any extra cost
+      llmCriteria: Confirm only when the participant asks whether correcting or replacing
+        the meal will result in an additional charge, fee, or cost.
       minimumConfidence: 0.85
-    - goalId: replacement_wait_time
-      text: Ask how long the replacement will take.
-      evaluationIntent: replacement_wait_time
+    - goalId: replacement_preparation_time
+      text: Ask how long the replacement dish will take to prepare.
+      evaluationIntent: replacement_preparation_time
       deterministicPatterns:
+      - how long will it take to prepare
+      - how long does it take to make
       - how long will the replacement take
-      - how long will it take
-      - replacement wait
-      llmCriteria: Confirm only when the participant asks how long replacement will
-        take.
+      - how long will the new dish take
+      - when will the replacement be ready
+      - how long until the new dish is ready
+      - how long will it take to cook
+      llmCriteria: Confirm only when the participant asks how long preparing, cooking,
+        or delivering the corrected replacement dish will take.
       minimumConfidence: 0.85
-    initialQuestion: Here is your meal. Is everything all right with your order?
+    initialQuestion: Excuse me, is everything all right with your meal?
     environmentType: restaurant
     panoramaResourceKey: SceneTalkVR/Textures/restaurant-360
     avatarPresetKey: barista_male_humanoid_v1
