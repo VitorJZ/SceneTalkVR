@@ -72,6 +72,7 @@ namespace SceneTalkVR.Runtime
         private PilotCollectionParticipantUi pilotCollectionUi;
 
         private Button pilotButton;
+        private Button historyExportButton;
         private Button settingsButton;
         private Button historyButton;
         private Button quitButton;
@@ -163,6 +164,7 @@ namespace SceneTalkVR.Runtime
         private string lastRenderedExperimentQuestionnaireId;
         private readonly List<ExperimentRecordEntry> experimentRecordEntries = new List<ExperimentRecordEntry>();
         private int experimentRecordEntryPage;
+        private PicoHistoryExportCoordinator historyExportCoordinator;
         private TMP_Text requestTitleText;
         private TMP_Text requestStatusText;
         private TMP_Text requestTranscriptText;
@@ -230,6 +232,7 @@ namespace SceneTalkVR.Runtime
             orchestrator = targetOrchestrator;
             worldCanvas = targetCanvas;
             interactionBootstrap = targetInteractionBootstrap;
+            ConfigureHistoryExportCoordinator();
 
             Build();
             Subscribe();
@@ -274,15 +277,16 @@ namespace SceneTalkVR.Runtime
             CreateButton(sessionNotPreparedPanel.transform, "SessionNotPreparedBackButton", "返回", new Vector2(0f, -92f), new Vector2(160f, 44f), new Color(.24f, .36f, .42f, 1f))
                 .onClick.AddListener(() => { sessionPreparationBlocked = false; Refresh(); });
 
-            mainMenuPanel = CreatePanel(root, "InitialPanel", new Vector2(0f, 0f), new Vector2(430f, 600f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
-            CreateText(mainMenuPanel.transform, "Title", "SceneTalkVR", new Vector2(0f, 255f), new Vector2(360f, 54f), 34, TextAnchor.MiddleCenter, Color.white);
-            experimentPilotButton = CreateButton(mainMenuPanel.transform, "PilotExperimentButton", "预实验", new Vector2(0f, 172f), new Vector2(270f, 50f), new Color(0.18f, 0.48f, 0.58f, 1f));
-            experimentFormalButton = CreateButton(mainMenuPanel.transform, "FormalExperimentButton", "正式实验", new Vector2(0f, 110f), new Vector2(270f, 50f), new Color(0.16f, 0.38f, 0.68f, 1f));
-            pilotButton = CreateButton(mainMenuPanel.transform, "ExperimentHistoryButton", "实验历史", new Vector2(0f, 48f), new Vector2(270f, 50f), new Color(0.18f, 0.48f, 0.58f, 1f));
-            historyButton = CreateButton(mainMenuPanel.transform, "HistoryButton", "对话历史", new Vector2(0f, -14f), new Vector2(270f, 50f), new Color(0.24f, 0.36f, 0.42f, 1f));
-            settingsButton = CreateButton(mainMenuPanel.transform, "SettingsButton", "设置", new Vector2(0f, -76f), new Vector2(270f, 50f), new Color(0.24f, 0.36f, 0.42f, 1f));
-            quitButton = CreateButton(mainMenuPanel.transform, "QuitButton", "退出", new Vector2(0f, -138f), new Vector2(270f, 50f), ExitButtonColor);
-            homeExperimentMessageText = CreateText(mainMenuPanel.transform, "ExperimentMessage", string.Empty, new Vector2(0f, -218f), new Vector2(360f, 74f), 16, TextAnchor.MiddleCenter, new Color(1f, .58f, .42f, 1f));
+            mainMenuPanel = CreatePanel(root, "InitialPanel", new Vector2(0f, 0f), new Vector2(430f, 680f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
+            CreateText(mainMenuPanel.transform, "Title", "SceneTalkVR", new Vector2(0f, 292f), new Vector2(360f, 54f), 34, TextAnchor.MiddleCenter, Color.white);
+            experimentPilotButton = CreateButton(mainMenuPanel.transform, "PilotExperimentButton", "预实验", new Vector2(0f, 210f), new Vector2(270f, 50f), new Color(0.18f, 0.48f, 0.58f, 1f));
+            experimentFormalButton = CreateButton(mainMenuPanel.transform, "FormalExperimentButton", "正式实验", new Vector2(0f, 148f), new Vector2(270f, 50f), new Color(0.16f, 0.38f, 0.68f, 1f));
+            pilotButton = CreateButton(mainMenuPanel.transform, "ExperimentHistoryButton", "实验历史", new Vector2(0f, 86f), new Vector2(270f, 50f), new Color(0.18f, 0.48f, 0.58f, 1f));
+            historyButton = CreateButton(mainMenuPanel.transform, "HistoryButton", "对话历史", new Vector2(0f, 24f), new Vector2(270f, 50f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            historyExportButton = CreateButton(mainMenuPanel.transform, "ExportHistoryButton", "导出历史数据", new Vector2(0f, -38f), new Vector2(270f, 50f), new Color(0.12f, 0.52f, 0.38f, 1f));
+            settingsButton = CreateButton(mainMenuPanel.transform, "SettingsButton", "设置", new Vector2(0f, -100f), new Vector2(270f, 50f), new Color(0.24f, 0.36f, 0.42f, 1f));
+            quitButton = CreateButton(mainMenuPanel.transform, "QuitButton", "退出", new Vector2(0f, -162f), new Vector2(270f, 50f), ExitButtonColor);
+            homeExperimentMessageText = CreateText(mainMenuPanel.transform, "ExperimentMessage", string.Empty, new Vector2(0f, -252f), new Vector2(380f, 100f), 16, TextAnchor.MiddleCenter, new Color(1f, .58f, .42f, 1f));
 
             BuildExperimentPanels(root);
 
@@ -541,6 +545,12 @@ namespace SceneTalkVR.Runtime
             {
                 pilotButton.onClick.RemoveAllListeners();
                 pilotButton.onClick.AddListener(OpenExperimentHistory);
+            }
+
+            if (historyExportButton != null)
+            {
+                historyExportButton.onClick.RemoveAllListeners();
+                historyExportButton.onClick.AddListener(StartHistoryExport);
             }
 
             if (experimentPilotButton != null)
@@ -802,6 +812,33 @@ namespace SceneTalkVR.Runtime
 
         public IReadOnlyList<ExperimentTaskDefinition> CurrentTaskOptions => taskButtonDefinitions;
 
+        private void ConfigureHistoryExportCoordinator()
+        {
+            var host = orchestrator == null ? gameObject : orchestrator.gameObject;
+            historyExportCoordinator = host.GetComponent<PicoHistoryExportCoordinator>()
+                ?? host.AddComponent<PicoHistoryExportCoordinator>();
+            var history = host.GetComponent<ExperimentHistoryService>()
+                ?? FindFirstObjectByType<ExperimentHistoryService>(FindObjectsInactive.Include)
+                ?? host.AddComponent<ExperimentHistoryService>();
+            var memory = host.GetComponent<LearningMemoryService>()
+                ?? FindFirstObjectByType<LearningMemoryService>(FindObjectsInactive.Include)
+                ?? host.AddComponent<LearningMemoryService>();
+            historyExportCoordinator.Configure(orchestrator?.RuntimeConfig, history, memory);
+        }
+
+        private void StartHistoryExport()
+        {
+            ConfigureHistoryExportCoordinator();
+            if (homeExperimentMessageText != null)
+            {
+                homeExperimentMessageText.text = string.Empty;
+            }
+            if (!historyExportCoordinator.TryStartExport(out var error) && homeExperimentMessageText != null)
+            {
+                homeExperimentMessageText.text = HumanizeHistoryExportError(error, historyExportCoordinator.LastResult?.message);
+            }
+        }
+
         private ExperimentSessionCoordinator GetExperimentCoordinator()
         {
             var coordinator = ExperimentSessionCoordinator.Active
@@ -822,6 +859,7 @@ namespace SceneTalkVR.Runtime
 
         private void EnterPilotExperiment()
         {
+            historyExportCoordinator?.ClearCompletedStatus();
             var coordinator = GetExperimentCoordinator();
             if (coordinator == null) return;
             if (homeExperimentMessageText != null) homeExperimentMessageText.text = string.Empty;
@@ -831,6 +869,7 @@ namespace SceneTalkVR.Runtime
 
         private void EnterFormalExperiment()
         {
+            historyExportCoordinator?.ClearCompletedStatus();
             var coordinator = GetExperimentCoordinator();
             if (coordinator == null) return;
             if (homeExperimentMessageText != null) homeExperimentMessageText.text = string.Empty;
@@ -1060,6 +1099,7 @@ namespace SceneTalkVR.Runtime
             if (collectionFinal) { showRequest = false; showTaskSelection = false; showLoading = false; showDialogue = false; showFormalModeSelection = false; }
             SetActive(mainMenuPanel, showMain);
             SetActive(historyButton?.gameObject, showMain && orchestrator.IsHistoryAvailable);
+            RefreshHistoryExportUi(showMain);
             SetActive(sessionNotPreparedPanel, sessionPreparationBlocked && !collectionArmed);
             SetActive(rehearsalWaitingPanel, rehearsalWaiting && !showFormalModeSelection && !showFinalRanking);
             SetActive(formalModeSelectionPanel, showFormalModeSelection);
@@ -1104,6 +1144,82 @@ namespace SceneTalkVR.Runtime
             RefreshDemoOverlay();
             RefreshFormalModeSelection(showFormalModeSelection);
             BringExitButtonToFront();
+        }
+
+        private void RefreshHistoryExportUi(bool showMain)
+        {
+            if (!showMain || historyExportButton == null) return;
+            if (historyExportCoordinator == null)
+            {
+                ConfigureHistoryExportCoordinator();
+            }
+
+            var busy = historyExportCoordinator.IsBusy;
+            experimentPilotButton.interactable = !busy;
+            experimentFormalButton.interactable = !busy;
+            pilotButton.interactable = !busy;
+            historyButton.interactable = !busy;
+            historyExportButton.interactable = !busy;
+            settingsButton.interactable = !busy;
+            quitButton.interactable = !busy;
+            SetButtonLabel(historyExportButton, busy ? "正在导出…" : "导出历史数据");
+
+            if (homeExperimentMessageText == null) return;
+            switch (historyExportCoordinator.State)
+            {
+                case PicoHistoryExportState.ProbingUsb:
+                    homeExperimentMessageText.color = new Color(.78f, .88f, 1f, 1f);
+                    homeExperimentMessageText.text = "正在检查 USB 数据线和电脑导出服务…";
+                    break;
+                case PicoHistoryExportState.BuildingSnapshot:
+                    homeExperimentMessageText.color = new Color(.78f, .88f, 1f, 1f);
+                    homeExperimentMessageText.text = "正在整理实验历史数据…";
+                    break;
+                case PicoHistoryExportState.Uploading:
+                    homeExperimentMessageText.color = new Color(.78f, .88f, 1f, 1f);
+                    homeExperimentMessageText.text = "正在通过 USB 导出到电脑…";
+                    break;
+                case PicoHistoryExportState.Succeeded:
+                    var success = historyExportCoordinator.LastResult;
+                    homeExperimentMessageText.color = new Color(.55f, .9f, .65f, 1f);
+                    homeExperimentMessageText.text = success == null
+                        ? "历史数据已导出到电脑。"
+                        : $"导出成功：{success.experimentCount} 条实验记录、{success.questionnaireCount} 份问卷。\n电脑目录：{success.exportDirectory}";
+                    break;
+                case PicoHistoryExportState.Failed:
+                    var failed = historyExportCoordinator.LastResult;
+                    homeExperimentMessageText.color = new Color(1f, .58f, .42f, 1f);
+                    homeExperimentMessageText.text = HumanizeHistoryExportError(
+                        failed?.errorCode,
+                        failed?.message);
+                    break;
+            }
+        }
+
+        private static string HumanizeHistoryExportError(string code, string detail)
+        {
+            return code switch
+            {
+                "history_export_in_progress" => "历史数据正在导出，请稍候。",
+                "history_export_empty" => "暂无可导出的实验历史数据。",
+                "history_export_usb_unavailable" => "未检测到电脑导出服务。请连接数据线并启动电脑端后台。",
+                "history_export_service_incompatible" => "电脑端导出服务版本不兼容，请重新启动最新后台。",
+                "history_export_usb_endpoint_invalid" => "USB 导出地址配置无效，请联系实验人员。",
+                "payload_too_large" => "历史数据过大，电脑端拒绝接收。",
+                "export_write_failed" => "电脑无法写入导出目录，请检查磁盘空间和目录权限。",
+                "xlsx_generation_failed" => "电脑生成问卷 Excel 文件失败。",
+                "export_id_conflict" => "电脑上存在冲突的同编号导出，请重新点击导出。",
+                "history_service_unavailable" => "PICO 历史数据服务不可用。",
+                "history_export_snapshot_failed" => "整理 PICO 历史数据失败：" + SafeExportDetail(detail),
+                _ => "历史数据导出失败：" + SafeExportDetail(detail)
+            };
+        }
+
+        private static string SafeExportDetail(string detail)
+        {
+            if (string.IsNullOrWhiteSpace(detail)) return "请检查数据线和电脑端后台。";
+            var trimmed = detail.Trim();
+            return trimmed.Length <= 120 ? trimmed : trimmed.Substring(0, 120) + "…";
         }
 
         public void RefreshExternalState() => Refresh();
@@ -1234,9 +1350,9 @@ namespace SceneTalkVR.Runtime
                     .AppendLine(SceneTalkChineseUiText.Goal(goal.goalId, goal.goalText));
             }
             if (tracker.SequenceState == GoalSequenceState.AwaitingParticipantTurn)
-                builder.AppendLine().AppendLine("目标已完成，请再次发言以继续……");
+                builder.AppendLine().AppendLine("正在准备下一目标……");
             else if (tracker.SequenceState == GoalSequenceState.AwaitingAvatarReply)
-                builder.AppendLine().AppendLine("正在等待角色回复结束……");
+                builder.AppendLine().AppendLine("正在等待本轮语音完整播放……");
             else if (tracker.SequenceState == GoalSequenceState.Completed)
                 builder.AppendLine().AppendLine("全部目标已完成。");
             builder.AppendLine().Append("已完成 ").Append(tracker.ConfirmedCount).Append(" / ").Append(tracker.Goals.Count);

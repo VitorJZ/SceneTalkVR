@@ -36,7 +36,7 @@ namespace SceneTalkVR.Tests.Editor
         }
 
         [Test] public void T01_OfficialProtocolIsCollectionApproved()
-        { Assert.That(protocol.ProtocolVersion, Is.EqualTo("1.4.0-participant-turn-gated-goals")); Assert.That(protocol.ApprovedForCollection, Is.True); Assert.That(protocol.GoalSequencePolicy, Is.EqualTo(GoalSequencePolicy.SequentialAfterParticipantTurnAndAvatarReply)); Assert.That(protocol.ValidateForFormalMode(out var error), Is.True, error); }
+        { Assert.That(protocol.ProtocolVersion, Is.EqualTo("1.5.0-immediate-goal-advance")); Assert.That(protocol.ApprovedForCollection, Is.True); Assert.That(protocol.GoalSequencePolicy, Is.EqualTo(GoalSequencePolicy.SequentialAfterConfirmationWithFinalReplyCompletion)); Assert.That(protocol.ValidateForFormalMode(out var error), Is.True, error); }
 
         [Test] public void T02_ElevenDecisionsAreConfirmedWithProvenance()
         { Assert.That(protocol.RequiredDecisions.Count, Is.EqualTo(11)); Assert.That(protocol.RequiredDecisions.All(x => x.status == ProtocolDecisionStatus.Confirmed && x.confirmedBy == "ProjectLead" && !string.IsNullOrWhiteSpace(x.confirmedAtUtc) && x.evidenceReference == "formal-editor-collection-directive-v1"), Is.True); }

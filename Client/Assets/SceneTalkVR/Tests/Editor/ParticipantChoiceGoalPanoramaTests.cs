@@ -79,7 +79,8 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(tracker.SubmitGoalCandidate(tracker.Goals[0].goalId, "detector", Evidence("turn-1"), out var error), Is.True, error);
             Assert.That(tracker.Goals[0].state, Is.EqualTo(GoalProgressState.Confirmed));
             Assert.That(tracker.Goals[0].confirmedBy, Is.EqualTo(GoalProgressTracker.AutomaticConfirmationActor));
-            Assert.That(tracker.SequenceState, Is.EqualTo(GoalSequenceState.AwaitingParticipantTurn));
+            Assert.That(tracker.SequenceState, Is.EqualTo(GoalSequenceState.ActiveGoal));
+            Assert.That(tracker.ActiveGoalIndex, Is.EqualTo(1));
         }
 
         [Test] public void ManualPolicy_RemainsCandidateUntilExperimenterReview()
@@ -156,6 +157,9 @@ namespace SceneTalkVR.Tests.Editor
         { var value = new GoalProgressTracker(); value.ResetGoals(Task(), Context(policy)); return value; }
         private static void AdvanceAfterConfirmedGoal(GoalProgressTracker tracker, string evidenceTurnId)
         {
+            if (tracker.SequenceState == GoalSequenceState.ActiveGoal
+                || tracker.SequenceState == GoalSequenceState.Completed)
+                return;
             if (tracker.SequenceState == GoalSequenceState.AwaitingParticipantTurn)
             {
                 var unlockTurnId = evidenceTurnId + "-unlock";
@@ -166,7 +170,8 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(tracker.NotifyDialogueTurnCompleted(evidenceTurnId), Is.True);
         }
         private static GoalTrackingContext Context(GoalConfirmationPolicy policy) => new GoalTrackingContext
-        { participantId = "P", sessionId = "S", conditionRunId = "run-1", taskAssignmentId = "assignment-1", confirmationPolicy = policy };
+        { participantId = "P", sessionId = "S", conditionRunId = "run-1", taskAssignmentId = "assignment-1", confirmationPolicy = policy,
+            sequencePolicy = GoalSequencePolicy.SequentialAfterConfirmationWithFinalReplyCompletion };
         private static GoalEvidence Evidence(string turn) => new GoalEvidence { turnId = turn, transcript = "validated transcript", confidence = .9f };
         private static ExperimentTaskDefinition Task() => new ExperimentTaskDefinition
         {

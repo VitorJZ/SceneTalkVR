@@ -13,6 +13,7 @@ namespace SceneTalkVR.AvatarSystem
         ISceneTalkAvatarReplyContext,
         ISceneTalkAvatarThinkingState,
         ISceneTalkAvatarRecoveryVoice,
+        ISceneTalkAvatarPlaybackDiagnostics,
         ISceneTalkAvatarSessionReset,
         ISceneTalkAvatarSessionPrepare,
         ISceneTalkCorrectionFeedbackProviderReceiver,
@@ -86,6 +87,7 @@ namespace SceneTalkVR.AvatarSystem
 
         public event Action<CorrectionPlaybackResult> CorrectionPlaybackCompleted;
         public CorrectionPlaybackResult LastCorrectionPlaybackResult { get; private set; }
+        public AvatarReplyPlaybackFailureStage LastFailureStage { get; private set; }
 
         public void ConfigureVoiceGateway(bool enabled, VoiceGatewayClient client)
         {
@@ -179,8 +181,10 @@ namespace SceneTalkVR.AvatarSystem
 
         public IEnumerator PresentReply(SpringScenePayload payload, Action onComplete, Action<string> onError)
         {
+            LastFailureStage = AvatarReplyPlaybackFailureStage.None;
             if (payload == null)
             {
+                LastFailureStage = AvatarReplyPlaybackFailureStage.Setup;
                 onError?.Invoke("Avatar voice payload is null.");
                 yield break;
             }
@@ -215,6 +219,7 @@ namespace SceneTalkVR.AvatarSystem
 
             if (!string.IsNullOrWhiteSpace(avatarError) && !allowVoiceFallbackOnAvatarFailure)
             {
+                LastFailureStage = AvatarReplyPlaybackFailureStage.Setup;
                 onError?.Invoke(avatarError);
                 yield break;
             }
@@ -226,6 +231,7 @@ namespace SceneTalkVR.AvatarSystem
             }
             if (!string.IsNullOrWhiteSpace(earlyCorrectionError))
             {
+                LastFailureStage = AvatarReplyPlaybackFailureStage.CorrectionFeedback;
                 onError?.Invoke(earlyCorrectionError);
                 yield break;
             }
@@ -246,6 +252,7 @@ namespace SceneTalkVR.AvatarSystem
 
             if (!correctionPlanResolvedEarly && hasCorrection && correctionPresenter != null)
             {
+                LastFailureStage = AvatarReplyPlaybackFailureStage.CorrectionFeedback;
                 feedbackFirstGate.FeedbackStarted();
                 LastCorrectionPlayStart = Time.realtimeSinceStartup;
                 correctionPresenter.SetPresentationActive(true);
@@ -263,8 +270,6 @@ namespace SceneTalkVR.AvatarSystem
                 if (correctionFailed && formalMode)
                 {
                     feedbackFirstGate.MarkTechnicalInvalid(LastCorrectionPlaybackResult?.errorCode ?? "correction_playback_failed");
-                    FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)
-                        ?.MarkTurnTechnicalInvalid("CorrectionPlayback", feedbackFirstGate.InvalidReason);
                     onError?.Invoke(feedbackFirstGate.InvalidReason);
                     yield break;
                 }
@@ -285,9 +290,8 @@ namespace SceneTalkVR.AvatarSystem
                 var formalMode = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)?.IsFormalExperiment == true;
                 if (formalMode)
                 {
+                    LastFailureStage = AvatarReplyPlaybackFailureStage.CorrectionFeedback;
                     feedbackFirstGate.MarkTechnicalInvalid("presenter_missing");
-                    FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)
-                        ?.MarkTurnTechnicalInvalid("CorrectionPlayback", "presenter_missing");
                     onError?.Invoke("Correction feedback presenter is missing.");
                     yield break;
                 }
@@ -302,6 +306,7 @@ namespace SceneTalkVR.AvatarSystem
             }
 
             // 2. Play Dialogue continuation (Streaming or Non-streaming)
+            LastFailureStage = AvatarReplyPlaybackFailureStage.DialogueReply;
             bool wasStreamingUsed = streamingTurn.State != StreamingSpeechTurnState.Idle
                 && streamingTurn.State != StreamingSpeechTurnState.Aborted;
             if (wasStreamingUsed)
@@ -432,6 +437,7 @@ namespace SceneTalkVR.AvatarSystem
                 yield break;
             }
 
+            LastFailureStage = AvatarReplyPlaybackFailureStage.None;
             onComplete?.Invoke();
         }
 
@@ -1125,9 +1131,8 @@ namespace SceneTalkVR.AvatarSystem
                 if (formalMode)
                 {
                     earlyCorrectionError = "presenter_missing";
+                    LastFailureStage = AvatarReplyPlaybackFailureStage.CorrectionFeedback;
                     feedbackFirstGate.MarkTechnicalInvalid(earlyCorrectionError);
-                    FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)
-                        ?.MarkTurnTechnicalInvalid("CorrectionPlayback", earlyCorrectionError);
                 }
                 else
                 {
@@ -1156,9 +1161,8 @@ namespace SceneTalkVR.AvatarSystem
             if (formal && correctionFailed)
             {
                 earlyCorrectionError = LastCorrectionPlaybackResult?.errorCode ?? "correction_playback_failed";
+                LastFailureStage = AvatarReplyPlaybackFailureStage.CorrectionFeedback;
                 feedbackFirstGate.MarkTechnicalInvalid(earlyCorrectionError);
-                FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)
-                    ?.MarkTurnTechnicalInvalid("CorrectionPlayback", earlyCorrectionError);
             }
             else
             {

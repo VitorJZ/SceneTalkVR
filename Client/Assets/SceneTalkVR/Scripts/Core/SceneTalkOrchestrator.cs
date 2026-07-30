@@ -22,7 +22,8 @@ namespace SceneTalkVR.Runtime
         private enum RetryKind
         {
             None,
-            AvatarReplyPlayback
+            AvatarDialoguePlayback,
+            AvatarFullReplyPlayback
         }
 
         [Header("Module adapters")]
@@ -203,6 +204,7 @@ namespace SceneTalkVR.Runtime
         private RetryKind pendingRetryKind;
         private SpringScenePayload pendingAvatarReplyPayload;
         private bool pendingAvatarReplyIsOpening;
+        private AvatarReplyPlaybackFailureStage pendingAvatarFailureStage;
 
         private ISceneTalkSpeechInput SpeechInput => speechInputModule as ISceneTalkSpeechInput;
         private ISceneTalkManualSpeechInput ManualSpeechInput => speechInputModule as ISceneTalkManualSpeechInput;
@@ -1011,7 +1013,8 @@ namespace SceneTalkVR.Runtime
 
             GatewayTransportRouter.Active?.RequestBoundaryProbe(GatewayRequestStage.Retry);
 
-            if (pendingRetryKind == RetryKind.AvatarReplyPlayback
+            if ((pendingRetryKind == RetryKind.AvatarDialoguePlayback
+                    || pendingRetryKind == RetryKind.AvatarFullReplyPlayback)
                 && pendingAvatarReplyPayload != null)
             {
                 currentTurn = StartCoroutine(RetryAvatarReplyPlayback());
@@ -1759,8 +1762,16 @@ namespace SceneTalkVR.Runtime
             {
                 var manager = ResolveExperimentConditionManager(false);
                 manager?.RecordModuleFallback(fallbackMessage);
+                var speechRecognitionFailure = string.Equals(
+                    fallbackMessage,
+                    "Speech input failed.",
+                    StringComparison.Ordinal);
+                if (speechRecognitionFailure)
+                    manager?.RecordRecoverableTurnFailure("SpeechRecognition", error);
                 manager?.RecordUserAction("skip");
-                EnterError(string.IsNullOrWhiteSpace(fallbackMessage) ? error : $"{fallbackMessage} {error}");
+                EnterError(speechRecognitionFailure
+                    ? "Speech recognition failed. Please retry recording."
+                    : string.IsNullOrWhiteSpace(fallbackMessage) ? error : $"{fallbackMessage} {error}");
                 return true;
             }
 
@@ -1786,19 +1797,19 @@ namespace SceneTalkVR.Runtime
 
             var manager = ResolveExperimentConditionManager(false);
             manager?.RecordModuleFallback("Avatar voice playback failed.");
-            manager?.MarkTurnTechnicalInvalid("DialoguePlayback", error);
-            pendingRetryKind = RetryKind.AvatarReplyPlayback;
-            pendingAvatarReplyPayload = payload;
-            pendingAvatarReplyIsOpening = isOpeningReply;
-            (AvatarVoice as ISceneTalkStreamingAvatarVoice)?.AbortStreaming();
+            CaptureAvatarPlaybackRetry(payload, isOpeningReply, error);
             Debug.LogError($"[SceneTalkVR] Avatar voice playback failed: {error}", this);
-            EnterError("Avatar voice playback failed. Please retry.");
+            EnterError(PlaybackRetryMessage(pendingAvatarFailureStage));
             return true;
         }
 
         private IEnumerator RetryAvatarReplyPlayback()
         {
-            var payload = BuildDialogueOnlyRetryPayload(pendingAvatarReplyPayload);
+            var sourcePayload = pendingAvatarReplyPayload;
+            var retryKind = pendingRetryKind;
+            var payload = retryKind == RetryKind.AvatarFullReplyPlayback
+                ? sourcePayload
+                : BuildDialogueOnlyRetryPayload(sourcePayload);
             var isOpeningReply = pendingAvatarReplyIsOpening;
             LastError = string.Empty;
             finishRequested = false;
@@ -1815,8 +1826,9 @@ namespace SceneTalkVR.Runtime
             if (!string.IsNullOrWhiteSpace(error))
             {
                 currentTurn = null;
+                CaptureAvatarPlaybackRetry(sourcePayload, isOpeningReply, error);
                 Debug.LogError($"[SceneTalkVR] Avatar reply retry failed: {error}", this);
-                EnterError("Avatar voice playback failed. Please retry.");
+                EnterError(PlaybackRetryMessage(pendingAvatarFailureStage));
                 yield break;
             }
 
@@ -1824,6 +1836,36 @@ namespace SceneTalkVR.Runtime
             ClearPendingRetry();
             EnterTurnReviewState();
         }
+
+        private void CaptureAvatarPlaybackRetry(
+            SpringScenePayload payload,
+            bool isOpeningReply,
+            string error)
+        {
+            var stage = avatarVoiceModule is ISceneTalkAvatarPlaybackDiagnostics diagnostics
+                ? diagnostics.LastFailureStage
+                : AvatarReplyPlaybackFailureStage.DialogueReply;
+            pendingRetryKind = stage == AvatarReplyPlaybackFailureStage.Setup
+                || stage == AvatarReplyPlaybackFailureStage.CorrectionFeedback
+                    ? RetryKind.AvatarFullReplyPlayback
+                    : RetryKind.AvatarDialoguePlayback;
+            pendingAvatarReplyPayload = payload;
+            pendingAvatarReplyIsOpening = isOpeningReply;
+            pendingAvatarFailureStage = stage;
+            ResolveExperimentConditionManager(false)?.RecordRecoverableTurnFailure(
+                stage == AvatarReplyPlaybackFailureStage.CorrectionFeedback
+                    ? "CorrectionPlayback"
+                    : stage == AvatarReplyPlaybackFailureStage.Setup
+                        ? "AvatarSetup"
+                        : "DialoguePlayback",
+                error);
+            (AvatarVoice as ISceneTalkStreamingAvatarVoice)?.AbortStreaming();
+        }
+
+        private static string PlaybackRetryMessage(AvatarReplyPlaybackFailureStage stage) =>
+            stage == AvatarReplyPlaybackFailureStage.CorrectionFeedback
+                ? "Correction voice playback failed. Please retry."
+                : "Avatar voice playback failed. Please retry.";
 
         private static SpringScenePayload BuildDialogueOnlyRetryPayload(SpringScenePayload source)
         {
@@ -1850,6 +1892,7 @@ namespace SceneTalkVR.Runtime
             pendingRetryKind = RetryKind.None;
             pendingAvatarReplyPayload = null;
             pendingAvatarReplyIsOpening = false;
+            pendingAvatarFailureStage = AvatarReplyPlaybackFailureStage.None;
         }
 
         private static bool HasGenerationFailure(string error, SpringScenePayload payload)

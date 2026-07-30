@@ -20,6 +20,8 @@ namespace SceneTalkVR.Tests.PlayMode
         private Component manager;
         private Component rehearsal;
         private string lastEvaluatedTurnId;
+        private GameObject transportHost;
+        private object previousTransportRouter;
 
         [UnitySetUp]
         public IEnumerator SetUp()
@@ -37,10 +39,11 @@ namespace SceneTalkVR.Tests.PlayMode
             goalOrchestrator?.GetProperty("AsyncStructuredFallback", BindingFlags.Public | BindingFlags.Static)?.SetValue(null, null);
             var type = Type.GetType("SceneTalkVR.Core.EditorCollectionSessionCoordinator, Assembly-CSharp");
             collection = manager.GetComponent(type) ?? (Component)manager.gameObject.AddComponent(type);
+            transportHost = InstallReadyUsbTransport(out previousTransportRouter);
             Configure();
         }
 
-        [UnityTearDown] public IEnumerator TearDown() { CallVoid(collection, "EndRuntimeSession"); CallVoid(rehearsal, "ResetSession"); CallVoid(Find("SceneTalkVR.Core.ExperimentSessionCoordinator, Assembly-CSharp"), "ConfirmLeaveExperiment"); ForcePicoDeviceValidation(false); ForcePicoCollection(false); ResetUserSettings(); yield return null; }
+        [UnityTearDown] public IEnumerator TearDown() { CallVoid(collection, "EndRuntimeSession"); CallVoid(rehearsal, "ResetSession"); CallVoid(Find("SceneTalkVR.Core.ExperimentSessionCoordinator, Assembly-CSharp"), "ConfirmLeaveExperiment"); RestoreGatewayTransport(transportHost, previousTransportRouter); transportHost = null; previousTransportRouter = null; ForcePicoDeviceValidation(false); ForcePicoCollection(false); ResetUserSettings(); yield return null; }
 
         [UnityTest] public IEnumerator T01_HomeShowsIndependentPilotAndFormalRoutesWithoutIntermediateMenu()
         {
@@ -94,15 +97,11 @@ namespace SceneTalkVR.Tests.PlayMode
         {
             Arm(out var assignment); StartFormalFlow(); yield return null; var selected = ConditionForTask(assignment, "hotel_check_in"); Click(Get(selected, "formalConditionCode") + "ModeButton"); yield return null;
             Assert.That(Evaluate("My name is Harry Potter."), Is.EqualTo(1)); yield return null;
-            var reservationTurnId = lastEvaluatedTurnId; var tracker = Get(lifecycle, "GoalTracker"); Assert.That(GoalState(tracker, "reservation_name"), Is.EqualTo("Confirmed")); Assert.That(TextOf("ReadOnlyTaskGoalPanel"), Does.Contain("1 / 4 completed")); Assert.That(TextOf("ReadOnlyTaskGoalPanel"), Does.Not.Contain("breakfast"));
+            var reservationTurnId = lastEvaluatedTurnId; var tracker = Get(lifecycle, "GoalTracker"); Assert.That(GoalState(tracker, "reservation_name"), Is.EqualTo("Confirmed")); Assert.That(TextOf("ReadOnlyTaskGoalPanel"), Does.Contain("1 / 4")); Assert.That(Get(Get(tracker, "ActiveGoal"), "goalId"), Is.EqualTo("breakfast"));
             CompleteEvaluatedTurn(reservationTurnId, false); yield return null;
-            Assert.That(TextOf("ReadOnlyTaskGoalPanel"), Does.Contain("reservation name")); Assert.That(TextOf("ReadOnlyTaskGoalPanel"), Does.Not.Contain("breakfast"));
-            Assert.That(Evaluate("Is breakfast included?"), Is.Zero, "The first post-goal participant turn is the unlock dialogue, not evidence for the hidden next goal."); CompleteEvaluatedTurn(); yield return null;
-            Assert.That(TextOf("ReadOnlyTaskGoalPanel"), Does.Contain("breakfast")); Assert.That(TextOf("ReadOnlyTaskGoalPanel"), Does.Contain("reservation name"));
+            Assert.That(TextOf("ReadOnlyTaskGoalPanel"), Does.Contain("1 / 4")); Assert.That(Get(Get(tracker, "ActiveGoal"), "goalId"), Is.EqualTo("breakfast"));
             Assert.That(Evaluate("Is breakfast included?"), Is.EqualTo(1)); CompleteEvaluatedTurn(expectedAdvance: false);
-            Assert.That(Evaluate("Could I have a room on a higher floor?"), Is.Zero); CompleteEvaluatedTurn();
             Assert.That(Evaluate("Could I have a room on a higher floor?"), Is.EqualTo(1)); CompleteEvaluatedTurn(expectedAdvance: false);
-            Assert.That(Evaluate("What time is checkout?"), Is.Zero); CompleteEvaluatedTurn();
             Assert.That(Evaluate("What time is checkout?"), Is.EqualTo(1));
             Assert.That(Get(questionnaire, "ActiveSession"), Is.Null, "The questionnaire must wait for the final Avatar reply."); CompleteEvaluatedTurn(); yield return null;
             Assert.That((int)Get(tracker, "ConfirmedCount"), Is.EqualTo(4)); Assert.That(Get(questionnaire, "ActiveSession"), Is.Not.Null); Assert.That(Get(Get(questionnaire, "ActiveSession"), "completionStatus").ToString(), Is.EqualTo("InProgress")); Assert.That(Active("QuestionnairePanel"), Is.True);
@@ -271,7 +270,7 @@ namespace SceneTalkVR.Tests.PlayMode
         private int Evaluate(string transcript, string speaker = "participant") { lastEvaluatedTurnId = Guid.NewGuid().ToString("N"); var type = Type.GetType("SceneTalkVR.Core.GoalEvaluationOrchestrator, Assembly-CSharp"); type.GetMethod("NotifyParticipantTurnSubmitted").Invoke(null, new object[] { lifecycle, null, lastEvaluatedTurnId, transcript, speaker }); return (int)type.GetMethod("EvaluateUserTranscript").Invoke(null, new object[] { lifecycle, lastEvaluatedTurnId, transcript, speaker }); }
         private void CompleteEvaluatedTurn(string turnId = null, bool expectedAdvance = true) { var tracker = Get(lifecycle, "GoalTracker"); Assert.That((bool)tracker.GetType().GetMethod("NotifyDialogueTurnCompleted").Invoke(tracker, new object[] { turnId ?? lastEvaluatedTurnId }), Is.EqualTo(expectedAdvance)); }
         private void StartFormalFlow() { OutCall(collection, "BeginParticipantFlow"); }
-        private void CompleteTask(string task) { var phrases = new[] { "My name is Harry Potter.", "Is breakfast included?", "Could I have a room on a higher floor?", "What time is checkout?" }; for (var i = 0; i < phrases.Length; i++) { Assert.That(Evaluate(phrases[i]), Is.EqualTo(1)); if (i == phrases.Length - 1) { CompleteEvaluatedTurn(); continue; } CompleteEvaluatedTurn(expectedAdvance: false); Assert.That(Evaluate(phrases[i + 1]), Is.Zero); CompleteEvaluatedTurn(); } }
+        private void CompleteTask(string task) { var phrases = new[] { "My name is Harry Potter.", "Is breakfast included?", "Could I have a room on a higher floor?", "What time is checkout?" }; for (var i = 0; i < phrases.Length; i++) { Assert.That(Evaluate(phrases[i]), Is.EqualTo(1)); CompleteEvaluatedTurn(expectedAdvance: i == phrases.Length - 1); } }
         private void Select(string code, bool expected) { var method = collection.GetType().GetMethod("SelectFormalCondition"); var args = new object[] { Enum.Parse(method.GetParameters()[0].ParameterType, code), null }; Assert.That((bool)method.Invoke(collection, args), Is.EqualTo(expected), args[1] as string); }
         private void Configure() { var m = collection.GetType().GetMethod("Configure"); var p = m.GetParameters(); m.Invoke(collection, new[] { Asset("Assets/SceneTalkVR/ExperimentProtocol/ExperimentV11Protocol.asset", p[0].ParameterType), Asset("Assets/SceneTalkVR/ExperimentProtocol/ExperimentEditorCollectionResources.asset", p[1].ParameterType), Asset("Assets/SceneTalkVR/ExperimentProtocol/ExperimentVoiceProfileCatalog.asset", p[2].ParameterType), Asset("Assets/SceneTalkVR/ExperimentProtocol/ExperimentDeploymentCatalog.asset", p[3].ParameterType), Asset("Assets/SceneTalkVR/ExperimentProtocol/ExperimentQuestionnaireCatalog.asset", p[4].ParameterType), Asset("Assets/SceneTalkVR/ExperimentProtocol/ExperimentTaskCatalog.asset", p[5].ParameterType) }); }
         private static object ConditionForTask(object assignment, string task) => Conditions(assignment).Single(x => (string)Get(Get(x, "task"), "taskId") == task);
@@ -308,6 +307,43 @@ namespace SceneTalkVR.Tests.PlayMode
         private static Button[] ButtonsUnder(string name) { var go = Resources.FindObjectsOfTypeAll<GameObject>().First(x => x.name == name && x.scene.IsValid()); return go.GetComponentsInChildren<Button>(true); }
         private static Type UserSettingsStoreType => Type.GetType("SceneTalkVR.Core.SceneTalkUserSettingsStore, Assembly-CSharp");
         private static void ResetUserSettings() => UserSettingsStoreType.GetMethod("ResetAll").Invoke(null, null);
+        private static GameObject InstallReadyUsbTransport(out object previousRouter)
+        {
+            var routerType = Type.GetType("SceneTalkVR.Core.GatewayTransportRouter, Assembly-CSharp", true);
+            var activeField = routerType.GetField("<Active>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic);
+            previousRouter = activeField.GetValue(null);
+            var host = new GameObject("ReadyUsbTransportForFormalTest");
+            var router = host.AddComponent(routerType);
+            ((Behaviour)router).enabled = false;
+            var configurationType = Type.GetType("SceneTalkVR.Core.GatewayTransportConfiguration, Assembly-CSharp", true);
+            var preferenceType = Type.GetType("SceneTalkVR.Core.GatewayTransportPreference, Assembly-CSharp", true);
+            var configuration = Activator.CreateInstance(configurationType);
+            SetTransportField(configuration, "preference", Enum.Parse(preferenceType, "UsbOnly"));
+            SetTransportField(configuration, "usbVoiceBaseUrl", "http://127.0.0.1:8787");
+            SetTransportField(configuration, "usbLlmApiUrl", "http://127.0.0.1:8788/api/llm/chat/completions");
+            SetTransportField(configuration, "lanVoiceBaseUrl", "http://192.168.137.1:8787");
+            SetTransportField(configuration, "lanLlmApiUrl", "http://192.168.137.1:8788/api/llm/chat/completions");
+            SetTransportField(configuration, "requireLiveTransport", true);
+            routerType.GetMethod("Configure").Invoke(router, new[] { configuration });
+            var stateMachine = routerType.GetField("stateMachine", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(router);
+            var routeType = Type.GetType("SceneTalkVR.Core.GatewayRouteSnapshot, Assembly-CSharp", true);
+            var transportType = Type.GetType("SceneTalkVR.Core.GatewayTransportKind, Assembly-CSharp", true);
+            var route = Activator.CreateInstance(routeType);
+            SetTransportField(route, "transport", Enum.Parse(transportType, "Usb"));
+            SetTransportField(route, "voiceBaseUrl", "http://127.0.0.1:8787");
+            SetTransportField(route, "llmApiUrl", "http://127.0.0.1:8788/api/llm/chat/completions");
+            SetTransportField(route, "selectedAtUtc", "2026-07-28T00:00:00.0000000Z");
+            stateMachine.GetType().GetMethod("MarkReady").Invoke(stateMachine, new[] { route });
+            return host;
+        }
+        private static void RestoreGatewayTransport(GameObject host, object previousRouter)
+        {
+            if (host == null) return;
+            var routerType = Type.GetType("SceneTalkVR.Core.GatewayTransportRouter, Assembly-CSharp", true);
+            routerType.GetField("<Active>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic).SetValue(null, previousRouter);
+            UnityEngine.Object.Destroy(host);
+        }
+        private static void SetTransportField(object target, string name, object value) => target.GetType().GetField(name).SetValue(target, value);
         private static void SetAssistantEmbodiment(string value) => UserSettingsStoreType.GetMethod("SetAssistantEmbodiment").Invoke(null, new object[] { value });
         private static void SetHideDialogueSubtitles(bool hidden) => UserSettingsStoreType.GetMethod("SetHideDialogueSubtitles").Invoke(null, new object[] { hidden });
         private static void AssertTaskAboveFullWidthDialogue()

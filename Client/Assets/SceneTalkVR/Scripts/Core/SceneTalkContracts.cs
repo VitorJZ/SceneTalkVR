@@ -57,6 +57,19 @@ namespace SceneTalkVR.Core
         IEnumerator PresentReply(SpringScenePayload payload, Action onComplete, Action<string> onError);
     }
 
+    public enum AvatarReplyPlaybackFailureStage
+    {
+        None = 0,
+        Setup = 1,
+        CorrectionFeedback = 2,
+        DialogueReply = 3
+    }
+
+    public interface ISceneTalkAvatarPlaybackDiagnostics
+    {
+        AvatarReplyPlaybackFailureStage LastFailureStage { get; }
+    }
+
     public interface ISceneTalkStreamingAvatarVoice : ISceneTalkAvatarVoice
     {
         void PrepareStreaming(SpringScenePayload basePayload);

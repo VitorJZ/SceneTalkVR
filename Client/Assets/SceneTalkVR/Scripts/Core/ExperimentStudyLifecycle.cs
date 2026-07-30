@@ -96,7 +96,7 @@ namespace SceneTalkVR.Core
         private ExperimentAssignment assignment;
         private ConditionAssignment currentCondition;
         private DateTime conditionStartedUtc;
-        private int conditionStartTurn;
+        private int conditionStartCompletedTurn;
         private bool goalEventsSubscribed;
         private bool taskCompletionObserved;
         private readonly List<string> recentUserTurns = new List<string>();
@@ -117,7 +117,7 @@ namespace SceneTalkVR.Core
         public string CompletionReason { get; private set; }
         public ExperimentTechnicalValidity TechnicalValidity { get; private set; } = ExperimentTechnicalValidity.Valid;
         public long ConditionDurationMs => conditionStartedUtc == default ? 0 : (long)(DateTime.UtcNow - conditionStartedUtc).TotalMilliseconds;
-        public int TurnsToCompletion => conditionManager == null ? 0 : Mathf.Max(0, conditionManager.CurrentTurnIndex - conditionStartTurn);
+        public int TurnsToCompletion => conditionManager == null ? 0 : Mathf.Max(0, conditionManager.CompletedTurnCount - conditionStartCompletedTurn);
         public int MaximumTurns => maxTurns;
         public float MaximumDurationMinutes => maxDurationMinutes;
 
@@ -227,8 +227,14 @@ namespace SceneTalkVR.Core
             goalTracker.RestoreGoals(task, CreateGoalContext(task), restoredGoals, restoredSequence);
             taskCompletionObserved = goalTracker.IsSequenceCompleted;
             conditionStartedUtc = DateTime.UtcNow;
-            conditionStartTurn = conditionManager.CurrentTurnIndex;
-            if (item.status == ConditionRunStatus.Running) orchestrator?.LoadAssignedTask(item.task.taskId);
+            conditionStartCompletedTurn = conditionManager.CompletedTurnCount;
+            if (item.status == ConditionRunStatus.Running)
+            {
+                if (goalTracker.IsSequenceCompleted)
+                    CompleteTask("all_goals_confirmed", "system_resume");
+                else
+                    orchestrator?.LoadAssignedTask(item.task.taskId);
+            }
             return true;
         }
 
@@ -290,7 +296,7 @@ namespace SceneTalkVR.Core
             WriteEvent(StudyEventType.TaskLoaded, actor: "system");
             currentCondition.status = ConditionRunStatus.Running;
             conditionStartedUtc = DateTime.UtcNow;
-            conditionStartTurn = conditionManager.CurrentTurnIndex;
+            conditionStartCompletedTurn = conditionManager.CompletedTurnCount;
             WriteEvent(StudyEventType.ConditionStarted, actor: "system");
             orchestrator?.LoadAssignedTask(currentCondition.task.taskId);
             return true;
@@ -369,7 +375,7 @@ namespace SceneTalkVR.Core
             WriteEvent(StudyEventType.TaskLoaded, actor: "developer");
             currentCondition.status = ConditionRunStatus.Running;
             conditionStartedUtc = DateTime.UtcNow;
-            conditionStartTurn = conditionManager.CurrentTurnIndex;
+            conditionStartCompletedTurn = conditionManager.CompletedTurnCount;
             WriteEvent(StudyEventType.ConditionStarted, actor: "developer");
             return true;
         }
@@ -501,7 +507,7 @@ namespace SceneTalkVR.Core
             goalTracker.ResetGoals(null);
             recentUserTurns.Clear();
             conditionStartedUtc = default;
-            conditionStartTurn = 0;
+            conditionStartCompletedTurn = 0;
             CompletionReason = string.Empty;
             TechnicalValidity = ExperimentTechnicalValidity.Valid;
             if (!IsDeveloperManualSession) return;
@@ -516,7 +522,7 @@ namespace SceneTalkVR.Core
             goalTracker.ResetGoals(null);
             recentUserTurns.Clear();
             assignment = null; currentCondition = null; ConditionRunId = string.Empty; QuestionnaireLinkageKey = string.Empty;
-            conditionStartedUtc = default; conditionStartTurn = 0; CompletionReason = string.Empty;
+            conditionStartedUtc = default; conditionStartCompletedTurn = 0; CompletionReason = string.Empty;
             TechnicalValidity = ExperimentTechnicalValidity.Valid;
         }
 
@@ -528,7 +534,7 @@ namespace SceneTalkVR.Core
             ConditionRunId = string.Empty;
             QuestionnaireLinkageKey = string.Empty;
             conditionStartedUtc = default;
-            conditionStartTurn = 0;
+            conditionStartCompletedTurn = 0;
             CompletionReason = string.Empty;
             TechnicalValidity = ExperimentTechnicalValidity.Valid;
             taskCompletionObserved = false;
@@ -593,7 +599,7 @@ namespace SceneTalkVR.Core
             conditionRunId = ConditionRunId ?? string.Empty,
             taskAssignmentId = currentCondition?.task?.taskAssignmentId ?? string.Empty,
             taskId = task?.taskId ?? string.Empty,
-            sequencePolicy = GoalSequencePolicy.SequentialAfterParticipantTurnAndAvatarReply,
+            sequencePolicy = GoalSequencePolicy.SequentialAfterConfirmationWithFinalReplyCompletion,
             confirmationPolicy = assignment != null && (assignment.runQualification == ExperimentRunQualification.Rehearsal
                 || assignment.runQualification == ExperimentRunQualification.Collection)
                 ? GoalConfirmationPolicy.AutomaticOnValidatedDetection

@@ -378,6 +378,9 @@ namespace SceneTalkVR.EditorTools
                 runtimeConfig?.TransportPreference == GatewayTransportPreference.LanOnly
                     ? "USB ADB transport is disabled; LAN-only compatibility mode is active"
                     : "USB ADB transport uses explicit Voice and LLM loopback endpoints");
+            AppendCheck(report,
+                runtimeConfig == null || SceneTalkRuntimeConfig.IsLoopbackUrl(runtimeConfig.UsbHistoryExportBaseUrl),
+                "PICO history export uses an explicit USB loopback endpoint");
             AppendCheck(report, !usesHolodeckBackend || !string.IsNullOrWhiteSpace(effectiveHolodeckUrl), usesHolodeckBackend
                 ? "Holodeck backend URL is configured"
                 : "Holodeck backend is disabled for this build");

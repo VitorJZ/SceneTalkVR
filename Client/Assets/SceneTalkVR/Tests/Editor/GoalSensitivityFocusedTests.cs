@@ -237,6 +237,9 @@ namespace SceneTalkVR.Tests.Editor
 
         private static void AdvanceAfterConfirmedGoal(GoalProgressTracker tracker, string evidenceTurnId)
         {
+            if (tracker.SequenceState == GoalSequenceState.ActiveGoal
+                || tracker.SequenceState == GoalSequenceState.Completed)
+                return;
             if (tracker.SequenceState == GoalSequenceState.AwaitingParticipantTurn)
             {
                 var unlockTurnId = evidenceTurnId + "-unlock";

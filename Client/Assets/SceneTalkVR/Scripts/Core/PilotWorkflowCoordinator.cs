@@ -20,7 +20,7 @@ namespace SceneTalkVR.Core
         [SerializeField] private ExperimentConditionManager conditionManager; [SerializeField] private PilotEmbodimentPresenter presenter;
         private readonly GoalProgressTracker goals=new GoalProgressTracker(); private readonly QuestionnaireSessionService questionnaire=new QuestionnaireSessionService();
         private PilotAssignment assignment;private PilotConditionAssignment current;
-        private int maxTurns; private float maxDurationMinutes; private DateTime conditionStartedUtc; private int conditionStartTurn;
+        private int maxTurns; private float maxDurationMinutes; private DateTime conditionStartedUtc; private int conditionStartCompletedTurn;
         private long userSpeechEndedMs=-1,feedbackStartedMs=-1,feedbackEndedMs=-1,dialogueStartedMs=-1; private string feedbackStartedAt="",feedbackEndedAt="";
         public PilotAssignment Assignment=>assignment;public PilotConditionAssignment Current=>current;public GoalProgressTracker Goals=>goals;public QuestionnaireSessionService Questionnaire=>questionnaire;
         public bool HasActivePilotRun => assignment != null && current != null && !string.IsNullOrWhiteSpace(PilotRunId);
@@ -30,7 +30,7 @@ namespace SceneTalkVR.Core
         public bool ShouldEndCurrentTask(out string reason)
         {
             if(current==null||current.status!=PilotRunStatus.Running){reason="";return false;}
-            var turns=conditionManager==null?0:Mathf.Max(0,conditionManager.CurrentTurnIndex-conditionStartTurn);
+            var turns=conditionManager==null?0:Mathf.Max(0,conditionManager.CompletedTurnCount-conditionStartCompletedTurn);
             if(maxTurns>0&&turns>=maxTurns){reason="max_turns";return true;}
             if(maxDurationMinutes>0f&&conditionStartedUtc!=default&&(DateTime.UtcNow-conditionStartedUtc).TotalMinutes>=maxDurationMinutes){reason="max_duration";return true;}
             reason="";return false;
@@ -50,7 +50,7 @@ namespace SceneTalkVR.Core
             if(!conditionManager.ApplyPilotAssignment(assignment.feedbackStyle,current.task.taskId,assignment.participantId,assignment.sessionId,out error))return Invalid("Task",error);
             if(!conditionManager.SetExperimentAssistantEmbodiment(PilotEmbodimentPresenter.AppearanceIdFor(current.embodimentCondition)))
             {error="pilot_assistant_embodiment_override_invalid";return Invalid("Presentation",error);}
-            goals.ResetGoals(conditionManager.TaskCatalog.Find(current.task.taskId),new GoalTrackingContext{participantId=assignment.participantId,sessionId=assignment.sessionId,conditionRunId=PilotRunId,taskAssignmentId=current.task.taskAssignmentId,taskId=current.task.taskId,confirmationPolicy=GoalConfirmationPolicy.AutomaticOnValidatedDetection,sequencePolicy=GoalSequencePolicy.SequentialAfterParticipantTurnAndAvatarReply});conditionStartedUtc=DateTime.UtcNow;conditionStartTurn=conditionManager.CurrentTurnIndex;current.status=PilotRunStatus.Running;Write("PilotConditionStarted");RunStatusChanged?.Invoke(current.status);return true;
+            goals.ResetGoals(conditionManager.TaskCatalog.Find(current.task.taskId),new GoalTrackingContext{participantId=assignment.participantId,sessionId=assignment.sessionId,conditionRunId=PilotRunId,taskAssignmentId=current.task.taskAssignmentId,taskId=current.task.taskId,confirmationPolicy=GoalConfirmationPolicy.AutomaticOnValidatedDetection,sequencePolicy=GoalSequencePolicy.SequentialAfterConfirmationWithFinalReplyCompletion});conditionStartedUtc=DateTime.UtcNow;conditionStartCompletedTurn=conditionManager.CompletedTurnCount;current.status=PilotRunStatus.Running;Write("PilotConditionStarted");RunStatusChanged?.Invoke(current.status);return true;
         }
         public void CompleteTask(){if(current==null||current.status!=PilotRunStatus.Running)return;current.status=PilotRunStatus.TaskCompleted;Write("PilotTaskCompleted");current.status=PilotRunStatus.AwaitingPilotQuestionnaire;Write("PilotAwaitingQuestionnaire");RunStatusChanged?.Invoke(current.status);}
         public bool BeginQuestionnaire(out string error)
@@ -121,7 +121,7 @@ namespace SceneTalkVR.Core
         public void ResetSession()
         {
             presenter?.ResetSession(); questionnaire.Reset(); goals.ResetGoals(null);
-            current=null; PilotRunId=""; QuestionnaireLinkageKey=""; conditionStartedUtc=default; conditionStartTurn=0;
+            current=null; PilotRunId=""; QuestionnaireLinkageKey=""; conditionStartedUtc=default; conditionStartCompletedTurn=0;
             userSpeechEndedMs=feedbackStartedMs=feedbackEndedMs=dialogueStartedMs=-1; feedbackStartedAt=feedbackEndedAt="";
         }
         public void ClearAssignmentForRuntimeMode(){ResetSession();assignment=null;}

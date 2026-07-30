@@ -189,10 +189,29 @@ namespace SceneTalkVR.Tests.Editor
         }
 
         [Test]
+        public void RecoverableSpeechFailure_DoesNotInvalidateConditionOrConsumeTurn()
+        {
+            using var fixture = new LifecycleFixture("recoverable-speech-failure");
+            fixture.Coordinator.PrepareCondition(0, false, out _);
+            fixture.Manager.BeginTurn();
+
+            fixture.Manager.RecordRecoverableTurnFailure("CorrectionPlayback", "tts_timeout");
+
+            Assert.That(fixture.Coordinator.TechnicalValidity, Is.EqualTo(ExperimentTechnicalValidity.Valid));
+            Assert.That(fixture.Coordinator.CurrentConditionAssignment.status, Is.EqualTo(ConditionRunStatus.Running));
+            Assert.That(fixture.Manager.CompletedTurnCount, Is.Zero);
+            Assert.That(fixture.Manager.ActiveTimingEvents.Last().eventType,
+                Is.EqualTo(ExperimentTimingEventType.TurnRecoverableFailure.ToString()));
+        }
+
+        [Test]
         public void MaximumTurns_CanEndWithoutAllGoals()
         {
             using var fixture = new LifecycleFixture("max-turns");
             Set(fixture.Coordinator, "maxTurns", 1); fixture.Coordinator.PrepareCondition(0, false, out _); fixture.Manager.BeginTurn();
+            Assert.That(fixture.Coordinator.ShouldEndForLimit(out _), Is.False,
+                "Starting a failed or incomplete attempt must not consume the turn budget.");
+            fixture.Manager.CompleteActiveTurn();
             Assert.That(fixture.Coordinator.ShouldEndForLimit(out var reason), Is.True);
             Assert.That(reason, Is.EqualTo("max_turns"));
         }
@@ -269,6 +288,9 @@ namespace SceneTalkVR.Tests.Editor
         private static GoalProgressTracker Tracker() { var value = new GoalProgressTracker(); value.ResetGoals(Task("task")); return value; }
         private static void AdvanceAfterConfirmedGoal(GoalProgressTracker tracker, string evidenceTurnId)
         {
+            if (tracker.SequenceState == GoalSequenceState.ActiveGoal
+                || tracker.SequenceState == GoalSequenceState.Completed)
+                return;
             if (tracker.SequenceState == GoalSequenceState.AwaitingParticipantTurn)
             {
                 var unlockTurnId = evidenceTurnId + "-unlock";

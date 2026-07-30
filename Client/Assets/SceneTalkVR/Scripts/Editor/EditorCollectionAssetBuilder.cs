@@ -26,7 +26,7 @@ namespace SceneTalkVR.EditorTools
             var now = DateTime.UtcNow.ToString("o");
             var protocol = AssetDatabase.LoadAssetAtPath<ExperimentV11ProtocolConfig>(ProtocolPath);
             var previousProtocolVersion = protocol == null ? string.Empty : protocol.ProtocolVersion;
-            const string targetProtocolVersion = "1.4.0-participant-turn-gated-goals";
+            const string targetProtocolVersion = "1.5.0-immediate-goal-advance";
             var changes = (protocol?.ChangeLog ?? Array.Empty<ExperimentProtocolChange>())
                 .Where(change => change != null)
                 .ToList();
@@ -39,8 +39,8 @@ namespace SceneTalkVR.EditorTools
                     changedBy = "ProjectLead",
                     previousProtocolVersion = previousProtocolVersion,
                     newProtocolVersion = targetProtocolVersion,
-                    evidenceReference = "participant-turn-gated-goal-directive-v1",
-                    summary = "Requires a new participant turn and its completed Avatar reply before each next goal is shown and evaluated."
+                    evidenceReference = "immediate-goal-advance-directive-v1",
+                    summary = "Shows each next goal immediately after confirmation while retaining final-reply completion before questionnaire transition."
                 });
             }
             var decisions = new[]
@@ -58,7 +58,7 @@ namespace SceneTalkVR.EditorTools
                 Decision("questionnaire_scale_anchors", "1=Strongly disagree / 非常不同意;7=Strongly agree / 非常同意", now)
             };
             protocol.EditorSetOfficialCollection(targetProtocolVersion, "editor-collection-20260727",
-                "protocol-1.4.0-participant-turn-gated-goals", decisions, changes.ToArray());
+                "protocol-1.5.0-immediate-goal-advance", decisions, changes.ToArray());
 
             var tasks = AssetDatabase.LoadAssetAtPath<ExperimentTaskCatalog>(TaskPath);
             ConfigureTasks(tasks);
@@ -132,7 +132,7 @@ namespace SceneTalkVR.EditorTools
             foreach (var item in new UnityEngine.Object[] { protocol, tasks, avatarCatalog, voices, deployments, resource, pilotPresentations }) EditorUtility.SetDirty(item);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("[SceneTalkVR] Official Editor Collection assets updated for protocol 1.4.0-participant-turn-gated-goals.");
+            Debug.Log("[SceneTalkVR] Official Editor Collection assets updated for protocol 1.5.0-immediate-goal-advance.");
         }
 
         private static ExperimentProtocolDecision Decision(string id, string value, string now) => new ExperimentProtocolDecision

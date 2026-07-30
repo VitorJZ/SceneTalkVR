@@ -303,7 +303,7 @@ namespace SceneTalkVR.Core
             Write("QaCompletePilotGoals","",true);return true;
         }
         private static bool AdvanceAutomatedGoalTurn(GoalProgressTracker tracker,string evidenceTurnId)
-        {if(tracker.SequenceState==GoalSequenceState.AwaitingParticipantTurn){var unlockTurnId=evidenceTurnId+"-unlock";return tracker.NotifyParticipantTurnSubmitted(unlockTurnId)&&tracker.NotifyDialogueTurnCompleted(unlockTurnId);}return tracker.SequenceState==GoalSequenceState.AwaitingAvatarReply&&tracker.NotifyDialogueTurnCompleted(evidenceTurnId);}
+        {if(tracker.SequenceState==GoalSequenceState.ActiveGoal||tracker.SequenceState==GoalSequenceState.Completed)return true;if(tracker.SequenceState==GoalSequenceState.AwaitingParticipantTurn){var unlockTurnId=evidenceTurnId+"-unlock";return tracker.NotifyParticipantTurnSubmitted(unlockTurnId)&&tracker.NotifyDialogueTurnCompleted(unlockTurnId);}return tracker.SequenceState==GoalSequenceState.AwaitingAvatarReply&&tracker.NotifyDialogueTurnCompleted(evidenceTurnId);}
         public bool OpenPilotQuestionnaireForQa(out string error)
         { if(Stage==PilotParticipantStage.Dialogue)workflow.CompleteTask();if(workflow.Current?.status!=PilotRunStatus.AwaitingPilotQuestionnaire){error="pilot_not_awaiting_questionnaire";return false;}if(!workflow.BeginQuestionnaire(out error))return false;Stage=PilotParticipantStage.Questionnaire;Persist();Write("QaOpenPilotQuestionnaire","",true);RefreshUi();return true; }
         public bool AutoFillPilotQuestionnaireForQa(out string error)

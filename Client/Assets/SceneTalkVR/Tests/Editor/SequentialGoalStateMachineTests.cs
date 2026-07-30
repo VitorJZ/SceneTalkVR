@@ -42,28 +42,36 @@ namespace SceneTalkVR.Tests.Editor
         }
 
         [Test]
-        public void ConfirmedGoal_RequiresNewParticipantTurnAndMatchingAvatarReply()
+        public void ConfirmedGoal_ImmediatelyActivatesNextGoal()
         {
             var tracker = CreateTracker();
 
             Assert.That(tracker.NotifyParticipantTurnSubmitted("turn-1"), Is.False);
             Assert.That(tracker.SubmitGoalCandidate("goal_1", "detector", Evidence("turn-1"), out var error), Is.True, error);
-            Assert.That(tracker.SequenceState, Is.EqualTo(GoalSequenceState.AwaitingParticipantTurn));
-            Assert.That(tracker.ActiveGoal.goalId, Is.EqualTo("goal_1"));
-            Assert.That(tracker.IsGoalActive("goal_2"), Is.False);
-
-            Assert.That(tracker.NotifyDialogueTurnCompleted("turn-1"), Is.False,
-                "The goal evidence turn must not unlock the next goal.");
-            Assert.That(tracker.NotifyParticipantTurnSubmitted("turn-2"), Is.True);
-            Assert.That(tracker.SequenceState, Is.EqualTo(GoalSequenceState.AwaitingAvatarReply));
-            Assert.That(tracker.NotifyDialogueTurnCompleted("wrong-turn"), Is.False);
-            Assert.That(tracker.NotifyDialogueTurnCompleted("turn-2"), Is.True);
             Assert.That(tracker.SequenceState, Is.EqualTo(GoalSequenceState.ActiveGoal));
             Assert.That(tracker.ActiveGoal.goalId, Is.EqualTo("goal_2"));
+            Assert.That(tracker.IsGoalActive("goal_2"), Is.True);
+            Assert.That(tracker.NotifyDialogueTurnCompleted("turn-1"), Is.False);
         }
 
         [Test]
-        public void LateEvaluation_DoesNotTreatCompletedEvidenceTurnAsUnlockDialogue()
+        public void LegacySequencePolicy_RetainsParticipantAndAvatarReplyGate()
+        {
+            var tracker = new GoalProgressTracker();
+            var context = Context();
+            context.sequencePolicy = GoalSequencePolicy.SequentialAfterParticipantTurnAndAvatarReply;
+            tracker.ResetGoals(Task(), context);
+
+            Assert.That(tracker.SubmitGoalCandidate(
+                "goal_1",
+                "detector",
+                Evidence("turn-1"),
+                out var error), Is.True, error);
+            Assert.That(tracker.SequenceState, Is.EqualTo(GoalSequenceState.AwaitingParticipantTurn));
+        }
+
+        [Test]
+        public void LateEvaluation_StillImmediatelyActivatesNextGoal()
         {
             var tracker = CreateTracker();
 
@@ -71,8 +79,8 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(tracker.NotifyDialogueTurnCompleted("turn-1"), Is.False);
             Assert.That(tracker.SubmitGoalCandidate("goal_1", "detector", Evidence("turn-1"), out var error), Is.True, error);
 
-            Assert.That(tracker.ActiveGoal.goalId, Is.EqualTo("goal_1"));
-            Assert.That(tracker.SequenceState, Is.EqualTo(GoalSequenceState.AwaitingParticipantTurn));
+            Assert.That(tracker.ActiveGoal.goalId, Is.EqualTo("goal_2"));
+            Assert.That(tracker.SequenceState, Is.EqualTo(GoalSequenceState.ActiveGoal));
         }
 
         [UnityTest]
@@ -100,33 +108,34 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(tracker.ConfirmedCount, Is.EqualTo(1));
             Assert.That(tracker.Goals[0].state, Is.EqualTo(GoalProgressState.Confirmed));
             Assert.That(tracker.Goals.Skip(1).All(goal => goal.state == GoalProgressState.NotStarted), Is.True);
-            Assert.That(tracker.SequenceState, Is.EqualTo(GoalSequenceState.AwaitingParticipantTurn));
+            Assert.That(tracker.SequenceState, Is.EqualTo(GoalSequenceState.ActiveGoal));
+            Assert.That(tracker.ActiveGoal.goalId, Is.EqualTo("goal_2"));
         }
 
         [Test]
-        public void AwaitingAvatarSnapshot_RestoresAsFreshParticipantGate()
+        public void SchemaThreeAwaitingSnapshot_RestoresAtNextUnconfirmedGoal()
         {
             var task = Task();
-            var tracker = CreateTracker(task);
-            tracker.SubmitGoalCandidate("goal_1", "detector", Evidence("turn-failed"), out _);
-            tracker.NotifyParticipantTurnSubmitted("turn-interrupted");
-            Assert.That(tracker.SequenceState, Is.EqualTo(GoalSequenceState.AwaitingAvatarReply));
-            var records = tracker.Goals.ToArray();
-            var snapshot = tracker.CaptureSequenceSnapshot();
+            var source = CreateTracker(task);
+            source.SubmitGoalCandidate("goal_1", "detector", Evidence("turn-failed"), out _);
+            var records = source.Goals.ToArray();
+            var snapshot = new GoalSequenceSnapshot
+            {
+                schemaVersion = "3.0",
+                state = GoalSequenceState.AwaitingParticipantTurn,
+                activeGoalIndex = 0,
+                sequenceRevision = source.SequenceRevision
+            };
 
             var restored = CreateTracker(task);
             restored.RestoreGoals(task, Context(), records, snapshot);
 
-            Assert.That(restored.SequenceState, Is.EqualTo(GoalSequenceState.AwaitingParticipantTurn));
-            Assert.That(restored.ActiveGoal.goalId, Is.EqualTo("goal_1"));
-            Assert.That(restored.NotifyDialogueTurnCompleted("stale-turn"), Is.False);
-            Assert.That(restored.NotifyParticipantTurnSubmitted("turn-retry"), Is.True);
-            Assert.That(restored.NotifyDialogueTurnCompleted("turn-retry"), Is.True);
+            Assert.That(restored.SequenceState, Is.EqualTo(GoalSequenceState.ActiveGoal));
             Assert.That(restored.ActiveGoal.goalId, Is.EqualTo("goal_2"));
         }
 
         [Test]
-        public void LegacyRecords_RequireFreshDialogueBeforeFirstUnconfirmedGoal()
+        public void LegacyRecords_ActivateFirstUnconfirmedGoal()
         {
             var task = Task();
             var source = CreateTracker(task);
@@ -135,25 +144,24 @@ namespace SceneTalkVR.Tests.Editor
             var restored = CreateTracker(task);
             restored.RestoreGoals(task, Context(), source.Goals.ToArray());
 
-            Assert.That(restored.SequenceState, Is.EqualTo(GoalSequenceState.AwaitingParticipantTurn));
-            Assert.That(restored.ActiveGoal.goalId, Is.EqualTo("goal_1"));
-            Assert.That(restored.NotifyParticipantTurnSubmitted("legacy-unlock"), Is.True);
-            Assert.That(restored.NotifyDialogueTurnCompleted("legacy-unlock"), Is.True);
+            Assert.That(restored.SequenceState, Is.EqualTo(GoalSequenceState.ActiveGoal));
             Assert.That(restored.ActiveGoal.goalId, Is.EqualTo("goal_2"));
         }
 
         [Test]
-        public void FailedAvatarReply_AllowsLaterParticipantTurnToReplacePendingTurn()
+        public void FinalGoal_WaitsForMatchingEvidenceReplyAfterPlaybackFailure()
         {
             var tracker = CreateTracker();
-            tracker.SubmitGoalCandidate("goal_1", "detector", Evidence("turn-1"), out _);
+            CompleteActiveGoal(tracker, "turn-1");
+            CompleteActiveGoal(tracker, "turn-2");
+            CompleteActiveGoal(tracker, "turn-3");
+            tracker.SubmitGoalCandidate("goal_4", "detector", Evidence("turn-final"), out _);
 
-            Assert.That(tracker.NotifyParticipantTurnSubmitted("unlock-failed"), Is.True);
-            Assert.That(tracker.NotifyParticipantTurnSubmitted("unlock-retry"), Is.True);
-            Assert.That(tracker.PendingCompletionTurnId, Is.EqualTo("unlock-retry"));
-            Assert.That(tracker.NotifyDialogueTurnCompleted("unlock-failed"), Is.False);
-            Assert.That(tracker.NotifyDialogueTurnCompleted("unlock-retry"), Is.True);
-            Assert.That(tracker.ActiveGoal.goalId, Is.EqualTo("goal_2"));
+            Assert.That(tracker.SequenceState, Is.EqualTo(GoalSequenceState.AwaitingAvatarReply));
+            Assert.That(tracker.PendingCompletionTurnId, Is.EqualTo("turn-final"));
+            Assert.That(tracker.NotifyDialogueTurnCompleted("wrong-turn"), Is.False);
+            Assert.That(tracker.NotifyDialogueTurnCompleted("turn-final"), Is.True);
+            Assert.That(tracker.IsSequenceCompleted, Is.True);
         }
 
         [Test]
@@ -190,21 +198,33 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(completedEvents, Is.EqualTo(1));
         }
 
+        [Test]
+        public void FinalGoal_LateEvaluationCompletesWhenEvidenceReplyAlreadyFinished()
+        {
+            var tracker = CreateTracker();
+            CompleteActiveGoal(tracker, "turn-1");
+            CompleteActiveGoal(tracker, "turn-2");
+            CompleteActiveGoal(tracker, "turn-3");
+            var completedEvents = 0;
+            tracker.OnAllGoalsConfirmed += _ => completedEvents++;
+
+            Assert.That(tracker.NotifyDialogueTurnCompleted("turn-final"), Is.False);
+            Assert.That(tracker.SubmitGoalCandidate(
+                "goal_4",
+                "detector",
+                Evidence("turn-final"),
+                out var error), Is.True, error);
+
+            Assert.That(tracker.IsSequenceCompleted, Is.True);
+            Assert.That(completedEvents, Is.EqualTo(1));
+        }
+
         private static void CompleteActiveGoal(GoalProgressTracker tracker, string turnId)
         {
             tracker.NotifyParticipantTurnSubmitted(turnId);
             Assert.That(tracker.SubmitGoalCandidate(tracker.ActiveGoal.goalId, "detector", Evidence(turnId), out var error), Is.True, error);
-            if (tracker.SequenceState == GoalSequenceState.AwaitingParticipantTurn)
-            {
-                Assert.That(tracker.NotifyDialogueTurnCompleted(turnId), Is.False);
-                var unlockTurnId = turnId + "-unlock";
-                Assert.That(tracker.NotifyParticipantTurnSubmitted(unlockTurnId), Is.True);
-                Assert.That(tracker.NotifyDialogueTurnCompleted(unlockTurnId), Is.True);
-            }
-            else
-            {
+            if (tracker.SequenceState == GoalSequenceState.AwaitingAvatarReply)
                 Assert.That(tracker.NotifyDialogueTurnCompleted(turnId), Is.True);
-            }
         }
 
         private static GoalProgressTracker CreateTracker(ExperimentTaskDefinition task = null)
@@ -221,7 +241,7 @@ namespace SceneTalkVR.Tests.Editor
             conditionRunId = "run",
             taskAssignmentId = "assignment",
             confirmationPolicy = GoalConfirmationPolicy.AutomaticOnValidatedDetection,
-            sequencePolicy = GoalSequencePolicy.SequentialAfterParticipantTurnAndAvatarReply
+            sequencePolicy = GoalSequencePolicy.SequentialAfterConfirmationWithFinalReplyCompletion
         };
 
         private static GoalEvidence Evidence(string turnId) => new GoalEvidence

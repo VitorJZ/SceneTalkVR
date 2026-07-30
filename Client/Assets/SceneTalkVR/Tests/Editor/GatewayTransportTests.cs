@@ -65,6 +65,8 @@ namespace SceneTalkVR.Tests.Editor
                 Assert.That(config.TransportPreference, Is.EqualTo(GatewayTransportPreference.UsbPreferred));
                 Assert.That(config.UsbVoiceGatewayBaseUrl, Is.EqualTo("http://127.0.0.1:8787"));
                 Assert.That(config.UsbLlmApiUrl, Does.Contain("127.0.0.1:8788"));
+                Assert.That(config.UsbHistoryExportBaseUrl, Is.EqualTo("http://127.0.0.1:8789"));
+                Assert.That(config.HistoryExportTimeoutSeconds, Is.EqualTo(120));
             }
             finally
             {

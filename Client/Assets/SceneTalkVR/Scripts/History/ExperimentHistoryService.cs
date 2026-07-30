@@ -72,6 +72,24 @@ namespace SceneTalkVR.History
             return store.GetExperiment(experimentId);
         }
 
+        public ExperimentRecordDetail[] GetAllExperimentsChronological()
+        {
+            EnsureInitialized();
+            var total = store.CountExperiments();
+            if (total <= 0)
+            {
+                return Array.Empty<ExperimentRecordDetail>();
+            }
+
+            return store.ListExperiments(0, total)
+                .Where(summary => summary != null && !string.IsNullOrWhiteSpace(summary.experimentId))
+                .Select(summary => store.GetExperiment(summary.experimentId))
+                .Where(detail => detail?.summary != null)
+                .OrderBy(detail => detail.summary.createdAtUnixMs)
+                .ThenBy(detail => detail.summary.experimentId, StringComparer.Ordinal)
+                .ToArray();
+        }
+
         public ExperimentRecordDetail CreateExperiment(
             ExperimentKind kind,
             string participantId,

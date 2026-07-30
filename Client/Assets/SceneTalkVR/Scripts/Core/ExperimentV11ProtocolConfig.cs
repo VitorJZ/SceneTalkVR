@@ -200,7 +200,7 @@ namespace SceneTalkVR.Core
             if (formalConditionOrderPolicy != FormalConditionOrderPolicy.ParticipantChoice
                 || formalTaskAssignmentPolicy != "random_bijection_without_replacement"
                 || goalConfirmationPolicy != GoalConfirmationPolicy.AutomaticOnValidatedDetection
-                || goalSequencePolicy != GoalSequencePolicy.SequentialAfterParticipantTurnAndAvatarReply
+                || goalSequencePolicy != GoalSequencePolicy.SequentialAfterConfirmationWithFinalReplyCompletion
                 || questionnaireTransitionPolicy != QuestionnaireReturnPolicy.ReturnToModeSelection
                 || finalTransitionPolicy != "open_final_ranking_after_four_conditions"
                 || primaryAttemptPolicy != "latest_valid_completed_attempt")
@@ -248,7 +248,7 @@ namespace SceneTalkVR.Core
             formalConditionOrderPolicy = FormalConditionOrderPolicy.ParticipantChoice;
             formalTaskAssignmentPolicy = "random_bijection_without_replacement";
             goalConfirmationPolicy = GoalConfirmationPolicy.AutomaticOnValidatedDetection;
-            goalSequencePolicy = GoalSequencePolicy.SequentialAfterParticipantTurnAndAvatarReply;
+            goalSequencePolicy = GoalSequencePolicy.SequentialAfterConfirmationWithFinalReplyCompletion;
             questionnaireTransitionPolicy = QuestionnaireReturnPolicy.ReturnToModeSelection;
             finalTransitionPolicy = "open_final_ranking_after_four_conditions";
             primaryAttemptPolicy = "latest_valid_completed_attempt";

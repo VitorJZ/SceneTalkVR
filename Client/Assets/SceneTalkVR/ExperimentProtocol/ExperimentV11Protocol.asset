@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6f18c731c34e4a31a7d52a780b93f504, type: 3}
   m_Name: ExperimentV11Protocol
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentV11ProtocolConfig
-  protocolVersion: 1.4.0-participant-turn-gated-goals
+  protocolVersion: 1.5.0-immediate-goal-advance
   buildVersion: editor-collection-20260727
   experimentPhase: 2
   formalModeLocked: 1
@@ -20,11 +20,11 @@ MonoBehaviour:
   approvedForCollection: 1
   approvalAuthority: ProjectLead
   approvalEvidence: formal-editor-collection-directive-v1
-  protocolSnapshotId: protocol-1.4.0-participant-turn-gated-goals
+  protocolSnapshotId: protocol-1.5.0-immediate-goal-advance
   formalConditionOrderPolicy: 2
   formalTaskAssignmentPolicy: random_bijection_without_replacement
   goalConfirmationPolicy: 1
-  goalSequencePolicy: 1
+  goalSequencePolicy: 2
   questionnaireTransitionPolicy: 1
   finalTransitionPolicy: open_final_ranking_after_four_conditions
   primaryAttemptPolicy: latest_valid_completed_attempt
@@ -162,3 +162,10 @@ MonoBehaviour:
     evidenceReference: participant-turn-gated-goal-directive-v1
     summary: Requires a new participant turn and its completed Avatar reply before
       each next goal is shown and evaluated.
+  - changedAtUtc: 2026-07-30T00:00:00.0000000Z
+    changedBy: ProjectLead
+    previousProtocolVersion: 1.4.0-participant-turn-gated-goals
+    newProtocolVersion: 1.5.0-immediate-goal-advance
+    evidenceReference: immediate-goal-advance-directive-v1
+    summary: Shows each next goal immediately after confirmation while retaining
+      final-reply completion before questionnaire transition.

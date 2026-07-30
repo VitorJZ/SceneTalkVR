@@ -37,7 +37,8 @@ namespace SceneTalkVR.Core
         DialogueGateClosed,
         DialogueGateOpened,
         TurnCompleted,
-        TurnTechnicalInvalid
+        TurnTechnicalInvalid,
+        TurnRecoverableFailure
     }
 
     [Serializable]

@@ -22,7 +22,8 @@ from urllib.request import Request, urlopen
 
 VOICE_PORT = 8787
 LLM_PORT = 8788
-REVERSE_PORTS = (VOICE_PORT, LLM_PORT)
+HISTORY_EXPORT_PORT = 8789
+REVERSE_PORTS = (VOICE_PORT, LLM_PORT, HISTORY_EXPORT_PORT)
 SECRET_PATTERN = re.compile(
     r"(?i)(api[_-]?key|secret[_-]?(?:id|key)|authorization|token)"
     r"(\s*[:=]\s*)([^\s,;]+)"
@@ -176,6 +177,8 @@ def compatible_health_payload(port: int, payload: object) -> bool:
         return isinstance(payload.get("provider"), str) and bool(payload.get("provider"))
     if port == LLM_PORT:
         return isinstance(payload.get("upstreamUrl"), str) and bool(payload.get("upstreamUrl"))
+    if port == HISTORY_EXPORT_PORT:
+        return payload.get("service") == "history-export" and payload.get("schemaVersion") == "1.0"
     return False
 
 
@@ -195,6 +198,7 @@ class GatewayLauncher:
         repository_root: Path,
         adb_path: Path,
         serial: str = "",
+        export_dir: Path | None = None,
         monitor_interval: float = 2.0,
         runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
         health_check: Callable[[int, float], bool] = check_health,
@@ -203,6 +207,7 @@ class GatewayLauncher:
         self.repository_root = repository_root.resolve()
         self.adb_path = adb_path.resolve()
         self.requested_serial = serial
+        self.export_dir = (export_dir or (Path.home() / "Documents" / "SceneTalkVRExports")).expanduser().resolve()
         self.monitor_interval = max(0.25, monitor_interval)
         self.runner = runner
         self.health_check = health_check
@@ -279,11 +284,26 @@ class GatewayLauncher:
             module = "src.voice_gateway.main"
             env_updates = {"VOICE_GATEWAY_HOST": "0.0.0.0", "VOICE_GATEWAY_PORT": str(port)}
             name = "Voice Gateway"
-        else:
+        elif port == LLM_PORT:
             directory = self.repository_root / "Server" / "llm-gateway"
             module = "src.llm_gateway.main"
             env_updates = {"LLM_GATEWAY_HOST": "0.0.0.0", "LLM_GATEWAY_PORT": str(port)}
             name = "LLM Gateway"
+            return name, directory, (sys.executable, "-m", module), env_updates
+        elif port == HISTORY_EXPORT_PORT:
+            directory = self.repository_root / "Server" / "history-export-receiver"
+            script = directory / "scenetalk_history_export_receiver.py"
+            env_updates = {
+                "SCENETALK_EXPORT_HOST": "127.0.0.1",
+                "SCENETALK_EXPORT_PORT": str(port),
+                "SCENETALK_EXPORT_DIR": str(self.export_dir),
+            }
+            name = "History Export Receiver"
+            if not script.is_file():
+                raise LauncherError(f"{name} script is missing: {script}")
+            return name, directory, (sys.executable, str(script)), env_updates
+        else:
+            raise LauncherError(f"Unsupported managed service port: {port}")
         return name, directory, (sys.executable, "-m", module), env_updates
 
     def ensure_gateway(self, port: int) -> None:
@@ -314,13 +334,15 @@ class GatewayLauncher:
     def start(self) -> None:
         self.ensure_gateway(VOICE_PORT)
         self.ensure_gateway(LLM_PORT)
+        self.ensure_gateway(HISTORY_EXPORT_PORT)
         device = self.select_pico()
         self.ensure_reverse_mappings()
         print(
             f"[launcher] USB route ready for PICO {device.serial}: "
-            "127.0.0.1:8787 and 127.0.0.1:8788.",
+            "127.0.0.1:8787, 127.0.0.1:8788, and 127.0.0.1:8789.",
             flush=True,
         )
+        print(f"[launcher] History exports will be saved under {self.export_dir}.", flush=True)
 
     def monitor_once(self) -> None:
         for child in self.children:
@@ -386,6 +408,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--adb", default="", help="Path to adb executable.")
     parser.add_argument("--serial", default=os.getenv("SCENETALK_PICO_SERIAL", ""), help="PICO ADB serial.")
+    parser.add_argument(
+        "--export-dir",
+        default=os.getenv("SCENETALK_EXPORT_DIR", str(Path.home() / "Documents" / "SceneTalkVRExports")),
+        help="Directory for PICO history exports.",
+    )
     parser.add_argument("--monitor-interval", type=float, default=2.0, help="Reconnect poll interval in seconds.")
     return parser
 
@@ -396,7 +423,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     launcher: GatewayLauncher | None = None
     try:
         adb_path = locate_adb(args.adb)
-        launcher = GatewayLauncher(repository_root, adb_path, args.serial, args.monitor_interval)
+        launcher = GatewayLauncher(
+            repository_root,
+            adb_path,
+            serial=args.serial,
+            export_dir=Path(args.export_dir),
+            monitor_interval=args.monitor_interval,
+        )
         atexit.register(launcher.cleanup)
 
         def stop(_signum: int, _frame: object) -> None:

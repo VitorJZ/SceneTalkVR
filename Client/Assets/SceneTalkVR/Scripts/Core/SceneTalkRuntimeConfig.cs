@@ -25,7 +25,9 @@ namespace SceneTalkVR.Core
         [SerializeField] private GatewayTransportPreference gatewayTransportPreference = GatewayTransportPreference.UsbPreferred;
         [SerializeField] private string usbVoiceGatewayBaseUrl = "http://127.0.0.1:8787";
         [SerializeField] private string usbLlmApiUrl = "http://127.0.0.1:8788/api/llm/chat/completions";
+        [SerializeField] private string usbHistoryExportBaseUrl = "http://127.0.0.1:8789";
         [SerializeField, Range(1, 10)] private int gatewayProbeTimeoutSeconds = 3;
+        [SerializeField, Range(10, 300)] private int historyExportTimeoutSeconds = 120;
 
         [Header("LAN Services")]
         [SerializeField] private string voiceGatewayBaseUrl = string.Empty;
@@ -69,7 +71,9 @@ namespace SceneTalkVR.Core
                 : GatewayTransportPreference.LanOnly;
         public string UsbVoiceGatewayBaseUrl => NormalizeUrl(usbVoiceGatewayBaseUrl);
         public string UsbLlmApiUrl => NormalizeUrl(usbLlmApiUrl);
+        public string UsbHistoryExportBaseUrl => NormalizeUrl(usbHistoryExportBaseUrl);
         public int GatewayProbeTimeoutSeconds => Mathf.Clamp(gatewayProbeTimeoutSeconds, 1, 10);
+        public int HistoryExportTimeoutSeconds => Mathf.Clamp(historyExportTimeoutSeconds, 10, 300);
         public string VoiceGatewayBaseUrl => NormalizeUrl(voiceGatewayBaseUrl);
         public bool HasVoiceGatewayBaseUrl => !string.IsNullOrWhiteSpace(VoiceGatewayBaseUrl);
         public int VoiceGatewayRequestTimeoutSeconds => Mathf.Max(1, voiceGatewayRequestTimeoutSeconds);
@@ -136,7 +140,9 @@ namespace SceneTalkVR.Core
             gatewayTransportPreference = GatewayTransportPreference.UsbPreferred;
             usbVoiceGatewayBaseUrl = "http://127.0.0.1:8787";
             usbLlmApiUrl = "http://127.0.0.1:8788/api/llm/chat/completions";
+            usbHistoryExportBaseUrl = "http://127.0.0.1:8789";
             gatewayProbeTimeoutSeconds = 3;
+            historyExportTimeoutSeconds = 120;
             voiceGatewayRequestTimeoutSeconds = 30;
             expectedTtsProvider = "tencent";
             allowMockTtsProvider = false;

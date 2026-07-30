@@ -1,10 +1,11 @@
 # SceneTalkVR USB Gateway Launcher
 
-The launcher starts or reuses both PC gateways and maintains the PICO USB route:
+The launcher starts or reuses the PC gateways and history-export receiver, then maintains the PICO USB routes:
 
 ```text
 PICO 127.0.0.1:8787 --ADB reverse/USB--> PC Voice Gateway
 PICO 127.0.0.1:8788 --ADB reverse/USB--> PC LLM Gateway
+PICO 127.0.0.1:8789 --ADB reverse/USB--> PC History Export Receiver
 ```
 
 The PC still needs Internet access for Tencent Cloud and the configured LLM upstream.
@@ -23,10 +24,19 @@ When more than one authorized Android device is connected, select the PICO expli
 python Server/gateway-launcher/scenetalk_gateway_launcher.py --serial <adb-serial>
 ```
 
+History exports are saved under `Documents/SceneTalkVRExports` by default. Override the destination when starting the launcher:
+
+```bash
+python Server/gateway-launcher/scenetalk_gateway_launcher.py --export-dir <folder>
+```
+
+Each successful PICO export creates a timestamped directory containing `experiment_history.json` and `questionnaire_records.xlsx`. The export receiver listens only on PC loopback and is reachable from PICO through the USB/ADB reverse mapping; history data is not exposed on the LAN.
+
 ADB is resolved from `--adb`, `SCENETALK_ADB`, `ADB`, `ANDROID_SDK_ROOT`, `ANDROID_HOME`, `PATH`, or a Unity Hub Android SDK. The launcher reuses compatible `/health` services, restores mappings after reconnect, and removes only mappings and gateway processes that it created.
 
 Run the isolated tests with:
 
 ```bash
 python -m unittest discover -s Server/gateway-launcher/tests -v
+python -m unittest discover -s Server/history-export-receiver/tests -v
 ```

@@ -21,7 +21,9 @@ MonoBehaviour:
   gatewayTransportPreference: 1
   usbVoiceGatewayBaseUrl: http://127.0.0.1:8787
   usbLlmApiUrl: http://127.0.0.1:8788/api/llm/chat/completions
+  usbHistoryExportBaseUrl: http://127.0.0.1:8789
   gatewayProbeTimeoutSeconds: 3
+  historyExportTimeoutSeconds: 120
   voiceGatewayBaseUrl: http://192.168.137.1:8787
   voiceGatewayRequestTimeoutSeconds: 30
   expectedTtsProvider: tencent

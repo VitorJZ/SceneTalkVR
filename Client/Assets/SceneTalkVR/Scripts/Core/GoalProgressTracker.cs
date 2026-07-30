@@ -9,7 +9,8 @@ namespace SceneTalkVR.Core
     public enum GoalSequencePolicy
     {
         Undefined = 0,
-        SequentialAfterParticipantTurnAndAvatarReply = 1
+        SequentialAfterParticipantTurnAndAvatarReply = 1,
+        SequentialAfterConfirmationWithFinalReplyCompletion = 2
     }
 
     public enum GoalSequenceState
@@ -24,7 +25,7 @@ namespace SceneTalkVR.Core
     [Serializable]
     public sealed class GoalSequenceSnapshot
     {
-        public const string CurrentSchemaVersion = "3.0";
+        public const string CurrentSchemaVersion = "4.0";
         public string schemaVersion = CurrentSchemaVersion;
         public GoalSequenceState state;
         public int activeGoalIndex = -1;
@@ -54,7 +55,7 @@ namespace SceneTalkVR.Core
         public string taskAssignmentId;
         public string taskId;
         public GoalConfirmationPolicy confirmationPolicy;
-        public GoalSequencePolicy sequencePolicy = GoalSequencePolicy.SequentialAfterParticipantTurnAndAvatarReply;
+        public GoalSequencePolicy sequencePolicy = GoalSequencePolicy.SequentialAfterConfirmationWithFinalReplyCompletion;
     }
 
     [Serializable]
@@ -261,6 +262,45 @@ namespace SceneTalkVR.Core
             goal.revision++;
             var finalGoal = AreAllConfirmed;
             var evidenceTurnId = goal.evidenceTurnId?.Trim() ?? string.Empty;
+            if (context.sequencePolicy == GoalSequencePolicy.SequentialAfterConfirmationWithFinalReplyCompletion)
+            {
+                pendingCompletionTurnId = string.Empty;
+                if (!finalGoal)
+                {
+                    activeGoalIndex = FindNextUnconfirmedGoal(activeGoalIndex + 1);
+                    if (activeGoalIndex < 0) activeGoalIndex = FindNextUnconfirmedGoal(0);
+                    sequenceState = GoalSequenceState.ActiveGoal;
+                    sequenceRevision++;
+                    Publish(goal, oldState, GoalProgressState.Confirmed, goal.confirmedBy,
+                        "confirmed", true, evidenceTurnId);
+                    error = string.Empty;
+                    return true;
+                }
+
+                if (!string.IsNullOrWhiteSpace(evidenceTurnId))
+                {
+                    sequenceState = GoalSequenceState.AwaitingAvatarReply;
+                    pendingCompletionTurnId = evidenceTurnId;
+                    sequenceRevision++;
+                    Publish(goal, oldState, GoalProgressState.Confirmed, goal.confirmedBy,
+                        "confirmed", true, evidenceTurnId);
+                    if (completedDialogueTurns.Contains(pendingCompletionTurnId))
+                        AdvanceAfterAvatarReply(pendingCompletionTurnId);
+                }
+                else
+                {
+                    activeGoalIndex = -1;
+                    sequenceState = GoalSequenceState.Completed;
+                    sequenceRevision++;
+                    Publish(goal, oldState, GoalProgressState.Confirmed, goal.confirmedBy,
+                        "confirmed", true);
+                    RaiseAllGoalsConfirmed(CreatePayload(goal, oldState,
+                        GoalProgressState.Confirmed, goal.confirmedBy));
+                }
+                error = string.Empty;
+                return true;
+            }
+
             var canFinishOnEvidenceReply = finalGoal && !string.IsNullOrWhiteSpace(evidenceTurnId);
             sequenceState = canFinishOnEvidenceReply
                 ? GoalSequenceState.AwaitingAvatarReply
@@ -432,11 +472,15 @@ namespace SceneTalkVR.Core
             sequenceRevision++;
             var payload = PublishSequenceChange(completedGoal, "system_turn_completed", turnId);
             if (!allConfirmedRaised)
-            {
-                allConfirmedRaised = true;
-                OnAllGoalsConfirmed?.Invoke(payload);
-            }
+                RaiseAllGoalsConfirmed(payload);
             return true;
+        }
+
+        private void RaiseAllGoalsConfirmed(GoalProgressChangedEvent payload)
+        {
+            if (allConfirmedRaised) return;
+            allConfirmedRaised = true;
+            OnAllGoalsConfirmed?.Invoke(payload);
         }
 
         private GoalProgressChangedEvent PublishSequenceChange(GoalProgressRecord goal, string actor, string turnId)
@@ -465,11 +509,17 @@ namespace SceneTalkVR.Core
                 && string.Equals(snapshot.schemaVersion, GoalSequenceSnapshot.CurrentSchemaVersion, StringComparison.Ordinal)
                 && IsValidRestoredSequence(snapshot))
             {
+                if (context.sequencePolicy == GoalSequencePolicy.SequentialAfterConfirmationWithFinalReplyCompletion)
+                {
+                    RestoreImmediateSequence(snapshot.sequenceRevision);
+                    return;
+                }
                 activeGoalIndex = snapshot.activeGoalIndex;
                 sequenceRevision = Math.Max(1, snapshot.sequenceRevision);
                 if (snapshot.state == GoalSequenceState.AwaitingAvatarReply)
                 {
-                    // In-flight playback cannot survive a process restart. Require a fresh participant turn.
+                    // In-flight playback cannot survive a process restart. Legacy sessions
+                    // require a fresh participant turn before continuing.
                     sequenceState = GoalSequenceState.AwaitingParticipantTurn;
                     pendingCompletionTurnId = string.Empty;
                 }
@@ -478,6 +528,13 @@ namespace SceneTalkVR.Core
                     sequenceState = snapshot.state;
                     pendingCompletionTurnId = string.Empty;
                 }
+                return;
+            }
+
+            if (snapshot != null
+                && string.Equals(snapshot.schemaVersion, "3.0", StringComparison.Ordinal)
+                && RestoreSchemaThreeSequence(snapshot))
+            {
                 return;
             }
 
@@ -494,9 +551,10 @@ namespace SceneTalkVR.Core
                 activeGoalIndex = -1;
                 sequenceState = GoalSequenceState.Completed;
             }
-            else if (nextUnconfirmed == 0)
+            else if (nextUnconfirmed == 0
+                || context.sequencePolicy == GoalSequencePolicy.SequentialAfterConfirmationWithFinalReplyCompletion)
             {
-                activeGoalIndex = 0;
+                activeGoalIndex = nextUnconfirmed;
                 sequenceState = GoalSequenceState.ActiveGoal;
             }
             else
@@ -506,6 +564,24 @@ namespace SceneTalkVR.Core
             }
             sequenceRevision = Math.Max(1, goals.Sum(goal => Math.Max(0, goal.revision)) + 1);
             pendingCompletionTurnId = string.Empty;
+        }
+
+        private bool RestoreSchemaThreeSequence(GoalSequenceSnapshot snapshot)
+        {
+            if (context.sequencePolicy == GoalSequencePolicy.SequentialAfterConfirmationWithFinalReplyCompletion)
+            {
+                RestoreImmediateSequence(snapshot.sequenceRevision);
+                return true;
+            }
+
+            if (!IsValidRestoredSequence(snapshot)) return false;
+            activeGoalIndex = snapshot.activeGoalIndex;
+            sequenceRevision = Math.Max(1, snapshot.sequenceRevision);
+            sequenceState = snapshot.state == GoalSequenceState.AwaitingAvatarReply
+                ? GoalSequenceState.AwaitingParticipantTurn
+                : snapshot.state;
+            pendingCompletionTurnId = string.Empty;
+            return true;
         }
 
         private bool IsValidRestoredSequence(GoalSequenceSnapshot snapshot)
@@ -525,6 +601,11 @@ namespace SceneTalkVR.Core
 
         private bool RestoreSchemaTwoSequence(GoalSequenceSnapshot snapshot)
         {
+            if (context.sequencePolicy == GoalSequencePolicy.SequentialAfterConfirmationWithFinalReplyCompletion)
+            {
+                RestoreImmediateSequence(snapshot.sequenceRevision);
+                return true;
+            }
             if (snapshot.state == GoalSequenceState.Completed)
             {
                 if (snapshot.activeGoalIndex != -1 || !AreAllConfirmed) return false;
@@ -553,6 +634,17 @@ namespace SceneTalkVR.Core
             sequenceRevision = Math.Max(1, snapshot.sequenceRevision);
             pendingCompletionTurnId = string.Empty;
             return true;
+        }
+
+        private void RestoreImmediateSequence(int restoredRevision)
+        {
+            var nextUnconfirmed = FindNextUnconfirmedGoal(0);
+            activeGoalIndex = nextUnconfirmed;
+            sequenceState = nextUnconfirmed >= 0
+                ? GoalSequenceState.ActiveGoal
+                : GoalSequenceState.Completed;
+            sequenceRevision = Math.Max(1, restoredRevision);
+            pendingCompletionTurnId = string.Empty;
         }
 
         private int FindNextUnconfirmedGoal(int startIndex)

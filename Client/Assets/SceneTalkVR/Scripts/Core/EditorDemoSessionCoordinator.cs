@@ -183,6 +183,11 @@ namespace SceneTalkVR.Core
 
         private static bool AdvanceAutomatedGoalTurn(GoalProgressTracker tracker, string evidenceTurnId)
         {
+            if (tracker.SequenceState == GoalSequenceState.ActiveGoal
+                || tracker.SequenceState == GoalSequenceState.Completed)
+            {
+                return true;
+            }
             if (tracker.SequenceState == GoalSequenceState.AwaitingParticipantTurn)
             {
                 var unlockTurnId = evidenceTurnId + "-unlock";

@@ -93,6 +93,7 @@ namespace SceneTalkVR.Core
         private float recordingStartedAt;
         private bool recordingActive;
         private int turnIndex;
+        private int completedTurnCount;
         private int queuedRetryCount;
         private SceneTalkExperimentTask restoredTaskOverride;
         private string restoredConditionIdOverride;
@@ -186,6 +187,7 @@ namespace SceneTalkVR.Core
         public ExperimentDeploymentCatalog DeviceValidationDeploymentCatalog => deviceValidationDeploymentCatalog;
         public FormalConditionCode CurrentFormalCondition => formalExperiment ? formalCondition : LegacyToFormal(CurrentCondition?.conditionId);
         public int CurrentTurnIndex => turnIndex;
+        public int CompletedTurnCount => completedTurnCount;
         public ExperimentLifecycleCoordinator LifecycleCoordinator => GetComponent<ExperimentLifecycleCoordinator>();
 
         public void EnterEditorCollectionMode(ExperimentV11ProtocolConfig protocol, ExperimentTaskCatalog tasks,
@@ -349,6 +351,10 @@ namespace SceneTalkVR.Core
             {
                 gameObject.AddComponent<ExperimentHistoryService>();
             }
+            if (GetComponent<PicoHistoryExportCoordinator>() == null)
+            {
+                gameObject.AddComponent<PicoHistoryExportCoordinator>();
+            }
             if (GetComponent<ExperimentSessionCoordinator>() == null)
             {
                 gameObject.AddComponent<ExperimentSessionCoordinator>();
@@ -412,6 +418,7 @@ namespace SceneTalkVR.Core
                 ? participantId
                 : condition.participantId.Trim();
             turnIndex = Mathf.Max(0, completedTurnCount);
+            this.completedTurnCount = Mathf.Max(0, completedTurnCount);
             manualCondition = ResolvePreset(condition.provider, condition.style);
             restoredTaskOverride = CloneTask(condition.task);
             restoredConditionIdOverride = string.IsNullOrWhiteSpace(condition.conditionId)
@@ -650,6 +657,7 @@ namespace SceneTalkVR.Core
             recordingActive = false;
             queuedRetryCount = 0;
             turnIndex = 0;
+            completedTurnCount = 0;
             activeTurnLog = null;
             pendingTurnLog = null;
         }
@@ -977,6 +985,7 @@ namespace SceneTalkVR.Core
             activeTurnLog.userEndToFeedbackAudioMs = timing.userEndToFeedbackAudioMs;
             activeTurnLog.userEndToDialogueAudioMs = timing.userEndToDialogueAudioMs;
             activeTurnLog.feedbackToDialogueGapMs = timing.feedbackToDialogueGapMs;
+            completedTurnCount++;
             var lifecycle = LifecycleCoordinator;
             activeTurnLog.completedGoalCount = lifecycle?.GoalTracker?.ConfirmedCount ?? 0;
             activeTurnLog.totalGoalCount = lifecycle?.GoalTracker?.Goals?.Count ?? 0;
@@ -1597,6 +1606,7 @@ namespace SceneTalkVR.Core
             recordingActive = false;
             recordingStartedAt = 0f;
             turnIndex = 0;
+            completedTurnCount = 0;
             queuedRetryCount = 0;
             activeTurnLog = null;
             pendingTurnLog = null;
@@ -1673,6 +1683,25 @@ namespace SceneTalkVR.Core
             }
             RecordTimingEvent(ExperimentTimingEventType.TurnTechnicalInvalid, reason, failureStage, ExperimentTechnicalValidity.TechnicalInvalid);
             LifecycleCoordinator?.MarkTechnicalInvalid(reason);
+        }
+
+        public void RecordRecoverableTurnFailure(string failureStage, string reason)
+        {
+            var log = ResolveWritableTurnLog();
+            if (log != null)
+            {
+                log.failureReason = reason ?? string.Empty;
+                log.timeoutReason = (reason ?? string.Empty).IndexOf(
+                    "timeout",
+                    StringComparison.OrdinalIgnoreCase) >= 0
+                    ? reason
+                    : string.Empty;
+            }
+            RecordTimingEvent(
+                ExperimentTimingEventType.TurnRecoverableFailure,
+                reason,
+                failureStage,
+                ExperimentTechnicalValidity.Valid);
         }
 
         private void WriteTimingEvent(ExperimentTimingEvent record)

@@ -17,6 +17,9 @@ SPEC.loader.exec_module(launcher)
 
 
 class LauncherPolicyTests(unittest.TestCase):
+    def test_all_usb_services_have_reverse_mappings(self):
+        self.assertEqual((8787, 8788, 8789), launcher.REVERSE_PORTS)
+
     def test_locate_adb_prefers_explicit_path(self):
         with tempfile.TemporaryDirectory() as folder:
             executable = Path(folder) / ("adb.exe" if os.name == "nt" else "adb")
@@ -54,6 +57,30 @@ class LauncherPolicyTests(unittest.TestCase):
         self.assertTrue(launcher.compatible_health_payload(8787, {"status": "ok", "provider": "tencent"}))
         self.assertFalse(launcher.compatible_health_payload(8787, {"status": "ok", "upstreamUrl": "x"}))
         self.assertTrue(launcher.compatible_health_payload(8788, {"status": "ok", "upstreamUrl": "https://example"}))
+        self.assertTrue(
+            launcher.compatible_health_payload(
+                8789, {"status": "ok", "service": "history-export", "schemaVersion": "1.0"}
+            )
+        )
+        self.assertFalse(
+            launcher.compatible_health_payload(
+                8789, {"status": "ok", "service": "history-export", "schemaVersion": "2.0"}
+            )
+        )
+
+    def test_history_export_receiver_is_loopback_only_and_uses_configured_directory(self):
+        with tempfile.TemporaryDirectory() as folder:
+            app = launcher.GatewayLauncher(
+                Path(__file__).resolve().parents[3],
+                Path(__file__),
+                export_dir=Path(folder),
+            )
+            name, directory, command, environment = app._gateway_spec(8789)
+            self.assertEqual("History Export Receiver", name)
+            self.assertTrue(directory.is_dir())
+            self.assertEqual("127.0.0.1", environment["SCENETALK_EXPORT_HOST"])
+            self.assertEqual(str(Path(folder).resolve()), environment["SCENETALK_EXPORT_DIR"])
+            self.assertIn("scenetalk_history_export_receiver.py", command[-1])
 
     def test_existing_healthy_gateway_is_reused_without_process(self):
         popen = Mock()
