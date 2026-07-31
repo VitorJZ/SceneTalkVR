@@ -54,6 +54,9 @@ namespace SceneTalkVR.Core
     [CreateAssetMenu(fileName = "ExperimentTaskCatalog", menuName = "SceneTalkVR/Experiment Task Catalog")]
     public sealed class ExperimentTaskCatalog : ScriptableObject
     {
+        public const int FormalGoalsPerTask = 6;
+        public const int PilotGoalsPerTask = 4;
+
         private static readonly string[] RequiredFormalTaskIds =
         {
             "hotel_check_in",
@@ -165,7 +168,7 @@ namespace SceneTalkVR.Core
             foreach (var task in pilot ?? Array.Empty<ExperimentTaskDefinition>())
             {
                 if (task == null || string.IsNullOrWhiteSpace(task.taskId) || !ids.Add(task.taskId)) issues.Add("pilot_task_id_missing_or_duplicate");
-                if (task?.goals == null || task.goals.Length != 4 || task.goals.Any(x => x == null || string.IsNullOrWhiteSpace(x.text))) issues.Add((task?.taskId ?? "<null>")+":pilot_goals_invalid");
+                if (task?.goals == null || task.goals.Length != PilotGoalsPerTask || task.goals.Any(x => x == null || string.IsNullOrWhiteSpace(x.text))) issues.Add((task?.taskId ?? "<null>")+":pilot_goals_invalid");
                 if (task != null && (string.IsNullOrWhiteSpace(task.context) || string.IsNullOrWhiteSpace(task.initialQuestion) || string.IsNullOrWhiteSpace(task.roleplayPrompt))) issues.Add(task.taskId+":pilot_text_missing");
                 ValidateNonGoalQuestions(task, issues);
                 if (task != null && string.IsNullOrWhiteSpace(task.panoramaResourceKey)) issues.Add(task.taskId+":pilot_panorama_missing");
@@ -178,9 +181,9 @@ namespace SceneTalkVR.Core
             if (string.Equals(task.taskId, "restaurant_reservation", StringComparison.OrdinalIgnoreCase)) issues.Add("Restaurant must be Pilot only");
             if (string.IsNullOrWhiteSpace(task.scenarioId)) issues.Add($"{task.taskId}: scenarioId missing");
             if (string.IsNullOrWhiteSpace(task.context)) issues.Add($"{task.taskId}: context missing");
-            if (task.goals == null || task.goals.Length != 4)
+            if (task.goals == null || task.goals.Length != FormalGoalsPerTask)
             {
-                issues.Add($"{task.taskId}: exactly four goals are required");
+                issues.Add($"{task.taskId}: exactly {FormalGoalsPerTask} goals are required");
             }
             else
             {

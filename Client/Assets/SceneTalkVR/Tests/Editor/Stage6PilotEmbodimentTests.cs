@@ -188,7 +188,7 @@ namespace SceneTalkVR.Tests.Editor
             var pilot = tasks.GetTasks(ExperimentTaskPhase.Pilot).ToArray();
             Assert.That(ExperimentTaskCatalog.ValidatePilotTasks(pilot, out var error), Is.True, error);
             CollectionAssert.AreEquivalent(new[] { "pilot_restaurant_walk_in", "pilot_restaurant_ordering", "pilot_restaurant_wrong_dish" }, pilot.Select(x => x.taskId));
-            Assert.That(pilot.All(x => x.goals.Length == 4 && !string.IsNullOrWhiteSpace(x.initialQuestion) && x.panoramaResourceKey == "SceneTalkVR/Textures/restaurant-360"), Is.True);
+            Assert.That(pilot.All(x => x.goals.Length == ExperimentTaskCatalog.PilotGoalsPerTask && !string.IsNullOrWhiteSpace(x.initialQuestion) && x.panoramaResourceKey == "SceneTalkVR/Textures/restaurant-360"), Is.True);
         }
 
         [Test] public void TestAllocator_AssignsEachEmbodimentAndTaskOnce_AndIsStable()

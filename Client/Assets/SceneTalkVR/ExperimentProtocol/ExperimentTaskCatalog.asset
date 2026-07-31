@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4c7590b75c2b47d689fe3a3316a325f1, type: 3}
   m_Name: ExperimentTaskCatalog
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentTaskCatalog
-  catalogVersion: 1.3.0-pilot-task-redesign
+  catalogVersion: 1.5.0-formal-six-pilot-four
   tasks:
   - taskId: hotel_check_in
     scenarioId: hotel_check_in
@@ -56,6 +56,28 @@ MonoBehaviour:
       - room upstairs
       - tenth floor
       - put me higher up
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    - goalId: quiet_room
+      text: Request a quiet room away from noisy areas.
+      evaluationIntent: quiet_room
+      deterministicPatterns:
+      - quiet room
+      - quiet side
+      - away from the elevator
+      - quiet floor
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    - goalId: wifi_access
+      text: Ask about Wi-Fi or internet access.
+      evaluationIntent: wifi_access
+      deterministicPatterns:
+      - wifi
+      - wi-fi
+      - wireless internet
+      - internet access
       llmCriteria: Return achieved=true only when the participant's user transcript
         provides or asks for this goal intent. Avatar and agent speech are excluded.
       minimumConfidence: 0.85
@@ -125,6 +147,17 @@ MonoBehaviour:
       llmCriteria: Return achieved=true only when the participant's user transcript
         provides or asks for this goal intent. Avatar and agent speech are excluded.
       minimumConfidence: 0.85
+    - goalId: color_preference
+      text: Ask about the available desk colors.
+      evaluationIntent: color_preference
+      deterministicPatterns:
+      - what colors
+      - which colors
+      - color options
+      - available colors
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
     - goalId: delivery
       text: Ask whether home delivery is available.
       evaluationIntent: delivery
@@ -134,6 +167,17 @@ MonoBehaviour:
       - bring it to my apartment
       - deliver it to my home
       - can you send it to my address
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    - goalId: assembly_service
+      text: Ask whether assembly service is available.
+      evaluationIntent: assembly_service
+      deterministicPatterns:
+      - assembly service
+      - assemble it
+      - put it together
+      - assembly included
       llmCriteria: Return achieved=true only when the participant's user transcript
         provides or asks for this goal intent. Avatar and agent speech are excluded.
       minimumConfidence: 0.85
@@ -174,6 +218,27 @@ MonoBehaviour:
       llmCriteria: Return achieved=true only when the participant's user transcript
         provides or asks for this goal intent. Avatar and agent speech are excluded.
       minimumConfidence: 0.85
+    - goalId: suitable_workout
+      text: Ask about a suitable workout plan.
+      evaluationIntent: suitable_workout
+      deterministicPatterns:
+      - workout plan
+      - training plan
+      - exercise plan
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    - goalId: opening_hours
+      text: Ask about the gym's opening hours.
+      evaluationIntent: opening_hours
+      deterministicPatterns:
+      - opening hours
+      - what time do you open
+      - when does the gym close
+      - hours of operation
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
     - goalId: monthly_price
       text: Ask about the monthly membership price.
       evaluationIntent: monthly_price
@@ -183,13 +248,14 @@ MonoBehaviour:
       llmCriteria: Return achieved=true only when the participant's user transcript
         provides or asks for this goal intent. Avatar and agent speech are excluded.
       minimumConfidence: 0.85
-    - goalId: suitable_workout
-      text: Ask about a suitable workout plan.
-      evaluationIntent: suitable_workout
+    - goalId: student_discount
+      text: Ask whether a student discount is available.
+      evaluationIntent: student_discount
       deterministicPatterns:
-      - workout plan
-      - training plan
-      - exercise plan
+      - student discount
+      - student rate
+      - discount for students
+      - student membership
       llmCriteria: Return achieved=true only when the participant's user transcript
         provides or asks for this goal intent. Avatar and agent speech are excluded.
       minimumConfidence: 0.85
@@ -241,6 +307,17 @@ MonoBehaviour:
       llmCriteria: Return achieved=true only when the participant's user transcript
         provides or asks for this goal intent. Avatar and agent speech are excluded.
       minimumConfidence: 0.85
+    - goalId: museum_hours
+      text: Ask about the museum's opening hours.
+      evaluationIntent: museum_hours
+      deterministicPatterns:
+      - museum opening hours
+      - what time does the museum open
+      - when does the museum close
+      - museum hours
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
     - goalId: ticket
       text: Ask whether a ticket is required.
       evaluationIntent: ticket
@@ -259,6 +336,18 @@ MonoBehaviour:
       - use my camera
       - take pictures inside
       - photos allowed indoors
+      llmCriteria: Return achieved=true only when the participant's user transcript
+        provides or asks for this goal intent. Avatar and agent speech are excluded.
+      minimumConfidence: 0.85
+    - goalId: visit_duration
+      text: Ask how long a typical museum visit takes.
+      evaluationIntent: visit_duration
+      deterministicPatterns:
+      - how long does it take to visit
+      - how long should i allow
+      - how much time should i spend
+      - how long does a museum visit take
+      - typical visit duration
       llmCriteria: Return achieved=true only when the participant's user transcript
         provides or asks for this goal intent. Avatar and agent speech are excluded.
       minimumConfidence: 0.85

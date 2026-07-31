@@ -39,7 +39,7 @@ MonoBehaviour:
     provider: tencent
     voiceId: 502003
     language: en-US
-    speakingSpeed: 1
+    speakingSpeed: 0.3
     volume: 1
     pitch: 1
     sampleRate: 24000

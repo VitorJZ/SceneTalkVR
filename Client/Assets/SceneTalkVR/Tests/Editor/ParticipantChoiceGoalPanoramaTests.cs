@@ -139,13 +139,13 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(PanoramaAssetValidator.EstimateAstc6x6Bytes(4096, 2048, true), Is.LessThan(8 * 1024 * 1024));
         }
 
-        [TestCase("hotel_check_in", "My reservation is under Li. Is breakfast included? Could I have a high floor? What is the checkout time?")]
-        [TestCase("furniture_shopping", "The desk dimensions are 120 centimeters. What materials are available? My budget is 500 dollars. Is home delivery available?")]
-        [TestCase("gym_membership", "My goal is to build muscle. How much is the monthly membership? What workout plan do you recommend? Is there a free trial?")]
-        [TestCase("tourist_assistance", "How can I get to the museum? Do I need a ticket? Can I take photos inside? Can you recommend another nearby attraction?")]
-        public void GoalDetector_RecognizesAllFourTaskGoals(string taskId, string transcript)
+        [TestCase("hotel_check_in", "My reservation is under Li. Is breakfast included? Could I have a high floor? I need a quiet room. Does the hotel have Wi-Fi? What is the checkout time?")]
+        [TestCase("furniture_shopping", "The desk dimensions are 120 centimeters. What materials are available? My budget is 500 dollars. What colors are available? Is home delivery available? Is assembly included?")]
+        [TestCase("gym_membership", "My goal is to build muscle. What workout plan do you recommend? What are your opening hours? How much is the monthly membership? Is there a student discount? Is there a free trial?")]
+        [TestCase("tourist_assistance", "How can I get to the museum? What are the museum opening hours? Do I need a ticket? Can I take photos inside? How long does it take to visit the museum? Can you recommend another nearby attraction?")]
+        public void GoalDetector_RecognizesAllSixTaskGoals(string taskId, string transcript)
         {
-            Assert.That(ValidatedRehearsalGoalDetector.Match(taskId, transcript), Is.EqualTo(new[] { 0, 1, 2, 3 }));
+            Assert.That(ValidatedRehearsalGoalDetector.Match(taskId, transcript), Is.EqualTo(new[] { 0, 1, 2, 3, 4, 5 }));
         }
 
         [Test] public void GoalDetector_DoesNotInferFromGenericConversation()

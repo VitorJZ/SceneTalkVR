@@ -164,11 +164,13 @@ namespace SceneTalkVR.EditorTools
                 if (task.phase != ExperimentTaskPhase.Formal) continue;
                 task.voiceProfileKey = "editor_collection_dialogue_voice";
                 task.developerPlaceholderAvatar = false;
-                var ids = task.taskId == "hotel_check_in" ? new[] { "reservation_name", "breakfast", "higher_floor", "checkout_time" }
-                    : task.taskId == "furniture_shopping" ? new[] { "desk_size", "material", "budget", "delivery" }
-                    : task.taskId == "gym_membership" ? new[] { "fitness_goal", "monthly_price", "suitable_workout", "trial" }
-                    : new[] { "museum_route", "ticket", "photography", "nearby_attraction" };
+                var ids = task.taskId == "hotel_check_in" ? new[] { "reservation_name", "breakfast", "higher_floor", "quiet_room", "wifi_access", "checkout_time" }
+                    : task.taskId == "furniture_shopping" ? new[] { "desk_size", "material", "budget", "color_preference", "delivery", "assembly_service" }
+                    : task.taskId == "gym_membership" ? new[] { "fitness_goal", "suitable_workout", "opening_hours", "monthly_price", "student_discount", "trial" }
+                    : new[] { "museum_route", "museum_hours", "ticket", "photography", "visit_duration", "nearby_attraction" };
                 var patterns = Patterns(task.taskId);
+                if (task.goals == null || task.goals.Length != ids.Length || patterns.Length != ids.Length)
+                    throw new InvalidOperationException($"{task.taskId}: expected {ids.Length} goal definitions and pattern sets.");
                 for (var i = 0; i < task.goals.Length; i++)
                 {
                     task.goals[i].goalId = ids[i];
@@ -178,7 +180,7 @@ namespace SceneTalkVR.EditorTools
                     task.goals[i].minimumConfidence = .85f;
                 }
             }
-            catalog.EditorSet("1.3.0-pilot-task-redesign", catalog.Tasks.ToArray());
+            catalog.EditorSet("1.5.0-formal-six-pilot-four", catalog.Tasks.ToArray());
         }
 
         private static NonGoalQuestionDefinition[] NonGoalQuestions(string taskId)
@@ -208,22 +210,27 @@ namespace SceneTalkVR.EditorTools
                 new[] { "my name is", "booking is under", "reservation is under", "booked under", "the reservation should be in", "the booking is under", "it should be under the name" },
                 new[] { "breakfast included", "serve breakfast", "time is breakfast", "morning meal", "does the room price include breakfast", "does the room come with breakfast" },
                 new[] { "higher floor", "upper floor", "room upstairs", "tenth floor", "put me higher up" },
+                new[] { "quiet room", "quiet side", "away from the elevator", "quiet floor" },
+                new[] { "wifi", "wi-fi", "wireless internet", "internet access" },
                 new[] { "what time is checkout", "checkout time", "when do i need to check out" }
             };
             if (taskId == "furniture_shopping") return new[]
             {
                 new[] { "desk size", "dimensions", "centimeter", "centimeters", "120 by 60", "how wide is the desk" }, new[] { "what material", "made of" },
-                new[] { "my budget", "spend up to", "price limit" }, new[] { "home delivery", "do you deliver", "bring it to my apartment", "deliver it to my home", "can you send it to my address" }
+                new[] { "my budget", "spend up to", "price limit" }, new[] { "what colors", "which colors", "color options", "available colors" },
+                new[] { "home delivery", "do you deliver", "bring it to my apartment", "deliver it to my home", "can you send it to my address" }, new[] { "assembly service", "assemble it", "put it together", "assembly included" }
             };
             if (taskId == "gym_membership") return new[]
             {
-                new[] { "my fitness goal", "want to lose weight", "want to build muscle", "improve my endurance", "build strength", "get fitter" }, new[] { "monthly membership", "per month" },
-                new[] { "workout plan", "training plan", "exercise plan" }, new[] { "free trial", "trial available", "try the gym before joining", "test the gym first", "trial session" }
+                new[] { "my fitness goal", "want to lose weight", "want to build muscle", "improve my endurance", "build strength", "get fitter" }, new[] { "workout plan", "training plan", "exercise plan" },
+                new[] { "opening hours", "what time do you open", "when does the gym close", "hours of operation" }, new[] { "monthly membership", "per month" },
+                new[] { "student discount", "student rate", "discount for students", "student membership" }, new[] { "free trial", "trial available", "try the gym before joining", "test the gym first", "trial session" }
             };
             return new[]
             {
-                new[] { "how do i get to the museum", "directions to the museum", "best route to the museum", "how can i reach the museum", "way to the museum" }, new[] { "need a ticket", "ticket required" },
-                new[] { "take photos inside", "photography allowed", "use my camera", "take pictures inside", "photos allowed indoors" }, new[] { "nearby attraction", "another attraction" }
+                new[] { "how do i get to the museum", "directions to the museum", "best route to the museum", "how can i reach the museum", "way to the museum" }, new[] { "museum opening hours", "what time does the museum open", "when does the museum close", "museum hours" },
+                new[] { "need a ticket", "ticket required" }, new[] { "take photos inside", "photography allowed", "use my camera", "take pictures inside", "photos allowed indoors" },
+                new[] { "how long does it take to visit", "how long should i allow", "how much time should i spend", "how long does a museum visit take", "typical visit duration" }, new[] { "nearby attraction", "another attraction" }
             };
         }
 

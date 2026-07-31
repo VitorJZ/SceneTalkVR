@@ -37,7 +37,7 @@ namespace SceneTalkVR.EditorTools
             Check("orb_prefab",presentations?.Find(PilotEmbodimentCondition.FloatingOrb)?.visualPrefabKey=="generated_orb_v1","procedural generated_orb_v1");
             Check("humanoid_prefab",presentations?.Find(PilotEmbodimentCondition.HumanoidAgent)?.visualPrefab!=null,"teacher_female_humanoid_v1");
             Check("restaurant_panorama",Resources.Load<Texture>("SceneTalkVR/Textures/restaurant-360")!=null,"local restaurant 360 panorama");
-            Check("pilot_goals",pilotTasks!=null&&pilotTasks.All(x=>x.goals?.Length==4&&x.goals.All(g=>!string.IsNullOrWhiteSpace(g.goalId))),"four deterministic goals per task");
+            Check("pilot_goals",pilotTasks!=null&&pilotTasks.All(x=>x.goals?.Length==ExperimentTaskCatalog.PilotGoalsPerTask&&x.goals.All(g=>!string.IsNullOrWhiteSpace(g.goalId))),$"{ExperimentTaskCatalog.PilotGoalsPerTask} deterministic goals per task");
             Check("pilot_questionnaire",questionnaires?.Find("pilot_condition_v1")!=null&&questionnaires.GetEnabledItems("pilot_condition_v1",protocol).Any(),"pilot_condition_v1");
             Check("pilot_ranking",questionnaires?.Find("pilot_final_v1")!=null,"pilot_final_v1");
             var gateway=UnityEngine.Object.FindFirstObjectByType<VoiceGatewayClient>();Check("voice_gateway",gateway!=null,"real Editor gateway component is bound");

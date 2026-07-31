@@ -19,25 +19,33 @@ namespace SceneTalkVR.Core
                     Add(result, 0, HasAny(text, "my name is", "reservation under", "reservation is under", "booking under", "booked under"));
                     Add(result, 1, Has(text, "breakfast") && HasAny(text, "included", "include", "comes with"));
                     Add(result, 2, HasAny(text, "high floor", "higher floor", "upper floor"));
-                    Add(result, 3, HasAny(text, "check out time", "checkout time", "what time is checkout", "what time do i check out", "when is check out", "when is checkout"));
+                    Add(result, 3, HasAny(text, "quiet room", "quiet side", "away from the elevator", "quiet floor"));
+                    Add(result, 4, HasAny(text, "wifi", "wi fi", "wireless internet", "internet access"));
+                    Add(result, 5, HasAny(text, "check out time", "checkout time", "what time is checkout", "what time do i check out", "when is check out", "when is checkout"));
                     break;
                 case "furniture_shopping":
                     Add(result, 0, HasAny(text, "centimeter", "centimetre", "meter wide", "metre wide", "inches wide", "desk size", "dimensions"));
                     Add(result, 1, HasAny(text, "what material", "which material", "materials available", "made of", "wood or", "metal or"));
                     Add(result, 2, HasAny(text, "my budget", "maximum budget", "max budget", "spend up to", "price limit"));
-                    Add(result, 3, HasAny(text, "home delivery", "deliver to my home", "deliver it", "delivery available"));
+                    Add(result, 3, HasAny(text, "what colors", "which colors", "color options", "available colors"));
+                    Add(result, 4, HasAny(text, "home delivery", "deliver to my home", "deliver it", "delivery available"));
+                    Add(result, 5, HasAny(text, "assembly service", "assemble it", "put it together", "assembly included"));
                     break;
                 case "gym_membership":
                     Add(result, 0, HasAny(text, "my fitness goal", "my goal is", "want to lose weight", "want to build muscle", "get fitter", "improve my fitness"));
-                    Add(result, 1, Has(text, "month") && HasAny(text, "price", "cost", "membership", "how much"));
-                    Add(result, 2, HasAny(text, "workout plan", "training plan", "exercise plan", "routine do you recommend", "plan do you recommend"));
-                    Add(result, 3, Has(text, "trial") && HasAny(text, "free", "complimentary", "no charge"));
+                    Add(result, 1, HasAny(text, "workout plan", "training plan", "exercise plan", "routine do you recommend", "plan do you recommend"));
+                    Add(result, 2, HasAny(text, "opening hours", "what time do you open", "when does the gym close", "hours of operation"));
+                    Add(result, 3, Has(text, "month") && HasAny(text, "price", "cost", "membership", "how much"));
+                    Add(result, 4, HasAny(text, "student discount", "student rate", "discount for students", "student membership"));
+                    Add(result, 5, Has(text, "trial") && HasAny(text, "free", "complimentary", "no charge"));
                     break;
                 case "tourist_assistance":
                     Add(result, 0, Has(text, "museum") && HasAny(text, "how do i get", "how can i get", "directions", "way to", "reach"));
-                    Add(result, 1, HasAny(text, "need a ticket", "ticket required", "buy a ticket", "admission ticket"));
-                    Add(result, 2, HasAny(text, "take photos", "take pictures", "photography") && HasAny(text, "inside", "indoor", "allowed", "can i"));
-                    Add(result, 3, HasAny(text, "another attraction", "nearby attraction", "other place to visit", "recommend nearby", "else should i visit"));
+                    Add(result, 1, Has(text, "museum") && HasAny(text, "opening hours", "what time does", "when does", "museum hours"));
+                    Add(result, 2, HasAny(text, "need a ticket", "ticket required", "buy a ticket", "admission ticket"));
+                    Add(result, 3, HasAny(text, "take photos", "take pictures", "photography") && HasAny(text, "inside", "indoor", "allowed", "can i"));
+                    Add(result, 4, Has(text, "museum") && HasAny(text, "how long does it take", "how long should i allow", "how much time", "visit duration"));
+                    Add(result, 5, HasAny(text, "another attraction", "nearby attraction", "other place to visit", "recommend nearby", "else should i visit"));
                     break;
             }
             return result;

@@ -136,7 +136,7 @@ namespace SceneTalkVR.Tests.Editor
             var tracker = Tracker();
             for (var i = 0; i < 2; i++) { var id = tracker.ActiveGoal.goalId; var turnId = "rate-" + i; tracker.SubmitGoalCandidate(id, "manual", new GoalEvidence { turnId = turnId }, out _); tracker.ConfirmGoal(id, "exp", "", out _); AdvanceAfterConfirmedGoal(tracker, turnId); }
             tracker.SubmitGoalCandidate(tracker.Goals[2].goalId, "llm", null, out _);
-            Assert.That(tracker.GetCompletionRate(), Is.EqualTo(0.5f));
+            Assert.That(tracker.GetCompletionRate(), Is.EqualTo(2f / ExperimentTaskCatalog.FormalGoalsPerTask));
         }
 
         [Test]
@@ -164,7 +164,7 @@ namespace SceneTalkVR.Tests.Editor
         {
             using var fixture = new LifecycleFixture("lifecycle-goals");
             fixture.Coordinator.PrepareCondition(0, false, out _);
-            Assert.That(fixture.Coordinator.GoalTracker.Goals.Count, Is.EqualTo(4));
+            Assert.That(fixture.Coordinator.GoalTracker.Goals.Count, Is.EqualTo(ExperimentTaskCatalog.FormalGoalsPerTask));
             fixture.Coordinator.CompleteTask("experimenter_ended");
             Assert.That(fixture.Coordinator.CurrentConditionAssignment.status, Is.EqualTo(ConditionRunStatus.AwaitingQuestionnaire));
         }
@@ -302,7 +302,7 @@ namespace SceneTalkVR.Tests.Editor
         }
         private static ExperimentTaskDefinition Task(string id) => new ExperimentTaskDefinition
         {
-            taskId = id, goals = Enumerable.Range(1, 4).Select(i => new ExperimentTaskGoal { text = "Goal " + i }).ToArray()
+            taskId = id, goals = Enumerable.Range(1, ExperimentTaskCatalog.FormalGoalsPerTask).Select(i => new ExperimentTaskGoal { text = "Goal " + i }).ToArray()
         };
         private static void Set(object target, string field, object value) => target.GetType().GetField(field, BindingFlags.Instance | BindingFlags.NonPublic)?.SetValue(target, value);
 

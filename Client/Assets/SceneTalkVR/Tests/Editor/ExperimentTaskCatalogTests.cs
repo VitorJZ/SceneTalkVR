@@ -93,17 +93,17 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(line.Split(',').Length, Is.EqualTo(header.Split(',').Length));
         }
 
-        [TestCase("hotel_check_in",4)] [TestCase("furniture_shopping",4)] [TestCase("gym_membership",4)] [TestCase("tourist_assistance",4)]
-        public void FormalTasks_HaveFourGoals(string id,int count)
+        [TestCase("hotel_check_in",6)] [TestCase("furniture_shopping",6)] [TestCase("gym_membership",6)] [TestCase("tourist_assistance",6)]
+        public void FormalTasks_HaveSixGoals(string id,int count)
         {
             var task = Catalog.Find(id);
             Assert.That(task.initialQuestion,Is.Not.Empty); Assert.That(task.goals.Length,Is.EqualTo(count));
         }
 
-        [TestCase("hotel_check_in", "Provide the reservation name.|Ask whether breakfast is included.|Request a room on a higher floor.|Ask about the check-out time.")]
-        [TestCase("furniture_shopping", "Describe the desk size needed.|Ask about available materials.|State or ask about the maximum budget.|Ask whether home delivery is available.")]
-        [TestCase("gym_membership", "Explain a fitness goal.|Ask about the monthly membership price.|Ask about a suitable workout plan.|Ask whether a free trial is available.")]
-        [TestCase("tourist_assistance", "Ask how to reach the city museum.|Ask whether a ticket is required.|Ask whether indoor photography is allowed.|Ask for another nearby attraction recommendation.")]
+        [TestCase("hotel_check_in", "Provide the reservation name.|Ask whether breakfast is included.|Request a room on a higher floor.|Request a quiet room away from noisy areas.|Ask about Wi-Fi or internet access.|Ask about the check-out time.")]
+        [TestCase("furniture_shopping", "Describe the desk size needed.|Ask about available materials.|State or ask about the maximum budget.|Ask about the available desk colors.|Ask whether home delivery is available.|Ask whether assembly service is available.")]
+        [TestCase("gym_membership", "Explain a fitness goal.|Ask about a suitable workout plan.|Ask about the gym's opening hours.|Ask about the monthly membership price.|Ask whether a student discount is available.|Ask whether a free trial is available.")]
+        [TestCase("tourist_assistance", "Ask how to reach the city museum.|Ask about the museum's opening hours.|Ask whether a ticket is required.|Ask whether indoor photography is allowed.|Ask how long a typical museum visit takes.|Ask for another nearby attraction recommendation.")]
         public void FormalTasks_UseFrozenGoals(string id, string expected)
         {
             Assert.That(string.Join("|", Catalog.Find(id).goals.Select(goal => goal.text)), Is.EqualTo(expected));

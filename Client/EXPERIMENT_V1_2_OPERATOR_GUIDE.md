@@ -7,7 +7,7 @@
 5. Enter a new participant ID and session ID, then click **Arm New Session**. Use **Resume Session** only for the same stored identity.
 6. Enter Play Mode. Give control to the participant. They click Start and see four feedback modes, never task names.
 7. Do not use Team Showcase, QA Auto-Fill, transcript injection or recovery shortcuts during collection. Any QA operation must mark the assignment non-collection.
-8. After each task, confirm that four goals automatically open the questionnaire. The participant answers every required 1–7 item and presses Submit, then Confirm.
+8. After each task, confirm that all six goals automatically open the questionnaire. The participant answers every required 1–7 item and presses Submit, then Confirm.
 9. After four conditions, the participant completes unique 1–4 rankings and the reason field.
 10. In Operator Control, export the completed bundle and run Audit Last Bundle. Keep the raw bundle immutable.
 
