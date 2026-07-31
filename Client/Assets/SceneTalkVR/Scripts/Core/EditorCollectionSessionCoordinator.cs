@@ -180,6 +180,18 @@ namespace SceneTalkVR.Core
                 if (!ValidateCollectionAssignment(stored, out error) || !lifecycle.LoadAssignment(stored, out error)) return FailArm();
                 currentPosition = Array.FindIndex(stored.conditions, x => x.status == ConditionRunStatus.Running
                     || x.status == ConditionRunStatus.AwaitingQuestionnaire || x.status == ConditionRunStatus.QuestionnaireInProgress);
+                if (currentPosition < 0)
+                {
+                    var legacyCheckpointPosition = Array.FindIndex(stored.conditions, IsLegacyCheckpointCondition);
+                    if (legacyCheckpointPosition >= 0)
+                    {
+                        // Older builds marked participant checkpoints as TechnicalInvalid.
+                        // Migrate only records carrying the explicit checkpoint event.
+                        stored.conditions[legacyCheckpointPosition].status = ConditionRunStatus.Running;
+                        currentPosition = legacyCheckpointPosition;
+                        ExperimentAssignmentAllocator.Save(stored, AssignmentPath);
+                    }
+                }
             }
             else
             {
@@ -213,7 +225,8 @@ namespace SceneTalkVR.Core
             participantStarted = true;
             if (currentPosition >= 0)
             {
-                var snapshot = LoadGoalSnapshot(Assignment.conditions[currentPosition].latestConditionRunId);
+                var current = Assignment.conditions[currentPosition];
+                var snapshot = LoadGoalSnapshotForResume(current.latestConditionRunId, current.task?.taskId);
                 if (!lifecycle.ResumeCondition(currentPosition, snapshot?.goals, snapshot?.sequence, out error)) return false;
                 if (lifecycle.CurrentConditionAssignment.status == ConditionRunStatus.QuestionnaireInProgress)
                     questionnaire.RestoreCurrentDraft(out _);
@@ -242,8 +255,24 @@ namespace SceneTalkVR.Core
             var selected = items[position];
             if (selected.status == ConditionRunStatus.Completed || selected.status == ConditionRunStatus.QuestionnaireSubmitted)
             { error = "formal_condition_already_completed"; return false; }
-            if (selected.status != ConditionRunStatus.Assigned && selected.status != ConditionRunStatus.TechnicalInvalid)
+            var resumable = selected.status == ConditionRunStatus.Running
+                || selected.status == ConditionRunStatus.AwaitingQuestionnaire
+                || selected.status == ConditionRunStatus.QuestionnaireInProgress;
+            if (selected.status != ConditionRunStatus.Assigned && selected.status != ConditionRunStatus.TechnicalInvalid && !resumable)
             { error = "formal_condition_not_selectable:" + selected.status; return false; }
+            if (resumable)
+            {
+                currentPosition = position;
+                var snapshot = LoadGoalSnapshotForResume(selected.latestConditionRunId, selected.task?.taskId);
+                if (!lifecycle.ResumeCondition(position, snapshot?.goals, snapshot?.sequence, out error))
+                { currentPosition = -1; return false; }
+                ExperimentSessionCoordinator.Active?.NotifyAttemptStarted(
+                    code.ToString(), selected.task.taskId, lifecycle.ConditionRunId, selected.runAttempt);
+                PersistAssignment();
+                WriteOperator("FormalModeResumed", $"code={code};task={selected.task.taskId}");
+                RefreshUi();
+                return true;
+            }
             var retry = selected.status == ConditionRunStatus.TechnicalInvalid;
             currentPosition = position;
             if (!lifecycle.PrepareCondition(position, retry, out error)) { currentPosition = -1; return false; }
@@ -290,7 +319,7 @@ namespace SceneTalkVR.Core
             }
 
             reason = string.IsNullOrWhiteSpace(reason) ? "participant_return_to_selection" : reason.Trim();
-            lifecycle.MarkTechnicalInvalid(reason);
+            lifecycle.SuspendForCheckpoint(reason);
             PersistGoalSnapshot();
             PersistAssignment();
             orchestrator.ResetForConditionSelection();
@@ -432,9 +461,10 @@ namespace SceneTalkVR.Core
 
             var current = lifecycle?.CurrentConditionAssignment;
             if (current != null && current.status != ConditionRunStatus.Completed
-                && current.status != ConditionRunStatus.TechnicalInvalid)
+                && current.status != ConditionRunStatus.TechnicalInvalid
+                && current.status != ConditionRunStatus.Aborted)
             {
-                lifecycle.MarkTechnicalInvalid(reason);
+                lifecycle.SuspendForCheckpoint(reason);
                 PersistGoalSnapshot();
                 PersistAssignment();
             }
@@ -540,6 +570,68 @@ namespace SceneTalkVR.Core
         {
             var path = GoalSnapshotPath(runId);
             return File.Exists(path) ? JsonUtility.FromJson<EditorCollectionGoalSnapshot>(File.ReadAllText(path, Encoding.UTF8)) : null;
+        }
+
+        private EditorCollectionGoalSnapshot LoadGoalSnapshotForResume(string runId, string taskId)
+        {
+            var current = LoadGoalSnapshot(runId);
+            if (current?.goals != null && current.goals.Any(goal => goal != null && goal.state != GoalProgressState.NotStarted))
+                return current;
+
+            if (string.IsNullOrWhiteSpace(taskId) || !Directory.Exists(CurrentDataFolder)) return current;
+            EditorCollectionGoalSnapshot best = current;
+            var bestConfirmed = ConfirmedGoalCount(current);
+            foreach (var path in Directory.GetFiles(CurrentDataFolder, "goal_snapshot_*.json"))
+            {
+                if (string.Equals(path, GoalSnapshotPath(runId), StringComparison.OrdinalIgnoreCase)) continue;
+                EditorCollectionGoalSnapshot candidate;
+                try { candidate = JsonUtility.FromJson<EditorCollectionGoalSnapshot>(File.ReadAllText(path, Encoding.UTF8)); }
+                catch { continue; }
+                if (candidate == null || !string.Equals(candidate.taskId, taskId, StringComparison.OrdinalIgnoreCase)) continue;
+                var confirmed = ConfirmedGoalCount(candidate);
+                if (confirmed > bestConfirmed)
+                {
+                    best = candidate;
+                    bestConfirmed = confirmed;
+                }
+            }
+            return best;
+        }
+
+        private static int ConfirmedGoalCount(EditorCollectionGoalSnapshot snapshot)
+        {
+            return snapshot?.goals == null
+                ? 0
+                : snapshot.goals.Count(goal => goal != null && goal.state == GoalProgressState.Confirmed);
+        }
+
+        private bool IsLegacyCheckpointCondition(ConditionAssignment condition)
+        {
+            if (condition == null || condition.status != ConditionRunStatus.TechnicalInvalid
+                || string.IsNullOrWhiteSpace(condition.latestConditionRunId)
+                || !File.Exists(GoalSnapshotPath(condition.latestConditionRunId)))
+                return false;
+
+            var eventsPath = Path.Combine(CurrentDataFolder,
+                $"{Safe(ParticipantId)}_{Safe(SessionId)}_study_events_v1.jsonl");
+            if (!File.Exists(eventsPath)) return false;
+
+            var checkpointFound = false;
+            foreach (var line in File.ReadLines(eventsPath))
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                StudyEventRecord value;
+                try { value = JsonUtility.FromJson<StudyEventRecord>(line); }
+                catch { continue; }
+                if (value == null || !string.Equals(value.conditionRunId, condition.latestConditionRunId,
+                        StringComparison.Ordinal)) continue;
+
+                if (value.eventType == StudyEventType.ConditionTechnicalInvalid.ToString())
+                    checkpointFound = string.Equals(value.reason, "participant_exit_checkpoint", StringComparison.Ordinal);
+                else if (value.eventType == StudyEventType.ConditionSuspended.ToString())
+                    checkpointFound = true;
+            }
+            return checkpointFound;
         }
 
         private void WriteOperator(string eventType, string detail = "", bool qa = false, string actor = "")

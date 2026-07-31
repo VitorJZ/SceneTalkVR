@@ -228,7 +228,7 @@ namespace SceneTalkVR.Tests.PlayMode
             Assert.That(Active("ExperimentExitConfirmPanel"), Is.False);
             Assert.That((bool)Get(collection, "IsArmed"), Is.True);
             Assert.That(Get(assignment, "status").ToString(), Is.EqualTo("Active"));
-            Assert.That(Get(activeCondition, "status").ToString(), Is.EqualTo("TechnicalInvalid"));
+            Assert.That(Get(activeCondition, "status").ToString(), Is.EqualTo("Running"));
             var attempts = ((IEnumerable)Get(Get(experiment, "CurrentExperiment"), "attempts")).Cast<object>().ToArray();
             Assert.That(attempts, Has.Length.EqualTo(1));
             Assert.That(Get(attempts[0], "status").ToString(), Is.EqualTo("Suspended"));
@@ -241,7 +241,7 @@ namespace SceneTalkVR.Tests.PlayMode
             Assert.That((bool)Get(manager, "CanUseManualRuntimeCondition"), Is.True);
             var persisted = JsonUtility.FromJson(System.IO.File.ReadAllText(System.IO.Path.Combine(dataFolder, "formal_assignment.json")), assignment.GetType());
             Assert.That(Get(persisted, "status").ToString(), Is.EqualTo("Active"));
-            Assert.That(Get(Conditions(persisted).Single(x => (string)Get(Get(x, "task"), "taskId") == "hotel_check_in"), "status").ToString(), Is.EqualTo("TechnicalInvalid"));
+            Assert.That(Get(Conditions(persisted).Single(x => (string)Get(Get(x, "task"), "taskId") == "hotel_check_in"), "status").ToString(), Is.EqualTo("Running"));
             var events = System.IO.File.ReadAllText(System.IO.Path.Combine(dataFolder, "editor_collection_operator_events.jsonl"));
             Assert.That(events, Does.Contain("ParticipantReturnedToModeSelection"));
             Assert.That(events, Does.Contain("ParticipantSessionSuspended"));

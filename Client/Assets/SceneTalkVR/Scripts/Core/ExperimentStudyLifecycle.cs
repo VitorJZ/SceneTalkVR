@@ -15,7 +15,7 @@ namespace SceneTalkVR.Core
         ConditionAwaitingQuestionnaire, QuestionnaireStarted, QuestionnairePageCompleted,
         QuestionnaireSubmitted, QuestionnaireReopened, FinalRankingStarted, FinalRankingSubmitted,
         InterviewStarted, InterviewCompleted, ConditionCompleted, ConditionTechnicalInvalid,
-        ConditionAborted, ExperimentCompleted
+        ConditionAborted, ConditionSuspended, ExperimentCompleted
         , GoalCollectionReset, GoalProgressChanged, GoalAutoConfirmed,
         FormalConditionSelected, TaskLimitReachedWithoutCompletion,
         ParticipantSessionArmed, FormalModeSelectionShown, FormalModeSelected, ConditionTaskResolved,
@@ -500,6 +500,25 @@ namespace SceneTalkVR.Core
             currentCondition.status = ConditionRunStatus.Aborted;
             CompletionReason = reason ?? "aborted";
             WriteEvent(StudyEventType.ConditionAborted, reason: CompletionReason, actor: "experimenter");
+        }
+
+        /// <summary>
+        /// Records a participant exit as a resumable checkpoint. This must not
+        /// change the condition to TechnicalInvalid, otherwise resume cannot
+        /// select the saved condition and its goal snapshot.
+        /// </summary>
+        public void SuspendForCheckpoint(string reason)
+        {
+            if (currentCondition == null
+                || currentCondition.status == ConditionRunStatus.Completed
+                || currentCondition.status == ConditionRunStatus.TechnicalInvalid
+                || currentCondition.status == ConditionRunStatus.Aborted)
+                return;
+
+            CompletionReason = string.IsNullOrWhiteSpace(reason)
+                ? "participant_exit_checkpoint"
+                : reason.Trim();
+            WriteEvent(StudyEventType.ConditionSuspended, reason: CompletionReason, actor: "participant");
         }
 
         public void ResetSession()
