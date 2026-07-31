@@ -123,6 +123,51 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That((bool)method.Invoke(service, new[] { partialResponse })!, Is.False);
         }
 
+        [TestCase(408L)]
+        [TestCase(429L)]
+        [TestCase(503L)]
+        public void TransientRequestFailure_IsRecoverableAcrossFreshTurn(long statusCode)
+        {
+            var failure = CreateRequestFailure(statusCode, 0);
+
+            Assert.That(IsRecoverableLlmFailure(failure), Is.True);
+        }
+
+        [Test]
+        public void TransientRequestFailure_RemainsRecoverableWhenSameStreamRetryWasSuppressed()
+        {
+            var failure = CreateRequestFailure(
+                429,
+                retryAfterSeconds: 5,
+                retryable: false,
+                transportFailure: false,
+                responseBytesReceived: true);
+
+            Assert.That(IsRecoverableLlmFailure(failure), Is.True);
+        }
+
+        [Test]
+        public void ConfigurationFailure_IsNotRecoverable()
+        {
+            var failure = CreateRequestFailure(
+                401,
+                retryAfterSeconds: 0,
+                retryable: false,
+                transportFailure: false,
+                responseBytesReceived: true);
+
+            Assert.That(IsRecoverableLlmFailure(failure), Is.False);
+        }
+
+        [Test]
+        public void TransientFailure_AfterDialogueWasEmitted_CannotRetrySameCondition()
+        {
+            var failure = CreateRequestFailure(429, 5);
+
+            Assert.That(CanRetryGenerationFailure(failure, dialogueContentEmitted: true), Is.False);
+            Assert.That(CanRetryGenerationFailure(failure, dialogueContentEmitted: false), Is.True);
+        }
+
         [Test]
         public void NonStreamingEnvelopeFallback_ExtractsDialogueJson()
         {
@@ -327,6 +372,21 @@ namespace SceneTalkVR.Tests.Editor
 
         private static Exception CreateRequestFailure(long statusCode, int retryAfterSeconds)
         {
+            return CreateRequestFailure(
+                statusCode,
+                retryAfterSeconds,
+                retryable: true,
+                transportFailure: false,
+                responseBytesReceived: false);
+        }
+
+        private static Exception CreateRequestFailure(
+            long statusCode,
+            int retryAfterSeconds,
+            bool retryable,
+            bool transportFailure,
+            bool responseBytesReceived)
+        {
             var exceptionType = typeof(RealLLMService).GetNestedType(
                 "LlmRequestException",
                 BindingFlags.NonPublic)!;
@@ -338,10 +398,28 @@ namespace SceneTalkVR.Tests.Editor
                 {
                     $"HTTP {statusCode}",
                     statusCode,
-                    true,
-                    retryAfterSeconds
+                    retryable,
+                    retryAfterSeconds,
+                    transportFailure,
+                    responseBytesReceived
                 },
                 null)!;
+        }
+
+        private static bool IsRecoverableLlmFailure(Exception failure)
+        {
+            var method = typeof(RealLLMService).GetMethod(
+                "IsRecoverableLlmFailure",
+                BindingFlags.Static | BindingFlags.NonPublic)!;
+            return (bool)method.Invoke(null, new object[] { failure })!;
+        }
+
+        private static bool CanRetryGenerationFailure(Exception failure, bool dialogueContentEmitted)
+        {
+            var method = typeof(RealLLMService).GetMethod(
+                "CanRetryGenerationFailure",
+                BindingFlags.Static | BindingFlags.NonPublic)!;
+            return (bool)method.Invoke(null, new object[] { failure, dialogueContentEmitted })!;
         }
 
         private static string EscapeJson(string value)

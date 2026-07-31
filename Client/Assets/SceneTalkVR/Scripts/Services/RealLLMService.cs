@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -2043,10 +2044,16 @@ namespace SceneTalkVR.Runtime.Services
             timing?.RecordTimingEvent(ExperimentTimingEventType.CorrectionRequestStarted);
             var correctionTask = ParseCorrectionFeedbackAsync(userText, cancellationToken);
             timing?.RecordTimingEvent(ExperimentTimingEventType.DialogueRequestStarted);
+            var dialogueContentEmitted = false;
+            Action<string> emitDialogueSentence = sentence =>
+            {
+                dialogueContentEmitted = true;
+                onSentenceComplete?.Invoke(sentence);
+            };
             var dialogueTask = ParseDialogueContinuationStreamingAsync(
                 userText,
                 pacingDecision,
-                onSentenceComplete,
+                emitDialogueSentence,
                 cancellationToken);
             var correctionReadyLogged = false;
 
@@ -2069,9 +2076,16 @@ namespace SceneTalkVR.Runtime.Services
                 var ex = correctionFailed
                     ? correctionTask.Exception?.InnerException ?? correctionTask.Exception
                     : dialogueTask.Exception?.InnerException ?? dialogueTask.Exception;
-                timing?.MarkTurnTechnicalInvalid(
-                    correctionFailed ? "CorrectionPlanner" : "DialogueGenerator",
-                    ex?.Message ?? "parallel_stream_failed");
+                var failureStage = correctionFailed ? "CorrectionPlanner" : "DialogueGenerator";
+                var failureReason = ex?.Message ?? "parallel_stream_failed";
+                if (CanRetryGenerationFailure(ex, dialogueContentEmitted))
+                {
+                    timing?.RecordRecoverableTurnFailure(failureStage, failureReason);
+                }
+                else
+                {
+                    timing?.MarkTurnTechnicalInvalid(failureStage, failureReason);
+                }
                 onError?.Invoke(ex?.Message ?? "Parallel LLM streaming tasks faulted.");
                 CompleteGeneration(generationCancellation);
                 yield break;
@@ -2114,6 +2128,54 @@ namespace SceneTalkVR.Runtime.Services
 
             onComplete?.Invoke(payload);
             CompleteGeneration(generationCancellation);
+        }
+
+        private static bool IsRecoverableLlmFailure(Exception exception)
+        {
+            if (exception == null)
+            {
+                return false;
+            }
+
+            if (exception is AggregateException aggregate)
+            {
+                return aggregate.Flatten().InnerExceptions.Any(IsRecoverableLlmFailure);
+            }
+
+            if (exception is OperationCanceledException)
+            {
+                return true;
+            }
+
+            if (exception is LlmRequestException requestFailure)
+            {
+                return requestFailure.Retryable
+                       || requestFailure.TransportFailure
+                       || requestFailure.StatusCode == 408
+                       || requestFailure.StatusCode == 429
+                       || requestFailure.StatusCode >= 500
+                       || IsTimeoutLikeFailure(requestFailure.Message);
+            }
+
+            return IsTimeoutLikeFailure(exception.Message);
+        }
+
+        private static bool CanRetryGenerationFailure(Exception exception, bool dialogueContentEmitted)
+        {
+            return !dialogueContentEmitted && IsRecoverableLlmFailure(exception);
+        }
+
+        private static bool IsTimeoutLikeFailure(string message)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return false;
+            }
+
+            return message.IndexOf("timeout", StringComparison.OrdinalIgnoreCase) >= 0
+                   || message.IndexOf("timed out", StringComparison.OrdinalIgnoreCase) >= 0
+                   || message.IndexOf("exceeded the", StringComparison.OrdinalIgnoreCase) >= 0
+                      && message.IndexOf("budget", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private async Task<SpringScenePayload> ParseDialogueContinuationStreamingAsync(

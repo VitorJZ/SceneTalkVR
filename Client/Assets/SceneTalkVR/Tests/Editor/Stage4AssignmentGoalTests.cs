@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using NUnit.Framework;
 using SceneTalkVR.Core;
+using SceneTalkVR.Runtime;
 using UnityEditor;
 using UnityEngine;
 
@@ -202,6 +203,49 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(fixture.Manager.CompletedTurnCount, Is.Zero);
             Assert.That(fixture.Manager.ActiveTimingEvents.Last().eventType,
                 Is.EqualTo(ExperimentTimingEventType.TurnRecoverableFailure.ToString()));
+        }
+
+        [Test]
+        public void TechnicalInvalidCondition_BlocksFurtherSpeechCapture()
+        {
+            using var fixture = new LifecycleFixture("invalid-speech-gate");
+            var orchestrator = fixture.Go.AddComponent<SceneTalkOrchestrator>();
+            Set(orchestrator, "experimentConditionManager", fixture.Manager);
+            Assert.That(fixture.Coordinator.PrepareCondition(0, false, out var error), Is.True, error);
+            fixture.Coordinator.MarkTechnicalInvalid("protocol_integrity_failure");
+            Assert.That(fixture.Coordinator.CurrentConditionAssignment.status,
+                Is.EqualTo(ConditionRunStatus.TechnicalInvalid));
+            Assert.That(orchestrator.IsTaskAttemptTechnicalInvalid, Is.True);
+
+            var gate = typeof(SceneTalkOrchestrator).GetMethod(
+                "BlockSpeechCaptureForInvalidAttempt",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            var blocked = (bool)gate!.Invoke(orchestrator, null)!;
+
+            Assert.That(blocked, Is.True);
+            Assert.That(orchestrator.IsSpeechRecording, Is.False);
+            Assert.That(orchestrator.CurrentState, Is.EqualTo(SceneTalkState.Error));
+            Assert.That(orchestrator.LastError,
+                Is.EqualTo("This task attempt is no longer valid. Please retry the task."));
+        }
+
+        [Test]
+        public void TechnicalInvalidLlmFailure_ShowsRestartMessageInsteadOfRetryMessage()
+        {
+            using var fixture = new LifecycleFixture("invalid-llm-message");
+            var orchestrator = fixture.Go.AddComponent<SceneTalkOrchestrator>();
+            Set(orchestrator, "experimentConditionManager", fixture.Manager);
+            Assert.That(fixture.Coordinator.PrepareCondition(0, false, out var error), Is.True, error);
+            var resolveMessage = typeof(SceneTalkOrchestrator).GetMethod(
+                "ResolveLlmFailureUiMessage",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.That(resolveMessage!.Invoke(orchestrator, null), Is.EqualTo("Please try again."));
+
+            fixture.Coordinator.MarkTechnicalInvalid("configuration_failure");
+
+            Assert.That(resolveMessage.Invoke(orchestrator, null),
+                Is.EqualTo("This task attempt is no longer valid. Please retry the task."));
         }
 
         [Test]

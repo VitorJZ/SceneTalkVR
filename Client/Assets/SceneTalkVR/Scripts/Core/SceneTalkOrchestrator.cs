@@ -12,6 +12,9 @@ namespace SceneTalkVR.Runtime
 {
     public sealed class SceneTalkOrchestrator : MonoBehaviour
     {
+        private const string TechnicalInvalidAttemptError =
+            "This task attempt is no longer valid. Please retry the task.";
+
         private enum SpeechCaptureMode
         {
             None,
@@ -74,6 +77,18 @@ namespace SceneTalkVR.Runtime
         public string LastCorrectionStyle { get; private set; }
         public bool LastCorrectionHasFeedback { get; private set; }
         public bool IsTurnRunning => currentTurn != null;
+        public bool IsTaskAttemptTechnicalInvalid
+        {
+            get
+            {
+                var lifecycle = ResolveExperimentConditionManager(false)?.LifecycleCoordinator;
+                var formalInvalid = lifecycle != null
+                                    && (lifecycle.TechnicalValidity == ExperimentTechnicalValidity.TechnicalInvalid
+                                        || lifecycle.CurrentConditionAssignment?.status == ConditionRunStatus.TechnicalInvalid);
+                var pilotInvalid = PilotWorkflowCoordinator.Active?.Current?.status == PilotRunStatus.TechnicalInvalid;
+                return formalInvalid || pilotInvalid;
+            }
+        }
         public bool IsDialogueActive { get; private set; }
         public bool IsSpeechRecording { get; private set; }
         public bool IsAwaitingTurnReviewAction { get; private set; }
@@ -1053,6 +1068,11 @@ namespace SceneTalkVR.Runtime
 
         private bool BeginRequestSpeechCapture()
         {
+            if (BlockSpeechCaptureForInvalidAttempt())
+            {
+                return false;
+            }
+
             if (currentTurn != null)
             {
                 if (IsSpeechRecording && activeSpeechCaptureMode == SpeechCaptureMode.Request)
@@ -1084,6 +1104,11 @@ namespace SceneTalkVR.Runtime
 
         private bool BeginDialogueSpeechCapture(bool recordContinueAction = true)
         {
+            if (BlockSpeechCaptureForInvalidAttempt())
+            {
+                return false;
+            }
+
             if (currentTurn != null)
             {
                 if (IsSpeechRecording && activeSpeechCaptureMode == SpeechCaptureMode.Dialogue)
@@ -1113,6 +1138,19 @@ namespace SceneTalkVR.Runtime
             IsAwaitingTurnReviewAction = false;
             finishRequested = false;
             currentTurn = StartCoroutine(RunDialogueTurn());
+            return true;
+        }
+
+        private bool BlockSpeechCaptureForInvalidAttempt()
+        {
+            if (!IsTaskAttemptTechnicalInvalid)
+            {
+                return false;
+            }
+
+            LastError = TechnicalInvalidAttemptError;
+            IsAwaitingTurnReviewAction = false;
+            SetState(SceneTalkState.Error);
             return true;
         }
 
@@ -1962,8 +2000,15 @@ namespace SceneTalkVR.Runtime
             Debug.LogError($"[SceneTalkVR] {fallbackMessage} {technicalMessage}", this);
             currentTurn = null;
             IsAwaitingTurnReviewAction = false;
-            LastError = "Please try again.";
+            LastError = ResolveLlmFailureUiMessage();
             SetState(SceneTalkState.Error);
+        }
+
+        private string ResolveLlmFailureUiMessage()
+        {
+            return IsTaskAttemptTechnicalInvalid
+                ? TechnicalInvalidAttemptError
+                : "Please try again.";
         }
 
         private void EnterError(string message)

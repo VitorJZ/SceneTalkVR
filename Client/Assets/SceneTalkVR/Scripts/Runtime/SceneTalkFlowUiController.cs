@@ -1370,8 +1370,14 @@ namespace SceneTalkVR.Runtime
                 var item = assignment?.conditions?.FirstOrDefault(x => x.formalConditionCode == pair.Key);
                 var status = item == null ? "不可用" : item.status == ConditionRunStatus.Completed ? "已完成"
                     : item.status == ConditionRunStatus.TechnicalInvalid ? "可重试"
-                    : item.status == ConditionRunStatus.Assigned ? "可选择" : "进行中";
-                pair.Value.interactable = item != null && (item.status == ConditionRunStatus.Assigned || item.status == ConditionRunStatus.TechnicalInvalid);
+                    : item.status == ConditionRunStatus.Assigned ? "可选择"
+                    : item.status == ConditionRunStatus.Running || item.status == ConditionRunStatus.AwaitingQuestionnaire
+                        || item.status == ConditionRunStatus.QuestionnaireInProgress ? "继续" : "进行中";
+                pair.Value.interactable = item != null && (item.status == ConditionRunStatus.Assigned
+                    || item.status == ConditionRunStatus.TechnicalInvalid
+                    || item.status == ConditionRunStatus.Running
+                    || item.status == ConditionRunStatus.AwaitingQuestionnaire
+                    || item.status == ConditionRunStatus.QuestionnaireInProgress);
                 if (formalModeStatusTexts.TryGetValue(pair.Key, out var label)) label.text = status;
             }
         }
@@ -1955,6 +1961,7 @@ namespace SceneTalkVR.Runtime
             var isTranscribing = orchestrator.CurrentState == SceneTalkState.Transcribing;
             var hasTranscript = !string.IsNullOrWhiteSpace(orchestrator.LastTranscript);
             var hasError = !string.IsNullOrWhiteSpace(orchestrator.LastError);
+            var isTechnicalInvalid = orchestrator.IsTaskAttemptTechnicalInvalid;
 
             if (requestTitleText != null)
             {
@@ -1993,9 +2000,11 @@ namespace SceneTalkVR.Runtime
                 requestErrorText.text = hasError ? SceneTalkChineseUiText.Error(orchestrator.LastError) : string.Empty;
             }
 
-            SetButtonLabel(listenButton, ResolveRequestListenButtonLabel(isRecording, hasTranscript, hasError));
-            SetInteractable(listenButton, isRecording || !isRunning);
-            SetInteractable(confirmButton, !isRunning && hasTranscript);
+            SetButtonLabel(
+                listenButton,
+                isTechnicalInvalid ? "任务失效" : ResolveRequestListenButtonLabel(isRecording, hasTranscript, hasError));
+            SetInteractable(listenButton, !isTechnicalInvalid && (isRecording || !isRunning));
+            SetInteractable(confirmButton, !isTechnicalInvalid && !isRunning && hasTranscript);
         }
 
         private void RefreshLoadingPanel(bool isVisible)
@@ -2085,15 +2094,20 @@ namespace SceneTalkVR.Runtime
             if (dialogueListenButton != null)
             {
                 var isRecording = orchestrator.IsSpeechRecording;
+                var isTechnicalInvalid = orchestrator.IsTaskAttemptTechnicalInvalid;
                 SetActive(dialogueListenButton.gameObject, true);
                 SetButtonLabel(
                     dialogueListenButton,
-                    isRecording
-                        ? "结束"
-                        : orchestrator.CurrentState == SceneTalkState.Error
-                            ? "重试"
-                            : "发言");
-                SetInteractable(dialogueListenButton, isRecording || !orchestrator.IsTurnRunning);
+                    isTechnicalInvalid
+                        ? "任务失效"
+                        : isRecording
+                            ? "结束"
+                            : orchestrator.CurrentState == SceneTalkState.Error
+                                ? "重试"
+                                : "发言");
+                SetInteractable(
+                    dialogueListenButton,
+                    !isTechnicalInvalid && (isRecording || !orchestrator.IsTurnRunning));
             }
         }
 

@@ -111,6 +111,7 @@ namespace SceneTalkVR.Runtime
                 "Avatar voice playback failed. Please retry." => "角色语音播放失败，请点击“重试”。",
                 "Correction voice playback failed. Please retry." => "纠错语音播放失败，请点击“重试”。",
                 "Speech recognition failed. Please retry recording." => "语音识别失败，请点击“重试”重新录音。",
+                "This task attempt is no longer valid. Please retry the task." => "本轮任务因技术问题失效，请退出并重新进入该任务。",
                 "Please try again." => "请重试。",
                 "Failed to load default task definition." => "无法加载默认任务。",
                 "History operation failed." => "历史记录操作失败。",
