@@ -52,6 +52,8 @@ namespace SceneTalkVR.Core
         public int CurrentPosition => currentPosition;
         public bool HasActiveDialogueCondition => IsArmed&&Stage==PilotParticipantStage.Dialogue
             &&currentPosition>=0&&workflow?.Current?.status==PilotRunStatus.Running;
+        public bool HasPendingConversationResume => HasActiveDialogueCondition
+            && orchestrator?.IsDialogueActive != true;
         public ExperimentTaskDefinition CurrentTask { get { var taskId=workflow?.Current?.task?.taskId;if(string.IsNullOrWhiteSpace(taskId)&&Assignment?.conditions!=null&&currentPosition>=0&&currentPosition<Assignment.conditions.Length)taskId=Assignment.conditions[currentPosition].task?.taskId;return manager?.TaskCatalog?.Find(taskId); } }
         public string LastBundlePath => lastBundlePath??string.Empty;
         public static string CollectionRoot => Path.Combine(Application.persistentDataPath,"SceneTalkVR","PilotCollectionSessions");
@@ -123,12 +125,18 @@ namespace SceneTalkVR.Core
                 if(stored==null){error="pilot_assignment_missing";return FailArm();}
                 if(!ValidateAssignment(stored,out error)||!workflow.LoadAssignment(stored,out error))return FailArm();
                 currentPosition=Array.FindIndex(stored.conditions,x=>x.status==PilotRunStatus.Running||x.status==PilotRunStatus.AwaitingPilotQuestionnaire||x.status==PilotRunStatus.PilotQuestionnaireInProgress||x.status==PilotRunStatus.TechnicalInvalid);
-                if(currentPosition>=0&&stored.conditions[currentPosition].status!=PilotRunStatus.TechnicalInvalid){stored.conditions[currentPosition].status=PilotRunStatus.TechnicalInvalid;Persist();Write("PilotIncompleteAttemptPreservedForResumeRetry");}
                 rankingSubmitted=File.Exists(RankingSubmittedMarkerPath);
-                if(currentPosition>=0)currentPosition=-1;
-                Stage=stored.conditions.All(x=>x.status==PilotRunStatus.Completed)
-                    ?(rankingSubmitted?PilotParticipantStage.Completion:PilotParticipantStage.FinalRanking)
-                    :PilotParticipantStage.AppearanceSelection;
+                if(currentPosition>=0&&stored.conditions[currentPosition].status!=PilotRunStatus.TechnicalInvalid)
+                {
+                    if(!ResumeStoredCondition(out error))return FailArm();
+                }
+                else
+                {
+                    currentPosition=-1;
+                    Stage=stored.conditions.All(x=>x.status==PilotRunStatus.Completed)
+                        ?(rankingSubmitted?PilotParticipantStage.Completion:PilotParticipantStage.FinalRanking)
+                        :PilotParticipantStage.AppearanceSelection;
+                }
             }
             else
             {
@@ -203,6 +211,28 @@ namespace SceneTalkVR.Core
             Persist();Stage=PilotParticipantStage.Dialogue;Write(retry?"PilotConditionRetryStarted":"PilotConditionStarted");if(!IsDeviceValidation)orchestrator.LoadAssignedTask(workflow.Current.task.taskId);RefreshUi();return true;
         }
         public bool IsTaskPrepared(string taskId)=>IsArmed&&Stage==PilotParticipantStage.Dialogue&&workflow?.Current?.status==PilotRunStatus.Running&&string.Equals(workflow.Current.task?.taskId,taskId,StringComparison.OrdinalIgnoreCase);
+        public bool StartNewConversationForResumedCondition(out string error)
+        {
+            if(!HasPendingConversationResume||currentPosition<0){error="pilot_conversation_resume_not_pending";return false;}
+            if(IsDeviceValidation){error="pilot_device_validation_conversation_restart_not_supported";return false;}
+            if(!GatewayTransportRouter.CanStartLiveAttempt(out error))return false;
+            var selected=workflow.Current;
+            PersistGoals();
+            if(!workflow.Prepare(currentPosition,false,out error))return false;
+            ExperimentSessionCoordinator.Active?.NotifyAttemptStarted(
+                PilotProtocolValues.Label(selected.embodimentCondition),
+                selected.task.taskId,
+                workflow.PilotRunId,
+                selected.runAttempt);
+            PersistGoals();Persist();Stage=PilotParticipantStage.Dialogue;
+            Write("PilotConversationRestarted",$"sessionRun={workflow.PilotRunId}",false,"participant");
+            orchestrator.LoadAssignedTask(selected.task.taskId);RefreshUi();error="";return true;
+        }
+        public void RecordConversationResumed(string conversationSessionId)
+        {
+            if(!HasActiveDialogueCondition)return;
+            Persist();Write("PilotConversationResumed",$"sessionId={conversationSessionId};runId={workflow.PilotRunId}",false,"participant");RefreshUi();
+        }
         public bool SubmitQuestionnaire(out string error)
             => CompleteQuestionnaire(false, out error);
         public bool SkipQuestionnaire(out string error)
@@ -283,8 +313,7 @@ namespace SceneTalkVR.Core
                 if(workflow?.Current!=null&&workflow.Current.status!=PilotRunStatus.Completed
                     &&workflow.Current.status!=PilotRunStatus.TechnicalInvalid)
                 {
-                    workflow.MarkTechnicalInvalid("ParticipantExitCheckpoint",reason);
-                    Persist();
+                    PersistGoals();workflow.SuspendForCheckpoint(reason);Persist();
                 }
                 Write("PilotSessionSuspended","reason="+reason,false,"participant");
             }
@@ -332,6 +361,48 @@ namespace SceneTalkVR.Core
         private string RankingSubmittedMarkerPath=>Path.Combine(CurrentDataFolder,"pilot_ranking_submitted.marker");
         private void Persist(){if(IsArmed&&Assignment!=null)PilotAssignmentAllocator.Save(Assignment,AssignmentPath);}
         private void PersistGoals(){if(!IsArmed||string.IsNullOrWhiteSpace(workflow.PilotRunId)||workflow.Current==null)return;Directory.CreateDirectory(CurrentDataFolder);var file=$"pilot_goals_{workflow.Current.conditionPosition}_{workflow.Current.runAttempt}.json";File.WriteAllText(Path.Combine(CurrentDataFolder,file),JsonUtility.ToJson(new PilotGoalSnapshot{participantId=ParticipantId,sessionId=SessionId,pilotRunId=workflow.PilotRunId,taskId=workflow.Current.task.taskId,savedAtUtc=DateTime.UtcNow.ToString("o"),goals=workflow.Goals.Goals.ToArray(),sequence=workflow.Goals.CaptureSequenceSnapshot()},true),Encoding.UTF8);}
+        private PilotGoalSnapshot LoadGoalSnapshot(PilotConditionAssignment condition)
+        {
+            if(condition==null)return null;
+            var path=Path.Combine(CurrentDataFolder,$"pilot_goals_{condition.conditionPosition}_{condition.runAttempt}.json");
+            if(!File.Exists(path))return null;
+            try
+            {
+                var value=JsonUtility.FromJson<PilotGoalSnapshot>(File.ReadAllText(path,Encoding.UTF8));
+                return value!=null
+                    &&string.Equals(value.pilotRunId,condition.latestPilotRunId,StringComparison.Ordinal)
+                    &&string.Equals(value.taskId,condition.task?.taskId,StringComparison.OrdinalIgnoreCase)
+                    ?value:null;
+            }
+            catch(Exception exception)
+            {
+                Debug.LogWarning("[PilotCollection] Failed to load goal snapshot: "+exception.Message,this);
+                return null;
+            }
+        }
+        private bool ResumeStoredCondition(out string error)
+        {
+            var condition=Assignment?.conditions?[currentPosition];
+            var snapshot=LoadGoalSnapshot(condition);
+            if(!workflow.Resume(currentPosition,snapshot?.goals,snapshot?.sequence,out error))return false;
+            if(condition.status==PilotRunStatus.Running&&workflow.Goals.IsSequenceCompleted)
+                workflow.CompleteTask();
+            if(condition.status==PilotRunStatus.AwaitingPilotQuestionnaire)
+            {
+                if(!workflow.BeginQuestionnaire(out error))return false;
+                Persist();Stage=PilotParticipantStage.Questionnaire;return true;
+            }
+            if(condition.status==PilotRunStatus.PilotQuestionnaireInProgress)
+            {
+                if(!workflow.RestoreQuestionnaireDraft(CurrentDataFolder,out error))
+                {
+                    var legacyFolder=Path.Combine(Application.persistentDataPath,"SceneTalkVR","ExperimentLogs");
+                    if(!workflow.RestoreQuestionnaireDraft(legacyFolder,out error))return false;
+                }
+                Stage=PilotParticipantStage.Questionnaire;return true;
+            }
+            Stage=PilotParticipantStage.Dialogue;return true;
+        }
         private bool TryApplyConfirmedRunLimits(ExperimentV11ProtocolConfig protocol,out string error){if(protocol==null||!protocol.TryGetConfirmedDecision("pilot_max_turns",out var turnsValue)||!int.TryParse(turnsValue,out var turns)||turns<=0){error="pilot_max_turns_invalid";return false;}if(!protocol.TryGetConfirmedDecision("pilot_max_duration",out var durationValue)){error="pilot_max_duration_invalid";return false;}var token=new string(durationValue.TakeWhile(c=>char.IsDigit(c)||c=='.').ToArray());if(!float.TryParse(token,System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var minutes)||minutes<=0f){error="pilot_max_duration_invalid";return false;}workflow.ConfigureRunLimits(turns,minutes);error="";return true;}
         private bool ValidateAssignment(PilotAssignment value,out string error){var expectedMode=RuntimeContext?.deploymentTarget==ExperimentDeploymentTarget.Pico?ExperimentRuntimeMode.PicoCollectionPilot:ExperimentRuntimeMode.EditorCollectionPilot;if(value==null||value.flowMode!=ExperimentFlowMode.Pilot||value.runQualification!=ExperimentRunQualification.Collection||value.dataOrigin!="participant_collection"||!value.collectionEligible||value.developerTestAssignment||value.demoMode||value.conditions?.Length!=3||value.runtimeMode!=expectedMode||value.deploymentProfile!=RuntimeContext?.deploymentProfile){error="pilot_collection_assignment_invalid";return false;}return PilotAssignmentAllocator.IsCompatible(value,manager.ExperimentProtocol.ProtocolVersion,manager.TaskCatalog.CatalogVersion,out error);}
         private bool FailArm(){manager?.ExitEditorCollectionMode();ResetRuntime();RuntimeContext=null;Stage=PilotParticipantStage.Setup;return false;}

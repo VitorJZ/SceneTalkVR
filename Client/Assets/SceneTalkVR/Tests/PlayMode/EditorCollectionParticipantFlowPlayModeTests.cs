@@ -267,6 +267,69 @@ namespace SceneTalkVR.Tests.PlayMode
             Assert.That(Active("EditorDemoStatusPanel"), Is.False);
         }
 
+        [UnityTest] public IEnumerator T12_ResumeOffersOldOrNewConversationAndAppliesMatchingGoalPolicy()
+        {
+            Click("FormalExperimentButton"); yield return null;
+            var experiment = Find("SceneTalkVR.Core.ExperimentSessionCoordinator, Assembly-CSharp");
+            var orchestrator = Find("SceneTalkVR.Runtime.SceneTalkOrchestrator, Assembly-CSharp");
+            var memory = Find("SceneTalkVR.History.LearningMemoryService, Assembly-CSharp");
+            var experimentId = (string)Get(Get(Get(experiment, "CurrentExperiment"), "summary"), "experimentId");
+            var assignment = Get(collection, "Assignment");
+            var selected = ConditionForTask(assignment, "hotel_check_in");
+            Click(Get(selected, "formalConditionCode") + "ModeButton");
+            for (var i = 0; i < 30 && string.IsNullOrWhiteSpace((string)Get(memory, "ActiveSessionId")); i++)
+                yield return null;
+            var originalConversationId = (string)Get(memory, "ActiveSessionId");
+            var originalRunId = (string)Get(collection, "CurrentRunId");
+            Assert.That(originalConversationId, Is.Not.Empty);
+            const string restoredUserText = "Please keep this hotel conversation in context.";
+            memory.GetType().GetMethod("AppendTurn").Invoke(memory, new[]
+            {
+                restoredUserText,
+                Get(orchestrator, "LastScenePayload")
+            });
+            Assert.That(Evaluate("My name is Harry Potter."), Is.EqualTo(1));
+            CompleteEvaluatedTurn(expectedAdvance: false); yield return null;
+            Assert.That(GoalState(Get(lifecycle, "GoalTracker"), "reservation_name"), Is.EqualTo("Confirmed"));
+
+            Click("ExitButton"); yield return null;
+            Click("ExitButton"); yield return null;
+            Click("ConfirmExitExperimentButton"); yield return null;
+            var continueArgs = new object[] { experimentId, null };
+            Assert.That((bool)experiment.GetType().GetMethod("ContinueExperiment").Invoke(experiment, continueArgs),
+                Is.True, continueArgs[1] as string);
+            yield return null;
+
+            Assert.That(Active("ExperimentConversationResumePanel"), Is.True);
+            Assert.That((string)Get(experiment, "SelectedConversationResumeSessionId"), Is.EqualTo(originalConversationId));
+            Assert.That(Button("ContinueSelectedConversationButton").interactable, Is.True);
+            Click("ContinueSelectedConversationButton");
+            for (var i = 0; i < 30 && Get(orchestrator, "CurrentState").ToString() != "TurnReview"; i++)
+                yield return null;
+            Assert.That((string)Get(memory, "ActiveSessionId"), Is.EqualTo(originalConversationId));
+            Assert.That((string)Get(collection, "CurrentRunId"), Is.EqualTo(originalRunId));
+            Assert.That((string)Get(orchestrator, "LastTranscript"), Is.EqualTo(restoredUserText));
+            Assert.That(((IEnumerable)Get(memory.GetType().GetMethod("GetSession").Invoke(
+                memory,
+                new object[] { originalConversationId }), "turns")).Cast<object>().Count(), Is.EqualTo(2));
+            Assert.That(GoalState(Get(lifecycle, "GoalTracker"), "reservation_name"), Is.EqualTo("Confirmed"));
+
+            Click("ExitButton"); yield return null;
+            Click("ExitButton"); yield return null;
+            Click("ConfirmExitExperimentButton"); yield return null;
+            continueArgs = new object[] { experimentId, null };
+            Assert.That((bool)experiment.GetType().GetMethod("ContinueExperiment").Invoke(experiment, continueArgs),
+                Is.True, continueArgs[1] as string);
+            yield return null;
+            Assert.That(Active("ExperimentConversationResumePanel"), Is.True);
+            Click("StartNewExperimentConversationButton");
+            for (var i = 0; i < 30 && string.IsNullOrWhiteSpace((string)Get(memory, "ActiveSessionId")); i++)
+                yield return null;
+            Assert.That((string)Get(memory, "ActiveSessionId"), Is.Not.EqualTo(originalConversationId));
+            Assert.That((string)Get(collection, "CurrentRunId"), Is.Not.EqualTo(originalRunId));
+            Assert.That(GoalState(Get(lifecycle, "GoalTracker"), "reservation_name"), Is.EqualTo("NotStarted"));
+        }
+
         private void Arm(out object assignment)
         { var token = Guid.NewGuid().ToString("N"); var args = new object[] { "PLAY-" + token, "SESSION-" + token, false, null }; Assert.That((bool)collection.GetType().GetMethod("ArmParticipantSession").Invoke(collection, args), Is.True, args[3] as string); assignment = Get(collection, "Assignment"); Assert.That((bool)Get(assignment, "collectionEligible"), Is.True); Assert.That((bool)Get(assignment, "developerTestAssignment"), Is.False); }
         private int Evaluate(string transcript, string speaker = "participant") { lastEvaluatedTurnId = Guid.NewGuid().ToString("N"); var type = Type.GetType("SceneTalkVR.Core.GoalEvaluationOrchestrator, Assembly-CSharp"); type.GetMethod("NotifyParticipantTurnSubmitted").Invoke(null, new object[] { lifecycle, null, lastEvaluatedTurnId, transcript, speaker }); return (int)type.GetMethod("EvaluateUserTranscript").Invoke(null, new object[] { lifecycle, lastEvaluatedTurnId, transcript, speaker }); }

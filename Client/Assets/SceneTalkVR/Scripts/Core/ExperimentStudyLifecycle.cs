@@ -209,6 +209,10 @@ namespace SceneTalkVR.Core
 
         public bool ResumeCondition(int position, IEnumerable<GoalProgressRecord> restoredGoals,
             GoalSequenceSnapshot restoredSequence, out string error)
+            => ResumeCondition(position, restoredGoals, restoredSequence, true, out error);
+
+        public bool ResumeCondition(int position, IEnumerable<GoalProgressRecord> restoredGoals,
+            GoalSequenceSnapshot restoredSequence, bool startDialogue, out string error)
         {
             error = string.Empty;
             if (assignment?.conditions == null || position < 0 || position >= assignment.conditions.Length)
@@ -232,7 +236,7 @@ namespace SceneTalkVR.Core
             {
                 if (goalTracker.IsSequenceCompleted)
                     CompleteTask("all_goals_confirmed", "system_resume");
-                else
+                else if (startDialogue)
                     orchestrator?.LoadAssignedTask(item.task.taskId);
             }
             return true;

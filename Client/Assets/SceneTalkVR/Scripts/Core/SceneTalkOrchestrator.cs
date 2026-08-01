@@ -324,6 +324,7 @@ namespace SceneTalkVR.Runtime
                 case SceneTalkState.ExperimentHistoryQuestionnaireDetail:
                 case SceneTalkState.ExperimentHistoryDeleteConfirm:
                 case SceneTalkState.ExperimentHistoryError:
+                case SceneTalkState.ExperimentConversationResumeChoice:
                     SetState(state);
                     break;
             }
@@ -518,7 +519,50 @@ namespace SceneTalkVR.Runtime
                 return;
             }
 
-            currentTurn = StartCoroutine(RestoreHistorySession(SelectedHistorySession));
+            currentTurn = StartCoroutine(RestoreHistorySession(
+                SelectedHistorySession,
+                false,
+                string.Empty,
+                null,
+                null));
+        }
+
+        internal bool RestoreExperimentConversation(
+            LearningSessionDetail session,
+            string expectedTaskId,
+            Action<string> onComplete,
+            Action<string> onError,
+            out string error)
+        {
+            error = string.Empty;
+            if (currentTurn != null)
+            {
+                error = "conversation_restore_in_progress";
+                return false;
+            }
+            if (session?.summary == null || !session.summary.IsExperimentConversation)
+            {
+                error = "experiment_conversation_missing";
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(expectedTaskId))
+            {
+                error = "experiment_conversation_task_missing";
+                return false;
+            }
+            if (Brain == null || ScenePresenter == null || AvatarVoice == null)
+            {
+                error = "experiment_conversation_modules_missing";
+                return false;
+            }
+
+            currentTurn = StartCoroutine(RestoreHistorySession(
+                session,
+                true,
+                expectedTaskId,
+                onComplete,
+                onError));
+            return true;
         }
 
         public void ChangeCorrectionProviderSetting()
@@ -1520,7 +1564,12 @@ namespace SceneTalkVR.Runtime
             };
         }
 
-        private IEnumerator RestoreHistorySession(LearningSessionDetail session)
+        private IEnumerator RestoreHistorySession(
+            LearningSessionDetail session,
+            bool experimentResume,
+            string expectedTaskId,
+            Action<string> onComplete,
+            Action<string> onError)
         {
             SetState(SceneTalkState.HistoryRestoring);
             LastError = string.Empty;
@@ -1538,6 +1587,31 @@ namespace SceneTalkVR.Runtime
             if (string.IsNullOrWhiteSpace(error) && restoredCondition == null)
             {
                 error = "The stored correction condition is missing.";
+            }
+            else if (string.IsNullOrWhiteSpace(error) && experimentResume)
+            {
+                var current = manager.CurrentCondition;
+                var storedTaskId = restoredCondition.task?.taskId ?? restoredCondition.scenarioId;
+                if (!manager.IsFormalExperiment)
+                {
+                    error = "Experiment conversation restoration requires an active experiment assignment.";
+                }
+                else if (!string.Equals(storedTaskId, expectedTaskId, StringComparison.OrdinalIgnoreCase)
+                    || !string.Equals(restoredCondition.provider, current?.provider, StringComparison.OrdinalIgnoreCase)
+                    || !string.Equals(restoredCondition.style, current?.style, StringComparison.OrdinalIgnoreCase))
+                {
+                    error = "The stored conversation does not match the active experiment condition.";
+                }
+                else if (!manager.RestoreAssignedConversationRuntime(
+                    session.summary.sessionId,
+                    expectedTaskId,
+                    session.summary.turnCount,
+                    out error))
+                {
+                    error = string.IsNullOrWhiteSpace(error)
+                        ? "The experiment conversation runtime could not be restored."
+                        : error;
+                }
             }
             else if (string.IsNullOrWhiteSpace(error))
             {
@@ -1597,7 +1671,10 @@ namespace SceneTalkVR.Runtime
             {
                 ResolveLearningMemoryService(false)?.EndActiveSession();
                 currentTurn = null;
-                EnterHistoryError($"Failed to continue history. {error}");
+                if (experimentResume)
+                    onError?.Invoke(error);
+                else
+                    EnterHistoryError($"Failed to continue history. {error}");
                 yield break;
             }
 
@@ -1628,6 +1705,7 @@ namespace SceneTalkVR.Runtime
             CurrentHistoryPage = null;
             currentTurn = null;
             SetState(SceneTalkState.TurnReview);
+            onComplete?.Invoke(session.summary.sessionId);
         }
 
         private ConversationSettingsSnapshot BuildHistorySettingsSnapshot(string sessionId)

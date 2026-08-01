@@ -34,6 +34,7 @@ namespace SceneTalkVR.Core
         TurnReview,
         Questionnaire,
         Finished,
-        Error
+        Error,
+        ExperimentConversationResumeChoice
     }
 }

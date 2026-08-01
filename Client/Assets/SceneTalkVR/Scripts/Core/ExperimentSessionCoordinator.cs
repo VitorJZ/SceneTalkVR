@@ -23,6 +23,9 @@ namespace SceneTalkVR.Core
         private QuestionnaireRuntimeController formalQuestionnaire;
         private bool subscribed;
         private SceneTalkState exitReturnState = SceneTalkState.ExperimentSelection;
+        private const int ConversationResumeCandidateLimit = 5;
+        private string pendingConversationTaskId = string.Empty;
+        private string pendingConversationRunId = string.Empty;
 
         public ExperimentRecordDetail CurrentExperiment { get; private set; }
         public ExperimentRecordPage CurrentHistoryPage { get; private set; }
@@ -30,13 +33,23 @@ namespace SceneTalkVR.Core
         public LearningSessionDetail SelectedConversation { get; private set; }
         public ExperimentQuestionnaireRecord SelectedQuestionnaire { get; private set; }
         public string ErrorMessage { get; private set; }
+        public LearningSessionSummary[] ConversationResumeCandidates { get; private set; }
+            = Array.Empty<LearningSessionSummary>();
+        public string SelectedConversationResumeSessionId { get; private set; }
+            = string.Empty;
+        public bool IsConversationResumeChoicePending => HasActiveExperiment
+            && !string.IsNullOrWhiteSpace(pendingConversationTaskId)
+            && !string.IsNullOrWhiteSpace(pendingConversationRunId);
+        public string PendingConversationTaskId => pendingConversationTaskId;
+        public string PendingConversationRunId => pendingConversationRunId;
 
         public bool HasActiveExperiment => CurrentExperiment?.summary != null;
         public bool IsComplete => CurrentExperiment?.summary?.status == ExperimentRecordStatus.Completed;
         public ExperimentKind? ActiveKind => CurrentExperiment?.summary == null
             ? null
             : CurrentExperiment.summary.kind;
-        public bool HasActiveConversation => HasActiveExperiment && (ActiveKind == ExperimentKind.Pilot
+        public bool HasActiveConversation => HasActiveExperiment && !IsConversationResumeChoicePending
+            && (ActiveKind == ExperimentKind.Pilot
             ? pilot?.HasActiveDialogueCondition == true
             : formalCollection?.HasActiveDialogueCondition == true
                 || rehearsal?.IsFormal == true && rehearsal.HasActiveDialogueCondition);
@@ -167,9 +180,227 @@ namespace SceneTalkVR.Core
                         ? formalCollection.CurrentDataFolder
                         : rehearsal?.CurrentDataFolder));
             RefreshCurrentExperiment();
-            orchestrator.SetExperimentNavigationState(ResolveRuntimeNavigationState(experiment.summary.kind));
+            var conversationChoicePending = resume && PrepareConversationResumeChoice(experiment.summary.kind);
+            orchestrator.SetExperimentNavigationState(conversationChoicePending
+                ? SceneTalkState.ExperimentConversationResumeChoice
+                : ResolveRuntimeNavigationState(experiment.summary.kind));
             error = string.Empty;
             return true;
+        }
+
+        private bool PrepareConversationResumeChoice(ExperimentKind kind)
+        {
+            var pending = kind == ExperimentKind.Pilot
+                ? pilot?.HasPendingConversationResume == true
+                : formalCollection?.HasPendingConversationResume == true;
+            if (!pending)
+            {
+                ClearConversationResumeChoice();
+                return false;
+            }
+
+            pendingConversationTaskId = kind == ExperimentKind.Pilot
+                ? pilot.CurrentTask?.taskId ?? string.Empty
+                : formalCollection.CurrentTaskId;
+            pendingConversationRunId = kind == ExperimentKind.Pilot
+                ? pilot.Workflow?.PilotRunId ?? string.Empty
+                : formalCollection.CurrentRunId;
+            if (string.IsNullOrWhiteSpace(pendingConversationTaskId)
+                || string.IsNullOrWhiteSpace(pendingConversationRunId))
+            {
+                ClearConversationResumeChoice();
+                return false;
+            }
+
+            var attempts = (CurrentExperiment?.attempts ?? Array.Empty<ExperimentAttemptRecord>())
+                .Where(item => item != null
+                    && !string.IsNullOrWhiteSpace(item.attemptId)
+                    && string.Equals(item.runId, pendingConversationRunId, StringComparison.Ordinal)
+                    && (item.status == ExperimentAttemptStatus.Suspended
+                        || item.status == ExperimentAttemptStatus.Running))
+                .GroupBy(item => item.attemptId, StringComparer.Ordinal)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.OrderByDescending(item => item.startedAtUnixMs).First(),
+                    StringComparer.Ordinal);
+            ConversationResumeCandidates = (CurrentExperiment?.conversations
+                    ?? Array.Empty<LearningSessionSummary>())
+                .Where(item => IsMatchingConversationCandidate(
+                    item,
+                    CurrentExperiment.summary.experimentId,
+                    kind,
+                    pendingConversationTaskId,
+                    pendingConversationRunId,
+                    attempts))
+                .OrderByDescending(item => item.updatedAtUnixMs)
+                .ThenByDescending(item => item.createdAtUnixMs)
+                .Take(ConversationResumeCandidateLimit)
+                .ToArray();
+            SelectedConversationResumeSessionId = ConversationResumeCandidates.FirstOrDefault()?.sessionId
+                ?? string.Empty;
+            ErrorMessage = string.Empty;
+            return true;
+        }
+
+        private static bool IsMatchingConversationCandidate(
+            LearningSessionSummary item,
+            string experimentId,
+            ExperimentKind kind,
+            string taskId,
+            string runId,
+            IReadOnlyDictionary<string, ExperimentAttemptRecord> attempts)
+        {
+            if (item == null
+                || string.IsNullOrWhiteSpace(item.sessionId)
+                || string.IsNullOrWhiteSpace(item.experimentAttemptId)
+                || !string.Equals(item.experimentId, experimentId, StringComparison.Ordinal)
+                || !string.Equals(item.experimentKind, kind.ToString(), StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(item.experimentRunId, runId, StringComparison.Ordinal)
+                || !attempts.TryGetValue(item.experimentAttemptId, out var attempt)
+                || !string.Equals(attempt.experimentId, experimentId, StringComparison.Ordinal)
+                || !string.Equals(attempt.runId, runId, StringComparison.Ordinal)
+                || !string.Equals(attempt.taskId, taskId, StringComparison.OrdinalIgnoreCase)
+                || (attempt.status != ExperimentAttemptStatus.Suspended
+                    && attempt.status != ExperimentAttemptStatus.Running))
+                return false;
+            return string.Equals(item.taskType, taskId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(item.scenarioId, taskId, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public bool SelectConversationToResume(string sessionId)
+        {
+            if (!IsConversationResumeChoicePending || string.IsNullOrWhiteSpace(sessionId)) return false;
+            var selected = ConversationResumeCandidates.FirstOrDefault(item => string.Equals(
+                item.sessionId,
+                sessionId,
+                StringComparison.Ordinal));
+            if (selected == null) return false;
+            SelectedConversationResumeSessionId = selected.sessionId;
+            ErrorMessage = string.Empty;
+            orchestrator.SetExperimentNavigationState(SceneTalkState.ExperimentConversationResumeChoice);
+            return true;
+        }
+
+        public void ContinueSelectedExperimentConversation()
+        {
+            if (!ContinueSelectedExperimentConversation(out var error))
+                ReportConversationResumeError(error);
+        }
+
+        public bool ContinueSelectedExperimentConversation(out string error)
+        {
+            error = string.Empty;
+            if (!IsConversationResumeChoicePending)
+            { error = "experiment_conversation_resume_not_pending"; return false; }
+            if (string.IsNullOrWhiteSpace(SelectedConversationResumeSessionId))
+            { error = "experiment_conversation_not_selected"; return false; }
+
+            var summary = ConversationResumeCandidates.FirstOrDefault(item => string.Equals(
+                item.sessionId,
+                SelectedConversationResumeSessionId,
+                StringComparison.Ordinal));
+            var session = summary == null ? null : learningMemory.GetSession(summary.sessionId);
+            if (!ValidateConversationForResume(session, out error)) return false;
+            if (!history.ResumeAttempt(
+                    session.summary.experimentAttemptId,
+                    pendingConversationRunId,
+                    pendingConversationTaskId,
+                    out error))
+                return false;
+            if (!orchestrator.RestoreExperimentConversation(
+                    session,
+                    pendingConversationTaskId,
+                    OnExperimentConversationRestored,
+                    OnExperimentConversationRestoreFailed,
+                    out error))
+            {
+                history.CompleteAttempt(ExperimentAttemptStatus.Suspended, "conversation_restore_start_failed");
+                return false;
+            }
+            return true;
+        }
+
+        public void StartNewExperimentConversation()
+        {
+            if (!StartNewExperimentConversation(out var error))
+                ReportConversationResumeError(error);
+        }
+
+        public bool StartNewExperimentConversation(out string error)
+        {
+            error = string.Empty;
+            if (!IsConversationResumeChoicePending)
+            { error = "experiment_conversation_resume_not_pending"; return false; }
+            var started = ActiveKind == ExperimentKind.Pilot
+                ? pilot.StartNewConversationForResumedCondition(out error)
+                : formalCollection.StartNewConversationForResumedCondition(out error);
+            if (!started) return false;
+            ClearConversationResumeChoice();
+            RefreshCurrentExperiment();
+            return true;
+        }
+
+        private bool ValidateConversationForResume(LearningSessionDetail session, out string error)
+        {
+            error = string.Empty;
+            if (session?.summary == null || session.settings == null)
+            { error = "experiment_conversation_missing"; return false; }
+            var experimentId = CurrentExperiment?.summary?.experimentId ?? string.Empty;
+            var expectedKind = ActiveKind?.ToString() ?? string.Empty;
+            if (!string.Equals(session.summary.experimentId, experimentId, StringComparison.Ordinal)
+                || !string.Equals(session.settings.experimentId, experimentId, StringComparison.Ordinal)
+                || !string.Equals(session.summary.experimentKind, expectedKind, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(session.settings.experimentKind, expectedKind, StringComparison.OrdinalIgnoreCase))
+            { error = "experiment_conversation_experiment_mismatch"; return false; }
+            if (!string.Equals(session.summary.experimentRunId, pendingConversationRunId, StringComparison.Ordinal)
+                || !string.Equals(session.settings.experimentRunId, pendingConversationRunId, StringComparison.Ordinal))
+            { error = "experiment_conversation_run_mismatch"; return false; }
+            if (!string.Equals(session.summary.experimentAttemptId, session.settings.experimentAttemptId, StringComparison.Ordinal)
+                || string.IsNullOrWhiteSpace(session.summary.experimentAttemptId))
+            { error = "experiment_conversation_attempt_mismatch"; return false; }
+            if (!string.Equals(session.summary.taskType, pendingConversationTaskId, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(session.summary.scenarioId, pendingConversationTaskId, StringComparison.OrdinalIgnoreCase))
+            { error = "experiment_conversation_task_mismatch"; return false; }
+            var settingsTaskId = session.settings.condition?.task?.taskId
+                ?? session.settings.condition?.scenarioId
+                ?? string.Empty;
+            if (!string.Equals(settingsTaskId, pendingConversationTaskId, StringComparison.OrdinalIgnoreCase))
+            { error = "experiment_conversation_settings_task_mismatch"; return false; }
+            return true;
+        }
+
+        private void OnExperimentConversationRestored(string sessionId)
+        {
+            if (ActiveKind == ExperimentKind.Pilot)
+                pilot?.RecordConversationResumed(sessionId);
+            else
+                formalCollection?.RecordConversationResumed(sessionId);
+            ClearConversationResumeChoice();
+            RefreshCurrentExperiment();
+        }
+
+        private void OnExperimentConversationRestoreFailed(string message)
+        {
+            history.CompleteAttempt(ExperimentAttemptStatus.Suspended, "conversation_restore_failed");
+            ReportConversationResumeError(message);
+        }
+
+        private void ReportConversationResumeError(string message)
+        {
+            ErrorMessage = string.IsNullOrWhiteSpace(message)
+                ? "experiment_conversation_restore_failed"
+                : message;
+            orchestrator?.SetExperimentNavigationState(SceneTalkState.ExperimentConversationResumeChoice);
+            Debug.LogError("[ExperimentHistory] Conversation resume failed: " + ErrorMessage, this);
+        }
+
+        private void ClearConversationResumeChoice()
+        {
+            pendingConversationTaskId = string.Empty;
+            pendingConversationRunId = string.Empty;
+            ConversationResumeCandidates = Array.Empty<LearningSessionSummary>();
+            SelectedConversationResumeSessionId = string.Empty;
+            ErrorMessage = string.Empty;
         }
 
         private SceneTalkState ResolveRuntimeNavigationState(ExperimentKind kind)
@@ -432,6 +663,7 @@ namespace SceneTalkVR.Core
             history?.ClearRuntimeContext();
             CurrentExperiment = null;
             SelectedExperiment = null;
+            ClearConversationResumeChoice();
             orchestrator.ReturnToInitialMenu();
         }
 

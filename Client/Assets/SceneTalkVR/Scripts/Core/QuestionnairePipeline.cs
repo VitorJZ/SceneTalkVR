@@ -317,6 +317,8 @@ namespace SceneTalkVR.Core
             : ResolveDraftPath(DefaultFolder, ActiveSession.questionnaireLinkageKey);
         public static string DefaultFolder => EditorCollectionSessionCoordinator.Active != null && EditorCollectionSessionCoordinator.Active.IsArmed
             ? EditorCollectionSessionCoordinator.Active.CurrentDataFolder
+            : PilotCollectionSessionCoordinator.Active != null && PilotCollectionSessionCoordinator.Active.IsArmed
+            ? PilotCollectionSessionCoordinator.Active.CurrentDataFolder
             : RehearsalSessionCoordinator.Active != null && RehearsalSessionCoordinator.Active.IsActive
             ? RehearsalSessionCoordinator.Active.CurrentDataFolder
             : EditorDemoSessionCoordinator.Active != null && EditorDemoSessionCoordinator.Active.IsDemoMode

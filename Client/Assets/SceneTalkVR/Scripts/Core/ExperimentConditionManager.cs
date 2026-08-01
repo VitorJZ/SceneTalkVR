@@ -430,6 +430,41 @@ namespace SceneTalkVR.Core
             return true;
         }
 
+        public bool RestoreAssignedConversationRuntime(
+            string conversationSessionId,
+            string expectedTaskId,
+            int restoredCompletedTurnCount,
+            out string error)
+        {
+            error = string.Empty;
+            if (!assignmentConditionActive)
+            {
+                error = "experiment_assignment_not_active";
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(conversationSessionId))
+            {
+                error = "conversation_session_missing";
+                return false;
+            }
+
+            var currentTaskId = CurrentTask?.taskId ?? CurrentCondition?.scenarioId ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(expectedTaskId)
+                || !string.Equals(currentTaskId, expectedTaskId.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                error = "conversation_task_mismatch";
+                return false;
+            }
+
+            ResetConversationRuntimeState();
+            sessionId = conversationSessionId.Trim();
+            turnIndex = Mathf.Max(0, restoredCompletedTurnCount);
+            completedTurnCount = Mathf.Max(0, restoredCompletedTurnCount);
+            RefreshCondition(false);
+            NotifyConditionChanged();
+            return true;
+        }
+
         public CorrectionExperimentCondition EnsureActiveTurn()
         {
             if (activeTurnLog == null)

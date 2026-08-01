@@ -52,6 +52,93 @@ namespace SceneTalkVR.Core
             {error="pilot_assistant_embodiment_override_invalid";return Invalid("Presentation",error);}
             goals.ResetGoals(conditionManager.TaskCatalog.Find(current.task.taskId),new GoalTrackingContext{participantId=assignment.participantId,sessionId=assignment.sessionId,conditionRunId=PilotRunId,taskAssignmentId=current.task.taskAssignmentId,taskId=current.task.taskId,confirmationPolicy=GoalConfirmationPolicy.AutomaticOnValidatedDetection,sequencePolicy=GoalSequencePolicy.SequentialAfterConfirmationWithFinalReplyCompletion});conditionStartedUtc=DateTime.UtcNow;conditionStartCompletedTurn=conditionManager.CompletedTurnCount;current.status=PilotRunStatus.Running;Write("PilotConditionStarted");RunStatusChanged?.Invoke(current.status);return true;
         }
+        public bool Resume(
+            int position,
+            GoalProgressRecord[] restoredGoals,
+            GoalSequenceSnapshot restoredSequence,
+            out string error)
+        {
+            error = string.Empty;
+            if (assignment?.conditions == null || position < 0 || position >= assignment.conditions.Length)
+            { error = "pilot_condition_missing"; return false; }
+            var next = assignment.conditions[position];
+            if (next.status != PilotRunStatus.Running
+                && next.status != PilotRunStatus.AwaitingPilotQuestionnaire
+                && next.status != PilotRunStatus.PilotQuestionnaireInProgress)
+            { error = "pilot_condition_not_resumable:" + next.status; return false; }
+            if (string.IsNullOrWhiteSpace(next.latestPilotRunId))
+            { error = "pilot_run_id_missing"; return false; }
+
+            presenter.ResetSession();
+            questionnaire.Reset();
+            goals.ResetGoals(null);
+            userSpeechEndedMs = feedbackStartedMs = feedbackEndedMs = dialogueStartedMs = -1;
+            feedbackStartedAt = feedbackEndedAt = string.Empty;
+            current = next;
+            PilotRunId = current.latestPilotRunId;
+            QuestionnaireLinkageKey = "pql-" + PilotRunId;
+
+            var profile = assignment.runQualification == ExperimentRunQualification.Rehearsal
+                          && RehearsalSessionCoordinator.Active != null
+                ? RehearsalSessionCoordinator.Active.ResolvePilotProfile(current.embodimentCondition)
+                : assignment.demoMode && EditorDemoSessionCoordinator.Active != null
+                    ? EditorDemoSessionCoordinator.Active.ResolvePilotProfile(current.embodimentCondition)
+                    : conditionManager.PilotPresentationCatalog?.Find(current.embodimentCondition);
+            if (profile == null) { error = "pilot_profile_missing"; return false; }
+            if (!presenter.Configure(profile, assignment.voiceOnlyAudioPolicy, !assignment.developerTestAssignment, out error))
+                return false;
+            if (!conditionManager.ApplyPilotAssignment(
+                    assignment.feedbackStyle,
+                    current.task.taskId,
+                    assignment.participantId,
+                    assignment.sessionId,
+                    out error))
+                return false;
+            if (!conditionManager.SetExperimentAssistantEmbodiment(
+                    PilotEmbodimentPresenter.AppearanceIdFor(current.embodimentCondition)))
+            { error = "pilot_assistant_embodiment_override_invalid"; return false; }
+
+            var task = conditionManager.TaskCatalog.Find(current.task.taskId);
+            goals.RestoreGoals(task, new GoalTrackingContext
+            {
+                participantId = assignment.participantId,
+                sessionId = assignment.sessionId,
+                conditionRunId = PilotRunId,
+                taskAssignmentId = current.task.taskAssignmentId,
+                taskId = current.task.taskId,
+                confirmationPolicy = GoalConfirmationPolicy.AutomaticOnValidatedDetection,
+                sequencePolicy = GoalSequencePolicy.SequentialAfterConfirmationWithFinalReplyCompletion
+            }, restoredGoals, restoredSequence);
+            conditionStartedUtc = DateTime.UtcNow;
+            conditionStartCompletedTurn = 0;
+            Write("PilotConditionResumed");
+            RunStatusChanged?.Invoke(current.status);
+            return true;
+        }
+
+        public bool RestoreQuestionnaireDraft(string folder, out string error)
+        {
+            if (current == null || current.status != PilotRunStatus.PilotQuestionnaireInProgress)
+            { error = "pilot_questionnaire_not_in_progress"; return false; }
+            questionnaire.Configure(conditionManager.QuestionnaireCatalog, conditionManager.ExperimentProtocol);
+            var path = QuestionnaireSessionService.ResolveDraftPath(folder, QuestionnaireLinkageKey);
+            return questionnaire.Restore(
+                path,
+                QuestionnaireLinkageKey,
+                assignment.pilotProtocolVersion,
+                conditionManager.QuestionnaireCatalog.CatalogVersion,
+                out error);
+        }
+
+        public void SuspendForCheckpoint(string reason)
+        {
+            if (current == null || current.status == PilotRunStatus.Completed
+                || current.status == PilotRunStatus.TechnicalInvalid
+                || current.status == PilotRunStatus.Aborted)
+                return;
+            Write("PilotConditionSuspended", "ParticipantExitCheckpoint",
+                string.IsNullOrWhiteSpace(reason) ? "participant_exit_checkpoint" : reason.Trim());
+        }
         public void CompleteTask(){if(current==null||current.status!=PilotRunStatus.Running)return;current.status=PilotRunStatus.TaskCompleted;Write("PilotTaskCompleted");current.status=PilotRunStatus.AwaitingPilotQuestionnaire;Write("PilotAwaitingQuestionnaire");RunStatusChanged?.Invoke(current.status);}
         public bool BeginQuestionnaire(out string error)
         {

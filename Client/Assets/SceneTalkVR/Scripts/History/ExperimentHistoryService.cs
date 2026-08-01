@@ -165,6 +165,75 @@ namespace SceneTalkVR.History
             return attempt;
         }
 
+        public bool ResumeAttempt(
+            string attemptId,
+            string expectedRunId,
+            string expectedTaskId,
+            out string error)
+        {
+            error = string.Empty;
+            EnsureInitialized();
+            if (string.IsNullOrWhiteSpace(ActiveExperimentId))
+            {
+                error = "experiment_not_active";
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(attemptId)
+                || string.IsNullOrWhiteSpace(expectedRunId)
+                || string.IsNullOrWhiteSpace(expectedTaskId))
+            {
+                error = "experiment_attempt_context_missing";
+                return false;
+            }
+
+            var detail = store.GetExperiment(ActiveExperimentId);
+            var attempt = detail?.attempts?.FirstOrDefault(item => string.Equals(
+                item.attemptId,
+                attemptId.Trim(),
+                StringComparison.Ordinal));
+            if (attempt == null)
+            {
+                error = "experiment_attempt_missing";
+                return false;
+            }
+            if (!string.Equals(attempt.experimentId, ActiveExperimentId, StringComparison.Ordinal))
+            {
+                error = "experiment_attempt_mismatch";
+                return false;
+            }
+            if (!string.Equals(attempt.runId, expectedRunId.Trim(), StringComparison.Ordinal))
+            {
+                error = "experiment_attempt_run_mismatch";
+                return false;
+            }
+            if (!string.Equals(attempt.taskId, expectedTaskId.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                error = "experiment_attempt_task_mismatch";
+                return false;
+            }
+            if (attempt.status != ExperimentAttemptStatus.Suspended
+                && attempt.status != ExperimentAttemptStatus.Running)
+            {
+                error = "experiment_attempt_not_resumable:" + attempt.status;
+                return false;
+            }
+
+            attempt.status = ExperimentAttemptStatus.Running;
+            attempt.completionReason = string.Empty;
+            attempt.endedAtUnixMs = 0;
+            store.UpsertAttempt(attempt);
+            CurrentConversationLink = new ExperimentConversationLink
+            {
+                experimentId = ActiveExperimentId,
+                attemptId = attempt.attemptId,
+                runId = attempt.runId,
+                kind = detail.summary.kind
+            };
+            SetStatus(ExperimentRecordStatus.InProgress);
+            TouchExperiment();
+            return true;
+        }
+
         public void CompleteAttempt(ExperimentAttemptStatus status, string reason)
         {
             if (CurrentConversationLink == null || !CurrentConversationLink.IsValid) return;

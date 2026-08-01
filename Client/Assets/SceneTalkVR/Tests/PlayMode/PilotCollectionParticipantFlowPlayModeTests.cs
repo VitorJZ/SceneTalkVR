@@ -205,6 +205,75 @@ namespace SceneTalkVR.Tests.PlayMode
             var experiment=ActiveObject("SceneTalkVR.Core.ExperimentSessionCoordinator, Assembly-CSharp");var attempts=((IEnumerable)Get(Get(experiment,"CurrentExperiment"),"attempts")).Cast<object>().ToArray();
             Assert.That(attempts,Has.Length.EqualTo(2));Assert.That(Get(attempts[0],"status").ToString(),Is.EqualTo("Suspended"));Assert.That(Get(attempts[1],"status").ToString(),Is.EqualTo("Running"));
         }
+        [UnityTest]public IEnumerator InterruptedPilotConversationOffersResumeOrRestartAndAppliesGoalPolicy()
+        {
+            Create();yield return null;
+            var pilot=ActiveObject("SceneTalkVR.Core.PilotCollectionSessionCoordinator, Assembly-CSharp");
+            var experiment=ActiveObject("SceneTalkVR.Core.ExperimentSessionCoordinator, Assembly-CSharp");
+            var orchestrator=ActiveObject("SceneTalkVR.Runtime.SceneTalkOrchestrator, Assembly-CSharp");
+            var memory=ActiveObject("SceneTalkVR.History.LearningMemoryService, Assembly-CSharp");
+            var condition=Conditions(pilot).First();
+            var taskId=(string)Get(Get(condition,"task"),"taskId");
+            Click(Get(condition,"embodimentCondition")+"AppearanceButton");yield return null;
+            Click("PilotTaskContinueButton");
+            for(var i=0;i<120&&string.IsNullOrWhiteSpace((string)Get(memory,"ActiveSessionId"));i++)yield return null;
+
+            var originalConversationId=(string)Get(memory,"ActiveSessionId");
+            var workflow=Get(pilot,"Workflow");
+            var originalRunId=(string)Get(workflow,"PilotRunId");
+            var firstGoal=((IEnumerable)Get(Get(pilot,"CurrentTask"),"goals")).Cast<object>().First();
+            var firstGoalId=(string)Get(firstGoal,"goalId");
+            Assert.That(originalConversationId,Is.Not.Empty);
+            const string restoredUserText="Please keep this restaurant conversation in context.";
+            memory.GetType().GetMethod("AppendTurn").Invoke(memory,new[]{
+                restoredUserText,
+                Get(orchestrator,"LastScenePayload")
+            });
+            Assert.That(EvaluatePilot(PhrasesForTask(taskId)[0]),Is.EqualTo(1));
+            Assert.That(PilotGoalState(workflow,firstGoalId),Is.EqualTo("Confirmed"));
+
+            var experimentId=(string)Get(Get(Get(experiment,"CurrentExperiment"),"summary"),"experimentId");
+            experiment.GetType().GetMethod("ConfirmLeaveExperiment").Invoke(experiment,null);yield return null;
+            var continueArgs=new object[]{experimentId,null};
+            Assert.That((bool)experiment.GetType().GetMethod("ContinueExperiment").Invoke(experiment,continueArgs),Is.True,continueArgs[1] as string);
+            yield return null;
+            Assert.That(Active("ExperimentConversationResumePanel"),Is.True);
+            Assert.That((string)Get(experiment,"SelectedConversationResumeSessionId"),Is.EqualTo(originalConversationId));
+
+            Click("ContinueSelectedConversationButton");
+            for(var i=0;i<120&&Get(orchestrator,"CurrentState").ToString()!="TurnReview";i++)yield return null;
+            workflow=Get(pilot,"Workflow");
+            Assert.That((string)Get(memory,"ActiveSessionId"),Is.EqualTo(originalConversationId));
+            Assert.That((string)Get(workflow,"PilotRunId"),Is.EqualTo(originalRunId));
+            Assert.That((string)Get(orchestrator,"LastTranscript"),Is.EqualTo(restoredUserText));
+            Assert.That(((IEnumerable)Get(memory.GetType().GetMethod("GetSession").Invoke(
+                memory,new object[]{originalConversationId}),"turns")).Cast<object>().Count(),Is.EqualTo(2));
+            Assert.That(PilotGoalState(workflow,firstGoalId),Is.EqualTo("Confirmed"));
+
+            experiment.GetType().GetMethod("ConfirmLeaveExperiment").Invoke(experiment,null);yield return null;
+            continueArgs=new object[]{experimentId,null};
+            Assert.That((bool)experiment.GetType().GetMethod("ContinueExperiment").Invoke(experiment,continueArgs),Is.True,continueArgs[1] as string);
+            yield return null;
+            Assert.That(Active("ExperimentConversationResumePanel"),Is.True);
+            Click("StartNewExperimentConversationButton");
+            for(var i=0;i<120;i++)
+            {
+                var activeSessionId=(string)Get(memory,"ActiveSessionId");
+                if(!string.IsNullOrWhiteSpace(activeSessionId)
+                    && !string.Equals(activeSessionId,originalConversationId,StringComparison.Ordinal))break;
+                yield return null;
+            }
+
+            workflow=Get(pilot,"Workflow");
+            Assert.That((string)Get(memory,"ActiveSessionId"),Is.Not.Empty.And.Not.EqualTo(originalConversationId));
+            Assert.That((string)Get(workflow,"PilotRunId"),Is.Not.EqualTo(originalRunId));
+            Assert.That(PilotGoalState(workflow,firstGoalId),Is.EqualTo("NotStarted"));
+            Assert.That(memory.GetType().GetMethod("GetSession").Invoke(memory,new object[]{originalConversationId}),Is.Not.Null);
+            var attempts=((IEnumerable)Get(Get(experiment,"CurrentExperiment"),"attempts")).Cast<object>().ToArray();
+            Assert.That(attempts,Has.Length.EqualTo(2));
+            Assert.That(attempts.Count(x=>Get(x,"status").ToString()=="Suspended"),Is.EqualTo(1));
+            Assert.That(attempts.Count(x=>Get(x,"status").ToString()=="Running"),Is.EqualTo(1));
+        }
         [UnityTest]public IEnumerator PicoProductionPilotUsesCollectionQualificationAndPicoDeployment()
         {
             ForcePicoCollection(true);Create();yield return null;
@@ -238,6 +307,7 @@ namespace SceneTalkVR.Tests.PlayMode
         private static string Text(string panel){var go=Resources.FindObjectsOfTypeAll<GameObject>().First(x=>x.name==panel&&x.scene.IsValid());return string.Join("\n",go.GetComponentsInChildren<TMP_Text>(true).Select(x=>x.text));}
         private static void AssertOverlayText(string panel){var go=Resources.FindObjectsOfTypeAll<GameObject>().First(x=>x.name==panel&&x.scene.IsValid());foreach(var text in go.GetComponentsInChildren<TMP_Text>(true)){Assert.That(text.fontSharedMaterial,Is.Not.Null,text.name+" should have an initialized font material.");Assert.That(text.fontSharedMaterial.shader.name,Is.EqualTo("TextMeshPro/Distance Field Overlay"),text.name+" should render in the same overlay queue as its panel.");}foreach(var subMesh in go.GetComponentsInChildren<TMP_SubMeshUI>(true)){Assert.That(subMesh.sharedMaterial,Is.Not.Null,subMesh.name+" should have an initialized fallback material.");Assert.That(subMesh.sharedMaterial.shader.name,Is.EqualTo("TextMeshPro/Distance Field Overlay"),subMesh.name+" fallback glyphs should render in the overlay queue.");}}
         private static int EvaluatePilot(string transcript){var type=Type.GetType("SceneTalkVR.Core.GoalEvaluationOrchestrator, Assembly-CSharp");var pilot=Get(ActiveObject("SceneTalkVR.Core.PilotCollectionSessionCoordinator, Assembly-CSharp"),"Workflow");var turnId=Guid.NewGuid().ToString("N");type.GetMethod("NotifyParticipantTurnSubmitted").Invoke(null,new[]{null,pilot,turnId,transcript,"participant"});var count=(int)type.GetMethod("EvaluatePilotUserTranscript").Invoke(null,new[]{pilot,turnId,transcript,"participant"});if(count>0){var goals=Get(pilot,"Goals");var sequenceState=Get(goals,"SequenceState").ToString();if(sequenceState=="AwaitingParticipantTurn"){Assert.That((bool)goals.GetType().GetMethod("NotifyDialogueTurnCompleted").Invoke(goals,new object[]{turnId}),Is.False);var unlockTurnId=turnId+"-unlock";Assert.That((bool)goals.GetType().GetMethod("NotifyParticipantTurnSubmitted").Invoke(goals,new object[]{unlockTurnId}),Is.True);Assert.That((bool)goals.GetType().GetMethod("NotifyDialogueTurnCompleted").Invoke(goals,new object[]{unlockTurnId}),Is.True);}else if(sequenceState=="AwaitingAvatarReply"){Assert.That((bool)goals.GetType().GetMethod("NotifyDialogueTurnCompleted").Invoke(goals,new object[]{turnId}),Is.True);}}return count;}
+        private static string PilotGoalState(object workflow,string goalId)=>Get(((IEnumerable)Get(Get(workflow,"Goals"),"Goals")).Cast<object>().Single(x=>(string)Get(x,"goalId")==goalId),"state").ToString();
         private static object Get(object value,string name){var type=value.GetType();return type.GetProperty(name)?.GetValue(value)??type.GetField(name)?.GetValue(value);}
         private static object ActiveObject(string typeName){var type=Type.GetType(typeName);return Resources.FindObjectsOfTypeAll(type).FirstOrDefault();}
         private static void CallActive(string typeName,string method){var value=ActiveObject(typeName);value?.GetType().GetMethod(method)?.Invoke(value,null);}

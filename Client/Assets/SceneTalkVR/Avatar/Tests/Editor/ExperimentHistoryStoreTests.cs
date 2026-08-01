@@ -261,6 +261,107 @@ namespace SceneTalkVR.AvatarSystem.Tests.Editor
         }
 
         [Test]
+        public void ResumeAttemptRequiresMatchingSuspendedRunAndRestoresConversationLink()
+        {
+            var store = new SqliteLearningMemoryStore(databasePath);
+            store.Initialize();
+            store.CreateExperiment(CreateExperiment("exp-resume", 1000, ExperimentKind.Formal));
+            store.UpsertAttempt(new ExperimentAttemptRecord
+            {
+                attemptId = "attempt-resume",
+                experimentId = "exp-resume",
+                conditionKey = "NE",
+                taskId = "hotel_check_in",
+                runId = "run-resume",
+                attemptIndex = 1,
+                status = ExperimentAttemptStatus.Suspended,
+                completionReason = "participant_exit_checkpoint",
+                startedAtUnixMs = 1000,
+                endedAtUnixMs = 2000
+            });
+
+            host = new GameObject("Experiment attempt resume test");
+            var service = host.AddComponent<ExperimentHistoryService>();
+            service.ConfigureStoreForTests(store, databasePath);
+            service.ActivateExperiment("exp-resume");
+
+            Assert.That(service.ResumeAttempt(
+                "attempt-resume",
+                "wrong-run",
+                "hotel_check_in",
+                out var mismatch), Is.False);
+            Assert.That(mismatch, Is.EqualTo("experiment_attempt_run_mismatch"));
+            Assert.That(service.CurrentConversationLink, Is.Null);
+            Assert.That(service.ResumeAttempt(
+                "attempt-resume",
+                "run-resume",
+                "gym_membership",
+                out mismatch), Is.False);
+            Assert.That(mismatch, Is.EqualTo("experiment_attempt_task_mismatch"));
+            Assert.That(service.CurrentConversationLink, Is.Null);
+            Assert.That(service.ResumeAttempt(
+                "attempt-resume",
+                "run-resume",
+                "hotel_check_in",
+                out var error), Is.True, error);
+            Assert.That(service.CurrentConversationLink.attemptId, Is.EqualTo("attempt-resume"));
+            Assert.That(service.CurrentConversationLink.runId, Is.EqualTo("run-resume"));
+
+            var restored = service.GetExperiment("exp-resume").attempts.Single();
+            Assert.That(restored.status, Is.EqualTo(ExperimentAttemptStatus.Running));
+            Assert.That(restored.completionReason, Is.Empty);
+            Assert.That(restored.endedAtUnixMs, Is.Zero);
+        }
+
+        [Test]
+        public void ResumeCandidateRequiresSameExperimentKindRunTaskAndAttempt()
+        {
+            var method = typeof(ExperimentSessionCoordinator).GetMethod(
+                "IsMatchingConversationCandidate",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null);
+            var attempts = new System.Collections.Generic.Dictionary<string, ExperimentAttemptRecord>(
+                StringComparer.Ordinal)
+            {
+                ["attempt-1"] = new ExperimentAttemptRecord
+                {
+                    attemptId = "attempt-1",
+                    experimentId = "exp-1",
+                    runId = "run-1",
+                    taskId = "hotel_check_in",
+                    status = ExperimentAttemptStatus.Suspended
+                }
+            };
+            LearningSessionSummary Candidate() => new LearningSessionSummary
+            {
+                sessionId = "conversation-1",
+                experimentId = "exp-1",
+                experimentKind = ExperimentKind.Formal.ToString(),
+                experimentAttemptId = "attempt-1",
+                experimentRunId = "run-1",
+                taskType = "hotel_check_in"
+            };
+            bool Matches(LearningSessionSummary value) => (bool)method.Invoke(null, new object[]
+            {
+                value, "exp-1", ExperimentKind.Formal, "hotel_check_in", "run-1", attempts
+            });
+
+            Assert.That(Matches(Candidate()), Is.True);
+            var wrongRun = Candidate(); wrongRun.experimentRunId = "run-2";
+            var wrongTask = Candidate(); wrongTask.taskType = "gym_membership";
+            var wrongExperiment = Candidate(); wrongExperiment.experimentId = "exp-2";
+            var wrongKind = Candidate(); wrongKind.experimentKind = ExperimentKind.Pilot.ToString();
+            var wrongAttempt = Candidate(); wrongAttempt.experimentAttemptId = "attempt-2";
+            Assert.That(Matches(wrongRun), Is.False);
+            Assert.That(Matches(wrongTask), Is.False);
+            Assert.That(Matches(wrongExperiment), Is.False);
+            Assert.That(Matches(wrongKind), Is.False);
+            Assert.That(Matches(wrongAttempt), Is.False);
+            attempts["attempt-1"].taskId = "gym_membership";
+            Assert.That(Matches(Candidate()), Is.False);
+        }
+
+        [Test]
         public void ExperimentConversationCannotBeDeletedIndividually()
         {
             using (var store = new SqliteLearningMemoryStore(databasePath))

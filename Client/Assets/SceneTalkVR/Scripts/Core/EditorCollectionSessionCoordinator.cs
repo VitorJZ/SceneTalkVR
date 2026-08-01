@@ -80,6 +80,8 @@ namespace SceneTalkVR.Core
             && !finalRankingVisible && !experimentCompleted && Assignment?.status != AssignmentStatus.Completed;
         public bool HasActiveDialogueCondition => IsArmed && currentPosition >= 0
             && lifecycle?.CurrentConditionAssignment?.status == ConditionRunStatus.Running;
+        public bool HasPendingConversationResume => HasActiveDialogueCondition
+            && orchestrator?.IsDialogueActive != true;
         public bool FinalRankingVisible => finalRankingVisible;
         public bool ExperimentCompleted => experimentCompleted;
         public ExperimentAssignment Assignment => lifecycle?.Assignment;
@@ -227,7 +229,13 @@ namespace SceneTalkVR.Core
             {
                 var current = Assignment.conditions[currentPosition];
                 var snapshot = LoadGoalSnapshotForResume(current.latestConditionRunId, current.task?.taskId);
-                if (!lifecycle.ResumeCondition(currentPosition, snapshot?.goals, snapshot?.sequence, out error)) return false;
+                if (!lifecycle.ResumeCondition(
+                        currentPosition,
+                        snapshot?.goals,
+                        snapshot?.sequence,
+                        false,
+                        out error))
+                    return false;
                 if (lifecycle.CurrentConditionAssignment.status == ConditionRunStatus.QuestionnaireInProgress)
                     questionnaire.RestoreCurrentDraft(out _);
             }
@@ -292,6 +300,45 @@ namespace SceneTalkVR.Core
             WriteOperator("FormalModeSelected", $"code={code};task={selected.task.taskId};retry={retry}");
             RefreshUi();
             return true;
+        }
+
+        public bool StartNewConversationForResumedCondition(out string error)
+        {
+            if (!HasPendingConversationResume || currentPosition < 0)
+            {
+                error = "formal_conversation_resume_not_pending";
+                return false;
+            }
+            if (!GatewayTransportRouter.CanStartLiveAttempt(out error)) return false;
+
+            var selected = lifecycle.CurrentConditionAssignment;
+            PersistGoalSnapshot();
+            if (!lifecycle.PrepareCondition(currentPosition, false, out error)) return false;
+            ExperimentSessionCoordinator.Active?.NotifyAttemptStarted(
+                selected.formalConditionCode.ToString(),
+                selected.task.taskId,
+                lifecycle.ConditionRunId,
+                selected.runAttempt);
+            PersistGoalSnapshot();
+            PersistAssignment();
+            WriteOperator(
+                "FormalConversationRestarted",
+                $"code={selected.formalConditionCode};task={selected.task.taskId};runId={lifecycle.ConditionRunId}",
+                actor: "participant");
+            RefreshUi();
+            error = string.Empty;
+            return true;
+        }
+
+        public void RecordConversationResumed(string conversationSessionId)
+        {
+            if (!HasActiveDialogueCondition) return;
+            PersistAssignment();
+            WriteOperator(
+                "FormalConversationResumed",
+                $"sessionId={conversationSessionId};runId={lifecycle.ConditionRunId}",
+                actor: "participant");
+            RefreshUi();
         }
 
         public bool IsTaskPrepared(string taskId) => IsArmed

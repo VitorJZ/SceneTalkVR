@@ -54,6 +54,7 @@ namespace SceneTalkVR.Runtime
         private GameObject experimentHistoryQuestionnairePanel;
         private GameObject experimentHistoryDeletePanel;
         private GameObject experimentHistoryErrorPanel;
+        private GameObject experimentConversationResumePanel;
         private GameObject settingsGeneralGroup;
         private GameObject requestPanel;
         private GameObject taskSelectionPanel;
@@ -122,6 +123,10 @@ namespace SceneTalkVR.Runtime
         private Button experimentRecordNextButton;
         private Button experimentHistoryDeleteConfirmButton;
         private Button experimentHistoryDeleteCancelButton;
+        private readonly Button[] experimentConversationResumeRows = new Button[5];
+        private readonly string[] experimentConversationResumeIds = new string[5];
+        private Button continueExperimentConversationButton;
+        private Button startNewExperimentConversationButton;
 
         private TMP_Text settingsTitleText;
         private TMP_Text settingsPageText;
@@ -150,6 +155,8 @@ namespace SceneTalkVR.Runtime
         private TMP_Text experimentHistoryQuestionnaireText;
         private TMP_Text experimentHistoryDeleteMessageText;
         private TMP_Text experimentHistoryErrorText;
+        private TMP_Text experimentConversationResumeTaskText;
+        private TMP_Text experimentConversationResumeErrorText;
         private ScrollRect historyDetailScrollRect;
         private RectTransform historyDetailContentRect;
         private ScrollRect experimentRecordScrollRect;
@@ -475,6 +482,45 @@ namespace SceneTalkVR.Runtime
             experimentExitCancelButton = CreateButton(experimentExitConfirmPanel.transform, "ContinueExperimentButton", "继续实验", new Vector2(-135f, -102f), new Vector2(230f, 48f), new Color(.12f, .52f, .38f, 1f));
             experimentExitConfirmButton = CreateButton(experimentExitConfirmPanel.transform, "ConfirmExitExperimentButton", "退出到主页", new Vector2(135f, -102f), new Vector2(210f, 48f), ExitButtonColor);
 
+            experimentConversationResumePanel = CreatePanel(root, "ExperimentConversationResumePanel", Vector2.zero,
+                new Vector2(900f, 570f), new Color(.04f, .05f, .07f, .98f));
+            CreateText(experimentConversationResumePanel.transform, "Title", "继续场景对话",
+                new Vector2(0f, 245f), new Vector2(780f, 46f), 30, TextAnchor.MiddleCenter, Color.white);
+            CreateText(experimentConversationResumePanel.transform, "Instruction",
+                "继续旧对话将保留对话上下文和任务进度；开启新对话将重置本任务进度。",
+                new Vector2(0f, 198f), new Vector2(790f, 54f), 18, TextAnchor.MiddleCenter,
+                new Color(.82f, .9f, 1f, 1f));
+            experimentConversationResumeTaskText = CreateText(experimentConversationResumePanel.transform,
+                "Task", string.Empty, new Vector2(0f, 150f), new Vector2(790f, 38f), 18,
+                TextAnchor.MiddleCenter, new Color(.76f, .86f, 1f, 1f));
+            for (var i = 0; i < experimentConversationResumeRows.Length; i++)
+            {
+                experimentConversationResumeRows[i] = CreateButton(
+                    experimentConversationResumePanel.transform,
+                    "ExperimentConversationResumeRow" + (i + 1),
+                    string.Empty,
+                    new Vector2(0f, 100f - i * 50f),
+                    new Vector2(760f, 42f),
+                    new Color(.14f, .28f, .4f, 1f));
+                var label = experimentConversationResumeRows[i].GetComponentInChildren<TMP_Text>();
+                if (label != null)
+                {
+                    label.alignment = TextAlignmentOptions.Left;
+                    label.enableAutoSizing = true;
+                    label.fontSizeMin = 13f;
+                    label.fontSizeMax = 18f;
+                }
+            }
+            experimentConversationResumeErrorText = CreateText(experimentConversationResumePanel.transform,
+                "Error", string.Empty, new Vector2(0f, -164f), new Vector2(790f, 34f), 16,
+                TextAnchor.MiddleCenter, new Color(1f, .58f, .42f, 1f));
+            continueExperimentConversationButton = CreateButton(experimentConversationResumePanel.transform,
+                "ContinueSelectedConversationButton", "继续所选对话", new Vector2(-180f, -230f),
+                new Vector2(260f, 48f), new Color(.12f, .52f, .38f, 1f));
+            startNewExperimentConversationButton = CreateButton(experimentConversationResumePanel.transform,
+                "StartNewExperimentConversationButton", "开启新对话", new Vector2(180f, -230f),
+                new Vector2(240f, 48f), new Color(.16f, .38f, .68f, 1f));
+
             experimentHistoryListPanel = CreatePanel(root, "ExperimentHistoryListPanel", Vector2.zero, new Vector2(860f, 520f), new Color(.04f, .05f, .07f, .96f));
             CreateText(experimentHistoryListPanel.transform, "Title", "实验历史", new Vector2(0f, 220f), new Vector2(680f, 46f), 30, TextAnchor.MiddleCenter, Color.white);
             experimentHistoryEmptyText = CreateText(experimentHistoryListPanel.transform, "Empty", "暂无实验历史。", new Vector2(0f, 10f), new Vector2(680f, 60f), 22, TextAnchor.MiddleCenter, new Color(.75f, .82f, .88f, 1f));
@@ -575,6 +621,32 @@ namespace SceneTalkVR.Runtime
             {
                 experimentExitConfirmButton.onClick.RemoveAllListeners();
                 experimentExitConfirmButton.onClick.AddListener(() => GetExperimentCoordinator()?.ConfirmLeaveExperiment());
+            }
+
+            for (var i = 0; i < experimentConversationResumeRows.Length; i++)
+            {
+                var index = i;
+                var button = experimentConversationResumeRows[i];
+                if (button == null) continue;
+                button.onClick.RemoveAllListeners();
+                button.onClick.AddListener(() =>
+                {
+                    var id = experimentConversationResumeIds[index];
+                    if (!string.IsNullOrWhiteSpace(id))
+                        GetExperimentCoordinator()?.SelectConversationToResume(id);
+                });
+            }
+            if (continueExperimentConversationButton != null)
+            {
+                continueExperimentConversationButton.onClick.RemoveAllListeners();
+                continueExperimentConversationButton.onClick.AddListener(() =>
+                    GetExperimentCoordinator()?.ContinueSelectedExperimentConversation());
+            }
+            if (startNewExperimentConversationButton != null)
+            {
+                startNewExperimentConversationButton.onClick.RemoveAllListeners();
+                startNewExperimentConversationButton.onClick.AddListener(() =>
+                    GetExperimentCoordinator()?.StartNewExperimentConversation());
             }
 
             if (experimentHistoryPreviousButton != null)
@@ -1072,6 +1144,7 @@ namespace SceneTalkVR.Runtime
             var showExperimentHistoryQuestionnaire = state == SceneTalkState.ExperimentHistoryQuestionnaireDetail;
             var showExperimentHistoryDelete = state == SceneTalkState.ExperimentHistoryDeleteConfirm;
             var showExperimentHistoryError = state == SceneTalkState.ExperimentHistoryError;
+            var showExperimentConversationResume = state == SceneTalkState.ExperimentConversationResumeChoice;
             var showRequest = !dialogueActive
                 && (!isFixedMode || state != SceneTalkState.Listening)
                 && (state == SceneTalkState.Listening
@@ -1117,6 +1190,8 @@ namespace SceneTalkVR.Runtime
             SetActive(experimentHistoryQuestionnairePanel, showExperimentHistoryQuestionnaire);
             SetActive(experimentHistoryDeletePanel, showExperimentHistoryDelete);
             SetActive(experimentHistoryErrorPanel, showExperimentHistoryError);
+            SetActive(experimentConversationResumePanel, showExperimentConversationResume);
+            if (showExperimentConversationResume) experimentConversationResumePanel.transform.SetAsLastSibling();
             SetActive(requestPanel, showRequest);
             SetActive(taskSelectionPanel, showTaskSelection);
             SetActive(loadingPanel, showLoading);
@@ -1138,6 +1213,7 @@ namespace SceneTalkVR.Runtime
             RefreshExperimentHistoryQuestionnaire(showExperimentHistoryQuestionnaire);
             RefreshExperimentHistoryDelete(showExperimentHistoryDelete);
             RefreshExperimentHistoryError(showExperimentHistoryError);
+            RefreshExperimentConversationResume(showExperimentConversationResume);
             RefreshRequestPanel(showRequest);
             RefreshLoadingPanel(showLoading);
             RefreshSubtitlePanel(showDialogue);
@@ -1621,6 +1697,55 @@ namespace SceneTalkVR.Runtime
             if (isVisible && experimentHistoryErrorText != null)
                 experimentHistoryErrorText.text = SceneTalkChineseUiText.Error(
                     GetExperimentCoordinator()?.ErrorMessage ?? "Experiment history operation failed.");
+        }
+
+        private void RefreshExperimentConversationResume(bool isVisible)
+        {
+            if (!isVisible) return;
+            var coordinator = GetExperimentCoordinator();
+            var candidates = coordinator?.ConversationResumeCandidates
+                ?? System.Array.Empty<LearningSessionSummary>();
+            if (experimentConversationResumeTaskText != null)
+            {
+                experimentConversationResumeTaskText.text = "当前任务："
+                    + SceneTalkChineseUiText.TaskName(
+                        coordinator?.PendingConversationTaskId,
+                        coordinator?.PendingConversationTaskId);
+            }
+
+            for (var i = 0; i < experimentConversationResumeRows.Length; i++)
+            {
+                var hasItem = i < candidates.Length;
+                var button = experimentConversationResumeRows[i];
+                experimentConversationResumeIds[i] = hasItem ? candidates[i].sessionId : string.Empty;
+                SetActive(button?.gameObject, hasItem);
+                if (!hasItem || button == null) continue;
+                var item = candidates[i];
+                SetButtonLabel(button,
+                    $"对话 {i + 1}    {FormatHistoryTime(item.updatedAtUnixMs)}    {item.turnCount} 轮    "
+                    + SceneTalkChineseUiText.TaskName(item.taskType, item.title));
+                var selected = string.Equals(
+                    item.sessionId,
+                    coordinator.SelectedConversationResumeSessionId,
+                    System.StringComparison.Ordinal);
+                var image = button.GetComponent<Image>();
+                if (image != null)
+                    image.color = selected
+                        ? new Color(.12f, .58f, .36f, 1f)
+                        : new Color(.14f, .28f, .4f, 1f);
+            }
+
+            SetInteractable(continueExperimentConversationButton,
+                !string.IsNullOrWhiteSpace(coordinator?.SelectedConversationResumeSessionId));
+            SetInteractable(startNewExperimentConversationButton, coordinator?.IsConversationResumeChoicePending == true);
+            if (experimentConversationResumeErrorText != null)
+            {
+                experimentConversationResumeErrorText.text = !string.IsNullOrWhiteSpace(coordinator?.ErrorMessage)
+                    ? SceneTalkChineseUiText.Error(coordinator.ErrorMessage)
+                    : candidates.Length == 0
+                        ? "没有找到可安全恢复的旧对话，请开启新对话。"
+                        : "请选择要继续的历史对话。";
+            }
         }
 
         private void OpenExperimentRecordEntry(int visibleIndex)
