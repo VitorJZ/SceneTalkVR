@@ -246,13 +246,28 @@ def formal_statistics_bundle():
                         "attemptIndex": 1,
                     }
                 ],
-                "conversations": [],
+                "conversations": [
+                    {
+                        "summary": {
+                            "sessionId": "rehearsal-conversation",
+                            "taskType": "hotel_check_in",
+                            "experimentAttemptId": "rehearsal-ne",
+                            "experimentRunId": "rehearsal-run-ne",
+                            "turnCount": 3,
+                            "correctionCount": 1,
+                        },
+                        "settings": {},
+                        "turns": [],
+                    }
+                ],
                 "questionnaires": [
                     {
                         "questionnaireRecordId": "rehearsal-questionnaire",
+                        "attemptId": "rehearsal-ne",
                         "prompts": [],
                         "session": {
                             "questionnaireId": "formal_condition_v1",
+                            "conditionRunId": "rehearsal-run-ne",
                             "formalCondition": 0,
                             "taskId": "hotel_check_in",
                             "completionStatus": 2,
@@ -335,13 +350,64 @@ def formal_statistics_bundle():
                         "attemptIndex": 1,
                     },
                 ],
-                "conversations": [],
+                "conversations": [
+                    {
+                        "summary": {
+                            "sessionId": "obsolete-conversation",
+                            "taskType": "obsolete_hotel_task",
+                            "experimentAttemptId": "ne-old",
+                            "experimentRunId": "obsolete-run",
+                            "turnCount": 99,
+                            "correctionCount": 99,
+                        },
+                        "settings": {},
+                        "turns": [],
+                    },
+                    {
+                        "summary": {
+                            "sessionId": "formal-ne-conversation",
+                            "taskType": "hotel_check_in",
+                            "experimentAttemptId": "ne-final",
+                            "experimentRunId": "formal-run-ne",
+                            "turnCount": 8,
+                            "correctionCount": 3,
+                        },
+                        "settings": {},
+                        "turns": [],
+                    },
+                    {
+                        "summary": {
+                            "sessionId": "formal-nr-conversation",
+                            "taskType": "furniture_shopping",
+                        },
+                        "settings": {
+                            "experimentAttemptId": "nr-final",
+                            "experimentRunId": "formal-run-nr",
+                            "condition": {
+                                "scenarioId": "furniture_shopping",
+                                "task": {"taskId": "furniture_shopping"},
+                            },
+                        },
+                        "turns": [
+                            {
+                                "sequenceIndex": 1,
+                                "payload": {"correctionFeedback": {"hasFeedback": True}},
+                            },
+                            {
+                                "sequenceIndex": 2,
+                                "payload": {"correctionFeedback": {"hasFeedback": False}},
+                            },
+                        ],
+                    },
+                ],
                 "questionnaires": [
                     {
                         "questionnaireRecordId": "formal-submitted",
+                        "attemptId": "ne-final",
                         "prompts": [],
                         "session": {
                             "questionnaireId": "formal_condition_v1",
+                            "conditionRunId": "formal-run-ne",
                             "formalCondition": 0,
                             "taskId": "hotel_check_in",
                             "completionStatus": "Submitted",
@@ -361,9 +427,11 @@ def formal_statistics_bundle():
                     },
                     {
                         "questionnaireRecordId": "formal-skipped",
+                        "attemptId": "nr-final",
                         "prompts": [],
                         "session": {
                             "questionnaireId": "formal_condition_v1",
+                            "conditionRunId": "formal-run-nr",
                             "formalCondition": 1,
                             "taskId": "furniture_shopping",
                             "completionStatus": 6,
@@ -426,6 +494,8 @@ class ReceiverTests(unittest.TestCase):
         self.assertEqual("participantId", headers[0])
         self.assertEqual("完成时间", headers[1])
         self.assertEqual("taskId", headers[2])
+        self.assertEqual("formalCondition", headers[3])
+        self.assertEqual(["对话轮次", "纠错次数"], headers[4:6])
         self.assertIn("反馈内容很清楚。 [clarity]", headers)
         self.assertIn("我能顺畅地继续对话。 [continuity]", headers)
         self.assertEqual(
@@ -433,9 +503,27 @@ class ReceiverTests(unittest.TestCase):
             [row[0] for row in rows],
         )
         self.assertEqual("hotel_check_in", rows[0][2])
-        self.assertEqual([3.0, -1], rows[0][3:5])
-        self.assertEqual([6.0, -1], rows[1][3:5])
-        self.assertEqual([4.0, -1], rows[2][3:5])
+        self.assertEqual(["NE", "NE", "NR"], [row[3] for row in rows])
+        self.assertEqual([3, 1], rows[0][4:6])
+        self.assertEqual([8, 3], rows[1][4:6])
+        self.assertEqual([2, 1], rows[2][4:6])
+        self.assertEqual([3.0, -1], rows[0][6:8])
+        self.assertEqual([6.0, -1], rows[1][6:8])
+        self.assertEqual([4.0, -1], rows[2][6:8])
+        questionnaire_rows, _, _ = receiver.workbook_rows(bundle)
+        participant_index = receiver.QUESTIONNAIRE_HEADERS.index("participantId")
+        questionnaire_index = receiver.QUESTIONNAIRE_HEADERS.index("questionnaireId")
+        task_index = receiver.QUESTIONNAIRE_HEADERS.index("taskId")
+        condition_index = receiver.QUESTIONNAIRE_HEADERS.index("formalCondition")
+        questionnaire_conditions = {
+            (row[participant_index], row[task_index]): row[condition_index]
+            for row in questionnaire_rows
+            if row[questionnaire_index] == "formal_condition_v1"
+        }
+        self.assertTrue(all(
+            row[3] == questionnaire_conditions[(row[0], row[2])]
+            for row in rows
+        ))
         local_time = receiver.EXCEL_EPOCH + timedelta(days=rows[0][1].serial)
         self.assertEqual("2026-07-29 13:00:00", local_time.strftime("%Y-%m-%d %H:%M:%S"))
         self.assertNotIn("pilot-participant", [row[0] for row in rows])
@@ -507,7 +595,10 @@ class ReceiverTests(unittest.TestCase):
                 styles_xml = workbook.read("xl/styles.xml").decode("utf-8")
                 self.assertIn('numFmtId="164" formatCode="dd/mm/yyyy hh:mm:ss"', styles_xml)
                 self.assertIn('s="2"', scene_xml)
-                self.assertIn('xSplit="3" ySplit="1"', scene_xml)
+                self.assertIn('xSplit="6" ySplit="1"', scene_xml)
+                self.assertIn("formalCondition", scene_xml)
+                self.assertIn("对话轮次", scene_xml)
+                self.assertIn("纠错次数", scene_xml)
                 self.assertIn("反馈内容很清楚。", scene_xml)
                 self.assertIn("请将四种反馈条件排序。", ranking_xml)
                 self.assertIn("首选taskId=furniture_shopping", ranking_xml)

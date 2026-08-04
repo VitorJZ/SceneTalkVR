@@ -11,6 +11,11 @@ namespace SceneTalkVR.Runtime
     [DisallowMultipleComponent]
     public sealed class QuestionnaireVrPanel : MonoBehaviour
     {
+        private static readonly Vector2 PanelSize = new Vector2(1120f, 720f);
+        private const float NavigationY = -328f;
+        private const float LikertStartX = 175f;
+        private const float LikertSpacing = 56f;
+
         [SerializeField] private QuestionnaireRuntimeController controller;
         [SerializeField] private Canvas worldCanvas;
         private GameObject panel;
@@ -73,14 +78,14 @@ namespace SceneTalkVR.Runtime
             panel = Node(worldCanvas.transform, "QuestionnairePanel");
             var image = panel.AddComponent<Image>(); image.color = new Color(0.035f, 0.05f, 0.08f, 0.97f);
             var group = panel.AddComponent<CanvasGroup>(); group.alpha = 1f; group.interactable = true; group.blocksRaycasts = true;
-            var rect = panel.GetComponent<RectTransform>(); rect.anchoredPosition = Vector2.zero; rect.sizeDelta = new Vector2(920f, 560f);
-            progressText = Label(panel.transform, "Progress", "", new Vector2(0, 238), new Vector2(820, 40), 22);
-            validationText = Label(panel.transform, "RequiredStatus", "", new Vector2(0, -198), new Vector2(800, 36), 18);
+            var rect = panel.GetComponent<RectTransform>(); rect.anchoredPosition = Vector2.zero; rect.sizeDelta = PanelSize;
+            progressText = Label(panel.transform, "Progress", "", new Vector2(0, 316), new Vector2(1000, 46), 28);
+            validationText = Label(panel.transform, "RequiredStatus", "", new Vector2(0, -268), new Vector2(1000, 42), 22);
             content = Node(panel.transform, "SectionContent").transform;
-            previousButton = Button(panel.transform, "PreviousButton", "上一页", new Vector2(-260, -246), Previous);
-            nextButton = Button(panel.transform, "NextButton", "下一页", new Vector2(0, -246), Next);
-            skipButton = Button(panel.transform, "SkipButton", "跳过", new Vector2(130, -246), Skip);
-            submitButton = Button(panel.transform, "SubmitButton", "提交", new Vector2(260, -246), Submit);
+            previousButton = Button(panel.transform, "PreviousButton", "上一页", new Vector2(-360, NavigationY), Previous, new Vector2(160, 54));
+            nextButton = Button(panel.transform, "NextButton", "下一页", new Vector2(-120, NavigationY), Next, new Vector2(160, 54));
+            skipButton = Button(panel.transform, "SkipButton", "跳过", new Vector2(130, NavigationY), Skip, new Vector2(160, 54));
+            submitButton = Button(panel.transform, "SubmitButton", "提交", new Vector2(370, NavigationY), Submit, new Vector2(160, 54));
             ApplyUserScale();
         }
 
@@ -98,26 +103,26 @@ namespace SceneTalkVR.Runtime
                 var items = enabled.Where(x => x.sectionId == section.sectionId).ToArray();
                 if (items.Length == 0) continue;
                 var pageRoot = Node(content, "Page_" + section.sectionId); pageObjects.Add(pageRoot);
-                Label(pageRoot.transform, "SectionTitle", section.displayNameChinese, new Vector2(0, 176), new Vector2(820, 42), 25);
-                var y = 116f;
+                Label(pageRoot.transform, "SectionTitle", section.displayNameChinese, new Vector2(0, 252), new Vector2(1000, 52), 30);
+                var y = 174f;
                 foreach (var item in items)
                 {
                     itemPages[item.itemId] = pageObjects.Count - 1;
                     Label(pageRoot.transform, "Prompt_" + item.itemId, item.promptChinese,
-                        new Vector2(-150, y), new Vector2(500, 62), 17, TextAnchor.MiddleLeft);
+                        new Vector2(-180, y), new Vector2(620, 70), 22, TextAnchor.MiddleLeft);
                     if (item.itemType == QuestionnaireItemType.Likert)
                     {
                         for (var value = item.scaleMin; value <= item.scaleMax; value++)
                         {
                             var capturedItem = item.itemId; var capturedValue = value;
                             var button = Button(pageRoot.transform, $"{item.itemId}_{value}", value.ToString(),
-                                new Vector2(136 + (value - item.scaleMin) * 44, y),
+                                new Vector2(LikertStartX + (value - item.scaleMin) * LikertSpacing, y),
                                 () => { controller.SetResponse(capturedItem, capturedValue.ToString(), out var error); validationText.text = Humanize(error); },
-                                new Vector2(40, 42));
+                                new Vector2(50, 52));
                             likertButtons[capturedItem + ":" + capturedValue] = button;
                         }
                     }
-                    y -= 82f;
+                    y -= 92f;
                 }
             }
         }
@@ -223,13 +228,12 @@ namespace SceneTalkVR.Runtime
         {
             var settings = SceneTalkUserSettingsStore.Current;
             panel.transform.localScale = Vector3.one * settings.uiScale;
-            foreach (var label in panel.GetComponentsInChildren<TMP_Text>(true)) label.fontSize *= settings.fontScale;
         }
         private static GameObject Node(Transform parent, string name) { var go = new GameObject(name, typeof(RectTransform)); go.transform.SetParent(parent, false); return go; }
         private static TMP_Text Label(Transform parent, string name, string value, Vector2 position, Vector2 size, int fontSize, TextAnchor anchor = TextAnchor.MiddleCenter)
         {
             var go = Node(parent, name); var text = go.AddComponent<TextMeshProUGUI>(); text.text = value;
-            text.color = Color.white; text.fontSize = fontSize; text.alignment = ToTmpAlignment(anchor); text.textWrappingMode = TextWrappingModes.Normal; text.overflowMode = TextOverflowModes.Overflow;
+            text.color = Color.white; text.fontSize = Mathf.Max(1f, fontSize * SceneTalkUserSettingsStore.Current.fontScale); text.alignment = ToTmpAlignment(anchor); text.textWrappingMode = TextWrappingModes.Normal; text.overflowMode = TextOverflowModes.Overflow;
             var rect = text.rectTransform; rect.anchoredPosition = position; rect.sizeDelta = size; return text;
         }
         private static Button Button(Transform parent, string name, string value, Vector2 position,
@@ -237,7 +241,7 @@ namespace SceneTalkVR.Runtime
         {
             var go = Node(parent, name); var image = go.AddComponent<Image>(); image.color = new Color(0.12f, 0.38f, 0.62f, 1f);
             var button = go.AddComponent<Button>(); button.onClick.AddListener(action); var rect = go.GetComponent<RectTransform>(); rect.anchoredPosition = position; rect.sizeDelta = size ?? new Vector2(112, 42);
-            var label = Label(go.transform, "Label", value, Vector2.zero, rect.sizeDelta, 18); label.raycastTarget = false; return button;
+            var label = Label(go.transform, "Label", value, Vector2.zero, rect.sizeDelta, 20); label.raycastTarget = false; return button;
         }
         private static TextAlignmentOptions ToTmpAlignment(TextAnchor anchor) => anchor switch { TextAnchor.UpperLeft => TextAlignmentOptions.TopLeft, TextAnchor.UpperCenter => TextAlignmentOptions.Top, TextAnchor.UpperRight => TextAlignmentOptions.TopRight, TextAnchor.MiddleLeft => TextAlignmentOptions.Left, TextAnchor.MiddleRight => TextAlignmentOptions.Right, TextAnchor.LowerLeft => TextAlignmentOptions.BottomLeft, TextAnchor.LowerCenter => TextAlignmentOptions.Bottom, TextAnchor.LowerRight => TextAlignmentOptions.BottomRight, _ => TextAlignmentOptions.Center };
     }

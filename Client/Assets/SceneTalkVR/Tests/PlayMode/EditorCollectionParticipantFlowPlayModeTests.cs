@@ -119,13 +119,21 @@ namespace SceneTalkVR.Tests.PlayMode
         [UnityTest] public IEnumerator T06_QuestionnaireLikertSelectionPersistsAndSubmitReturnsToModes()
         {
             Arm(out var assignment); StartFormalFlow(); yield return null; var selected = ConditionForTask(assignment, "hotel_check_in"); Click(Get(selected, "formalConditionCode") + "ModeButton"); yield return null; CompleteTask("hotel_check_in"); yield return null;
+            var questionnairePanel = Rect("QuestionnairePanel");
+            Assert.That(questionnairePanel.sizeDelta, Is.EqualTo(new Vector2(1120f, 720f)));
+            var promptTexts = questionnairePanel.GetComponentsInChildren<TMP_Text>(true)
+                .Where(x => x.name.StartsWith("Prompt_", StringComparison.Ordinal)).ToArray();
+            Assert.That(promptTexts, Is.Not.Empty);
+            Assert.That(promptTexts.All(x => x.fontSize >= 22f), Is.True,
+                "Formal questionnaire prompts must use the enlarged readable font size.");
             var visibleLikert = Resources.FindObjectsOfTypeAll<Button>().Where(x => x.gameObject.scene.IsValid() && x.gameObject.activeInHierarchy && x.name.StartsWith("formal_", StringComparison.Ordinal)).ToArray();
             Assert.That(visibleLikert, Is.Not.Empty);
-            Assert.That(visibleLikert.All(x => x.GetComponent<RectTransform>().sizeDelta.x <= 40.1f), Is.True, "Likert hit targets must not overlap.");
+            Assert.That(visibleLikert.All(x => x.GetComponent<RectTransform>().sizeDelta == new Vector2(50f, 52f)),
+                Is.True, "Likert hit targets must use the enlarged size.");
             foreach (var row in visibleLikert.GroupBy(x => Mathf.RoundToInt(x.GetComponent<RectTransform>().anchoredPosition.y)))
             {
                 var positions = row.Select(x => x.GetComponent<RectTransform>().anchoredPosition.x).OrderBy(x => x).ToArray();
-                for (var i = 1; i < positions.Length; i++) Assert.That(positions[i] - positions[i - 1], Is.GreaterThanOrEqualTo(40f));
+                for (var i = 1; i < positions.Length; i++) Assert.That(positions[i] - positions[i - 1], Is.GreaterThanOrEqualTo(56f));
             }
             var service = Get(questionnaire, "Service"); var definition = Get(service, "Definition"); var catalog = Get(manager, "QuestionnaireCatalog"); var protocol = Get(manager, "ExperimentProtocol");
             var enabled = ((IEnumerable)catalog.GetType().GetMethod("GetEnabledItems").Invoke(catalog, new[] { Get(definition, "questionnaireId"), protocol })).Cast<object>().ToArray();

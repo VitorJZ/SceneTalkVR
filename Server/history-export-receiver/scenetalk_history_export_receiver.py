@@ -353,6 +353,12 @@ def _enum_label(value: Any, labels: Mapping[int, str]) -> str:
     return labels.get(_number(value, -1), _text(value))
 
 
+def _formal_condition(session: Mapping[str, Any]) -> str:
+    return "" if _text(session.get("embodimentCondition")) else _enum_label(
+        session.get("formalCondition"), {0: "NE", 1: "NR", 2: "SE", 3: "SR"}
+    )
+
+
 def workbook_rows(bundle: Mapping[str, Any]) -> tuple[list[list[Any]], list[list[Any]], list[list[Any]]]:
     questionnaire_rows: list[list[Any]] = []
     response_rows: list[list[Any]] = []
@@ -375,9 +381,7 @@ def workbook_rows(bundle: Mapping[str, Any]) -> tuple[list[list[Any]], list[list
             responses = [_dictionary(response) for response in _list(session.get("responses"))]
             answered_count = sum(1 for response in responses if _text(response.get("rawValue")).strip())
             embodiment_condition = _text(session.get("embodimentCondition"))
-            formal_condition = "" if embodiment_condition else _enum_label(
-                session.get("formalCondition"), {0: "NE", 1: "NR", 2: "SE", 3: "SR"}
-            )
+            formal_condition = _formal_condition(session)
             technical_validity = _enum_label(
                 session.get("technicalValidity"),
                 {0: "Valid", 1: "Retry", 2: "FallbackUsed", 3: "TechnicalInvalid"},
@@ -532,9 +536,96 @@ def _scored_value(response: Mapping[str, Any] | None) -> float | int:
         return -1
 
 
+def _formal_scene_dialogue_counts(
+    record: Mapping[str, Any],
+    questionnaire: Mapping[str, Any],
+    session: Mapping[str, Any],
+) -> tuple[int, int]:
+    run_id = _text(session.get("conditionRunId")).strip()
+    attempt_id = _text(questionnaire.get("attemptId")).strip()
+    task_id = _text(session.get("taskId")).strip()
+    if not run_id and not attempt_id:
+        return -1, -1
+
+    total_turns = 0
+    total_corrections = 0
+    matched = False
+    seen_sessions: set[str] = set()
+    for conversation_value in _list(record.get("conversations")):
+        conversation = _dictionary(conversation_value)
+        summary = _dictionary(conversation.get("summary"))
+        settings = _dictionary(conversation.get("settings"))
+        condition = _dictionary(settings.get("condition"))
+        condition_task = _dictionary(condition.get("task"))
+        conversation_run_id = (
+            _text(summary.get("experimentRunId")).strip()
+            or _text(settings.get("experimentRunId")).strip()
+        )
+        conversation_attempt_id = (
+            _text(summary.get("experimentAttemptId")).strip()
+            or _text(settings.get("experimentAttemptId")).strip()
+        )
+        conversation_task_id = (
+            _text(summary.get("taskType")).strip()
+            or _text(summary.get("scenarioId")).strip()
+            or _text(condition_task.get("taskId")).strip()
+            or _text(condition.get("scenarioId")).strip()
+        )
+
+        if run_id and conversation_run_id and run_id != conversation_run_id:
+            continue
+        if attempt_id and conversation_attempt_id and attempt_id != conversation_attempt_id:
+            continue
+        has_shared_run = bool(run_id and conversation_run_id)
+        has_shared_attempt = bool(attempt_id and conversation_attempt_id)
+        if not has_shared_run and not has_shared_attempt:
+            continue
+        if task_id and conversation_task_id and task_id.lower() != conversation_task_id.lower():
+            continue
+
+        conversation_session_id = _text(summary.get("sessionId")).strip()
+        if conversation_session_id and conversation_session_id in seen_sessions:
+            continue
+        if conversation_session_id:
+            seen_sessions.add(conversation_session_id)
+
+        turns = _list(conversation.get("turns"))
+        turn_count = (
+            _number(summary.get("turnCount"))
+            if "turnCount" in summary
+            else len(turns)
+        )
+        correction_count = (
+            _number(summary.get("correctionCount"))
+            if "correctionCount" in summary
+            else sum(
+                1
+                for turn in turns
+                if bool(
+                    _dictionary(
+                        _dictionary(_dictionary(turn).get("payload")).get("correctionFeedback")
+                    ).get("hasFeedback")
+                )
+            )
+        )
+        total_turns += max(0, turn_count)
+        total_corrections += max(0, correction_count)
+        matched = True
+
+    return (total_turns, total_corrections) if matched else (-1, -1)
+
+
 def formal_scene_statistics(bundle: Mapping[str, Any]) -> tuple[list[str], list[list[Any]]]:
     prompt_columns = _formal_scene_columns(bundle)
-    headers = ["participantId", "完成时间", "taskId", *[header for _, header in prompt_columns]]
+    headers = [
+        "participantId",
+        "完成时间",
+        "taskId",
+        "formalCondition",
+        "对话轮次",
+        "纠错次数",
+        *[header for _, header in prompt_columns],
+    ]
     ordered_rows: list[tuple[tuple[Any, ...], list[Any]]] = []
 
     for experiment in _list(bundle.get("experiments")):
@@ -565,10 +656,19 @@ def formal_scene_statistics(bundle: Mapping[str, Any]) -> tuple[list[str], list[
             )
             responses = _latest_responses(session)
             task_id = _text(session.get("taskId"))
+            formal_condition = _formal_condition(session)
+            dialogue_turn_count, correction_count = _formal_scene_dialogue_counts(
+                record,
+                value,
+                session,
+            )
             row = [
                 participant_id,
                 _excel_local_date(completed_at),
                 task_id,
+                formal_condition,
+                dialogue_turn_count,
+                correction_count,
                 *[_scored_value(responses.get(item_id)) for item_id, _ in prompt_columns],
             ]
             ordered_rows.append(
@@ -734,7 +834,7 @@ def write_xlsx(path: Path, bundle: Mapping[str, Any]) -> tuple[int, int, int]:
             "FormalSceneStats",
             formal_scene_headers,
             formal_scene_rows,
-            freeze_columns=3,
+            freeze_columns=6,
             wrap_headers=True,
         ),
         WorksheetSpec(
