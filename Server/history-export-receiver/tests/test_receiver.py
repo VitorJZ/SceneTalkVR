@@ -377,6 +377,18 @@ def formal_statistics_bundle():
                     },
                     {
                         "summary": {
+                            "sessionId": "formal-ne-previous-conversation",
+                            "taskType": "hotel_check_in",
+                            "experimentAttemptId": "ne-previous",
+                            "experimentRunId": "formal-run-ne-previous",
+                            "turnCount": 4,
+                            "correctionCount": 2,
+                        },
+                        "settings": {},
+                        "turns": [],
+                    },
+                    {
+                        "summary": {
                             "sessionId": "formal-nr-conversation",
                             "taskType": "furniture_shopping",
                         },
@@ -505,7 +517,7 @@ class ReceiverTests(unittest.TestCase):
         self.assertEqual("hotel_check_in", rows[0][2])
         self.assertEqual(["NE", "NE", "NR"], [row[3] for row in rows])
         self.assertEqual([3, 1], rows[0][4:6])
-        self.assertEqual([8, 3], rows[1][4:6])
+        self.assertEqual([12, 5], rows[1][4:6])
         self.assertEqual([2, 1], rows[2][4:6])
         self.assertEqual([3.0, -1], rows[0][6:8])
         self.assertEqual([6.0, -1], rows[1][6:8])

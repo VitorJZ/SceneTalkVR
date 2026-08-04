@@ -544,7 +544,7 @@ def _formal_scene_dialogue_counts(
     run_id = _text(session.get("conditionRunId")).strip()
     attempt_id = _text(questionnaire.get("attemptId")).strip()
     task_id = _text(session.get("taskId")).strip()
-    if not run_id and not attempt_id:
+    if not task_id and not run_id and not attempt_id:
         return -1, -1
 
     total_turns = 0
@@ -572,16 +572,20 @@ def _formal_scene_dialogue_counts(
             or _text(condition.get("scenarioId")).strip()
         )
 
-        if run_id and conversation_run_id and run_id != conversation_run_id:
-            continue
-        if attempt_id and conversation_attempt_id and attempt_id != conversation_attempt_id:
-            continue
-        has_shared_run = bool(run_id and conversation_run_id)
-        has_shared_attempt = bool(attempt_id and conversation_attempt_id)
-        if not has_shared_run and not has_shared_attempt:
-            continue
-        if task_id and conversation_task_id and task_id.lower() != conversation_task_id.lower():
-            continue
+        if task_id and conversation_task_id:
+            if task_id.casefold() != conversation_task_id.casefold():
+                continue
+        else:
+            has_same_run = bool(
+                run_id and conversation_run_id and run_id == conversation_run_id
+            )
+            has_same_attempt = bool(
+                attempt_id
+                and conversation_attempt_id
+                and attempt_id == conversation_attempt_id
+            )
+            if not has_same_run and not has_same_attempt:
+                continue
 
         conversation_session_id = _text(summary.get("sessionId")).strip()
         if conversation_session_id and conversation_session_id in seen_sessions:
