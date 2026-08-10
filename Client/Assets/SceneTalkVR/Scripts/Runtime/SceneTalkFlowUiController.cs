@@ -79,6 +79,7 @@ namespace SceneTalkVR.Runtime
         private Button quitButton;
         private Button fontMinusButton;
         private Button fontPlusButton;
+        private Button languageChangeButton;
         private Button uiMinusButton;
         private Button uiPlusButton;
         private Button subtitleChangeButton;
@@ -130,6 +131,7 @@ namespace SceneTalkVR.Runtime
 
         private TMP_Text settingsTitleText;
         private TMP_Text settingsPageText;
+        private TMP_Text languageValueText;
         private TMP_Text fontValueText;
         private TMP_Text uiValueText;
         private TMP_Text subtitleValueText;
@@ -195,6 +197,7 @@ namespace SceneTalkVR.Runtime
         private RectTransform subtitleTextContainerRect;
 
         private bool isSubscribed;
+        private SceneTalkLanguage? renderedLanguage;
 
         private void Awake()
         {
@@ -254,6 +257,8 @@ namespace SceneTalkVR.Runtime
             }
 
             pilotCollectionUi?.ResetForCanvasRebuild();
+            GetComponent<QuestionnaireVrPanel>()?.ResetForCanvasRebuild();
+            GetComponent<FormalRankingVrPanel>()?.ResetForCanvasRebuild();
             ClearCanvasChildren();
             baseFontSizes.Clear();
             ConfigureCanvasRect();
@@ -361,12 +366,16 @@ namespace SceneTalkVR.Runtime
             historyErrorText = CreateText(historyErrorPanel.transform, "Message", string.Empty, new Vector2(0f, -5f), new Vector2(560f, 110f), 18, TextAnchor.MiddleCenter, new Color(1f, 0.55f, 0.42f, 1f));
             historyErrorBackButton = CreateButton(historyErrorPanel.transform, "BackButton", "返回", new Vector2(0f, -92f), new Vector2(150f, 44f), new Color(0.24f, 0.36f, 0.42f, 1f));
 
-            settingsPanel = CreatePanel(root, "SettingsPanel", new Vector2(0f, 0f), new Vector2(820f, 500f), new Color(0.04f, 0.05f, 0.07f, 0.92f));
-            settingsTitleText = CreateText(settingsPanel.transform, "Title", "设置", new Vector2(0f, 210f), new Vector2(480f, 44f), 30, TextAnchor.MiddleCenter, Color.white);
-            settingsPageText = CreateText(settingsPanel.transform, "Page", "显示、纠错与连接", new Vector2(0f, 174f), new Vector2(700f, 30f), 18, TextAnchor.MiddleCenter, new Color(0.74f, 0.86f, 1f, 1f));
+            settingsPanel = CreatePanel(root, "SettingsPanel", new Vector2(0f, 0f), new Vector2(820f, 600f), new Color(0.04f, 0.05f, 0.07f, 0.92f));
+            settingsTitleText = CreateText(settingsPanel.transform, "Title", "设置", new Vector2(0f, 260f), new Vector2(480f, 44f), 30, TextAnchor.MiddleCenter, Color.white);
+            settingsPageText = CreateText(settingsPanel.transform, "Page", "显示、纠错与连接", new Vector2(0f, 224f), new Vector2(700f, 30f), 18, TextAnchor.MiddleCenter, new Color(0.74f, 0.86f, 1f, 1f));
 
             settingsGeneralGroup = new GameObject("GeneralSettings");
             settingsGeneralGroup.transform.SetParent(settingsPanel.transform, false);
+            CreateText(settingsGeneralGroup.transform, "LanguageLabel", "语言", new Vector2(-240f, 158f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
+            languageValueText = CreateText(settingsGeneralGroup.transform, "LanguageValue", string.Empty, new Vector2(110f, 158f), new Vector2(140f, 44f), 20, TextAnchor.MiddleCenter, Color.white);
+            languageChangeButton = CreateButton(settingsGeneralGroup.transform, "LanguageChangeButton", string.Empty, new Vector2(293f, 158f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
+
             CreateText(settingsGeneralGroup.transform, "FontLabel", "字体大小", new Vector2(-240f, 108f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
             fontMinusButton = CreateButton(settingsGeneralGroup.transform, "FontMinusButton", "-", new Vector2(78f, 108f), new Vector2(52f, 48f), new Color(0.24f, 0.36f, 0.42f, 1f));
             fontValueText = CreateText(settingsGeneralGroup.transform, "FontValue", string.Empty, new Vector2(174f, 108f), new Vector2(120f, 44f), 20, TextAnchor.MiddleCenter, Color.white);
@@ -472,6 +481,7 @@ namespace SceneTalkVR.Runtime
             BindButtons();
             CaptureBaseFontSizes(worldCanvas.transform);
             ApplyUserSettings(SceneTalkUserSettingsStore.Current);
+            renderedLanguage = SceneTalkUserSettingsStore.Current.language;
         }
 
         private void BuildExperimentPanels(Transform root)
@@ -731,6 +741,12 @@ namespace SceneTalkVR.Runtime
             {
                 fontMinusButton.onClick.RemoveAllListeners();
                 fontMinusButton.onClick.AddListener(() => SceneTalkUserSettingsStore.AdjustFontScale(-SceneTalkUserSettings.FontScaleStep));
+            }
+
+            if (languageChangeButton != null)
+            {
+                languageChangeButton.onClick.RemoveAllListeners();
+                languageChangeButton.onClick.AddListener(SceneTalkUserSettingsStore.ToggleLanguage);
             }
 
             if (fontPlusButton != null)
@@ -1042,10 +1058,10 @@ namespace SceneTalkVR.Runtime
                 var column = i % 2; var row = i / 2;
                 var x = column == 0 ? -210f : 210f; var y = 90f - row * 190f;
                 taskButtons.Add(CreateButton(taskSelectionPanel.transform, $"Task{i + 1}Button",
-                    SceneTalkChineseUiText.TaskName(task.taskId, task.displayName), new Vector2(x, y),
+                    SceneTalkUiText.TaskName(task.taskId, task.displayName), new Vector2(x, y),
                     new Vector2(380f, 54f), new Color(0.16f, 0.38f, 0.68f, 1f)));
                 CreateText(taskSelectionPanel.transform, $"Task{i + 1}Context",
-                    SceneTalkChineseUiText.TaskContext(task.taskId, task.context) + "\n开场白：" + task.initialQuestion,
+                    SceneTalkUiText.TaskContext(task.taskId, task.context) + SceneTalkUiText.Select("\n开场白：", "\nOpening line: ") + task.initialQuestion,
                     new Vector2(x, y - 80f), new Vector2(380f, 88f), 15, TextAnchor.UpperCenter,
                     new Color(0.8f, 0.8f, 0.8f, 1f));
             }
@@ -1071,10 +1087,10 @@ namespace SceneTalkVR.Runtime
 
         private static string FriendlyConditionLabel(FormalConditionCode code) => code switch
         {
-            FormalConditionCode.NE => "NE — 对话角色直接纠错",
-            FormalConditionCode.NR => "NR — 对话角色重述反馈",
-            FormalConditionCode.SE => "SE — 辅助角色直接纠错",
-            FormalConditionCode.SR => "SR — 辅助角色重述反馈",
+            FormalConditionCode.NE => SceneTalkUiText.Select("NE — 对话角色直接纠错", "NE — Dialogue character, explicit correction"),
+            FormalConditionCode.NR => SceneTalkUiText.Select("NR — 对话角色重述反馈", "NR — Dialogue character, recast feedback"),
+            FormalConditionCode.SE => SceneTalkUiText.Select("SE — 辅助角色直接纠错", "SE — Assistant agent, explicit correction"),
+            FormalConditionCode.SR => SceneTalkUiText.Select("SR — 辅助角色重述反馈", "SR — Assistant agent, recast feedback"),
             _ => code.ToString()
         };
 
@@ -1245,22 +1261,24 @@ namespace SceneTalkVR.Runtime
             {
                 case PicoHistoryExportState.ProbingUsb:
                     homeExperimentMessageText.color = new Color(.78f, .88f, 1f, 1f);
-                    homeExperimentMessageText.text = "正在检查 USB 数据线和电脑导出服务…";
+                    homeExperimentMessageText.text = SceneTalkUiText.Text("正在检查 USB 数据线和电脑导出服务…");
                     break;
                 case PicoHistoryExportState.BuildingSnapshot:
                     homeExperimentMessageText.color = new Color(.78f, .88f, 1f, 1f);
-                    homeExperimentMessageText.text = "正在整理实验历史数据…";
+                    homeExperimentMessageText.text = SceneTalkUiText.Text("正在整理实验历史数据…");
                     break;
                 case PicoHistoryExportState.Uploading:
                     homeExperimentMessageText.color = new Color(.78f, .88f, 1f, 1f);
-                    homeExperimentMessageText.text = "正在通过 USB 导出到电脑…";
+                    homeExperimentMessageText.text = SceneTalkUiText.Text("正在通过 USB 导出到电脑…");
                     break;
                 case PicoHistoryExportState.Succeeded:
                     var success = historyExportCoordinator.LastResult;
                     homeExperimentMessageText.color = new Color(.55f, .9f, .65f, 1f);
                     homeExperimentMessageText.text = success == null
-                        ? "历史数据已导出到电脑。"
-                        : $"导出成功：{success.experimentCount} 条实验记录、{success.questionnaireCount} 份问卷。\n电脑目录：{success.exportDirectory}";
+                        ? SceneTalkUiText.Text("历史数据已导出到电脑。")
+                        : SceneTalkUiText.Select(
+                            $"导出成功：{success.experimentCount} 条实验记录、{success.questionnaireCount} 份问卷。\n电脑目录：{success.exportDirectory}",
+                            $"Export completed: {success.experimentCount} experiment records and {success.questionnaireCount} questionnaires.\nComputer folder: {success.exportDirectory}");
                     break;
                 case PicoHistoryExportState.Failed:
                     var failed = historyExportCoordinator.LastResult;
@@ -1276,24 +1294,24 @@ namespace SceneTalkVR.Runtime
         {
             return code switch
             {
-                "history_export_in_progress" => "历史数据正在导出，请稍候。",
-                "history_export_empty" => "暂无可导出的实验历史数据。",
-                "history_export_usb_unavailable" => "未检测到电脑导出服务。请连接数据线并启动电脑端后台。",
-                "history_export_service_incompatible" => "电脑端导出服务版本不兼容，请重新启动最新后台。",
-                "history_export_usb_endpoint_invalid" => "USB 导出地址配置无效，请联系实验人员。",
-                "payload_too_large" => "历史数据过大，电脑端拒绝接收。",
-                "export_write_failed" => "电脑无法写入导出目录，请检查磁盘空间和目录权限。",
-                "xlsx_generation_failed" => "电脑生成问卷 Excel 文件失败。",
-                "export_id_conflict" => "电脑上存在冲突的同编号导出，请重新点击导出。",
-                "history_service_unavailable" => "PICO 历史数据服务不可用。",
-                "history_export_snapshot_failed" => "整理 PICO 历史数据失败：" + SafeExportDetail(detail),
-                _ => "历史数据导出失败：" + SafeExportDetail(detail)
+                "history_export_in_progress" => SceneTalkUiText.Text("历史数据正在导出，请稍候。"),
+                "history_export_empty" => SceneTalkUiText.Text("暂无可导出的实验历史数据。"),
+                "history_export_usb_unavailable" => SceneTalkUiText.Text("未检测到电脑导出服务。请连接数据线并启动电脑端后台。"),
+                "history_export_service_incompatible" => SceneTalkUiText.Text("电脑端导出服务版本不兼容，请重新启动最新后台。"),
+                "history_export_usb_endpoint_invalid" => SceneTalkUiText.Text("USB 导出地址配置无效，请联系实验人员。"),
+                "payload_too_large" => SceneTalkUiText.Text("历史数据过大，电脑端拒绝接收。"),
+                "export_write_failed" => SceneTalkUiText.Text("电脑无法写入导出目录，请检查磁盘空间和目录权限。"),
+                "xlsx_generation_failed" => SceneTalkUiText.Text("电脑生成问卷 Excel 文件失败。"),
+                "export_id_conflict" => SceneTalkUiText.Text("电脑上存在冲突的同编号导出，请重新点击导出。"),
+                "history_service_unavailable" => SceneTalkUiText.Text("PICO 历史数据服务不可用。"),
+                "history_export_snapshot_failed" => SceneTalkUiText.Select("整理 PICO 历史数据失败：", "Failed to prepare PICO history data: ") + SafeExportDetail(detail),
+                _ => SceneTalkUiText.Select("历史数据导出失败：", "History export failed: ") + SafeExportDetail(detail)
             };
         }
 
         private static string SafeExportDetail(string detail)
         {
-            if (string.IsNullOrWhiteSpace(detail)) return "请检查数据线和电脑端后台。";
+            if (string.IsNullOrWhiteSpace(detail)) return SceneTalkUiText.Text("请检查数据线和电脑端后台。");
             var trimmed = detail.Trim();
             return trimmed.Length <= 120 ? trimmed : trimmed.Substring(0, 120) + "…";
         }
@@ -1304,8 +1322,12 @@ namespace SceneTalkVR.Runtime
         {
             if (demoRankingPanel == null || demoRankingText == null) return;
             demoRankingText.text = pilot
-                ? "预实验最终排序\n\n1  仅语音\n2  悬浮球\n3  人形辅助角色\n\n演示操作员预览\n仅用于自动填充演示"
-                : "正式条件最终排序\n\n1  NE\n2  NR\n3  SE\n4  SR\n\n演示操作员预览\n仅用于自动填充演示";
+                ? SceneTalkUiText.Select(
+                    "预实验最终排序\n\n1  仅语音\n2  悬浮球\n3  人形辅助角色\n\n演示操作员预览\n仅用于自动填充演示",
+                    "Pilot final ranking\n\n1  Voice only\n2  Floating orb\n3  Humanoid assistant\n\nOperator demo preview\nFor demo auto-fill only")
+                : SceneTalkUiText.Select(
+                    "正式条件最终排序\n\n1  NE\n2  NR\n3  SE\n4  SR\n\n演示操作员预览\n仅用于自动填充演示",
+                    "Formal-condition final ranking\n\n1  NE\n2  NR\n3  SE\n4  SR\n\nOperator demo preview\nFor demo auto-fill only");
             demoRankingPanel.SetActive(true);
             demoRankingPanel.transform.SetAsLastSibling();
             if (demoBanner != null) demoBanner.transform.SetAsLastSibling();
@@ -1315,8 +1337,12 @@ namespace SceneTalkVR.Runtime
         {
             if (demoRankingPanel == null || demoRankingText == null) return;
             demoRankingText.text = pilot
-                ? "预实验演练排序\n\n请使用演练控制窗口执行质量验证排序提交。"
-                : "正式实验演练排序\n\n请使用参与者收集流程完成交互式最终排序。";
+                ? SceneTalkUiText.Select(
+                    "预实验演练排序\n\n请使用演练控制窗口执行质量验证排序提交。",
+                    "Pilot rehearsal ranking\n\nUse the rehearsal control window to submit the quality-validation ranking.")
+                : SceneTalkUiText.Select(
+                    "正式实验演练排序\n\n请使用参与者收集流程完成交互式最终排序。",
+                    "Formal-experiment rehearsal ranking\n\nUse the participant collection flow to complete the interactive final ranking.");
             demoRankingPanel.name = "RehearsalRankingOperatorNotice";
             rehearsalFinalRankingVisible = true;
             demoRankingPanel.SetActive(true);
@@ -1353,11 +1379,17 @@ namespace SceneTalkVR.Runtime
             var pilotCondition = demo.CurrentPosition >= 0 && demo.PilotAssignment?.conditions != null && demo.CurrentPosition < demo.PilotAssignment.conditions.Length ? demo.PilotAssignment.conditions[demo.CurrentPosition] : null;
             var condition = demo.IsFormalDemo ? formalCondition?.formalConditionCode.ToString() : pilotCondition?.embodimentConditionLabel;
             var avatar = demo.IsFormalDemo ? demo.ResolveFormalAvatarKey(demo.CurrentTaskId) : demo.ResolvePilotProfile(pilotCondition?.embodimentCondition ?? PilotEmbodimentCondition.VoiceOnly)?.visualPrefabKey;
-            demoStatusText.text = $"模式：{(demo.IsFormalDemo ? "编辑器正式实验演示" : "编辑器预实验演示")}\n"
-                + $"条件：{condition ?? "尚未准备"}\n任务：{SceneTalkChineseUiText.TaskName(demo.CurrentTaskId, demo.CurrentTaskId)}\n"
+            demoStatusText.text = SceneTalkUiText.Select(
+                $"模式：{(demo.IsFormalDemo ? "编辑器正式实验演示" : "编辑器预实验演示")}\n"
+                + $"条件：{condition ?? "尚未准备"}\n任务：{SceneTalkUiText.TaskName(demo.CurrentTaskId, demo.CurrentTaskId)}\n"
                 + $"序号：{Mathf.Max(0, demo.CurrentPosition + 1)}/{demo.TotalConditions}\n"
                 + $"角色：演示角色（{avatar}）\n语音：编辑器演示\n可用于正式收集：否\n"
-                + "编辑器演示资源——未经正式收集批准";
+                + "编辑器演示资源——未经正式收集批准",
+                $"Mode: {(demo.IsFormalDemo ? "Editor formal-experiment demo" : "Editor pilot-experiment demo")}\n"
+                + $"Condition: {condition ?? "Not ready"}\nTask: {SceneTalkUiText.TaskName(demo.CurrentTaskId, demo.CurrentTaskId)}\n"
+                + $"Position: {Mathf.Max(0, demo.CurrentPosition + 1)}/{demo.TotalConditions}\n"
+                + $"Character: demo character ({avatar})\nVoice: editor demo\nEligible for formal collection: No\n"
+                + "Editor demo resources — not approved for formal collection");
         }
 
         public void SetGoalPanelVisible(bool visible)
@@ -1414,7 +1446,7 @@ namespace SceneTalkVR.Runtime
         private void RenderGoalPanel(GoalProgressTracker tracker)
         {
             if (taskGoalText == null || tracker == null || tracker.Goals.Count == 0) { if (taskGoalText != null) taskGoalText.text = string.Empty; return; }
-            var taskName = SceneTalkChineseUiText.TaskName(tracker.Context.taskId, tracker.Context.taskId);
+            var taskName = SceneTalkUiText.TaskName(tracker.Context.taskId, tracker.Context.taskId);
             var builder = new System.Text.StringBuilder(taskName).AppendLine();
             for (var i = 0; i < tracker.Goals.Count; i++)
             {
@@ -1423,15 +1455,15 @@ namespace SceneTalkVR.Runtime
                 builder.Append(goal.state == GoalProgressState.Confirmed ? "[✓] "
                     : goal.state == GoalProgressState.Candidate ? "[…] "
                     : goal.state == GoalProgressState.Rejected ? "[↻] " : "[ ] ")
-                    .AppendLine(SceneTalkChineseUiText.Goal(goal.goalId, goal.goalText));
+                    .AppendLine(SceneTalkUiText.Goal(goal.goalId, goal.goalText));
             }
             if (tracker.SequenceState == GoalSequenceState.AwaitingParticipantTurn)
-                builder.AppendLine().AppendLine("正在准备下一目标……");
+                builder.AppendLine().AppendLine(SceneTalkUiText.Text("正在准备下一目标……"));
             else if (tracker.SequenceState == GoalSequenceState.AwaitingAvatarReply)
-                builder.AppendLine().AppendLine("正在等待本轮语音完整播放……");
+                builder.AppendLine().AppendLine(SceneTalkUiText.Text("正在等待本轮语音完整播放……"));
             else if (tracker.SequenceState == GoalSequenceState.Completed)
-                builder.AppendLine().AppendLine("全部目标已完成。");
-            builder.AppendLine().Append("已完成 ").Append(tracker.ConfirmedCount).Append(" / ").Append(tracker.Goals.Count);
+                builder.AppendLine().AppendLine(SceneTalkUiText.Text("全部目标已完成。"));
+            builder.AppendLine().Append(SceneTalkUiText.Select("已完成 ", "Completed ")).Append(tracker.ConfirmedCount).Append(" / ").Append(tracker.Goals.Count);
             taskGoalText.text = builder.ToString();
         }
 
@@ -1454,7 +1486,7 @@ namespace SceneTalkVR.Runtime
                     || item.status == ConditionRunStatus.Running
                     || item.status == ConditionRunStatus.AwaitingQuestionnaire
                     || item.status == ConditionRunStatus.QuestionnaireInProgress);
-                if (formalModeStatusTexts.TryGetValue(pair.Key, out var label)) label.text = status;
+                if (formalModeStatusTexts.TryGetValue(pair.Key, out var label)) label.text = SceneTalkUiText.Text(status);
             }
         }
 
@@ -1471,20 +1503,34 @@ namespace SceneTalkVR.Runtime
 
             if (settingsTitleText != null)
             {
-                settingsTitleText.text = "设置";
+                settingsTitleText.text = SceneTalkUiText.Text("设置");
             }
 
             if (settingsPageText != null)
             {
-                settingsPageText.text = "显示、纠错与连接";
+                settingsPageText.text = SceneTalkUiText.Text("显示、纠错与连接");
+            }
+
+            if (languageValueText != null)
+            {
+                languageValueText.text = SceneTalkUiText.Select("中文", "English");
+            }
+
+            if (languageChangeButton != null)
+            {
+                var languageButtonLabel = languageChangeButton.GetComponentInChildren<TMP_Text>(true);
+                if (languageButtonLabel != null)
+                {
+                    languageButtonLabel.text = SceneTalkUiText.IsEnglish ? "Chinese" : "English";
+                }
             }
 
             if (transportStatusText != null)
             {
                 var router = GatewayTransportRouter.Active;
                 transportStatusText.text = router == null
-                    ? "局域网备用"
-                    : router.ChineseStatus;
+                    ? SceneTalkUiText.Select("局域网备用", "LAN fallback")
+                    : SceneTalkUiText.TransportStatus(router.State);
             }
 
             if (fontValueText != null)
@@ -1499,7 +1545,9 @@ namespace SceneTalkVR.Runtime
 
             if (subtitleValueText != null)
             {
-                subtitleValueText.text = settings.hideDialogueSubtitles ? "隐藏" : "显示";
+                subtitleValueText.text = settings.hideDialogueSubtitles
+                    ? SceneTalkUiText.Select("隐藏", "Hidden")
+                    : SceneTalkUiText.Select("显示", "Shown");
             }
 
             if (correctionSourceValueText != null)
@@ -1526,7 +1574,7 @@ namespace SceneTalkVR.Runtime
                 correctionAppearanceValueText.text = usesAssistantAgent
                     ? ResolveCorrectionAppearanceDisplayName(
                         SceneTalkUserSettingsStore.Current.assistantEmbodiment)
-                    : "不适用";
+                    : SceneTalkUiText.Select("不适用", "Not applicable");
             }
 
             SetInteractable(correctionSourceChangeButton, canChangeCorrection);
@@ -1541,10 +1589,10 @@ namespace SceneTalkVR.Runtime
             if (correctionSettingsStatusText != null)
             {
                 correctionSettingsStatusText.text = !canChangeCorrection
-                    ? SceneTalkChineseUiText.Error(orchestrator.CorrectionSettingLockReason)
+                    ? SceneTalkUiText.Error(orchestrator.CorrectionSettingLockReason)
                     : usesAssistantAgent
-                        ? "辅助角色外观会全局保存，并在正式实验开始后锁定。"
-                        : "选择辅助角色后可以更改其外观。";
+                        ? SceneTalkUiText.Text("辅助角色外观会全局保存，并在正式实验开始后锁定。")
+                        : SceneTalkUiText.Text("选择辅助角色后可以更改其外观。");
             }
         }
 
@@ -1567,10 +1615,10 @@ namespace SceneTalkVR.Runtime
                 }
                 var item = items[i];
                 SetButtonLabel(button,
-                    $"[{SceneTalkChineseUiText.ExperimentKindName(item.kind)}] {item.participantId}    {FormatHistoryTime(item.updatedAtUnixMs)}\n"
-                    + $"状态：{FriendlyExperimentStatus(item.status)}"
+                    $"[{SceneTalkUiText.ExperimentKindName(item.kind)}] {item.participantId}    {FormatHistoryTime(item.updatedAtUnixMs)}\n"
+                    + SceneTalkUiText.Select($"状态：{FriendlyExperimentStatus(item.status)}", $"Status: {FriendlyExperimentStatus(item.status)}")
                     + (item.kind == ExperimentKind.Formal && !string.IsNullOrWhiteSpace(item.assistantEmbodimentSnapshot)
-                        ? $"  |  外观：{ResolveCorrectionAppearanceDisplayName(item.assistantEmbodimentSnapshot)}"
+                        ? SceneTalkUiText.Select($"  |  外观：{ResolveCorrectionAppearanceDisplayName(item.assistantEmbodimentSnapshot)}", $"  |  Appearance: {ResolveCorrectionAppearanceDisplayName(item.assistantEmbodimentSnapshot)}")
                         : string.Empty));
                 if (!string.Equals(experimentHistoryRowIds[i], item.experimentId, System.StringComparison.Ordinal))
                 {
@@ -1581,7 +1629,7 @@ namespace SceneTalkVR.Runtime
                 }
             }
             if (experimentHistoryPageText != null)
-                experimentHistoryPageText.text = $"第 {page.pageIndex + 1} / {page.TotalPages} 页";
+                experimentHistoryPageText.text = SceneTalkUiText.Select($"第 {page.pageIndex + 1} / {page.TotalPages} 页", $"Page {page.pageIndex + 1} / {page.TotalPages}");
             SetInteractable(experimentHistoryPreviousButton, page.pageIndex > 0);
             SetInteractable(experimentHistoryNextButton, page.pageIndex + 1 < page.TotalPages);
         }
@@ -1594,11 +1642,11 @@ namespace SceneTalkVR.Runtime
             if (experimentHistoryActionsSummaryText != null)
             {
                 experimentHistoryActionsSummaryText.text =
-                    $"{SceneTalkChineseUiText.ExperimentKindName(summary.kind)}  |  {FriendlyExperimentStatus(summary.status)}\n"
-                    + $"参与者：{summary.participantId}\n"
-                    + $"更新时间：{FormatHistoryTime(summary.updatedAtUnixMs)}"
+                    $"{SceneTalkUiText.ExperimentKindName(summary.kind)}  |  {FriendlyExperimentStatus(summary.status)}\n"
+                    + SceneTalkUiText.Select($"参与者：{summary.participantId}\n", $"Participant: {summary.participantId}\n")
+                    + SceneTalkUiText.Select($"更新时间：{FormatHistoryTime(summary.updatedAtUnixMs)}", $"Updated: {FormatHistoryTime(summary.updatedAtUnixMs)}")
                     + (summary.kind == ExperimentKind.Formal && !string.IsNullOrWhiteSpace(summary.assistantEmbodimentSnapshot)
-                        ? $"\n外观：{ResolveCorrectionAppearanceDisplayName(summary.assistantEmbodimentSnapshot)}"
+                        ? SceneTalkUiText.Select($"\n外观：{ResolveCorrectionAppearanceDisplayName(summary.assistantEmbodimentSnapshot)}", $"\nAppearance: {ResolveCorrectionAppearanceDisplayName(summary.assistantEmbodimentSnapshot)}")
                         : string.Empty);
             }
             SetInteractable(experimentHistoryContinueButton, summary.CanContinue);
@@ -1624,7 +1672,9 @@ namespace SceneTalkVR.Runtime
                     {
                         isConversation = true,
                         id = conversation.sessionId,
-                        label = $"对话  {SceneTalkChineseUiText.TaskName(string.Empty, conversation.title)}  |  {conversation.turnCount} 轮  |  {FormatHistoryTime(conversation.updatedAtUnixMs)}"
+                        label = SceneTalkUiText.Select(
+                            $"对话  {SceneTalkUiText.TaskName(string.Empty, conversation.title)}  |  {conversation.turnCount} 轮  |  {FormatHistoryTime(conversation.updatedAtUnixMs)}",
+                            $"Conversation  {SceneTalkUiText.TaskName(string.Empty, conversation.title)}  |  {conversation.turnCount} turns  |  {FormatHistoryTime(conversation.updatedAtUnixMs)}")
                     });
                 }
                 foreach (var questionnaire in detail.questionnaires ?? System.Array.Empty<ExperimentQuestionnaireRecord>())
@@ -1634,7 +1684,9 @@ namespace SceneTalkVR.Runtime
                     {
                         isConversation = false,
                         id = questionnaire.questionnaireRecordId,
-                        label = $"问卷  {session?.questionnaireId ?? "-"}  |  {SceneTalkChineseUiText.QuestionnaireStatusName(session?.completionStatus ?? QuestionnaireCompletionStatus.NotStarted)}  |  {(session?.completionRate ?? 0f):P0}"
+                        label = SceneTalkUiText.Select(
+                            $"问卷  {session?.questionnaireId ?? "-"}  |  {SceneTalkUiText.QuestionnaireStatusName(session?.completionStatus ?? QuestionnaireCompletionStatus.NotStarted)}  |  {(session?.completionRate ?? 0f):P0}",
+                            $"Questionnaire  {session?.questionnaireId ?? "-"}  |  {SceneTalkUiText.QuestionnaireStatusName(session?.completionStatus ?? QuestionnaireCompletionStatus.NotStarted)}  |  {(session?.completionRate ?? 0f):P0}")
                     });
                 }
             }
@@ -1650,7 +1702,7 @@ namespace SceneTalkVR.Runtime
                 if (hasItem) SetButtonLabel(experimentRecordEntryButtons[i], experimentRecordEntries[index].label);
             }
             if (experimentRecordEntriesPageText != null)
-                experimentRecordEntriesPageText.text = $"第 {experimentRecordEntryPage + 1} / {pages} 页";
+                experimentRecordEntriesPageText.text = SceneTalkUiText.Select($"第 {experimentRecordEntryPage + 1} / {pages} 页", $"Page {experimentRecordEntryPage + 1} / {pages}");
             SetInteractable(experimentRecordPreviousButton, experimentRecordEntryPage > 0);
             SetInteractable(experimentRecordNextButton, experimentRecordEntryPage + 1 < pages);
         }
@@ -1663,8 +1715,9 @@ namespace SceneTalkVR.Runtime
             if (experimentHistoryConversationSummaryText != null)
             {
                 experimentHistoryConversationSummaryText.text =
-                    $"{SceneTalkChineseUiText.TaskName(detail.summary.taskType, detail.summary.title)}  |  {SceneTalkChineseUiText.ExperimentKindName(detail.summary.experimentKind)}  |  {detail.summary.turnCount} 轮\n"
-                    + $"任务：{SceneTalkChineseUiText.TaskName(detail.summary.taskType, detail.summary.taskType)}  |  更新时间：{FormatHistoryTime(detail.summary.updatedAtUnixMs)}";
+                    SceneTalkUiText.Select(
+                        $"{SceneTalkUiText.TaskName(detail.summary.taskType, detail.summary.title)}  |  {SceneTalkUiText.ExperimentKindName(detail.summary.experimentKind)}  |  {detail.summary.turnCount} 轮\n任务：{SceneTalkUiText.TaskName(detail.summary.taskType, detail.summary.taskType)}  |  更新时间：{FormatHistoryTime(detail.summary.updatedAtUnixMs)}",
+                        $"{SceneTalkUiText.TaskName(detail.summary.taskType, detail.summary.title)}  |  {SceneTalkUiText.ExperimentKindName(detail.summary.experimentKind)}  |  {detail.summary.turnCount} turns\nTask: {SceneTalkUiText.TaskName(detail.summary.taskType, detail.summary.taskType)}  |  Updated: {FormatHistoryTime(detail.summary.updatedAtUnixMs)}");
             }
             if (string.Equals(lastRenderedExperimentConversationId, detail.summary.sessionId, System.StringComparison.Ordinal)) return;
             lastRenderedExperimentConversationId = detail.summary.sessionId;
@@ -1688,14 +1741,16 @@ namespace SceneTalkVR.Runtime
             if (!isVisible || experimentHistoryDeleteMessageText == null) return;
             var selected = GetExperimentCoordinator()?.SelectedExperiment?.summary;
             experimentHistoryDeleteMessageText.text = selected == null
-                ? "所选实验记录已不可用。"
-                : $"永久删除参与者 {selected.participantId} 的实验记录？\n这会删除数据库记录及其缓存数据。";
+                ? SceneTalkUiText.Text("所选实验记录已不可用。")
+                : SceneTalkUiText.Select(
+                    $"永久删除参与者 {selected.participantId} 的实验记录？\n这会删除数据库记录及其缓存数据。",
+                    $"Permanently delete the experiment record for participant {selected.participantId}?\nThis deletes the database record and cached data.");
         }
 
         private void RefreshExperimentHistoryError(bool isVisible)
         {
             if (isVisible && experimentHistoryErrorText != null)
-                experimentHistoryErrorText.text = SceneTalkChineseUiText.Error(
+                experimentHistoryErrorText.text = SceneTalkUiText.Error(
                     GetExperimentCoordinator()?.ErrorMessage ?? "Experiment history operation failed.");
         }
 
@@ -1707,8 +1762,8 @@ namespace SceneTalkVR.Runtime
                 ?? System.Array.Empty<LearningSessionSummary>();
             if (experimentConversationResumeTaskText != null)
             {
-                experimentConversationResumeTaskText.text = "当前任务："
-                    + SceneTalkChineseUiText.TaskName(
+                experimentConversationResumeTaskText.text = SceneTalkUiText.Select("当前任务：", "Current task: ")
+                    + SceneTalkUiText.TaskName(
                         coordinator?.PendingConversationTaskId,
                         coordinator?.PendingConversationTaskId);
             }
@@ -1722,8 +1777,9 @@ namespace SceneTalkVR.Runtime
                 if (!hasItem || button == null) continue;
                 var item = candidates[i];
                 SetButtonLabel(button,
-                    $"对话 {i + 1}    {FormatHistoryTime(item.updatedAtUnixMs)}    {item.turnCount} 轮    "
-                    + SceneTalkChineseUiText.TaskName(item.taskType, item.title));
+                    SceneTalkUiText.Select(
+                        $"对话 {i + 1}    {FormatHistoryTime(item.updatedAtUnixMs)}    {item.turnCount} 轮    {SceneTalkUiText.TaskName(item.taskType, item.title)}",
+                        $"Conversation {i + 1}    {FormatHistoryTime(item.updatedAtUnixMs)}    {item.turnCount} turns    {SceneTalkUiText.TaskName(item.taskType, item.title)}"));
                 var selected = string.Equals(
                     item.sessionId,
                     coordinator.SelectedConversationResumeSessionId,
@@ -1741,10 +1797,10 @@ namespace SceneTalkVR.Runtime
             if (experimentConversationResumeErrorText != null)
             {
                 experimentConversationResumeErrorText.text = !string.IsNullOrWhiteSpace(coordinator?.ErrorMessage)
-                    ? SceneTalkChineseUiText.Error(coordinator.ErrorMessage)
+                    ? SceneTalkUiText.Error(coordinator.ErrorMessage)
                     : candidates.Length == 0
-                        ? "没有找到可安全恢复的旧对话，请开启新对话。"
-                        : "请选择要继续的历史对话。";
+                        ? SceneTalkUiText.Text("没有找到可安全恢复的旧对话，请开启新对话。")
+                        : SceneTalkUiText.Text("请选择要继续的历史对话。");
             }
         }
 
@@ -1768,23 +1824,27 @@ namespace SceneTalkVR.Runtime
         private static string BuildExperimentRecordText(ExperimentRecordDetail detail)
         {
             var builder = new StringBuilder();
-            builder.AppendLine($"实验：{SceneTalkChineseUiText.ExperimentKindName(detail.summary.kind)}");
-            builder.AppendLine($"参与者：{detail.summary.participantId}");
-            builder.AppendLine($"会话：{detail.summary.sessionId}");
-            builder.AppendLine($"状态：{FriendlyExperimentStatus(detail.summary.status)}  |  创建时间：{FormatHistoryTime(detail.summary.createdAtUnixMs)}");
+            builder.AppendLine(SceneTalkUiText.Select($"实验：{SceneTalkUiText.ExperimentKindName(detail.summary.kind)}", $"Experiment: {SceneTalkUiText.ExperimentKindName(detail.summary.kind)}"));
+            builder.AppendLine(SceneTalkUiText.Select($"参与者：{detail.summary.participantId}", $"Participant: {detail.summary.participantId}"));
+            builder.AppendLine(SceneTalkUiText.Select($"会话：{detail.summary.sessionId}", $"Session: {detail.summary.sessionId}"));
+            builder.AppendLine(SceneTalkUiText.Select(
+                $"状态：{FriendlyExperimentStatus(detail.summary.status)}  |  创建时间：{FormatHistoryTime(detail.summary.createdAtUnixMs)}",
+                $"Status: {FriendlyExperimentStatus(detail.summary.status)}  |  Created: {FormatHistoryTime(detail.summary.createdAtUnixMs)}"));
             if (detail.summary.kind == ExperimentKind.Formal
                 && !string.IsNullOrWhiteSpace(detail.summary.assistantEmbodimentSnapshot))
-                builder.AppendLine("辅助角色外观："
+                builder.AppendLine(SceneTalkUiText.Select("辅助角色外观：", "Assistant appearance: ")
                     + ResolveCorrectionAppearanceDisplayName(detail.summary.assistantEmbodimentSnapshot));
 
             builder.AppendLine();
-            builder.AppendLine("尝试记录");
+            builder.AppendLine(SceneTalkUiText.Text("尝试记录"));
             var attempts = detail.attempts ?? System.Array.Empty<ExperimentAttemptRecord>();
             if (attempts.Length == 0)
-                builder.AppendLine("暂无尝试记录。");
+                builder.AppendLine(SceneTalkUiText.Text("暂无尝试记录。"));
             foreach (var attempt in attempts.OrderBy(item => item.attemptIndex).ThenBy(item => item.startedAtUnixMs))
             {
-                builder.Append($"第 {attempt.attemptIndex} 次：{ResolveText(attempt.conditionKey)} / {SceneTalkChineseUiText.TaskName(attempt.taskId, attempt.taskId)} - {SceneTalkChineseUiText.ExperimentAttemptStatusName(attempt.status)}");
+                builder.Append(SceneTalkUiText.Select(
+                    $"第 {attempt.attemptIndex} 次：{ResolveText(attempt.conditionKey)} / {SceneTalkUiText.TaskName(attempt.taskId, attempt.taskId)} - {SceneTalkUiText.ExperimentAttemptStatusName(attempt.status)}",
+                    $"Attempt {attempt.attemptIndex}: {ResolveText(attempt.conditionKey)} / {SceneTalkUiText.TaskName(attempt.taskId, attempt.taskId)} - {SceneTalkUiText.ExperimentAttemptStatusName(attempt.status)}"));
                 if (!string.IsNullOrWhiteSpace(attempt.completionReason)) builder.Append(" (" + attempt.completionReason + ")");
                 builder.AppendLine();
             }
@@ -1793,14 +1853,16 @@ namespace SceneTalkVR.Runtime
             if (ranking != null)
             {
                 builder.AppendLine();
-                builder.AppendLine("最终排序");
+                builder.AppendLine(SceneTalkUiText.Text("最终排序"));
                 var ranked = (ranking.rankings ?? System.Array.Empty<PreferenceRankEntry>())
                     .OrderBy(item => item.rank)
                     .Select(item => $"{item.rank}. {(string.IsNullOrWhiteSpace(item.conditionCode) ? item.embodimentCondition : item.conditionCode)}");
-                builder.AppendLine("排序：" + string.Join("  ", ranked));
+                builder.AppendLine(SceneTalkUiText.Select("排序：", "Ranking: ") + string.Join("  ", ranked));
                 var preferred = string.IsNullOrWhiteSpace(ranking.preferredConditionCode)
                     ? ranking.preferredEmbodimentCondition : ranking.preferredConditionCode;
-                builder.AppendLine($"首选：{ResolveText(preferred)}  |  原因：{ResolveText(ranking.reason)}");
+                builder.AppendLine(SceneTalkUiText.Select(
+                    $"首选：{ResolveText(preferred)}  |  原因：{ResolveText(ranking.reason)}",
+                    $"Preferred: {ResolveText(preferred)}  |  Reason: {ResolveText(ranking.reason)}"));
             }
             return builder.ToString();
         }
@@ -1809,21 +1871,27 @@ namespace SceneTalkVR.Runtime
         {
             var session = record.session ?? new QuestionnaireSession();
             var builder = new StringBuilder();
-            builder.AppendLine($"问卷：{ResolveText(session.questionnaireId)}");
-            builder.AppendLine($"状态：{SceneTalkChineseUiText.QuestionnaireStatusName(session.completionStatus)}  |  完成度：{session.completionRate:P0}  |  有缺失项：{SceneTalkChineseUiText.YesNo(session.hasMissing)}");
-            builder.AppendLine($"任务：{SceneTalkChineseUiText.TaskName(session.taskId, session.taskId)}  |  条件运行：{ResolveText(session.conditionRunId)}");
+            builder.AppendLine(SceneTalkUiText.Select($"问卷：{ResolveText(session.questionnaireId)}", $"Questionnaire: {ResolveText(session.questionnaireId)}"));
+            builder.AppendLine(SceneTalkUiText.Select(
+                $"状态：{SceneTalkUiText.QuestionnaireStatusName(session.completionStatus)}  |  完成度：{session.completionRate:P0}  |  有缺失项：{SceneTalkUiText.YesNo(session.hasMissing)}",
+                $"Status: {SceneTalkUiText.QuestionnaireStatusName(session.completionStatus)}  |  Completion: {session.completionRate:P0}  |  Missing responses: {SceneTalkUiText.YesNo(session.hasMissing)}"));
+            builder.AppendLine(SceneTalkUiText.Select(
+                $"任务：{SceneTalkUiText.TaskName(session.taskId, session.taskId)}  |  条件运行：{ResolveText(session.conditionRunId)}",
+                $"Task: {SceneTalkUiText.TaskName(session.taskId, session.taskId)}  |  Condition run: {ResolveText(session.conditionRunId)}"));
             builder.AppendLine();
-            builder.AppendLine("分区得分");
+            builder.AppendLine(SceneTalkUiText.Text("分区得分"));
             foreach (var score in session.sectionScores ?? System.Array.Empty<QuestionnaireScoreResult>())
-                builder.AppendLine($"{score.sectionId}：平均分={score.mean:0.##}，已回答={score.answeredCount}/{score.itemCount}，有缺失={SceneTalkChineseUiText.YesNo(score.hasMissing)}");
+                builder.AppendLine(SceneTalkUiText.Select(
+                    $"{score.sectionId}：平均分={score.mean:0.##}，已回答={score.answeredCount}/{score.itemCount}，有缺失={SceneTalkUiText.YesNo(score.hasMissing)}",
+                    $"{score.sectionId}: mean={score.mean:0.##}, answered={score.answeredCount}/{score.itemCount}, missing={SceneTalkUiText.YesNo(score.hasMissing)}"));
             builder.AppendLine();
-            builder.AppendLine("回答记录");
+            builder.AppendLine(SceneTalkUiText.Text("回答记录"));
             foreach (var prompt in record.prompts ?? System.Array.Empty<QuestionnairePromptSnapshot>())
             {
                 var response = session.responses?.FirstOrDefault(item => item.itemId == prompt.itemId);
-                builder.AppendLine($"[{prompt.sectionId}] {ResolveText(prompt.promptChinese)}");
-                builder.Append("回答：" + ResolveText(response?.rawValue));
-                if (response?.hasScoredValue == true) builder.Append($"  |  得分：{response.scoredValue:0.##}");
+                builder.AppendLine($"[{prompt.sectionId}] {ResolveText(SceneTalkUiText.IsEnglish ? prompt.promptEnglish : prompt.promptChinese)}");
+                builder.Append(SceneTalkUiText.Select("回答：", "Response: ") + ResolveText(response?.rawValue));
+                if (response?.hasScoredValue == true) builder.Append(SceneTalkUiText.Select($"  |  得分：{response.scoredValue:0.##}", $"  |  Score: {response.scoredValue:0.##}"));
                 builder.AppendLine();
                 builder.AppendLine();
             }
@@ -1841,12 +1909,12 @@ namespace SceneTalkVR.Runtime
 
         private static string FriendlyExperimentStatus(ExperimentRecordStatus status)
         {
-            return SceneTalkChineseUiText.ExperimentStatusName(status);
+            return SceneTalkUiText.ExperimentStatusName(status);
         }
 
         private static string HumanizeExperimentError(string error)
         {
-            return SceneTalkChineseUiText.Error(error);
+            return SceneTalkUiText.Error(error);
         }
 
         private void RefreshHistoryList(bool isVisible)
@@ -1876,12 +1944,12 @@ namespace SceneTalkVR.Runtime
                 var item = items[i];
                 SetButtonLabel(
                     button,
-                    $"{SceneTalkChineseUiText.TaskName(item.taskType, item.title)}    {FormatHistoryTime(item.updatedAtUnixMs)}\n"
-                    + $"{item.turnCount} 轮  |  {item.correctionCount} 次纠错  |  "
+                    $"{SceneTalkUiText.TaskName(item.taskType, item.title)}    {FormatHistoryTime(item.updatedAtUnixMs)}\n"
+                    + SceneTalkUiText.Select($"{item.turnCount} 轮  |  {item.correctionCount} 次纠错  |  ", $"{item.turnCount} turns  |  {item.correctionCount} corrections  |  ")
                     + $"{ResolveCorrectionSourceDisplayName(item.correctionProvider)} / "
                     + ResolveCorrectionStyleDisplayName(item.correctionStyle)
                     + (item.IsExperimentConversation
-                        ? $"  |  实验 {ShortHistoryId(item.experimentId)} / {SceneTalkChineseUiText.ExperimentKindName(item.experimentKind)}"
+                        ? SceneTalkUiText.Select($"  |  实验 {ShortHistoryId(item.experimentId)} / {SceneTalkUiText.ExperimentKindName(item.experimentKind)}", $"  |  Experiment {ShortHistoryId(item.experimentId)} / {SceneTalkUiText.ExperimentKindName(item.experimentKind)}")
                         : string.Empty));
 
                 if (!string.Equals(historyRowSessionIds[i], item.sessionId, System.StringComparison.Ordinal))
@@ -1895,7 +1963,7 @@ namespace SceneTalkVR.Runtime
 
             if (historyPageText != null)
             {
-                historyPageText.text = $"第 {page.pageIndex + 1} / {page.TotalPages} 页";
+                historyPageText.text = SceneTalkUiText.Select($"第 {page.pageIndex + 1} / {page.TotalPages} 页", $"Page {page.pageIndex + 1} / {page.TotalPages}");
             }
 
             SetInteractable(historyPreviousButton, page.pageIndex > 0);
@@ -1920,17 +1988,17 @@ namespace SceneTalkVR.Runtime
             if (historyDetailSummaryText != null)
             {
                 historyDetailSummaryText.text =
-                    $"{SceneTalkChineseUiText.TaskName(detail.summary.taskType, detail.summary.title)}\n"
+                    $"{SceneTalkUiText.TaskName(detail.summary.taskType, detail.summary.title)}\n"
                     + (detail.summary.IsExperimentConversation
-                        ? $"实验：{detail.summary.experimentId}  |  类型：{SceneTalkChineseUiText.ExperimentKindName(detail.summary.experimentKind)}\n"
+                        ? SceneTalkUiText.Select($"实验：{detail.summary.experimentId}  |  类型：{SceneTalkUiText.ExperimentKindName(detail.summary.experimentKind)}\n", $"Experiment: {detail.summary.experimentId}  |  Type: {SceneTalkUiText.ExperimentKindName(detail.summary.experimentKind)}\n")
                         : string.Empty)
-                    + $"创建时间：{FormatHistoryTime(detail.summary.createdAtUnixMs)}  |  更新时间：{FormatHistoryTime(detail.summary.updatedAtUnixMs)}\n"
-                    + $"任务：{SceneTalkChineseUiText.TaskName(detail.summary.taskType, detail.summary.scenarioId)}  |  环境：{SceneTalkChineseUiText.DisplayValue(detail.summary.environmentType)}\n"
-                    + $"角色：{scene?.avatarRole?.role ?? "-"} / {SceneTalkChineseUiText.DisplayValue(appearance?.genderPresentation)}  |  "
-                    + $"纠错：{ResolveCorrectionSourceDisplayName(detail.summary.correctionProvider)} / "
+                    + SceneTalkUiText.Select($"创建时间：{FormatHistoryTime(detail.summary.createdAtUnixMs)}  |  更新时间：{FormatHistoryTime(detail.summary.updatedAtUnixMs)}\n", $"Created: {FormatHistoryTime(detail.summary.createdAtUnixMs)}  |  Updated: {FormatHistoryTime(detail.summary.updatedAtUnixMs)}\n")
+                    + SceneTalkUiText.Select($"任务：{SceneTalkUiText.TaskName(detail.summary.taskType, detail.summary.scenarioId)}  |  环境：{SceneTalkUiText.DisplayValue(detail.summary.environmentType)}\n", $"Task: {SceneTalkUiText.TaskName(detail.summary.taskType, detail.summary.scenarioId)}  |  Environment: {SceneTalkUiText.DisplayValue(detail.summary.environmentType)}\n")
+                    + SceneTalkUiText.Select($"角色：{scene?.avatarRole?.role ?? "-"} / {SceneTalkUiText.DisplayValue(appearance?.genderPresentation)}  |  ", $"Character: {scene?.avatarRole?.role ?? "-"} / {SceneTalkUiText.DisplayValue(appearance?.genderPresentation)}  |  ")
+                    + SceneTalkUiText.Select($"纠错：{ResolveCorrectionSourceDisplayName(detail.summary.correctionProvider)} / ", $"Feedback: {ResolveCorrectionSourceDisplayName(detail.summary.correctionProvider)} / ")
                     + $"{ResolveCorrectionStyleDisplayName(detail.summary.correctionStyle)}  |  "
-                    + $"敏感度：{SceneTalkChineseUiText.DisplayValue(detail.settings?.feedbackSensitivity ?? "moderate")}\n"
-                    + $"轮次：{detail.summary.turnCount}  |  纠错次数：{detail.summary.correctionCount}";
+                    + SceneTalkUiText.Select($"敏感度：{SceneTalkUiText.DisplayValue(detail.settings?.feedbackSensitivity ?? "moderate")}\n", $"Sensitivity: {SceneTalkUiText.DisplayValue(detail.settings?.feedbackSensitivity ?? "moderate")}\n")
+                    + SceneTalkUiText.Select($"轮次：{detail.summary.turnCount}  |  纠错次数：{detail.summary.correctionCount}", $"Turns: {detail.summary.turnCount}  |  Corrections: {detail.summary.correctionCount}");
             }
 
             SetInteractable(historyContinueButton, detail.summary.CanContinue);
@@ -1970,17 +2038,18 @@ namespace SceneTalkVR.Runtime
 
             var summary = orchestrator.SelectedHistorySession?.summary;
             var title = summary == null
-                ? "此对话"
-                : SceneTalkChineseUiText.TaskName(summary.taskType, summary.title);
-            historyDeleteMessageText.text =
-                $"永久删除“{title}”？\n这会删除对应数据库记录和场景缓存文件。";
+                ? SceneTalkUiText.Select("此对话", "this conversation")
+                : SceneTalkUiText.TaskName(summary.taskType, summary.title);
+            historyDeleteMessageText.text = SceneTalkUiText.Select(
+                $"永久删除“{title}”？\n这会删除对应数据库记录和场景缓存文件。",
+                $"Permanently delete “{title}”?\nThis deletes the corresponding database record and cached scene files.");
         }
 
         private void RefreshHistoryError(bool isVisible)
         {
             if (isVisible && historyErrorText != null)
             {
-                historyErrorText.text = SceneTalkChineseUiText.Error(orchestrator.HistoryErrorMessage);
+                historyErrorText.text = SceneTalkUiText.Error(orchestrator.HistoryErrorMessage);
             }
         }
 
@@ -1989,11 +2058,16 @@ namespace SceneTalkVR.Runtime
             var builder = new StringBuilder();
             var task = detail.settings?.condition?.task;
             var avatar = detail.sceneSnapshot?.avatarRole;
-            builder.AppendLine("设置");
-            builder.AppendLine($"任务情境：{SceneTalkChineseUiText.TaskContext(detail.summary?.taskType, task?.context)}");
-            builder.AppendLine($"目标：{(task?.goals == null || task.goals.Length == 0 ? "-" : string.Join("；", task.goals.Select(goal => SceneTalkChineseUiText.Goal(string.Empty, goal))))}");
-            builder.AppendLine($"角色语音：语速={SceneTalkChineseUiText.DisplayValue(avatar?.speakingSpeed)}，口音={SceneTalkChineseUiText.DisplayValue(avatar?.accent)}，态度={SceneTalkChineseUiText.DisplayValue(avatar?.attitude)}");
-            builder.AppendLine($"场景模式：{SceneTalkChineseUiText.DisplayValue(detail.sceneSnapshot?.scene?.mode)}");
+            builder.AppendLine(SceneTalkUiText.Text("设置"));
+            builder.AppendLine(SceneTalkUiText.Select($"任务情境：{SceneTalkUiText.TaskContext(detail.summary?.taskType, task?.context)}", $"Task context: {SceneTalkUiText.TaskContext(detail.summary?.taskType, task?.context)}"));
+            var localizedGoals = task?.goals == null || task.goals.Length == 0
+                ? "-"
+                : string.Join(SceneTalkUiText.Select("；", "; "), task.goals.Select(goal => SceneTalkUiText.Goal(string.Empty, goal)));
+            builder.AppendLine(SceneTalkUiText.Select($"目标：{localizedGoals}", $"Goals: {localizedGoals}"));
+            builder.AppendLine(SceneTalkUiText.Select(
+                $"角色语音：语速={SceneTalkUiText.DisplayValue(avatar?.speakingSpeed)}，口音={SceneTalkUiText.DisplayValue(avatar?.accent)}，态度={SceneTalkUiText.DisplayValue(avatar?.attitude)}",
+                $"Character voice: speed={SceneTalkUiText.DisplayValue(avatar?.speakingSpeed)}, accent={SceneTalkUiText.DisplayValue(avatar?.accent)}, attitude={SceneTalkUiText.DisplayValue(avatar?.attitude)}"));
+            builder.AppendLine(SceneTalkUiText.Select($"场景模式：{SceneTalkUiText.DisplayValue(detail.sceneSnapshot?.scene?.mode)}", $"Scene mode: {SceneTalkUiText.DisplayValue(detail.sceneSnapshot?.scene?.mode)}"));
             builder.AppendLine();
 
             var turns = detail.turns ?? System.Array.Empty<DialogueTurnRecord>();
@@ -2004,33 +2078,35 @@ namespace SceneTalkVR.Runtime
                     continue;
                 }
 
-                builder.AppendLine(turn.isOpening ? "开场" : $"第 {turn.sequenceIndex} 轮");
+                builder.AppendLine(turn.isOpening
+                    ? SceneTalkUiText.Text("开场")
+                    : SceneTalkUiText.Select($"第 {turn.sequenceIndex} 轮", $"Turn {turn.sequenceIndex}"));
                 if (!turn.isOpening)
                 {
-                    builder.AppendLine($"你：{ResolveText(turn.userText)}");
+                    builder.AppendLine(SceneTalkUiText.Select("你：", "You: ") + ResolveText(turn.userText));
                 }
-                builder.AppendLine($"角色：{ResolveText(turn.assistantText)}");
+                builder.AppendLine(SceneTalkUiText.Select("角色：", "Character: ") + ResolveText(turn.assistantText));
 
                 var feedback = turn.payload?.correctionFeedback;
                 if (feedback != null && feedback.hasFeedback)
                 {
-                    builder.AppendLine($"纠错（{SceneTalkChineseUiText.DisplayValue(feedback.errorType)}）：");
-                    builder.AppendLine($"  原句：{ResolveText(feedback.originalText)}");
-                    builder.AppendLine($"  修改后：{ResolveText(feedback.correctedText)}");
+                    builder.AppendLine(SceneTalkUiText.Select($"纠错（{SceneTalkUiText.DisplayValue(feedback.errorType)}）：", $"Correction ({SceneTalkUiText.DisplayValue(feedback.errorType)}):"));
+                    builder.AppendLine(SceneTalkUiText.Select("  原句：", "  Original: ") + ResolveText(feedback.originalText));
+                    builder.AppendLine(SceneTalkUiText.Select("  修改后：", "  Corrected: ") + ResolveText(feedback.correctedText));
                     var feedbackText = string.IsNullOrWhiteSpace(feedback.recastText)
                         ? feedback.feedbackText
                         : feedback.recastText;
-                    builder.AppendLine($"  反馈：{ResolveText(feedbackText)}");
+                    builder.AppendLine(SceneTalkUiText.Select("  反馈：", "  Feedback: ") + ResolveText(feedbackText));
                 }
                 else if (!turn.isOpening)
                 {
-                    builder.AppendLine("纠错：无");
+                    builder.AppendLine(SceneTalkUiText.Text("纠错：无"));
                 }
 
                 builder.AppendLine();
             }
 
-            return builder.Length == 0 ? "未保存任何对话轮次。" : builder.ToString();
+            return builder.Length == 0 ? SceneTalkUiText.Text("未保存任何对话轮次。") : builder.ToString();
         }
 
         private static string ResolveText(string value)
@@ -2048,7 +2124,7 @@ namespace SceneTalkVR.Runtime
         {
             if (unixMs <= 0)
             {
-                return "未知时间";
+                return SceneTalkUiText.Text("未知时间");
             }
 
             try
@@ -2059,7 +2135,7 @@ namespace SceneTalkVR.Runtime
             }
             catch (System.ArgumentOutOfRangeException)
             {
-                return "未知时间";
+                return SceneTalkUiText.Text("未知时间");
             }
         }
 
@@ -2090,44 +2166,44 @@ namespace SceneTalkVR.Runtime
 
             if (requestTitleText != null)
             {
-                requestTitleText.text = "场景与角色需求";
+                requestTitleText.text = SceneTalkUiText.Text("场景与角色需求");
             }
 
             if (requestStatusText != null)
             {
                 if (isRecording)
                 {
-                    requestStatusText.text = "正在录制你的需求……";
+                    requestStatusText.text = SceneTalkUiText.Text("正在录制你的需求……");
                 }
                 else if (isTranscribing)
                 {
-                    requestStatusText.text = "正在识别语音……";
+                    requestStatusText.text = SceneTalkUiText.Text("正在识别语音……");
                 }
                 else if (hasTranscript)
                 {
-                    requestStatusText.text = "请检查识别结果，然后确认。";
+                    requestStatusText.text = SceneTalkUiText.Text("请检查识别结果，然后确认。");
                 }
                 else
                 {
-                    requestStatusText.text = "点击“录音”开始录制。";
+                    requestStatusText.text = SceneTalkUiText.Text("点击“录音”开始录制。");
                 }
             }
 
             if (requestTranscriptText != null)
             {
                 requestTranscriptText.text = hasTranscript
-                    ? $"识别结果：\n{orchestrator.LastTranscript}"
-                    : "识别结果：\n-";
+                    ? SceneTalkUiText.Select($"识别结果：\n{orchestrator.LastTranscript}", $"Transcript:\n{orchestrator.LastTranscript}")
+                    : SceneTalkUiText.Select("识别结果：\n-", "Transcript:\n-");
             }
 
             if (requestErrorText != null)
             {
-                requestErrorText.text = hasError ? SceneTalkChineseUiText.Error(orchestrator.LastError) : string.Empty;
+                requestErrorText.text = hasError ? SceneTalkUiText.Error(orchestrator.LastError) : string.Empty;
             }
 
             SetButtonLabel(
                 listenButton,
-                isTechnicalInvalid ? "任务失效" : ResolveRequestListenButtonLabel(isRecording, hasTranscript, hasError));
+                isTechnicalInvalid ? SceneTalkUiText.Text("任务失效") : ResolveRequestListenButtonLabel(isRecording, hasTranscript, hasError));
             SetInteractable(listenButton, !isTechnicalInvalid && (isRecording || !isRunning));
             SetInteractable(confirmButton, !isTechnicalInvalid && !isRunning && hasTranscript);
         }
@@ -2141,21 +2217,21 @@ namespace SceneTalkVR.Runtime
 
             if (orchestrator.CurrentState == SceneTalkState.HistoryLoading)
             {
-                loadingText.text = "正在加载对话历史……";
+                loadingText.text = SceneTalkUiText.Text("正在加载对话历史……");
             }
             else if (orchestrator.CurrentState == SceneTalkState.ExperimentHistoryLoading)
             {
-                loadingText.text = "正在加载实验历史……";
+                loadingText.text = SceneTalkUiText.Text("正在加载实验历史……");
             }
             else if (orchestrator.CurrentState == SceneTalkState.HistoryRestoring)
             {
-                loadingText.text = "正在恢复场景、角色与对话上下文……";
+                loadingText.text = SceneTalkUiText.Text("正在恢复场景、角色与对话上下文……");
             }
             else
             {
                 loadingText.text = orchestrator.CurrentState == SceneTalkState.SceneReady
-                    ? "正在准备角色对话……"
-                    : "正在加载场景与角色……";
+                    ? SceneTalkUiText.Text("正在准备角色对话……")
+                    : SceneTalkUiText.Text("正在加载场景与角色……");
             }
         }
 
@@ -2180,13 +2256,13 @@ namespace SceneTalkVR.Runtime
             if (playerSubtitleText != null)
             {
                 SetActive(playerSubtitleText.gameObject, !hideSubtitles);
-                playerSubtitleText.text = $"你：{transcript}";
+                playerSubtitleText.text = SceneTalkUiText.Select("你：", "You: ") + transcript;
             }
 
             if (avatarSubtitleText != null)
             {
                 SetActive(avatarSubtitleText.gameObject, !hideSubtitles);
-                avatarSubtitleText.text = $"角色：{reply}";
+                avatarSubtitleText.text = SceneTalkUiText.Select("角色：", "Character: ") + reply;
             }
 
             if (experimentDebugText != null)
@@ -2201,7 +2277,7 @@ namespace SceneTalkVR.Runtime
             if (correctionStatusText != null)
             {
                 var status = orchestrator.LastCorrectionStatus;
-                correctionStatusText.text = SceneTalkChineseUiText.CorrectionStatus(status);
+                correctionStatusText.text = SceneTalkUiText.CorrectionStatus(status);
             }
 
             if (correctionFeedbackText != null)
@@ -2224,12 +2300,12 @@ namespace SceneTalkVR.Runtime
                 SetButtonLabel(
                     dialogueListenButton,
                     isTechnicalInvalid
-                        ? "任务失效"
+                        ? SceneTalkUiText.Text("任务失效")
                         : isRecording
-                            ? "结束"
+                            ? SceneTalkUiText.Text("结束")
                             : orchestrator.CurrentState == SceneTalkState.Error
-                                ? "重试"
-                                : "发言");
+                                ? SceneTalkUiText.Text("重试")
+                                : SceneTalkUiText.Text("发言"));
                 SetInteractable(
                     dialogueListenButton,
                     !isTechnicalInvalid && (isRecording || !orchestrator.IsTurnRunning));
@@ -2315,10 +2391,10 @@ namespace SceneTalkVR.Runtime
         {
             if (isRecording)
             {
-                return "结束";
+                return SceneTalkUiText.Text("结束");
             }
 
-            return hasTranscript || hasError ? "重试" : "录音";
+            return hasTranscript || hasError ? SceneTalkUiText.Text("重试") : SceneTalkUiText.Text("录音");
         }
 
         private string ResolveDialogueStatusText()
@@ -2330,43 +2406,43 @@ namespace SceneTalkVR.Runtime
 
             if (!string.IsNullOrWhiteSpace(orchestrator.LastError))
             {
-                return SceneTalkChineseUiText.Error(orchestrator.LastError);
+                return SceneTalkUiText.Error(orchestrator.LastError);
             }
 
             if (orchestrator.IsTurnRunning)
             {
                 if (orchestrator.CurrentState == SceneTalkState.Recording)
                 {
-                    return "正在录音……";
+                    return SceneTalkUiText.Text("正在录音……");
                 }
 
                 if (orchestrator.CurrentState == SceneTalkState.Transcribing)
                 {
-                    return "正在识别语音……";
+                    return SceneTalkUiText.Text("正在识别语音……");
                 }
 
                 if (orchestrator.CurrentState == SceneTalkState.Processing)
                 {
-                    return "正在思考……";
+                    return SceneTalkUiText.Text("正在思考……");
                 }
 
                 if (orchestrator.CurrentState == SceneTalkState.CorrectionFeedbackSpeaking)
                 {
-                    return "正在播放纠错反馈……";
+                    return SceneTalkUiText.Text("正在播放纠错反馈……");
                 }
 
                 if (orchestrator.CurrentState == SceneTalkState.DialogueSpeaking)
                 {
-                    return "角色正在发言……";
+                    return SceneTalkUiText.Text("角色正在发言……");
                 }
 
                 if (orchestrator.CurrentState == SceneTalkState.AvatarSpeaking)
                 {
-                    return "正在播放语音……";
+                    return SceneTalkUiText.Text("正在播放语音……");
                 }
             }
 
-            return "可以继续发言。";
+            return SceneTalkUiText.Text("可以继续发言。");
         }
 
         private string ResolveCorrectionFeedbackText(bool hideSubtitles)
@@ -2384,7 +2460,7 @@ namespace SceneTalkVR.Runtime
                 return string.Empty;
             }
 
-            return $"纠错：{feedbackText}";
+            return SceneTalkUiText.Select("纠错：", "Correction: ") + feedbackText;
         }
 
         private void Subscribe()
@@ -2413,6 +2489,13 @@ namespace SceneTalkVR.Runtime
 
         private void OnUserSettingsChanged(SceneTalkUserSettings settings)
         {
+            if (settings != null && renderedLanguage.HasValue && renderedLanguage.Value != settings.language)
+            {
+                Build();
+                Refresh();
+                return;
+            }
+
             ApplyUserSettings(settings);
             Refresh();
         }
@@ -2762,7 +2845,7 @@ namespace SceneTalkVR.Runtime
             textObject.transform.SetParent(parent, false);
 
             var label = textObject.AddComponent<TextMeshProUGUI>();
-            label.text = text;
+            label.text = SceneTalkUiText.Text(text);
             label.fontSize = fontSize;
             label.alignment = ToTmpAlignment(alignment);
             label.color = color;
@@ -2866,7 +2949,7 @@ namespace SceneTalkVR.Runtime
             var text = button.GetComponentInChildren<TMP_Text>(true);
             if (text != null)
             {
-                text.text = label;
+                text.text = SceneTalkUiText.Text(label);
             }
         }
 
@@ -2876,8 +2959,8 @@ namespace SceneTalkVR.Runtime
                 provider,
                 ExperimentConditionManager.AssistantAgentProvider,
                 System.StringComparison.OrdinalIgnoreCase)
-                ? "辅助角色"
-                : "对话角色";
+                ? SceneTalkUiText.Select("辅助角色", "Assistant agent")
+                : SceneTalkUiText.Select("对话角色", "Dialogue character");
         }
 
         private static string ResolveCorrectionStyleDisplayName(string style)
@@ -2886,8 +2969,8 @@ namespace SceneTalkVR.Runtime
                 style,
                 ExperimentConditionManager.RecastStyle,
                 System.StringComparison.OrdinalIgnoreCase)
-                ? "重述反馈"
-                : "直接纠错";
+                ? SceneTalkUiText.Select("重述反馈", "Recast feedback")
+                : SceneTalkUiText.Select("直接纠错", "Explicit correction");
         }
 
         private static string ResolveCorrectionAppearanceDisplayName(string embodiment)
@@ -2897,15 +2980,15 @@ namespace SceneTalkVR.Runtime
                     ExperimentConditionManager.AudioOnlyAssistantEmbodiment,
                     System.StringComparison.OrdinalIgnoreCase))
             {
-                return "仅语音";
+                return SceneTalkUiText.Select("仅语音", "Voice only");
             }
 
             return string.Equals(
                 embodiment,
                 ExperimentConditionManager.HumanoidAssistantEmbodiment,
                 System.StringComparison.OrdinalIgnoreCase)
-                ? "第三人称角色"
-                : "悬浮球";
+                ? SceneTalkUiText.Select("第三人称角色", "Humanoid agent")
+                : SceneTalkUiText.Select("悬浮球", "Floating orb");
         }
 
         private static void DestroyRuntimeOrImmediate(Object target)

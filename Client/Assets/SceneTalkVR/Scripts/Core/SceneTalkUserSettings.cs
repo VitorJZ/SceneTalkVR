@@ -3,6 +3,12 @@ using UnityEngine;
 
 namespace SceneTalkVR.Core
 {
+    public enum SceneTalkLanguage
+    {
+        Chinese = 0,
+        English = 1
+    }
+
     [Serializable]
     public sealed class SceneTalkUserSettings
     {
@@ -17,6 +23,7 @@ namespace SceneTalkVR.Core
         public float uiScale = 1f;
         public bool hideDialogueSubtitles;
         public string assistantEmbodiment = ExperimentConditionManager.OrbAssistantEmbodiment;
+        public SceneTalkLanguage language = SceneTalkLanguage.Chinese;
 
         public static SceneTalkUserSettings CreateDefault()
         {
@@ -30,7 +37,8 @@ namespace SceneTalkVR.Core
                 fontScale = fontScale,
                 uiScale = uiScale,
                 hideDialogueSubtitles = hideDialogueSubtitles,
-                assistantEmbodiment = assistantEmbodiment
+                assistantEmbodiment = assistantEmbodiment,
+                language = language
             };
         }
 
@@ -42,6 +50,8 @@ namespace SceneTalkVR.Core
                 && assistantEmbodiment != ExperimentConditionManager.OrbAssistantEmbodiment
                 && assistantEmbodiment != ExperimentConditionManager.HumanoidAssistantEmbodiment)
                 assistantEmbodiment = ExperimentConditionManager.OrbAssistantEmbodiment;
+            if (language != SceneTalkLanguage.Chinese && language != SceneTalkLanguage.English)
+                language = SceneTalkLanguage.Chinese;
         }
 
         private static float ClampToStep(float value, float min, float max, float step)
@@ -112,6 +122,21 @@ namespace SceneTalkVR.Core
             settings.assistantEmbodiment = value;
             settings.Normalize();
             Save(settings);
+        }
+
+        public static void SetLanguage(SceneTalkLanguage language)
+        {
+            var settings = Current.Clone();
+            settings.language = language;
+            settings.Normalize();
+            Save(settings);
+        }
+
+        public static void ToggleLanguage()
+        {
+            SetLanguage(Current.language == SceneTalkLanguage.Chinese
+                ? SceneTalkLanguage.English
+                : SceneTalkLanguage.Chinese);
         }
 
         public static void ResetAll()

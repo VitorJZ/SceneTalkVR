@@ -49,6 +49,26 @@ namespace SceneTalkVR.Runtime
             if (controller != null) controller.QuestionnaireChanged += OnQuestionnaireChanged;
         }
 
+        public void ResetForCanvasRebuild()
+        {
+            panel = null;
+            content = null;
+            progressText = null;
+            validationText = null;
+            previousButton = null;
+            nextButton = null;
+            skipButton = null;
+            submitButton = null;
+            page = 0;
+            submitConfirmationArmed = false;
+            skipConfirmationArmed = false;
+            submissionInProgress = false;
+            activeLinkageKey = string.Empty;
+            pageObjects.Clear();
+            likertButtons.Clear();
+            itemPages.Clear();
+        }
+
         private void OnQuestionnaireChanged(QuestionnaireSession session)
         {
             if (session == null) { if (panel != null) panel.SetActive(false); return; }
@@ -103,12 +123,15 @@ namespace SceneTalkVR.Runtime
                 var items = enabled.Where(x => x.sectionId == section.sectionId).ToArray();
                 if (items.Length == 0) continue;
                 var pageRoot = Node(content, "Page_" + section.sectionId); pageObjects.Add(pageRoot);
-                Label(pageRoot.transform, "SectionTitle", section.displayNameChinese, new Vector2(0, 252), new Vector2(1000, 52), 30);
+                Label(pageRoot.transform, "SectionTitle",
+                    SceneTalkUiText.IsEnglish ? section.displayNameEnglish : section.displayNameChinese,
+                    new Vector2(0, 252), new Vector2(1000, 52), 30);
                 var y = 174f;
                 foreach (var item in items)
                 {
                     itemPages[item.itemId] = pageObjects.Count - 1;
-                    Label(pageRoot.transform, "Prompt_" + item.itemId, item.promptChinese,
+                    Label(pageRoot.transform, "Prompt_" + item.itemId,
+                        SceneTalkUiText.IsEnglish ? item.promptEnglish : item.promptChinese,
                         new Vector2(-180, y), new Vector2(620, 70), 22, TextAnchor.MiddleLeft);
                     if (item.itemType == QuestionnaireItemType.Likert)
                     {
@@ -134,7 +157,9 @@ namespace SceneTalkVR.Runtime
             page = Mathf.Clamp(value, 0, pageObjects.Count - 1);
             ResetConfirmations();
             for (var i = 0; i < pageObjects.Count; i++) pageObjects[i].SetActive(i == page);
-            progressText.text = $"第 {page + 1} / {pageObjects.Count} 页";
+            progressText.text = SceneTalkUiText.Select(
+                $"第 {page + 1} / {pageObjects.Count} 页",
+                $"Page {page + 1} / {pageObjects.Count}");
             previousButton.interactable = page > 0; nextButton.interactable = page < pageObjects.Count - 1;
             skipButton.gameObject.SetActive(page == pageObjects.Count - 1);
             submitButton.gameObject.SetActive(page == pageObjects.Count - 1);
@@ -156,11 +181,11 @@ namespace SceneTalkVR.Runtime
                 }
                 return;
             }
-            if (!submitConfirmationArmed) { submitConfirmationArmed = true; validationText.text = "请再次点击以确认提交。"; submitButton.GetComponentInChildren<TMP_Text>().text = "确认提交"; return; }
+            if (!submitConfirmationArmed) { submitConfirmationArmed = true; validationText.text = SceneTalkUiText.Text("请再次点击以确认提交。"); submitButton.GetComponentInChildren<TMP_Text>().text = SceneTalkUiText.Text("确认提交"); return; }
             submissionInProgress = true;
             if (!controller.Submit(out error)) { submissionInProgress = false; validationText.text = Humanize(error); return; }
             submissionInProgress = false;
-            validationText.text = "已提交"; panel.SetActive(false);
+            validationText.text = SceneTalkUiText.Text("已提交"); panel.SetActive(false);
         }
 
         public void Skip()
@@ -172,14 +197,14 @@ namespace SceneTalkVR.Runtime
             if (!skipConfirmationArmed)
             {
                 skipConfirmationArmed = true;
-                validationText.text = "跳过将保留已填写内容并继续实验，请再次点击“确认跳过”。";
-                skipButton.GetComponentInChildren<TMP_Text>().text = "确认跳过";
+                validationText.text = SceneTalkUiText.Text("跳过将保留已填写内容并继续实验，请再次点击“确认跳过”。");
+                skipButton.GetComponentInChildren<TMP_Text>().text = SceneTalkUiText.Text("确认跳过");
                 return;
             }
             submissionInProgress = true;
             if (!controller.Skip(out error)) { submissionInProgress = false; validationText.text = Humanize(error); return; }
             submissionInProgress = false;
-            validationText.text = "已跳过"; panel.SetActive(false);
+            validationText.text = SceneTalkUiText.Text("已跳过"); panel.SetActive(false);
         }
 
         private void RefreshLikertSelection(QuestionnaireSession session)
@@ -195,7 +220,9 @@ namespace SceneTalkVR.Runtime
                     ? new Color(.12f, .68f, .34f, 1f) : new Color(0.12f, 0.38f, 0.62f, 1f);
             }
             if (validationText != null && !IsTerminal(session.completionStatus))
-                validationText.text = session.hasMissing ? "请完成所有必答题。" : "所有必答题均已完成。";
+                validationText.text = session.hasMissing
+                    ? SceneTalkUiText.Text("请完成所有必答题。")
+                    : SceneTalkUiText.Text("所有必答题均已完成。");
         }
 
         private void ResetConfirmations()
@@ -207,13 +234,13 @@ namespace SceneTalkVR.Runtime
         private void CancelSubmitConfirmation()
         {
             submitConfirmationArmed = false;
-            if (submitButton != null) submitButton.GetComponentInChildren<TMP_Text>().text = "提交";
+            if (submitButton != null) submitButton.GetComponentInChildren<TMP_Text>().text = SceneTalkUiText.Text("提交");
         }
 
         private void CancelSkipConfirmation()
         {
             skipConfirmationArmed = false;
-            if (skipButton != null) skipButton.GetComponentInChildren<TMP_Text>().text = "跳过";
+            if (skipButton != null) skipButton.GetComponentInChildren<TMP_Text>().text = SceneTalkUiText.Text("跳过");
         }
 
         private static bool IsTerminal(QuestionnaireCompletionStatus status)
@@ -221,7 +248,7 @@ namespace SceneTalkVR.Runtime
 
         private static string Humanize(string error)
         {
-            return SceneTalkChineseUiText.Error(error);
+            return SceneTalkUiText.Error(error);
         }
 
         private void ApplyUserScale()
@@ -232,7 +259,7 @@ namespace SceneTalkVR.Runtime
         private static GameObject Node(Transform parent, string name) { var go = new GameObject(name, typeof(RectTransform)); go.transform.SetParent(parent, false); return go; }
         private static TMP_Text Label(Transform parent, string name, string value, Vector2 position, Vector2 size, int fontSize, TextAnchor anchor = TextAnchor.MiddleCenter)
         {
-            var go = Node(parent, name); var text = go.AddComponent<TextMeshProUGUI>(); text.text = value;
+            var go = Node(parent, name); var text = go.AddComponent<TextMeshProUGUI>(); text.text = SceneTalkUiText.Text(value);
             text.color = Color.white; text.fontSize = Mathf.Max(1f, fontSize * SceneTalkUserSettingsStore.Current.fontScale); text.alignment = ToTmpAlignment(anchor); text.textWrappingMode = TextWrappingModes.Normal; text.overflowMode = TextOverflowModes.Overflow;
             var rect = text.rectTransform; rect.anchoredPosition = position; rect.sizeDelta = size; return text;
         }

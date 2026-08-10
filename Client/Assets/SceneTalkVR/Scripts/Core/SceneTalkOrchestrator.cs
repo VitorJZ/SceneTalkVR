@@ -279,12 +279,19 @@ namespace SceneTalkVR.Runtime
         {
             SubscribeAvatarCorrectionPlayback();
             SubscribeExperimentConditionChanges();
+            SceneTalkUserSettingsStore.Changed += OnUserSettingsChanged;
         }
 
         private void OnDisable()
         {
             UnsubscribeAvatarCorrectionPlayback();
             UnsubscribeExperimentConditionChanges();
+            SceneTalkUserSettingsStore.Changed -= OnUserSettingsChanged;
+        }
+
+        private void OnUserSettingsChanged(SceneTalkUserSettings settings)
+        {
+            RefreshUi();
         }
 
         public void OpenSettings()
@@ -2447,28 +2454,34 @@ namespace SceneTalkVR.Runtime
             if (stateLabel != null)
             {
                 stateLabel.text = ShouldShowExperimentDebug
-                    ? $"State: {CurrentState}\nCondition: {ExperimentDebugLabel}"
-                    : $"State: {CurrentState}";
+                    ? SceneTalkUiText.Select(
+                        $"状态：{SceneTalkUiText.StateName(CurrentState)}\n条件：{ExperimentDebugLabel}",
+                        $"State: {SceneTalkUiText.StateName(CurrentState)}\nCondition: {ExperimentDebugLabel}")
+                    : SceneTalkUiText.Select(
+                        $"状态：{SceneTalkUiText.StateName(CurrentState)}",
+                        $"State: {SceneTalkUiText.StateName(CurrentState)}");
             }
 
             if (transcriptLabel != null)
             {
                 transcriptLabel.text = string.IsNullOrWhiteSpace(LastTranscript)
-                    ? "Transcript: -"
-                    : $"Transcript: {LastTranscript}";
+                    ? SceneTalkUiText.Select("识别结果：-", "Transcript: -")
+                    : SceneTalkUiText.Select("识别结果：", "Transcript: ") + LastTranscript;
             }
 
             if (replyLabel != null)
             {
                 var reply = LastScenePayload == null ? string.Empty : LastScenePayload.dialogueReply;
                 replyLabel.text = string.IsNullOrWhiteSpace(reply)
-                    ? "Avatar: -"
-                    : $"Avatar: {reply}";
+                    ? SceneTalkUiText.Select("角色：-", "Character: -")
+                    : SceneTalkUiText.Select("角色：", "Character: ") + reply;
             }
 
             if (errorLabel != null)
             {
-                errorLabel.text = string.IsNullOrWhiteSpace(LastError) ? string.Empty : $"Error: {LastError}";
+                errorLabel.text = string.IsNullOrWhiteSpace(LastError)
+                    ? string.Empty
+                    : SceneTalkUiText.Select("错误：", "Error: ") + SceneTalkUiText.Error(LastError);
             }
         }
 
@@ -2494,7 +2507,7 @@ namespace SceneTalkVR.Runtime
                         accumulatedSubtitle += (string.IsNullOrEmpty(accumulatedSubtitle) ? "" : " ") + sentence;
                         if (replyLabel != null)
                         {
-                            replyLabel.text = $"Avatar: {accumulatedSubtitle}";
+                            replyLabel.text = SceneTalkUiText.Select("角色：", "Character: ") + accumulatedSubtitle;
                         }
                     };
                 Action<SpringScenePayload> generationComplete = payload => {

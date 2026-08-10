@@ -487,7 +487,7 @@ namespace SceneTalkVR.Runtime
             labelObject.transform.SetParent(buttonObject.transform, false);
 
             var label = labelObject.AddComponent<TextMeshProUGUI>();
-            label.text = "退出";
+            label.text = SceneTalkUiText.Text("退出");
             label.fontSize = 20;
             label.alignment = TextAlignmentOptions.Center;
             label.color = Color.white;

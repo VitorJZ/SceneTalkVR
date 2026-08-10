@@ -24,6 +24,17 @@ namespace SceneTalkVR.Runtime
         private bool submitted;
         private string activeSessionId;
 
+        public void ResetForCanvasRebuild()
+        {
+            panel = null;
+            completionPanel = null;
+            validation = null;
+            completionMessage = null;
+            reasonInput = null;
+            rankButtons.Clear();
+            preferredButtons.Clear();
+        }
+
         private void Update()
         {
             orchestrator ??= FindFirstObjectByType<SceneTalkOrchestrator>(FindObjectsInactive.Include);
@@ -53,8 +64,8 @@ namespace SceneTalkVR.Runtime
             {
                 EnsureBuilt(); SetActive(panel, false); SetActive(completionPanel, true);
                 if (completionMessage != null) completionMessage.text = deviceValidationActive
-                    ? "PICO 设备验证已完成。\n此数据不是参与者数据，不具备采集资格。"
-                    : "感谢参与，你已完成正式实验。";
+                    ? SceneTalkUiText.Text("PICO 设备验证已完成。\n此数据不是参与者数据，不具备采集资格。")
+                    : SceneTalkUiText.Text("感谢参与，你已完成正式实验。");
                 completionPanel.transform.SetAsLastSibling();
                 BringExitToFront();
             }
@@ -120,14 +131,14 @@ namespace SceneTalkVR.Runtime
 
         public void Submit()
         {
-            if (submitted) { validation.text = "此排序已经提交。"; return; }
+            if (submitted) { validation.text = SceneTalkUiText.Text("此排序已经提交。"); return; }
             var values = ranks.ToDictionary(x => x.Key, x => x.Value);
             if (values.Values.Any(x => x < 1 || x > 4) || values.Values.Distinct().Count() != 4)
-            { validation.text = "请将 1 至 4 的每个排名各使用一次。"; return; }
+            { validation.text = SceneTalkUiText.Text("请将 1 至 4 的每个排名各使用一次。"); return; }
             if (!preferredCondition.HasValue)
-            { validation.text = "请选择整体最喜欢的反馈模式。"; return; }
+            { validation.text = SceneTalkUiText.Text("请选择整体最喜欢的反馈模式。"); return; }
             if (string.IsNullOrWhiteSpace(reasonInput.text))
-            { validation.text = "请简要说明排序原因。"; return; }
+            { validation.text = SceneTalkUiText.Text("请简要说明排序原因。"); return; }
             var entries = values.Select(x => new PreferenceRankEntry { conditionCode = x.Key.ToString(), rank = x.Value })
                 .OrderBy(x => x.rank).ToArray();
             var response = new PreferenceRankingResponse
@@ -144,7 +155,7 @@ namespace SceneTalkVR.Runtime
                     ? rehearsal.SubmitRanking(response, out error)
                     : Fail(out error, "formal_ranking_runtime_missing");
             if (!ok)
-            { validation.text = SceneTalkChineseUiText.Error(error); return; }
+            { validation.text = SceneTalkUiText.Error(error); return; }
             submitted = true;
             validation.text = string.Empty;
         }
@@ -193,14 +204,14 @@ namespace SceneTalkVR.Runtime
 
         private static string Friendly(FormalConditionCode code) => code switch
         {
-            FormalConditionCode.NE => "对话角色——直接纠错（NE）",
-            FormalConditionCode.NR => "对话角色——重述反馈（NR）",
-            FormalConditionCode.SE => "辅助角色——直接纠错（SE）",
-            _ => "辅助角色——重述反馈（SR）"
+            FormalConditionCode.NE => SceneTalkUiText.Select("对话角色——直接纠错（NE）", "Dialogue character — explicit correction (NE)"),
+            FormalConditionCode.NR => SceneTalkUiText.Select("对话角色——重述反馈（NR）", "Dialogue character — recast feedback (NR)"),
+            FormalConditionCode.SE => SceneTalkUiText.Select("辅助角色——直接纠错（SE）", "Assistant agent — explicit correction (SE)"),
+            _ => SceneTalkUiText.Select("辅助角色——重述反馈（SR）", "Assistant agent — recast feedback (SR)")
         };
         private static GameObject Node(Transform parent, string name) { var go = new GameObject(name, typeof(RectTransform)); go.transform.SetParent(parent, false); return go; }
         private static TMP_Text Label(Transform parent, string name, string value, Vector2 pos, Vector2 size, int font, TextAnchor anchor = TextAnchor.MiddleCenter)
-        { var go = Node(parent, name); var text = go.AddComponent<TextMeshProUGUI>(); text.text = value; text.color = Color.white; text.fontSize = font; text.alignment = ToTmpAlignment(anchor); text.textWrappingMode = TextWrappingModes.Normal; text.overflowMode = TextOverflowModes.Overflow; text.rectTransform.anchoredPosition = pos; text.rectTransform.sizeDelta = size; return text; }
+        { var go = Node(parent, name); var text = go.AddComponent<TextMeshProUGUI>(); text.text = SceneTalkUiText.Text(value); text.color = Color.white; text.fontSize = font; text.alignment = ToTmpAlignment(anchor); text.textWrappingMode = TextWrappingModes.Normal; text.overflowMode = TextOverflowModes.Overflow; text.rectTransform.anchoredPosition = pos; text.rectTransform.sizeDelta = size; return text; }
         private static TMP_InputField Input(Transform parent, string name, string placeholder, Vector2 pos, Vector2 size)
         {
             var go = Node(parent, name); go.AddComponent<Image>().color = new Color(.12f, .16f, .22f, 1f); var input = go.AddComponent<TMP_InputField>();

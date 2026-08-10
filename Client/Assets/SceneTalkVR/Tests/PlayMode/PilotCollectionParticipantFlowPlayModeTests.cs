@@ -19,6 +19,32 @@ namespace SceneTalkVR.Tests.PlayMode
         [UnityTearDown]public IEnumerator TearDown(){CallActive("SceneTalkVR.Core.PilotCollectionSessionCoordinator, Assembly-CSharp","ResetPilotSessionForQa");CallActive("SceneTalkVR.Core.ExperimentSessionCoordinator, Assembly-CSharp","ConfirmLeaveExperiment");RestoreGatewayTransport(transportHost,previousTransportRouter);transportHost=null;previousTransportRouter=null;ForcePicoDeviceValidation(false);ForcePicoCollection(false);ResetUserSettings();yield return null;}
         [UnityTest]public IEnumerator MainMenu_HasIndependentFormalAndPilotRoutes()
         {Assert.That(Label("PilotExperimentButton"),Is.EqualTo("预实验"));Assert.That(Label("FormalExperimentButton"),Is.EqualTo("正式实验"));Assert.That(Label("ExperimentHistoryButton"),Is.EqualTo("实验历史"));Assert.That(Label("ExportHistoryButton"),Is.EqualTo("导出历史数据"));Assert.That(Resources.FindObjectsOfTypeAll<Button>().Any(x=>x.name=="NewExperimentButton"),Is.False);AssertHomeNavigation();Click("PilotExperimentButton");yield return null;Assert.That(Active("PilotAppearanceSelectionPanel"),Is.True);Assert.That(Active("PilotSessionSetupPanel"),Is.False);Assert.That(Active("ExperimentMenuPanel"),Is.False);Assert.That(Active("FormalModeSelectionPanel"),Is.False);Assert.That(Active("TaskSelectionPanel"),Is.False);AssertOverlayText("PilotAppearanceSelectionPanel");AssertExitOverlay();}
+        [UnityTest]public IEnumerator SettingsLanguageToggle_RebuildsBilingualUiWithoutLeavingSettings()
+        {
+            var orchestrator=ActiveObject("SceneTalkVR.Runtime.SceneTalkOrchestrator, Assembly-CSharp");
+            Click("SettingsButton");yield return null;
+            Assert.That(Get(orchestrator,"CurrentState").ToString(),Is.EqualTo("Settings"));
+            Assert.That(Text("SettingsPanel"),Does.Contain("语言"));
+            Assert.That(Label("LanguageChangeButton"),Is.EqualTo("English"));
+
+            Click("LanguageChangeButton");yield return null;yield return null;
+            Assert.That(Get(orchestrator,"CurrentState").ToString(),Is.EqualTo("Settings"));
+            Assert.That(Text("SettingsPanel"),Does.Contain("Language"));
+            Assert.That(Text("SettingsPanel"),Does.Contain("Display, feedback, and connection"));
+            Assert.That(Label("LanguageChangeButton"),Is.EqualTo("Chinese"));
+            Assert.That(Label("PilotExperimentButton"),Is.EqualTo("Pilot experiment"));
+            Assert.That(Label("FormalExperimentButton"),Is.EqualTo("Formal experiment"));
+            Assert.That(Resources.FindObjectsOfTypeAll<TMP_Text>().Where(x=>x.gameObject.scene.IsValid()).Select(x=>x.text),Has.None.EqualTo("Translation unavailable"));
+            AssertNoChineseSystemText();
+            Assert.That(Resources.FindObjectsOfTypeAll<GameObject>().Count(x=>x.scene.IsValid()&&x.name=="SceneTalkVR Flow UI"),Is.EqualTo(1));
+            Assert.That(Resources.FindObjectsOfTypeAll<GameObject>().Count(x=>x.scene.IsValid()&&x.name=="SettingsPanel"),Is.EqualTo(1));
+            Assert.That(Resources.FindObjectsOfTypeAll<GameObject>().Count(x=>x.scene.IsValid()&&x.name=="ExitButton"),Is.EqualTo(1));
+
+            Click("LanguageChangeButton");yield return null;yield return null;
+            Assert.That(Get(orchestrator,"CurrentState").ToString(),Is.EqualTo("Settings"));
+            Assert.That(Text("SettingsPanel"),Does.Contain("显示、纠错与连接"));
+            Assert.That(Label("LanguageChangeButton"),Is.EqualTo("English"));
+        }
         [UnityTest]public IEnumerator PilotCreateSession_PersistsLockedMappingAndShowsAppearanceSelection()
         {Create();yield return null;var coordinator=ActiveObject("SceneTalkVR.Core.PilotCollectionSessionCoordinator, Assembly-CSharp");Assert.That((bool)Get(coordinator,"IsArmed"),Is.True);Assert.That(Get(coordinator,"Stage").ToString(),Is.EqualTo("AppearanceSelection"));Assert.That((string)Get(coordinator,"ParticipantId"),Does.StartWith("PILOT-P-"));Assert.That((string)Get(coordinator,"SessionId"),Does.StartWith("PILOT-S-"));var assignment=Get(coordinator,"Assignment");Assert.That((bool)Get(assignment,"collectionEligible"),Is.True);Assert.That((bool)Get(assignment,"developerTestAssignment"),Is.False);var conditions=((IEnumerable)Get(assignment,"conditions")).Cast<object>().ToArray();Assert.That(conditions.Select(x=>Get(Get(x,"task"),"taskId")).Distinct().Count(),Is.EqualTo(3));Assert.That(conditions.Select(x=>Get(x,"embodimentCondition")).Distinct().Count(),Is.EqualTo(3));Assert.That(System.IO.File.Exists(System.IO.Path.Combine((string)Get(coordinator,"CurrentDataFolder"),"pilot_assignment.json")),Is.True);Assert.That(Active("PilotAppearanceSelectionPanel"),Is.True);}
         [UnityTest]public IEnumerator NewPilotExperiment_ClearsFinalRankingDraft()
@@ -395,5 +421,6 @@ namespace SceneTalkVR.Tests.PlayMode
         private static RectTransform Rect(string name)=>Resources.FindObjectsOfTypeAll<GameObject>().First(x=>x.name==name&&x.scene.IsValid()).GetComponent<RectTransform>();
         private static void AssertHomeNavigation(){Assert.That(Active("QuitButton"),Is.True);Assert.That(Label("QuitButton"),Is.EqualTo("退出"));Assert.That(Button("QuitButton").transform.parent.gameObject.name,Is.EqualTo("InitialPanel"));Assert.That(Active("ExitButton"),Is.False,"The home page must use Quit instead of the global Exit button.");}
         private static void AssertExitOverlay(){var button=Button("ExitButton");var rect=button.GetComponent<RectTransform>();var canvas=Resources.FindObjectsOfTypeAll<Canvas>().First(x=>x.gameObject.scene.IsValid()&&x.gameObject.name.StartsWith("SceneTalkVR World UI",StringComparison.Ordinal));Assert.That(button.gameObject.activeInHierarchy,Is.True);Assert.That(button.transform.parent,Is.EqualTo(canvas.transform));Assert.That(button.transform.GetSiblingIndex(),Is.EqualTo(canvas.transform.childCount-1));Assert.That(rect.anchorMin,Is.EqualTo(Vector2.one));Assert.That(rect.anchorMax,Is.EqualTo(Vector2.one));Assert.That(rect.anchoredPosition.x,Is.LessThan(0f));Assert.That(rect.anchoredPosition.y,Is.LessThan(0f));Assert.That(Active("QuitButton"),Is.False);if(Active("PilotQuestionnairePanel"))AssertOverlayText("PilotQuestionnairePanel");}
+        private static void AssertNoChineseSystemText(){foreach(var text in Resources.FindObjectsOfTypeAll<TMP_Text>().Where(x=>x.gameObject.scene.IsValid()))Assert.That(text.text,Does.Not.Match("[\\u3400-\\u9fff]"),text.gameObject.name+" should use the selected English UI language.");}
     }
 }
