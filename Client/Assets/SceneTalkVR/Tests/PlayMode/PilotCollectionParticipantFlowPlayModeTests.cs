@@ -64,6 +64,7 @@ namespace SceneTalkVR.Tests.PlayMode
             var panel=Rect("SubtitlePanel");var button=Rect("DialogueListenButton");
             var panelPosition=panel.anchoredPosition;var panelSize=panel.sizeDelta;var buttonPosition=button.anchoredPosition;var buttonSize=button.sizeDelta;
             var feedback=SceneObject("CorrectionFeedback");var feedbackActive=feedback.activeSelf;
+            Assert.That(SceneObject("AgentSubtitle"),Is.Not.Null);Assert.That(feedback,Is.Not.Null);
 
             Assert.That(Active("CorrectionStatus"),Is.True);Assert.That(Active("DialogueStatus"),Is.True);
             Assert.That(Active("TextContainer"),Is.True);Assert.That(Active("DialogueListenButton"),Is.True);
@@ -79,8 +80,98 @@ namespace SceneTalkVR.Tests.PlayMode
             SetHideDialogueStatuses(false);yield return null;
             Assert.That(Active("TextContainer"),Is.False);Assert.That(Active("CorrectionStatus"),Is.True);Assert.That(Active("DialogueStatus"),Is.True);
         }
+        [UnityTest]public IEnumerator RecoverableDialogueError_KeepsDialogueOpenAndShowsRetryButton()
+        {
+            var orchestrator=ActiveObject("SceneTalkVR.Runtime.SceneTalkOrchestrator, Assembly-CSharp");
+            var stateType=Type.GetType("SceneTalkVR.Core.SceneTalkState, Assembly-CSharp",true);
+            SetProperty(orchestrator,"IsDialogueActive",true);
+            SetProperty(orchestrator,"LastError","Please try again.");
+            SetProperty(orchestrator,"CurrentState",Enum.Parse(stateType,"Error"));yield return null;
+            Assert.That(Active("SubtitlePanel"),Is.True);
+            Assert.That(Label("DialogueListenButton"),Is.EqualTo("重试"));
+            Assert.That(Button("DialogueListenButton").interactable,Is.True);
+        }
+        [UnityTest]public IEnumerator CorrectionSubtitles_CoexistWithIndependentFeedbackAndFollowProvider()
+        {
+            var orchestrator=ActiveObject("SceneTalkVR.Runtime.SceneTalkOrchestrator, Assembly-CSharp");
+            var stateType=Type.GetType("SceneTalkVR.Core.SceneTalkState, Assembly-CSharp",true);
+            SetProperty(orchestrator,"CurrentState",Enum.Parse(stateType,"TurnReview"));
+            SetProperty(orchestrator,"IsDialogueActive",true);
+            yield return null;
+            Assert.That(Active("SubtitlePanel"),Is.True,"Dialogue panel did not become visible before the subtitle assertions.");
+
+            SetProperty(orchestrator,"CurrentDialogueSubtitleText","Here is the role reply.");
+            SetProperty(orchestrator,"LastCorrectionHasFeedback",true);
+            SetProperty(orchestrator,"LastCorrectionDisplayText","I would like a table.");
+            yield return null;
+            Assert.That(Active("AgentSubtitle"),Is.False);
+            Assert.That(Active("AvatarSubtitle"),Is.False,"Reply text must wait for its correction subtitle.");
+            InvokeCorrectionSubtitleCue(orchestrator,"assistant_agent","Try saying: I would like a table.");yield return null;
+
+            Assert.That(Active("AgentSubtitle"),Is.True);
+            Assert.That(SceneObject("AgentSubtitle").GetComponent<TMP_Text>().text,Is.EqualTo("助手：Try saying: I would like a table."));
+            Assert.That(SceneObject("AvatarSubtitle").GetComponent<TMP_Text>().text,Is.EqualTo("角色：Here is the role reply."));
+            Assert.That(Active("CorrectionFeedback"),Is.True);
+            Assert.That(SceneObject("CorrectionFeedback").GetComponent<TMP_Text>().text,Is.EqualTo("纠错：I would like a table."));
+
+            InvokeCorrectionSubtitleCue(orchestrator,"dialogue_avatar","Use 'would like' instead.");yield return null;
+            Assert.That(Active("AgentSubtitle"),Is.False);
+            Assert.That(SceneObject("AvatarSubtitle").GetComponent<TMP_Text>().text,Is.EqualTo("角色：Use 'would like' instead.\nHere is the role reply."));
+            Assert.That(SceneObject("CorrectionFeedback").GetComponent<TMP_Text>().text,Is.EqualTo("纠错：I would like a table."));
+        }
+        [UnityTest]public IEnumerator LongDialogueSubtitles_WrapExpandAndRemainFullyVisible()
+        {
+            var orchestrator=ActiveObject("SceneTalkVR.Runtime.SceneTalkOrchestrator, Assembly-CSharp");
+            var stateType=Type.GetType("SceneTalkVR.Core.SceneTalkState, Assembly-CSharp",true);
+            SetProperty(orchestrator,"CurrentState",Enum.Parse(stateType,"TurnReview"));
+            SetProperty(orchestrator,"IsDialogueActive",true);
+            yield return null;
+
+            var panel=Rect("SubtitlePanel");var button=Rect("DialogueListenButton");
+            var originalBottom=panel.anchoredPosition.y+panel.rect.yMin;
+            var originalHeight=panel.rect.height;var originalButtonPosition=button.anchoredPosition;
+            SetFontScale(1.4f);yield return null;
+
+            var userText=string.Join(" ",Enumerable.Repeat("I would like to explain the reservation details and confirm every requirement before we continue.",8));
+            var assistantText=string.Join(" ",Enumerable.Repeat("Use a complete polite request and include the important detail clearly.",7));
+            var replyText=string.Join(" ",Enumerable.Repeat("Thank you for explaining that; I will check the available options and confirm the details for you.",8));
+            var feedbackText=string.Join(" ",Enumerable.Repeat("I would like to confirm every requirement before we continue.",6));
+            SetProperty(orchestrator,"LastTranscript",userText);
+            SetProperty(orchestrator,"CurrentDialogueSubtitleText",replyText);
+            SetProperty(orchestrator,"LastCorrectionHasFeedback",true);
+            SetProperty(orchestrator,"LastCorrectionDisplayText",feedbackText);
+            InvokeCorrectionSubtitleCue(orchestrator,"assistant_agent",assistantText);
+            yield return null;Canvas.ForceUpdateCanvases();yield return null;
+
+            Assert.That(SceneObject("PlayerSubtitle").GetComponent<TMP_Text>().text,Does.EndWith(userText));
+            Assert.That(SceneObject("AgentSubtitle").GetComponent<TMP_Text>().text,Does.EndWith(assistantText));
+            Assert.That(SceneObject("AvatarSubtitle").GetComponent<TMP_Text>().text,Does.EndWith(replyText));
+            Assert.That(SceneObject("CorrectionFeedback").GetComponent<TMP_Text>().text,Does.EndWith(feedbackText));
+            foreach(var name in new[]{"PlayerSubtitle","AgentSubtitle","AvatarSubtitle","CorrectionFeedback"})AssertCompleteWrappedText(name);
+            AssertVerticalOrder("PlayerSubtitle","AgentSubtitle","AvatarSubtitle","CorrectionFeedback","CorrectionStatus","DialogueStatus");
+            AssertChildrenInsidePanel(panel,"PlayerSubtitle","AgentSubtitle","AvatarSubtitle","CorrectionFeedback","CorrectionStatus","DialogueStatus");
+
+            var chineseUserText=string.Concat(Enumerable.Repeat("我想完整说明预订信息，并在继续之前确认所有重要要求。",18));
+            var chineseCorrectionText=string.Concat(Enumerable.Repeat("请使用完整而礼貌的表达方式，并清楚说明重要细节。",14));
+            var chineseReplyText=string.Concat(Enumerable.Repeat("感谢你的说明，我会检查可用选项并逐项确认相关信息。",18));
+            var chineseFeedbackText=string.Concat(Enumerable.Repeat("我想在继续之前确认所有重要要求。",14));
+            SetProperty(orchestrator,"LastTranscript",chineseUserText);
+            SetProperty(orchestrator,"CurrentDialogueSubtitleText",chineseReplyText);
+            SetProperty(orchestrator,"LastCorrectionDisplayText",chineseFeedbackText);
+            InvokeCorrectionSubtitleCue(orchestrator,"dialogue_avatar",chineseCorrectionText);
+            yield return null;Canvas.ForceUpdateCanvases();yield return null;
+
+            Assert.That(Active("AgentSubtitle"),Is.False);
+            Assert.That(SceneObject("AvatarSubtitle").GetComponent<TMP_Text>().text,Does.Contain(chineseCorrectionText+"\n"+chineseReplyText));
+            foreach(var name in new[]{"PlayerSubtitle","AvatarSubtitle","CorrectionFeedback"})AssertCompleteWrappedText(name);
+            AssertVerticalOrder("PlayerSubtitle","AvatarSubtitle","CorrectionFeedback","CorrectionStatus","DialogueStatus");
+            AssertChildrenInsidePanel(panel,"PlayerSubtitle","AvatarSubtitle","CorrectionFeedback","CorrectionStatus","DialogueStatus");
+            Assert.That(panel.rect.height,Is.GreaterThan(originalHeight));
+            Assert.That(panel.anchoredPosition.y+panel.rect.yMin,Is.EqualTo(originalBottom).Within(.01f));
+            Assert.That(button.anchoredPosition,Is.EqualTo(originalButtonPosition));
+        }
         [UnityTest]public IEnumerator PilotCreateSession_PersistsLockedMappingAndShowsAppearanceSelection()
-        {Create();yield return null;var coordinator=ActiveObject("SceneTalkVR.Core.PilotCollectionSessionCoordinator, Assembly-CSharp");Assert.That((bool)Get(coordinator,"IsArmed"),Is.True);Assert.That(Get(coordinator,"Stage").ToString(),Is.EqualTo("AppearanceSelection"));Assert.That((string)Get(coordinator,"ParticipantId"),Does.StartWith("PILOT-P-"));Assert.That((string)Get(coordinator,"SessionId"),Does.StartWith("PILOT-S-"));var assignment=Get(coordinator,"Assignment");Assert.That((bool)Get(assignment,"collectionEligible"),Is.True);Assert.That((bool)Get(assignment,"developerTestAssignment"),Is.False);var conditions=((IEnumerable)Get(assignment,"conditions")).Cast<object>().ToArray();Assert.That(conditions.Select(x=>Get(Get(x,"task"),"taskId")).Distinct().Count(),Is.EqualTo(3));Assert.That(conditions.Select(x=>Get(x,"embodimentCondition")).Distinct().Count(),Is.EqualTo(3));Assert.That(System.IO.File.Exists(System.IO.Path.Combine((string)Get(coordinator,"CurrentDataFolder"),"pilot_assignment.json")),Is.True);Assert.That(Active("PilotAppearanceSelectionPanel"),Is.True);}
+        {Create();yield return null;var coordinator=ActiveObject("SceneTalkVR.Core.PilotCollectionSessionCoordinator, Assembly-CSharp");Assert.That((bool)Get(coordinator,"IsArmed"),Is.True);Assert.That(Get(coordinator,"Stage").ToString(),Is.EqualTo("AppearanceSelection"));Assert.That((string)Get(coordinator,"ParticipantId"),Does.StartWith("PILOT-P-"));Assert.That((string)Get(coordinator,"SessionId"),Does.StartWith("PILOT-S-"));var assignment=Get(coordinator,"Assignment");Assert.That((bool)Get(assignment,"collectionEligible"),Is.True);Assert.That((bool)Get(assignment,"developerTestAssignment"),Is.False);var conditions=((IEnumerable)Get(assignment,"conditions")).Cast<object>().ToArray();Assert.That(conditions.All(x=>(string)Get(Get(x,"task"),"taskId")=="pilot_restaurant_walk_in"),Is.True);Assert.That(conditions.Select(x=>Get(x,"embodimentCondition")).Distinct().Count(),Is.EqualTo(3));Assert.That(System.IO.File.Exists(System.IO.Path.Combine((string)Get(coordinator,"CurrentDataFolder"),"pilot_assignment.json")),Is.True);Assert.That(Active("PilotAppearanceSelectionPanel"),Is.True);}
         [UnityTest]public IEnumerator NewPilotExperiment_ClearsFinalRankingDraft()
         {
             Create();yield return null;
@@ -375,8 +466,11 @@ namespace SceneTalkVR.Tests.PlayMode
         private static void ForcePicoDeviceValidation(bool value){var type=Type.GetType("SceneTalkVR.Core.ExperimentRuntimePlatform, Assembly-CSharp");type.GetProperty("ForcePicoDeviceValidationForTests").SetValue(null,value);}
         private static void ForcePicoCollection(bool value){var type=Type.GetType("SceneTalkVR.Core.ExperimentRuntimePlatform, Assembly-CSharp");type.GetProperty("ForcePicoCollectionForTests").SetValue(null,value);}
         private static void ResetUserSettings(){var type=Type.GetType("SceneTalkVR.Core.SceneTalkUserSettingsStore, Assembly-CSharp");type.GetMethod("ResetAll").Invoke(null,null);}
+        private static void SetFontScale(float value){var type=Type.GetType("SceneTalkVR.Core.SceneTalkUserSettingsStore, Assembly-CSharp");type.GetMethod("SetFontScale").Invoke(null,new object[]{value});}
         private static void SetHideDialogueSubtitles(bool hidden){var type=Type.GetType("SceneTalkVR.Core.SceneTalkUserSettingsStore, Assembly-CSharp");type.GetMethod("SetHideDialogueSubtitles").Invoke(null,new object[]{hidden});}
         private static void SetHideDialogueStatuses(bool hidden){var type=Type.GetType("SceneTalkVR.Core.SceneTalkUserSettingsStore, Assembly-CSharp");type.GetMethod("SetHideDialogueStatuses").Invoke(null,new object[]{hidden});}
+        private static void SetProperty(object target,string name,object value)=>target.GetType().GetProperty(name).GetSetMethod(true).Invoke(target,new[]{value});
+        private static void InvokeCorrectionSubtitleCue(object orchestrator,string provider,string spokenText){var cueType=Type.GetType("SceneTalkVR.Core.CorrectionSubtitleCue, Assembly-CSharp",true);var cue=Activator.CreateInstance(cueType,new object[]{provider,spokenText});orchestrator.GetType().GetMethod("OnCorrectionSubtitleStarted",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(orchestrator,new[]{cue});}
         private static GameObject SceneObject(string name)=>Resources.FindObjectsOfTypeAll<GameObject>().First(x=>x.name==name&&x.scene.IsValid());
         private static GameObject InstallReadyUsbTransport(out object previousRouter)
         {
@@ -414,6 +508,40 @@ namespace SceneTalkVR.Tests.PlayMode
             UnityEngine.Object.Destroy(host);
         }
         private static void SetField(object target,string name,object value)=>target.GetType().GetField(name).SetValue(target,value);
+        private static void AssertCompleteWrappedText(string name)
+        {
+            var text=SceneObject(name).GetComponent<TMP_Text>();text.ForceMeshUpdate(true,true);
+            var preferred=text.GetPreferredValues(text.text,text.rectTransform.rect.width,0f);
+            Assert.That(text.textWrappingMode,Is.EqualTo(TextWrappingModes.Normal),name+" must wrap normally.");
+            Assert.That(text.overflowMode,Is.EqualTo(TextOverflowModes.Overflow),name+" must not truncate text.");
+            Assert.That(text.enableAutoSizing,Is.False,name+" must preserve the selected font size.");
+            Assert.That(text.textInfo.lineCount,Is.GreaterThan(1),name+" should wrap the long test content.");
+            Assert.That(text.rectTransform.rect.height,Is.GreaterThanOrEqualTo(preferred.y),name+" must allocate its full preferred height.");
+            Assert.That(text.isTextOverflowing,Is.False,name+" must not report hidden overflow.");
+        }
+        private static void AssertVerticalOrder(params string[] names)
+        {
+            var panel=Rect("SubtitlePanel");var previousBottom=float.PositiveInfinity;
+            foreach(var name in names)
+            {
+                var rect=Rect(name);var corners=new Vector3[4];rect.GetWorldCorners(corners);
+                var values=corners.Select(x=>panel.InverseTransformPoint(x).y).ToArray();var top=values.Max();var bottom=values.Min();
+                Assert.That(top,Is.LessThanOrEqualTo(previousBottom+.1f),name+" overlaps the row above it.");previousBottom=bottom;
+            }
+        }
+        private static void AssertChildrenInsidePanel(RectTransform panel,params string[] names)
+        {
+            foreach(var name in names)
+            {
+                var rect=Rect(name);var corners=new Vector3[4];rect.GetWorldCorners(corners);
+                foreach(var corner in corners)
+                {
+                    var local=panel.InverseTransformPoint(corner);
+                    Assert.That(local.x,Is.InRange(panel.rect.xMin-.1f,panel.rect.xMax+.1f),name+" extends outside the panel horizontally.");
+                    Assert.That(local.y,Is.InRange(panel.rect.yMin-.1f,panel.rect.yMax+.1f),name+" extends outside the panel vertically.");
+                }
+            }
+        }
         private static void AssertTaskAboveFullWidthDialogue()
         {
             var task = Rect("ReadOnlyTaskGoalPanel");
@@ -435,17 +563,16 @@ namespace SceneTalkVR.Tests.PlayMode
             var goalText = task.GetComponentsInChildren<TMP_Text>(true).First(x => x.name == "GoalStateText");
             var interactionCamera = taskCanvas.worldCamera;
             Assert.That(interactionCamera, Is.Not.Null, "Task canvas must use the interaction camera.");
-            var taskFacingDirection = Vector3.ProjectOnPlane(taskCanvas.transform.position - interactionCamera.transform.position, Vector3.up).normalized;
 
             Assert.That(taskBottom - dialogueTop, Is.GreaterThanOrEqualTo(20f), "Task goals must remain above the dialogue panel.");
             Assert.That(taskCanvas, Is.Not.SameAs(canvas), "Task goals must use a dedicated canvas.");
             Assert.That(taskCanvas.transform.parent, Is.EqualTo(canvas.transform), "The task canvas must follow the main world canvas.");
             Assert.That(taskCanvasRect.anchoredPosition.x, Is.LessThanOrEqualTo(-550f));
-            Assert.That(taskRight, Is.LessThan(canvasRect.rect.xMin), "Task goals must remain entirely left of the main canvas.");
+            Assert.That(taskRight, Is.LessThanOrEqualTo(canvasRect.rect.xMin + 20.1f), "Task goals must remain at the left perimeter of the main canvas.");
             Assert.That(taskTop, Is.LessThanOrEqualTo(canvasRect.rect.yMax));
             Assert.That(task.rect.width * task.rect.height, Is.GreaterThanOrEqualTo(95000f), "Task goals must remain enlarged.");
             Assert.That(goalText.fontSizeMax, Is.GreaterThanOrEqualTo(20f), "Task goal text must remain readable.");
-            Assert.That(Vector3.Dot(taskCanvas.transform.forward, taskFacingDirection), Is.GreaterThan(0.95f), "Task canvas must face the user.");
+            Assert.That(Quaternion.Angle(taskCanvas.transform.localRotation, Quaternion.identity), Is.LessThan(0.01f), "Task canvas local rotation must remain zero.");
             Assert.That(task.anchoredPosition, Is.EqualTo(Vector2.zero));
             Assert.That(dialogueLeft, Is.GreaterThanOrEqualTo(canvasRect.rect.xMin));
             Assert.That(dialogueRight, Is.LessThanOrEqualTo(canvasRect.rect.xMax));

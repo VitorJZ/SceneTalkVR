@@ -191,25 +191,25 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(pilot.All(x => x.goals.Length == ExperimentTaskCatalog.PilotGoalsPerTask && !string.IsNullOrWhiteSpace(x.initialQuestion) && x.panoramaResourceKey == "SceneTalkVR/Textures/restaurant-360"), Is.True);
         }
 
-        [Test] public void TestAllocator_AssignsEachEmbodimentAndTaskOnce_AndIsStable()
+        [Test] public void TestAllocator_AssignsEveryEmbodimentToWalkInTask_AndIsStable()
         {
             var allocator = new PilotAssignmentAllocator(); var sequences = TestSequences(); var ids = PilotTaskIds();
             Assert.That(allocator.TryCreateForTesting("participant-42", "session", protocol.ProtocolVersion, tasks.CatalogVersion, sequences, ids, PilotFeedbackStyleChoice.Explicit, PilotAudioSourcePolicy.NonSpatialHeadLocked, true, out var first, out var error), Is.True, error);
             allocator.TryCreateForTesting("participant-42", "session", protocol.ProtocolVersion, tasks.CatalogVersion, sequences, ids, PilotFeedbackStyleChoice.Explicit, PilotAudioSourcePolicy.NonSpatialHeadLocked, true, out var second, out _);
             Assert.That(first.sequenceId, Is.EqualTo(second.sequenceId));
             CollectionAssert.AreEquivalent(Enum.GetValues(typeof(PilotEmbodimentCondition)), first.conditions.Select(x => x.embodimentCondition));
-            CollectionAssert.AreEquivalent(ids, first.conditions.Select(x => x.task.taskId));
+            Assert.That(first.conditions.All(x => x.task.taskId == PilotAssignmentAllocator.TemporaryTaskId), Is.True);
+            Assert.That(second.conditions.Select(x => x.task.taskId), Is.EqualTo(first.conditions.Select(x => x.task.taskId)));
         }
 
-        [Test] public void TestAllocator_IsApproximatelyBalancedAcrossParticipants()
+        [Test] public void TestAllocator_UsesWalkInTaskAcrossParticipants()
         {
-            var counts = new int[3, 3]; var allocator = new PilotAssignmentAllocator(); var sequences = TestSequences(); var ids = PilotTaskIds();
+            var allocator = new PilotAssignmentAllocator(); var sequences = TestSequences(); var ids = PilotTaskIds();
             for (var p = 0; p <  ninety(); p++)
             {
                 allocator.TryCreateForTesting("balanced-" + p, "s", protocol.ProtocolVersion, tasks.CatalogVersion, sequences, ids, PilotFeedbackStyleChoice.Recast, PilotAudioSourcePolicy.SpatialFixedSource, true, out var assignment, out _);
-                foreach (var c in assignment.conditions) counts[(int)c.embodimentCondition, Array.IndexOf(ids, c.task.taskId)]++;
+                Assert.That(assignment.conditions.All(x => x.task.taskId == PilotAssignmentAllocator.TemporaryTaskId), Is.True);
             }
-            var flat = counts.Cast<int>().ToArray(); Assert.That(flat.Max() - flat.Min(), Is.LessThanOrEqualTo(12));
         }
 
         [Test] public void Assignment_SaveRestoreAndVersionValidation()

@@ -132,6 +132,26 @@ namespace SceneTalkVR.Core
                 : trimmed.Substring(prefixLength).TrimStart();
         }
 
+        public static string ResolveSpokenFeedbackText(CorrectionFeedbackData feedback)
+        {
+            if (feedback == null)
+            {
+                return string.Empty;
+            }
+
+            if (string.Equals(feedback.style, "recast", StringComparison.OrdinalIgnoreCase))
+            {
+                return FirstNonEmpty(
+                    feedback.recastText,
+                    feedback.feedbackText,
+                    feedback.correctedText);
+            }
+
+            return RemoveGrammarTipPrefix(FirstNonEmpty(
+                feedback.feedbackText,
+                feedback.correctedText));
+        }
+
         private static int ResolveGrammarTipPrefixLength(string text, string prefix)
         {
             if (!text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
@@ -139,12 +159,18 @@ namespace SceneTalkVR.Core
                 return 0;
             }
 
-            if (text.Length == prefix.Length)
+            var delimiterIndex = prefix.Length;
+            while (delimiterIndex < text.Length && char.IsWhiteSpace(text[delimiterIndex]))
             {
-                return prefix.Length;
+                delimiterIndex++;
             }
 
-            var delimiter = text[prefix.Length];
+            if (delimiterIndex == text.Length)
+            {
+                return delimiterIndex;
+            }
+
+            var delimiter = text[delimiterIndex];
             if (delimiter == ':'
                 || delimiter == '：'
                 || delimiter == '-'
@@ -155,7 +181,7 @@ namespace SceneTalkVR.Core
                 || delimiter == '.'
                 || delimiter == '。')
             {
-                return prefix.Length + 1;
+                return delimiterIndex + 1;
             }
 
             return 0;
@@ -172,6 +198,19 @@ namespace SceneTalkVR.Core
             }
 
             return false;
+        }
+
+        private static string FirstNonEmpty(params string[] values)
+        {
+            foreach (var value in values)
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value.Trim();
+                }
+            }
+
+            return string.Empty;
         }
     }
 }

@@ -61,7 +61,7 @@ namespace SceneTalkVR.Tests.Editor
         [Test] public void T30_FormalAssignmentStable()
         { var x=new ExperimentAssignmentAllocator();x.TryCreateRehearsal("P02","S",protocol,tasks,resources.ResourceSnapshotId,out var a,out _);x.TryCreateRehearsal("P02","S2",protocol,tasks,resources.ResourceSnapshotId,out var b,out _);Assert.That(a.sequenceId,Is.EqualTo(b.sequenceId));Assert.That(a.conditions.Select(v=>v.task.taskId),Is.EqualTo(b.conditions.Select(v=>v.task.taskId))); }
         [Test] public void T31_PilotAssignmentUsesRealAllocator()
-        { var ok=new PilotAssignmentAllocator().TryCreateRehearsal("P03","S",protocol,tasks,resources.ResourceSnapshotId,out var a,out var e);Assert.That(ok,Is.True,e);AssertIsolation(a);Assert.That(a.conditions.Select(x=>x.embodimentCondition).Distinct().Count(),Is.EqualTo(3));Assert.That(a.conditions.Select(x=>x.task.taskId).Distinct().Count(),Is.EqualTo(3)); }
+        { var ok=new PilotAssignmentAllocator().TryCreateRehearsal("P03","S",protocol,tasks,resources.ResourceSnapshotId,out var a,out var e);Assert.That(ok,Is.True,e);AssertIsolation(a);Assert.That(a.conditions.Select(x=>x.embodimentCondition).Distinct().Count(),Is.EqualTo(3));Assert.That(a.conditions.All(x=>x.task.taskId==PilotAssignmentAllocator.TemporaryTaskId),Is.True); }
         [Test] public void T32_PilotExplicitAndHeadLocked() { Assert.That(protocol.PilotFeedbackStyle,Is.EqualTo(PilotFeedbackStyleChoice.Explicit));Assert.That(protocol.VoiceOnlyAudioPolicy,Is.EqualTo(PilotAudioSourcePolicy.NonSpatialHeadLocked)); }
         [TestCase("hotel_check_in","barista_male_humanoid_v1")]
         [TestCase("furniture_shopping","barista_male_humanoid_v1")]

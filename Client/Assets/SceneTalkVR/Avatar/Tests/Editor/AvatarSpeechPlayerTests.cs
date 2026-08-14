@@ -210,6 +210,97 @@ namespace SceneTalkVR.AvatarSystem.Tests
             }
         }
 
+        [UnityTest]
+        public IEnumerator CorrectionPresenter_EmitsSubtitleCueWhenAudioPlaybackStarts()
+        {
+            var gameObject = new GameObject("CorrectionSubtitleCueTests");
+            var demoClip = AudioClip.Create("correction", 800, 1, 16000, false);
+            try
+            {
+                var presenter = gameObject.AddComponent<CorrectionFeedbackPresenter>();
+                var source = gameObject.AddComponent<AudioSource>();
+                CorrectionSubtitleCue cue = null;
+                CorrectionPlaybackResult result = null;
+
+                yield return presenter.Present(
+                    new SpringScenePayload
+                    {
+                        avatarRole = new AvatarRoleData(),
+                        correctionFeedback = new CorrectionFeedbackData
+                        {
+                            hasFeedback = true,
+                            provider = ExperimentConditionManager.DialogueAvatarProvider,
+                            style = ExperimentConditionManager.ExplicitStyle,
+                            feedbackText = "Grammar tip: Say: I would like a table."
+                        }
+                    },
+                    new AvatarSpeechPlaybackContext
+                    {
+                        defaultAudioSource = source,
+                        demoReplyClip = demoClip,
+                        useVoiceGatewayTts = false
+                    },
+                    null,
+                    null,
+                    value => cue = value,
+                    value => result = value);
+
+                Assert.That(cue, Is.Not.Null);
+                Assert.That(cue.provider, Is.EqualTo(ExperimentConditionManager.DialogueAvatarProvider));
+                Assert.That(cue.spokenText, Is.EqualTo("Say: I would like a table."));
+                Assert.That(result, Is.Not.Null);
+            }
+            finally
+            {
+                Object.DestroyImmediate(demoClip);
+                Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator CorrectionPresenter_DoesNotEmitSubtitleCueWhenPlaybackCannotStart()
+        {
+            var gameObject = new GameObject("CorrectionSubtitleCueFailureTests");
+            var demoClip = AudioClip.Create("correction", 800, 1, 16000, false);
+            try
+            {
+                var presenter = gameObject.AddComponent<CorrectionFeedbackPresenter>();
+                var source = gameObject.AddComponent<AudioSource>();
+                source.enabled = false;
+                CorrectionSubtitleCue cue = null;
+
+                yield return presenter.Present(
+                    new SpringScenePayload
+                    {
+                        avatarRole = new AvatarRoleData(),
+                        correctionFeedback = new CorrectionFeedbackData
+                        {
+                            hasFeedback = true,
+                            provider = ExperimentConditionManager.DialogueAvatarProvider,
+                            style = ExperimentConditionManager.RecastStyle,
+                            recastText = "I would like a table."
+                        }
+                    },
+                    new AvatarSpeechPlaybackContext
+                    {
+                        defaultAudioSource = source,
+                        demoReplyClip = demoClip,
+                        useVoiceGatewayTts = false
+                    },
+                    null,
+                    null,
+                    value => cue = value,
+                    null);
+
+                Assert.That(cue, Is.Null);
+            }
+            finally
+            {
+                Object.DestroyImmediate(demoClip);
+                Object.DestroyImmediate(gameObject);
+            }
+        }
+
         [Test]
         public void CreateTurnId_CalledInSameFrame_ReturnsUniqueValues()
         {

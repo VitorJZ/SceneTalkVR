@@ -73,6 +73,13 @@ namespace SceneTalkVR.Runtime
         public string LastError { get; private set; }
         public string LastCorrectionStatus { get; private set; }
         public string LastCorrectionDisplayText { get; private set; }
+        public string LastCorrectionSpokenText { get; private set; }
+        public string LastCorrectionSpokenProvider { get; private set; }
+        public string CurrentDialogueSubtitleText { get; private set; }
+        public bool AreTurnSubtitlesReady =>
+            !string.IsNullOrWhiteSpace(CurrentDialogueSubtitleText)
+            && correctionSubtitlePlanResolvedThisTurn
+            && (!correctionSubtitleExpectedThisTurn || correctionSubtitleContentReadyThisTurn);
         public string LastCorrectionProvider { get; private set; }
         public string LastCorrectionStyle { get; private set; }
         public bool LastCorrectionHasFeedback { get; private set; }
@@ -210,6 +217,7 @@ namespace SceneTalkVR.Runtime
         private Coroutine currentTurn;
         private bool finishRequested;
         private AvatarPresentationVoiceModule subscribedAvatarVoiceModule;
+        private ISceneTalkCorrectionSubtitleSource subscribedCorrectionSubtitleSource;
         private ExperimentConditionManager subscribedExperimentConditionManager;
         private SpeechCaptureMode activeSpeechCaptureMode = SpeechCaptureMode.None;
         private string pendingHistorySessionId;
@@ -220,6 +228,11 @@ namespace SceneTalkVR.Runtime
         private SpringScenePayload pendingAvatarReplyPayload;
         private bool pendingAvatarReplyIsOpening;
         private AvatarReplyPlaybackFailureStage pendingAvatarFailureStage;
+        private bool correctionSubtitleStartedThisTurn;
+        private bool correctionPlaybackCompletedThisTurn;
+        private bool correctionSubtitlePlanResolvedThisTurn;
+        private bool correctionSubtitleExpectedThisTurn;
+        private bool correctionSubtitleContentReadyThisTurn;
 
         private ISceneTalkSpeechInput SpeechInput => speechInputModule as ISceneTalkSpeechInput;
         private ISceneTalkManualSpeechInput ManualSpeechInput => speechInputModule as ISceneTalkManualSpeechInput;
@@ -687,6 +700,7 @@ namespace SceneTalkVR.Runtime
             }
 
             finishRequested = false;
+            BeginTurnSubtitleState();
             currentTurn = StartCoroutine(RunConfirmedPracticeTurn());
         }
 
@@ -713,6 +727,7 @@ namespace SceneTalkVR.Runtime
             LastTranscript = string.Empty;
             LastScenePayload = null;
             LastError = string.Empty;
+            BeginTurnSubtitleState();
 
             var manager = ResolveExperimentConditionManager(true);
             pendingHistorySessionId = Guid.NewGuid().ToString("N");
@@ -835,6 +850,7 @@ namespace SceneTalkVR.Runtime
 
             ApplyExperimentConditionToPayload(initialPayload);
             LastScenePayload = initialPayload;
+            CurrentDialogueSubtitleText = initialPayload.dialogueReply;
             RefreshUi();
             SetState(SceneTalkState.SceneReady);
 
@@ -867,15 +883,14 @@ namespace SceneTalkVR.Runtime
             {
                 initialPayload = historySnapshot;
                 LastScenePayload = historySnapshot;
+                CurrentDialogueSubtitleText = historySnapshot.dialogueReply;
             }
 
             IsDialogueActive = true;
             PrepareCorrectionReview(initialPayload);
             SubscribeAvatarCorrectionPlayback();
             
-            SetState(LastCorrectionHasFeedback
-                ? SceneTalkState.CorrectionFeedbackSpeaking
-                : SceneTalkState.DialogueSpeaking);
+            SetState(ResolveReplyPlaybackState());
 
             AvatarReplyContext?.SetReplyContext(true);
             yield return AvatarVoice.PresentReply(
@@ -1188,6 +1203,8 @@ namespace SceneTalkVR.Runtime
 
             IsAwaitingTurnReviewAction = false;
             finishRequested = false;
+            BeginTurnSubtitleState();
+            SubscribeAvatarCorrectionPlayback();
             currentTurn = StartCoroutine(RunDialogueTurn());
             return true;
         }
@@ -1302,6 +1319,7 @@ namespace SceneTalkVR.Runtime
             string error = null;
             SpringScenePayload payload = null;
             ApplyExperimentConditionToModules();
+            SubscribeAvatarCorrectionPlayback();
             yield return GenerateSceneAndReplyWithStreamingSupport(
                 transcript,
                 value => payload = value,
@@ -1315,6 +1333,7 @@ namespace SceneTalkVR.Runtime
 
             ApplyExperimentConditionToPayload(payload);
             LastScenePayload = payload;
+            CurrentDialogueSubtitleText = payload.dialogueReply;
             RefreshUi();
             SetState(SceneTalkState.SceneReady);
 
@@ -1346,14 +1365,13 @@ namespace SceneTalkVR.Runtime
             {
                 payload = historySnapshot;
                 LastScenePayload = historySnapshot;
+                CurrentDialogueSubtitleText = historySnapshot.dialogueReply;
             }
 
             IsDialogueActive = true;
             PrepareCorrectionReview(payload);
             SubscribeAvatarCorrectionPlayback();
-            SetState(LastCorrectionHasFeedback
-                ? SceneTalkState.CorrectionFeedbackSpeaking
-                : SceneTalkState.DialogueSpeaking);
+            SetState(ResolveReplyPlaybackState());
 
             AvatarReplyContext?.SetReplyContext(true);
             yield return AvatarVoice.PresentReply(
@@ -1414,6 +1432,7 @@ namespace SceneTalkVR.Runtime
             SpringScenePayload payload = null;
             error = null;
             ApplyExperimentConditionToModules();
+            SubscribeAvatarCorrectionPlayback();
             yield return GenerateSceneAndReplyWithStreamingSupport(
                 transcript,
                 value => payload = value,
@@ -1428,6 +1447,7 @@ namespace SceneTalkVR.Runtime
 
             ApplyExperimentConditionToPayload(payload);
             LastScenePayload = payload;
+            CurrentDialogueSubtitleText = payload.dialogueReply;
             RefreshUi();
             GoalEvaluationOrchestrator.StartActiveTaskGoalEvaluation(this,
                 goalManager?.LifecycleCoordinator, PilotWorkflowCoordinator.Active,
@@ -1447,9 +1467,7 @@ namespace SceneTalkVR.Runtime
             }
             PrepareCorrectionReview(payload);
             SubscribeAvatarCorrectionPlayback();
-            SetState(LastCorrectionHasFeedback
-                ? SceneTalkState.CorrectionFeedbackSpeaking
-                : SceneTalkState.DialogueSpeaking);
+            SetState(ResolveReplyPlaybackState());
 
             error = null;
             yield return AvatarVoice.PresentReply(
@@ -1703,11 +1721,12 @@ namespace SceneTalkVR.Runtime
             }
 
             LastScenePayload = displayPayload;
+            CurrentDialogueSubtitleText = displayPayload.dialogueReply;
             IsDialogueActive = true;
             IsSpeechRecording = false;
             activeSpeechCaptureMode = SpeechCaptureMode.None;
             AvatarReplyContext?.SetReplyContext(false);
-            PrepareCorrectionReview(displayPayload);
+            PrepareCorrectionReview(displayPayload, true);
             SelectedHistorySession = null;
             CurrentHistoryPage = null;
             currentTurn = null;
@@ -1938,7 +1957,11 @@ namespace SceneTalkVR.Runtime
             finishRequested = false;
             (AvatarVoice as ISceneTalkStreamingAvatarVoice)?.AbortStreaming();
             AvatarReplyContext?.SetReplyContext(isOpeningReply);
-            SetState(SceneTalkState.DialogueSpeaking);
+            if (retryKind == RetryKind.AvatarFullReplyPlayback)
+            {
+                correctionPlaybackCompletedThisTurn = false;
+            }
+            SetState(ResolveReplyPlaybackState());
 
             string error = null;
             yield return AvatarVoice.PresentReply(
@@ -2043,6 +2066,14 @@ namespace SceneTalkVR.Runtime
                 : error.Trim();
             var manager = ResolveExperimentConditionManager(false);
             manager?.RecordModuleFallback(fallbackMessage);
+            manager?.RecordRecoverableTurnFailure(
+                string.Equals(
+                    fallbackMessage,
+                    "Dialogue reply generation failed.",
+                    StringComparison.Ordinal)
+                    ? "DialogueGeneration"
+                    : "SceneGeneration",
+                technicalMessage);
 
             LastError = string.Empty;
             SetState(SceneTalkState.AvatarSpeaking);
@@ -2050,6 +2081,9 @@ namespace SceneTalkVR.Runtime
             var prompt = string.IsNullOrWhiteSpace(llmFailurePrompt)
                 ? "Sorry, I didn't catch that. Could you say it again?"
                 : llmFailurePrompt.Trim();
+            CurrentDialogueSubtitleText = prompt;
+            ResolveCorrectionSubtitlePlan(null);
+            RefreshUi();
 
             if (AvatarRecoveryVoice != null)
             {
@@ -2082,11 +2116,21 @@ namespace SceneTalkVR.Runtime
                 Debug.LogWarning($"[SceneTalkVR] LLM recovery prompt playback failed: {recoveryError}", this);
             }
 
-            Debug.LogError($"[SceneTalkVR] {fallbackMessage} {technicalMessage}", this);
             currentTurn = null;
             IsAwaitingTurnReviewAction = false;
             LastError = ResolveLlmFailureUiMessage();
             SetState(SceneTalkState.Error);
+            var diagnosticMessage = $"[SceneTalkVR] {fallbackMessage} {technicalMessage}";
+            if (IsTaskAttemptTechnicalInvalid)
+            {
+                Debug.LogError(diagnosticMessage, this);
+            }
+            else
+            {
+                // Retryable failures must not trigger the Unity Editor's Error Pause
+                // before the retry state and button have a chance to render.
+                Debug.LogWarning(diagnosticMessage, this);
+            }
         }
 
         private string ResolveLlmFailureUiMessage()
@@ -2197,16 +2241,28 @@ namespace SceneTalkVR.Runtime
             payload.correctionFeedback.style = condition.style;
         }
 
-        private void PrepareCorrectionReview(SpringScenePayload payload)
+        private void PrepareCorrectionReview(SpringScenePayload payload, bool restoreSpokenSubtitle = false)
         {
             var feedback = payload == null ? null : payload.correctionFeedback;
             LastCorrectionHasFeedback = feedback != null && feedback.hasFeedback;
+            ResolveCorrectionSubtitlePlan(feedback);
             LastCorrectionProvider = ResolveNonEmpty(feedback == null ? null : feedback.provider, "none");
             LastCorrectionStyle = ResolveNonEmpty(feedback == null ? null : feedback.style, "none");
             LastCorrectionDisplayText = ResolveCorrectionDisplayText(feedback);
             LastCorrectionStatus = LastCorrectionHasFeedback
                 ? $"Feedback: {LastCorrectionProvider} / {LastCorrectionStyle}"
                 : "No correction feedback this turn.";
+            if (!LastCorrectionHasFeedback)
+            {
+                ClearCorrectionSpokenSubtitle();
+            }
+            else if (restoreSpokenSubtitle && !correctionSubtitleStartedThisTurn)
+            {
+                LastCorrectionSpokenProvider = LastCorrectionProvider;
+                LastCorrectionSpokenText = CorrectionTextGuards.ResolveSpokenFeedbackText(feedback);
+                correctionSubtitleContentReadyThisTurn =
+                    !string.IsNullOrWhiteSpace(LastCorrectionSpokenText);
+            }
             IsAwaitingTurnReviewAction = false;
 
             ResolveExperimentConditionManager(false)?.RecordCorrectionPayload(payload);
@@ -2351,6 +2407,9 @@ namespace SceneTalkVR.Runtime
         {
             LastCorrectionStatus = string.Empty;
             LastCorrectionDisplayText = string.Empty;
+            ClearCorrectionSpokenSubtitle();
+            CurrentDialogueSubtitleText = string.Empty;
+            ResetTurnSubtitleSynchronization();
             LastCorrectionProvider = string.Empty;
             LastCorrectionStyle = string.Empty;
             LastCorrectionHasFeedback = false;
@@ -2360,16 +2419,24 @@ namespace SceneTalkVR.Runtime
         private void SubscribeAvatarCorrectionPlayback()
         {
             var next = avatarVoiceModule as AvatarPresentationVoiceModule;
-            if (subscribedAvatarVoiceModule == next)
+            var nextSubtitleSource = avatarVoiceModule as ISceneTalkCorrectionSubtitleSource;
+            if (subscribedAvatarVoiceModule == next
+                && subscribedCorrectionSubtitleSource == nextSubtitleSource)
             {
                 return;
             }
 
             UnsubscribeAvatarCorrectionPlayback();
             subscribedAvatarVoiceModule = next;
+            subscribedCorrectionSubtitleSource = nextSubtitleSource;
             if (subscribedAvatarVoiceModule != null)
             {
                 subscribedAvatarVoiceModule.CorrectionPlaybackCompleted += OnCorrectionPlaybackCompleted;
+            }
+            if (subscribedCorrectionSubtitleSource != null)
+            {
+                subscribedCorrectionSubtitleSource.CorrectionPlanResolved += OnCorrectionPlanResolved;
+                subscribedCorrectionSubtitleSource.CorrectionSubtitleStarted += OnCorrectionSubtitleStarted;
             }
         }
 
@@ -2379,6 +2446,48 @@ namespace SceneTalkVR.Runtime
             {
                 subscribedAvatarVoiceModule.CorrectionPlaybackCompleted -= OnCorrectionPlaybackCompleted;
                 subscribedAvatarVoiceModule = null;
+            }
+            if (subscribedCorrectionSubtitleSource != null)
+            {
+                subscribedCorrectionSubtitleSource.CorrectionPlanResolved -= OnCorrectionPlanResolved;
+                subscribedCorrectionSubtitleSource.CorrectionSubtitleStarted -= OnCorrectionSubtitleStarted;
+                subscribedCorrectionSubtitleSource = null;
+            }
+        }
+
+        private void OnCorrectionPlanResolved(CorrectionFeedbackData feedback)
+        {
+            ResolveCorrectionSubtitlePlan(feedback);
+            RefreshUi();
+        }
+
+        private void ResolveCorrectionSubtitlePlan(CorrectionFeedbackData feedback)
+        {
+            correctionSubtitlePlanResolvedThisTurn = true;
+            correctionSubtitleExpectedThisTurn = feedback != null && feedback.hasFeedback;
+        }
+
+        private void OnCorrectionSubtitleStarted(CorrectionSubtitleCue cue)
+        {
+            if (cue == null || string.IsNullOrWhiteSpace(cue.spokenText))
+            {
+                return;
+            }
+
+            correctionSubtitleStartedThisTurn = true;
+            correctionPlaybackCompletedThisTurn = false;
+            correctionSubtitlePlanResolvedThisTurn = true;
+            correctionSubtitleExpectedThisTurn = true;
+            correctionSubtitleContentReadyThisTurn = true;
+            LastCorrectionSpokenProvider = ResolveNonEmpty(cue.provider, LastCorrectionProvider);
+            LastCorrectionSpokenText = cue.spokenText.Trim();
+            if (currentTurn != null && CurrentState != SceneTalkState.Error)
+            {
+                SetState(SceneTalkState.CorrectionFeedbackSpeaking);
+            }
+            else
+            {
+                RefreshUi();
             }
         }
 
@@ -2390,6 +2499,9 @@ namespace SceneTalkVR.Runtime
             }
 
             LastCorrectionProvider = ResolveNonEmpty(result.provider, LastCorrectionProvider);
+            correctionPlaybackCompletedThisTurn = true;
+            correctionSubtitlePlanResolvedThisTurn = true;
+            correctionSubtitleContentReadyThisTurn = true;
             LastCorrectionStatus = string.IsNullOrWhiteSpace(result.errorCode)
                 ? $"Feedback {result.outcome}: {LastCorrectionProvider}"
                 : $"Feedback {result.outcome}: {result.errorCode}";
@@ -2403,6 +2515,35 @@ namespace SceneTalkVR.Runtime
             {
                 SetState(SceneTalkState.DialogueSpeaking);
             }
+        }
+
+        private SceneTalkState ResolveReplyPlaybackState()
+        {
+            return LastCorrectionHasFeedback && !correctionPlaybackCompletedThisTurn
+                ? SceneTalkState.CorrectionFeedbackSpeaking
+                : SceneTalkState.DialogueSpeaking;
+        }
+
+        private void BeginTurnSubtitleState()
+        {
+            ClearCorrectionSpokenSubtitle();
+            CurrentDialogueSubtitleText = string.Empty;
+            ResetTurnSubtitleSynchronization();
+        }
+
+        private void ResetTurnSubtitleSynchronization()
+        {
+            correctionSubtitlePlanResolvedThisTurn = false;
+            correctionSubtitleExpectedThisTurn = false;
+            correctionSubtitleContentReadyThisTurn = false;
+        }
+
+        private void ClearCorrectionSpokenSubtitle()
+        {
+            LastCorrectionSpokenText = string.Empty;
+            LastCorrectionSpokenProvider = string.Empty;
+            correctionSubtitleStartedThisTurn = false;
+            correctionPlaybackCompletedThisTurn = false;
         }
 
         private string ResolveCorrectionDisplayText(CorrectionFeedbackData feedback)
@@ -2471,7 +2612,7 @@ namespace SceneTalkVR.Runtime
 
             if (replyLabel != null)
             {
-                var reply = LastScenePayload == null ? string.Empty : LastScenePayload.dialogueReply;
+                var reply = AreTurnSubtitlesReady ? CurrentDialogueSubtitleText : string.Empty;
                 replyLabel.text = string.IsNullOrWhiteSpace(reply)
                     ? SceneTalkUiText.Select("角色：-", "Character: -")
                     : SceneTalkUiText.Select("角色：", "Character: ") + reply;
@@ -2505,10 +2646,8 @@ namespace SceneTalkVR.Runtime
                 Action<string> sentenceReady = sentence => {
                         streamingVoice.EnqueueSentence(sentence);
                         accumulatedSubtitle += (string.IsNullOrEmpty(accumulatedSubtitle) ? "" : " ") + sentence;
-                        if (replyLabel != null)
-                        {
-                            replyLabel.text = SceneTalkUiText.Select("角色：", "Character: ") + accumulatedSubtitle;
-                        }
+                        CurrentDialogueSubtitleText = accumulatedSubtitle;
+                        RefreshUi();
                     };
                 Action<SpringScenePayload> generationComplete = payload => {
                         finalPayload = payload;

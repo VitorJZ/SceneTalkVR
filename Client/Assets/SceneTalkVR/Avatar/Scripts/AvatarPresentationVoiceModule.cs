@@ -14,6 +14,7 @@ namespace SceneTalkVR.AvatarSystem
         ISceneTalkAvatarThinkingState,
         ISceneTalkAvatarRecoveryVoice,
         ISceneTalkAvatarPlaybackDiagnostics,
+        ISceneTalkCorrectionSubtitleSource,
         ISceneTalkAvatarSessionReset,
         ISceneTalkAvatarSessionPrepare,
         ISceneTalkCorrectionFeedbackProviderReceiver,
@@ -86,6 +87,8 @@ namespace SceneTalkVR.AvatarSystem
         private AvatarSpeechPlayer SpeechPlayer => speechPlayer ??= new AvatarSpeechPlayer();
 
         public event Action<CorrectionPlaybackResult> CorrectionPlaybackCompleted;
+        public event Action<CorrectionFeedbackData> CorrectionPlanResolved;
+        public event Action<CorrectionSubtitleCue> CorrectionSubtitleStarted;
         public CorrectionPlaybackResult LastCorrectionPlaybackResult { get; private set; }
         public AvatarReplyPlaybackFailureStage LastFailureStage { get; private set; }
 
@@ -261,6 +264,7 @@ namespace SceneTalkVR.AvatarSystem
                     BuildSpeechPlaybackContext(),
                     () => BeginSpeechAnimation(false),
                     EndSpeechAnimation,
+                    cue => CorrectionSubtitleStarted?.Invoke(cue),
                     value => LastCorrectionPlaybackResult = value);
                 LastCorrectionPlayEnd = Time.realtimeSinceStartup;
 
@@ -1107,6 +1111,7 @@ namespace SceneTalkVR.AvatarSystem
             payload.correctionFeedback = feedback ?? new CorrectionFeedbackData { hasFeedback = false };
             streamingBasePayload = payload;
             feedbackFirstGate.PlannerResolved(payload.correctionFeedback.hasFeedback);
+            CorrectionPlanResolved?.Invoke(payload.correctionFeedback);
             if (!payload.correctionFeedback.hasFeedback)
             {
                 OpenDialogueGate();
@@ -1153,6 +1158,7 @@ namespace SceneTalkVR.AvatarSystem
                 BuildSpeechPlaybackContext(),
                 () => BeginSpeechAnimation(false),
                 EndSpeechAnimation,
+                cue => CorrectionSubtitleStarted?.Invoke(cue),
                 value => LastCorrectionPlaybackResult = value);
             LastCorrectionPlayEnd = Time.realtimeSinceStartup;
             var formal = FindFirstObjectByType<ExperimentConditionManager>(FindObjectsInactive.Include)?.IsFormalExperiment == true;

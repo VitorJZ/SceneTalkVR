@@ -54,7 +54,8 @@ namespace SceneTalkVR.Core
 
     public sealed class PilotAssignmentAllocator
     {
-        public const string Version="2.0-participant-choice";
+        public const string Version="2.1-temporary-walk-in-only";
+        public const string TemporaryTaskId="pilot_restaurant_walk_in";
         public bool TryCreateCollection(string participantId,string sessionId,ExperimentV11ProtocolConfig protocol,
             ExperimentTaskCatalog tasks,PilotPresentationCatalog presentations,string resourceSnapshotId,
             out PilotAssignment assignment,out string error)
@@ -101,10 +102,11 @@ namespace SceneTalkVR.Core
             assignment=null; if(string.IsNullOrWhiteSpace(participantId)){error="participant_missing";return false;}
             if(style==PilotFeedbackStyleChoice.Undefined){error="pilot_feedback_style_unconfirmed";return false;} if(audio==PilotAudioSourcePolicy.Undefined){error="voice_only_spatial_audio_unconfirmed";return false;}
             if(sequences==null||sequences.Length!=3||sequences.Any(x=>x.conditions==null||x.conditions.Length!=3||x.conditions.Distinct().Count()!=3)){error="pilot_sequences_invalid";return false;}
-            if(taskIds==null||taskIds.Length!=3||taskIds.Distinct().Count()!=3){error="pilot_tasks_invalid";return false;}
-            var seed=Hash(participantId+"|"+protocolVersion+"|"+Version); var sequence=sequences[(int)(seed%3)]; var offset=(int)((seed/3)%3);
+            if(taskIds==null||taskIds.Length!=3||taskIds.Distinct().Count()!=3||!taskIds.Contains(TemporaryTaskId)){error="pilot_tasks_invalid";return false;}
+            var seed=Hash(participantId+"|"+protocolVersion+"|"+Version); var sequence=sequences[(int)(seed%3)];
             assignment=new PilotAssignment{pilotProtocolVersion=protocolVersion,pilotAssignmentVersion=Version,taskCatalogVersion=taskCatalogVersion,participantId=participantId,sessionId=sessionId,sequenceId=sequence.sequenceId,assignmentSeed=seed.ToString(CultureInfo.InvariantCulture),createdAtUtc=DateTime.UtcNow.ToString("o"),developerTestAssignment=developer,dataOrigin=dataOrigin,collectionEligible=qualification==ExperimentRunQualification.Collection,flowMode=flowMode,runQualification=qualification,protocolSnapshotId=protocolSnapshotId,resourceSnapshotId=resourceSnapshotId,feedbackStyle=style,feedbackStyleLabel=PilotProtocolValues.Label(style),voiceOnlyAudioPolicy=audio,voiceOnlyAudioPolicyLabel=PilotProtocolValues.Label(audio),conditions=new PilotConditionAssignment[3]};
-            for(var i=0;i<3;i++) assignment.conditions[i]=new PilotConditionAssignment{conditionPosition=i,embodimentCondition=sequence.conditions[i],embodimentConditionLabel=PilotProtocolValues.Label(sequence.conditions[i]),task=new PilotTaskAssignment{taskId=taskIds[(i+offset)%3],taskAssignmentId=$"pta-{seed}-{i}"}};
+            // Temporary experiment override: keep all three embodiment conditions on the first Pilot task.
+            for(var i=0;i<3;i++) assignment.conditions[i]=new PilotConditionAssignment{conditionPosition=i,embodimentCondition=sequence.conditions[i],embodimentConditionLabel=PilotProtocolValues.Label(sequence.conditions[i]),task=new PilotTaskAssignment{taskId=TemporaryTaskId,taskAssignmentId=$"pta-{seed}-{i}"}};
             error="";return true;
         }
         private bool TryCreateCollectionBalanced(string participantId,string sessionId,string protocolVersion,
@@ -139,10 +141,10 @@ namespace SceneTalkVR.Core
                 runQualification=ExperimentRunQualification.Collection,protocolSnapshotId=protocolSnapshotId,
                 resourceSnapshotId=resourceSnapshotId,voiceOnlyAudioPolicy=audio,
                 voiceOnlyAudioPolicyLabel=PilotProtocolValues.Label(audio),conditions=new PilotConditionAssignment[3]};
-            // The approved Latin-square group uses the same position order for task and embodiment.
+            // Temporary experiment override: keep all three embodiment conditions on the first Pilot task.
             for(var i=0;i<3;i++) assignment.conditions[i]=new PilotConditionAssignment{conditionPosition=i,
                 embodimentCondition=sequence.conditions[i],embodimentConditionLabel=PilotProtocolValues.Label(sequence.conditions[i]),
-                task=new PilotTaskAssignment{taskId=approvedTasks[i],taskAssignmentId=$"pilot-{seed}-{group}-{i}"}};
+                task=new PilotTaskAssignment{taskId=TemporaryTaskId,taskAssignmentId=$"pilot-{seed}-{group}-{i}"}};
             error="";return true;
         }
         public static void Save(PilotAssignment value,string path){SyncLabels(value);Directory.CreateDirectory(Path.GetDirectoryName(path));File.WriteAllText(path,JsonUtility.ToJson(value,true));}

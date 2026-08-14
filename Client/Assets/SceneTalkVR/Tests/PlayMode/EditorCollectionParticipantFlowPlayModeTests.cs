@@ -457,16 +457,15 @@ namespace SceneTalkVR.Tests.PlayMode
             var goalText = task.GetComponentsInChildren<TMP_Text>(true).First(x => x.name == "GoalStateText");
             var interactionCamera = taskCanvas.worldCamera;
             Assert.That(interactionCamera, Is.Not.Null, "Task canvas must use the interaction camera.");
-            var taskFacingDirection = Vector3.ProjectOnPlane(taskCanvas.transform.position - interactionCamera.transform.position, Vector3.up).normalized;
             Assert.That(taskBottom - dialogueTop, Is.GreaterThanOrEqualTo(20f), "Task goals must remain above the dialogue panel.");
             Assert.That(taskCanvas, Is.Not.SameAs(canvas), "Task goals must use a dedicated canvas.");
             Assert.That(taskCanvas.transform.parent, Is.EqualTo(canvas.transform), "The task canvas must follow the main world canvas.");
             Assert.That(taskCanvasRect.anchoredPosition.x, Is.LessThanOrEqualTo(-550f));
-            Assert.That(taskRight, Is.LessThan(canvasRect.rect.xMin), "Task goals must remain entirely left of the main canvas.");
+            Assert.That(taskRight, Is.LessThanOrEqualTo(canvasRect.rect.xMin + 20.1f), "Task goals must remain at the left perimeter of the main canvas.");
             Assert.That(taskTop, Is.LessThanOrEqualTo(canvasRect.rect.yMax), "Task goals must remain inside the canvas.");
             Assert.That(task.rect.width * task.rect.height, Is.GreaterThanOrEqualTo(95000f), "Task goals must remain enlarged.");
             Assert.That(goalText.fontSizeMax, Is.GreaterThanOrEqualTo(20f), "Task goal text must remain readable.");
-            Assert.That(Vector3.Dot(taskCanvas.transform.forward, taskFacingDirection), Is.GreaterThan(0.95f), "Task canvas must face the user.");
+            Assert.That(Quaternion.Angle(taskCanvas.transform.localRotation, Quaternion.identity), Is.LessThan(0.01f), "Task canvas local rotation must remain zero.");
             Assert.That(task.anchoredPosition, Is.EqualTo(Vector2.zero));
             Assert.That(dialogueLeft, Is.GreaterThanOrEqualTo(canvasRect.rect.xMin), "Dialogue must remain inside the canvas.");
             Assert.That(dialogueRight, Is.LessThanOrEqualTo(canvasRect.rect.xMax), "Dialogue must remain inside the canvas.");

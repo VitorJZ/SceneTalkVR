@@ -70,6 +70,24 @@ namespace SceneTalkVR.Core
         AvatarReplyPlaybackFailureStage LastFailureStage { get; }
     }
 
+    public sealed class CorrectionSubtitleCue
+    {
+        public CorrectionSubtitleCue(string provider, string spokenText)
+        {
+            this.provider = provider ?? string.Empty;
+            this.spokenText = spokenText ?? string.Empty;
+        }
+
+        public string provider { get; }
+        public string spokenText { get; }
+    }
+
+    public interface ISceneTalkCorrectionSubtitleSource
+    {
+        event Action<CorrectionFeedbackData> CorrectionPlanResolved;
+        event Action<CorrectionSubtitleCue> CorrectionSubtitleStarted;
+    }
+
     public interface ISceneTalkStreamingAvatarVoice : ISceneTalkAvatarVoice
     {
         void PrepareStreaming(SpringScenePayload basePayload);

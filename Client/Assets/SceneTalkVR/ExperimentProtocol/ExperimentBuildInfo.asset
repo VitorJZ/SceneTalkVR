@@ -12,9 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 47a1baef50f84d24a9ef4dffcf66b833, type: 3}
   m_Name: ExperimentBuildInfo
   m_EditorClassIdentifier: Assembly-CSharp::SceneTalkVR.Core.ExperimentBuildInfo
-  gitCommit: 2edeabe65efd5ceceb5cc616a05999339171bd39
+  gitCommit: c9b7b39c4107fefff796eecbd27e692db4a7abd0
   activeBranch: main
   buildVersion: editor-collection-20260727
-  buildTimestampUtc: 2026-08-04T03:06:29.8884023Z
+  buildTimestampUtc: 2026-08-11T03:02:31.3418545Z
   unityVersion: 6000.3.16f1
   protocolVersion: 1.5.0-immediate-goal-advance

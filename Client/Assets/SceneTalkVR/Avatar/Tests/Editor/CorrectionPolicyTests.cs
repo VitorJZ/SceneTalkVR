@@ -267,6 +267,29 @@ namespace SceneTalkVR.AvatarSystem.Tests.Editor
                 Is.EqualTo("Use 'am' with 'I'. Try: \"I am ready.\""));
         }
 
+        [Test]
+        public void SpokenFeedbackText_RecastPrefersRecastAndFallsBackToCorrectedText()
+        {
+            var feedback = new CorrectionFeedbackData
+            {
+                hasFeedback = true,
+                style = ExperimentConditionManager.RecastStyle,
+                correctedText = "I would like a table.",
+                feedbackText = "Try the corrected sentence.",
+                recastText = "You would like a table."
+            };
+
+            Assert.That(
+                CorrectionTextGuards.ResolveSpokenFeedbackText(feedback),
+                Is.EqualTo("You would like a table."));
+
+            feedback.recastText = string.Empty;
+            feedback.feedbackText = string.Empty;
+            Assert.That(
+                CorrectionTextGuards.ResolveSpokenFeedbackText(feedback),
+                Is.EqualTo("I would like a table."));
+        }
+
         [TestCase(ExperimentConditionManager.ExplicitStyle)]
         [TestCase(ExperimentConditionManager.RecastStyle)]
         public void RealLlmFinalization_RepairsMissingSpokenCorrectionText(string style)

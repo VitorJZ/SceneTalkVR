@@ -26,14 +26,17 @@ namespace SceneTalkVR.Runtime
         private static readonly Vector2 TaskGoalCanvasPosition = new Vector2(-560f, 100f);
         private static readonly Vector2 TaskGoalPanelSize = new Vector2(300f, 320f);
         private const float DialoguePanelCenterX = 0f;
-        private const float DialoguePanelVisibleCenterY = -170f;
         private const float DialoguePanelVisibleHeight = 180f;
-        private const float DialoguePanelHiddenCenterY = -200f;
         private const float DialoguePanelHiddenHeight = 120f;
+        private const float DialoguePanelBottomY = -260f;
         private const float DialoguePanelWidth = 840f;
         private const float DialogueContentCenterX = -65f;
         private const float DialogueContentWidth = 650f;
         private const float DialogueButtonCenterX = 350f;
+        private const float DialoguePanelTopPadding = 12f;
+        private const float DialoguePanelBottomPadding = 10f;
+        private const float DialogueRowSpacing = 4f;
+        private const float DialogueTextVerticalPadding = 4f;
 
         [SerializeField] private SceneTalkOrchestrator orchestrator;
         [SerializeField] private SceneTalkInteractionBootstrap interactionBootstrap;
@@ -186,6 +189,7 @@ namespace SceneTalkVR.Runtime
         private TMP_Text correctionStatusText;
         private TMP_Text correctionFeedbackText;
         private TMP_Text playerSubtitleText;
+        private TMP_Text agentSubtitleText;
         private TMP_Text avatarSubtitleText;
         private TMP_Text taskGoalText;
         private TMP_Text demoBannerText;
@@ -230,7 +234,6 @@ namespace SceneTalkVR.Runtime
 
         private void LateUpdate()
         {
-            UpdateTaskGoalCanvasFacingUser();
             BringExitButtonToFront();
         }
 
@@ -429,9 +432,10 @@ namespace SceneTalkVR.Runtime
             loadingPanel = CreatePanel(root, "LoadingPanel", new Vector2(0f, 0f), new Vector2(540f, 220f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
             loadingText = CreateText(loadingPanel.transform, "LoadingText", "正在加载场景与角色……", new Vector2(0f, 0f), new Vector2(480f, 80f), 26, TextAnchor.MiddleCenter, Color.white);
 
-            subtitlePanel = CreatePanel(root, "SubtitlePanel", new Vector2(DialoguePanelCenterX, DialoguePanelVisibleCenterY), new Vector2(DialoguePanelWidth, DialoguePanelVisibleHeight), new Color(0f, 0f, 0f, 0.62f));
+            subtitlePanel = CreatePanel(root, "SubtitlePanel", new Vector2(DialoguePanelCenterX, DialoguePanelBottomY), new Vector2(DialoguePanelWidth, DialoguePanelVisibleHeight), new Color(0f, 0f, 0f, 0.62f));
             subtitlePanel.AddComponent<RectMask2D>();
             subtitlePanelRect = subtitlePanel.GetComponent<RectTransform>();
+            subtitlePanelRect.pivot = new Vector2(0.5f, 0f);
             
             subtitleTextContainer = new GameObject("TextContainer");
             subtitleTextContainer.transform.SetParent(subtitlePanel.transform, false);
@@ -440,23 +444,24 @@ namespace SceneTalkVR.Runtime
             subtitleTextContainerRect.sizeDelta = new Vector2(DialogueContentWidth, 64f);
 
             playerSubtitleText = CreateText(subtitleTextContainer.transform, "PlayerSubtitle", "你：-", new Vector2(0f, 22f), new Vector2(DialogueContentWidth, 26f), 18, TextAnchor.UpperLeft, new Color(0.45f, 0.9f, 1f, 1f));
+            agentSubtitleText = CreateText(subtitleTextContainer.transform, "AgentSubtitle", string.Empty, new Vector2(0f, 3f), new Vector2(DialogueContentWidth, 20f), 18, TextAnchor.UpperLeft, new Color(0.72f, 1f, 0.78f, 1f));
             avatarSubtitleText = CreateText(subtitleTextContainer.transform, "AvatarSubtitle", "角色：-", new Vector2(0f, -14f), new Vector2(DialogueContentWidth, 42f), 19, TextAnchor.UpperLeft, new Color(1f, 0.88f, 0.36f, 1f));
-            ConfigureDialogueText(playerSubtitleText);
-            ConfigureDialogueText(avatarSubtitleText);
+            ConfigureExpandableDialogueText(playerSubtitleText);
+            ConfigureExpandableDialogueText(agentSubtitleText);
+            ConfigureExpandableDialogueText(avatarSubtitleText);
 
             experimentDebugText = CreateText(subtitlePanel.transform, "ExperimentDebug", string.Empty, new Vector2(DialogueContentCenterX, 78f), new Vector2(DialogueContentWidth, 18f), 13, TextAnchor.MiddleLeft, new Color(0.72f, 0.8f, 0.86f, 1f));
             correctionFeedbackText = CreateText(subtitlePanel.transform, "CorrectionFeedback", string.Empty, new Vector2(DialogueContentCenterX, -17f), new Vector2(DialogueContentWidth, 28f), 16, TextAnchor.UpperLeft, new Color(0.78f, 0.95f, 0.74f, 1f));
             correctionStatusText = CreateText(subtitlePanel.transform, "CorrectionStatus", string.Empty, new Vector2(DialogueContentCenterX, -46f), new Vector2(DialogueContentWidth, 24f), 16, TextAnchor.MiddleLeft, new Color(0.86f, 0.9f, 1f, 1f));
             dialogueStatusText = CreateText(subtitlePanel.transform, "DialogueStatus", "准备就绪", new Vector2(DialogueContentCenterX, -70f), new Vector2(DialogueContentWidth, 20f), 16, TextAnchor.MiddleLeft, new Color(0.86f, 0.9f, 1f, 1f));
-            ConfigureDialogueText(experimentDebugText);
-            ConfigureDialogueText(correctionFeedbackText);
-            ConfigureDialogueText(correctionStatusText);
-            ConfigureDialogueText(dialogueStatusText);
+            ConfigureExpandableDialogueText(experimentDebugText);
+            ConfigureExpandableDialogueText(correctionFeedbackText);
+            ConfigureExpandableDialogueText(correctionStatusText);
+            ConfigureExpandableDialogueText(dialogueStatusText);
 
             dialogueListenButton = CreateButton(subtitlePanel.transform, "DialogueListenButton", "发言", new Vector2(DialogueButtonCenterX, -60f), new Vector2(110f, 40f), new Color(0.12f, 0.52f, 0.38f, 1f));
 
             taskGoalCanvas = CreateTaskGoalCanvas();
-            UpdateTaskGoalCanvasFacingUser();
             taskGoalPanel = CreatePanel(taskGoalCanvas.transform, "ReadOnlyTaskGoalPanel", Vector2.zero, TaskGoalPanelSize, new Color(0.03f, 0.04f, 0.06f, 0.84f));
             CreateText(taskGoalPanel.transform, "Title", "任务目标", new Vector2(0f, 118f), new Vector2(280f, 38f), 26, TextAnchor.MiddleCenter, Color.white);
             taskGoalText = CreateText(taskGoalPanel.transform, "GoalStateText", string.Empty, new Vector2(0f, -24f), new Vector2(280f, 218f), 20, TextAnchor.UpperLeft, new Color(0.86f, 0.92f, 1f, 1f));
@@ -2265,13 +2270,24 @@ namespace SceneTalkVR.Runtime
             var transcript = string.IsNullOrWhiteSpace(orchestrator.LastTranscript)
                 ? "-"
                 : orchestrator.LastTranscript;
-            var reply = orchestrator.LastScenePayload == null || string.IsNullOrWhiteSpace(orchestrator.LastScenePayload.dialogueReply)
-                ? "-"
-                : orchestrator.LastScenePayload.dialogueReply;
+            var synchronizedSubtitlesReady = orchestrator.AreTurnSubtitlesReady;
+            var hasReply = synchronizedSubtitlesReady
+                && !string.IsNullOrWhiteSpace(orchestrator.CurrentDialogueSubtitleText);
+            var reply = hasReply ? orchestrator.CurrentDialogueSubtitleText : "-";
+            var spokenCorrection = synchronizedSubtitlesReady
+                ? orchestrator.LastCorrectionSpokenText
+                : string.Empty;
+            var correctionProvider = orchestrator.LastCorrectionSpokenProvider;
+            var hasSpokenCorrection = !string.IsNullOrWhiteSpace(spokenCorrection);
+            var showAgentSubtitle = hasSpokenCorrection
+                && string.Equals(
+                    correctionProvider,
+                    ExperimentConditionManager.AssistantAgentProvider,
+                    System.StringComparison.OrdinalIgnoreCase);
+            var showAvatarCorrection = hasSpokenCorrection && !showAgentSubtitle;
             var settings = SceneTalkUserSettingsStore.Current;
             var hideSubtitles = settings.hideDialogueSubtitles;
             var hideStatuses = settings.hideDialogueStatuses;
-            ApplySubtitleLayout(hideSubtitles);
 
             SetActive(subtitleTextContainer, !hideSubtitles);
 
@@ -2283,8 +2299,25 @@ namespace SceneTalkVR.Runtime
 
             if (avatarSubtitleText != null)
             {
-                SetActive(avatarSubtitleText.gameObject, !hideSubtitles);
-                avatarSubtitleText.text = SceneTalkUiText.Select("角色：", "Character: ") + reply;
+                SetActive(
+                    avatarSubtitleText.gameObject,
+                    !hideSubtitles
+                    && synchronizedSubtitlesReady
+                    && (!showAgentSubtitle || hasReply));
+                avatarSubtitleText.text = SceneTalkUiText.Select("角色：", "Character: ")
+                    + (showAvatarCorrection
+                        ? spokenCorrection + (hasReply ? "\n" + reply : string.Empty)
+                        : reply);
+            }
+
+            if (agentSubtitleText != null)
+            {
+                SetActive(
+                    agentSubtitleText.gameObject,
+                    !hideSubtitles && synchronizedSubtitlesReady && showAgentSubtitle);
+                agentSubtitleText.text = showAgentSubtitle
+                    ? SceneTalkUiText.Select("助手：", "Assistant: ") + spokenCorrection
+                    : string.Empty;
             }
 
             if (experimentDebugText != null)
@@ -2334,81 +2367,191 @@ namespace SceneTalkVR.Runtime
                     dialogueListenButton,
                     !isTechnicalInvalid && (isRecording || !orchestrator.IsTurnRunning));
             }
+
+            ApplySubtitleLayout(hideSubtitles);
         }
 
         private void ApplySubtitleLayout(bool hideSubtitles)
         {
+            var contentWidth = hideSubtitles ? 480f : DialogueContentWidth;
+            var contentCenterX = hideSubtitles ? -100f : DialogueContentCenterX;
+            var dialogueStatusHeight = MeasureWrappedTextHeight(
+                dialogueStatusText,
+                contentWidth,
+                hideSubtitles ? 28f : 20f);
+            var correctionStatusHeight = MeasureWrappedTextHeight(
+                correctionStatusText,
+                contentWidth,
+                hideSubtitles ? 28f : 24f);
+
+            var statusCursor = DialoguePanelBottomPadding;
+            SetBottomAnchoredRect(
+                dialogueStatusText?.rectTransform,
+                contentCenterX,
+                statusCursor + dialogueStatusHeight * 0.5f,
+                contentWidth,
+                dialogueStatusHeight);
+            statusCursor += dialogueStatusHeight + DialogueRowSpacing;
+            SetBottomAnchoredRect(
+                correctionStatusText?.rectTransform,
+                contentCenterX,
+                statusCursor + correctionStatusHeight * 0.5f,
+                contentWidth,
+                correctionStatusHeight);
+            statusCursor += correctionStatusHeight + DialogueRowSpacing;
+
+            var debugActive = IsLayoutActive(experimentDebugText);
+            var debugHeight = debugActive
+                ? MeasureWrappedTextHeight(experimentDebugText, contentWidth, hideSubtitles ? 22f : 18f)
+                : 0f;
+            var feedbackActive = !hideSubtitles && IsLayoutActive(correctionFeedbackText);
+            var feedbackHeight = feedbackActive
+                ? MeasureWrappedTextHeight(correctionFeedbackText, DialogueContentWidth, 28f)
+                : 0f;
+
+            var playerActive = !hideSubtitles && IsLayoutActive(playerSubtitleText);
+            var agentActive = !hideSubtitles && IsLayoutActive(agentSubtitleText);
+            var avatarActive = !hideSubtitles && IsLayoutActive(avatarSubtitleText);
+            var playerHeight = playerActive
+                ? MeasureWrappedTextHeight(playerSubtitleText, DialogueContentWidth, 26f)
+                : 0f;
+            var agentHeight = agentActive
+                ? MeasureWrappedTextHeight(agentSubtitleText, DialogueContentWidth, 22f)
+                : 0f;
+            var avatarHeight = avatarActive
+                ? MeasureWrappedTextHeight(avatarSubtitleText, DialogueContentWidth, 28f)
+                : 0f;
+            var subtitleRowCount = (playerActive ? 1 : 0) + (agentActive ? 1 : 0) + (avatarActive ? 1 : 0);
+            var subtitleStackHeight = playerHeight + agentHeight + avatarHeight
+                + Mathf.Max(0, subtitleRowCount - 1) * DialogueRowSpacing;
+
+            var dynamicBlockCount = (debugActive ? 1 : 0)
+                + (subtitleRowCount > 0 ? 1 : 0)
+                + (feedbackActive ? 1 : 0);
+            var dynamicHeight = debugHeight + subtitleStackHeight + feedbackHeight
+                + Mathf.Max(0, dynamicBlockCount - 1) * DialogueRowSpacing;
+            var minimumPanelHeight = hideSubtitles
+                ? DialoguePanelHiddenHeight
+                : DialoguePanelVisibleHeight;
+            var panelHeight = Mathf.Max(
+                minimumPanelHeight,
+                DialoguePanelTopPadding + dynamicHeight + statusCursor);
+
             if (subtitlePanelRect != null)
             {
-                subtitlePanelRect.anchoredPosition = hideSubtitles
-                    ? new Vector2(DialoguePanelCenterX, DialoguePanelHiddenCenterY)
-                    : new Vector2(DialoguePanelCenterX, DialoguePanelVisibleCenterY);
-                subtitlePanelRect.sizeDelta = hideSubtitles
-                    ? new Vector2(DialoguePanelWidth, DialoguePanelHiddenHeight)
-                    : new Vector2(DialoguePanelWidth, DialoguePanelVisibleHeight);
-            }
-
-            if (subtitleTextContainerRect != null)
-            {
-                subtitleTextContainerRect.anchoredPosition = new Vector2(DialogueContentCenterX, 35f);
-                subtitleTextContainerRect.sizeDelta = new Vector2(DialogueContentWidth, 64f);
-            }
-
-            if (experimentDebugText != null)
-            {
-                var debugRect = experimentDebugText.GetComponent<RectTransform>();
-                debugRect.anchoredPosition = hideSubtitles
-                    ? new Vector2(-100f, 48f)
-                    : new Vector2(DialogueContentCenterX, 78f);
-                debugRect.sizeDelta = hideSubtitles
-                    ? new Vector2(480f, 22f)
-                    : new Vector2(DialogueContentWidth, 18f);
-            }
-
-            if (correctionFeedbackText != null)
-            {
-                var feedbackRect = correctionFeedbackText.GetComponent<RectTransform>();
-                feedbackRect.anchoredPosition = hideSubtitles
-                    ? new Vector2(-100f, 16f)
-                    : new Vector2(DialogueContentCenterX, -17f);
-                feedbackRect.sizeDelta = hideSubtitles
-                    ? new Vector2(480f, 28f)
-                    : new Vector2(DialogueContentWidth, 28f);
-            }
-
-            if (correctionStatusText != null)
-            {
-                var correctionRect = correctionStatusText.GetComponent<RectTransform>();
-                correctionRect.anchoredPosition = hideSubtitles
-                    ? new Vector2(-100f, -14f)
-                    : new Vector2(DialogueContentCenterX, -46f);
-                correctionRect.sizeDelta = hideSubtitles
-                    ? new Vector2(480f, 28f)
-                    : new Vector2(DialogueContentWidth, 24f);
-            }
-
-            if (dialogueStatusText != null)
-            {
-                var statusRect = dialogueStatusText.GetComponent<RectTransform>();
-                statusRect.anchoredPosition = hideSubtitles
-                    ? new Vector2(-100f, -42f)
-                    : new Vector2(DialogueContentCenterX, -70f);
-                statusRect.sizeDelta = hideSubtitles
-                    ? new Vector2(480f, 28f)
-                    : new Vector2(DialogueContentWidth, 20f);
+                subtitlePanelRect.anchoredPosition = new Vector2(DialoguePanelCenterX, DialoguePanelBottomY);
+                subtitlePanelRect.sizeDelta = new Vector2(DialoguePanelWidth, panelHeight);
             }
 
             if (dialogueListenButton != null)
             {
-                var buttonRect = dialogueListenButton.GetComponent<RectTransform>();
-                buttonRect.anchoredPosition = hideSubtitles
-                    ? new Vector2(310f, -32f)
-                    : new Vector2(DialogueButtonCenterX, -60f);
-                buttonRect.sizeDelta = hideSubtitles
-                    ? new Vector2(110f, 38f)
-                    : new Vector2(110f, 40f);
+                var buttonHeight = hideSubtitles ? 38f : 40f;
+                SetBottomAnchoredRect(
+                    dialogueListenButton.GetComponent<RectTransform>(),
+                    hideSubtitles ? 310f : DialogueButtonCenterX,
+                    DialoguePanelBottomPadding + buttonHeight * 0.5f,
+                    110f,
+                    buttonHeight);
             }
 
+            var topCursor = panelHeight - DialoguePanelTopPadding;
+            if (debugActive)
+            {
+                SetBottomAnchoredRect(
+                    experimentDebugText.rectTransform,
+                    contentCenterX,
+                    topCursor - debugHeight * 0.5f,
+                    contentWidth,
+                    debugHeight);
+                topCursor -= debugHeight;
+                if (dynamicBlockCount > 1)
+                {
+                    topCursor -= DialogueRowSpacing;
+                }
+            }
+
+            if (subtitleRowCount > 0 && subtitleTextContainerRect != null)
+            {
+                SetBottomAnchoredRect(
+                    subtitleTextContainerRect,
+                    DialogueContentCenterX,
+                    topCursor - subtitleStackHeight * 0.5f,
+                    DialogueContentWidth,
+                    subtitleStackHeight);
+
+                var subtitleCursor = subtitleStackHeight;
+                LayoutSubtitleRow(playerSubtitleText, playerActive, playerHeight, ref subtitleCursor);
+                LayoutSubtitleRow(agentSubtitleText, agentActive, agentHeight, ref subtitleCursor);
+                LayoutSubtitleRow(avatarSubtitleText, avatarActive, avatarHeight, ref subtitleCursor);
+                topCursor -= subtitleStackHeight;
+                if (feedbackActive)
+                {
+                    topCursor -= DialogueRowSpacing;
+                }
+            }
+
+            if (feedbackActive)
+            {
+                SetBottomAnchoredRect(
+                    correctionFeedbackText.rectTransform,
+                    DialogueContentCenterX,
+                    topCursor - feedbackHeight * 0.5f,
+                    DialogueContentWidth,
+                    feedbackHeight);
+            }
+        }
+
+        private static void LayoutSubtitleRow(
+            TMP_Text text,
+            bool active,
+            float height,
+            ref float topCursor)
+        {
+            if (!active || text == null)
+            {
+                return;
+            }
+
+            SetBottomAnchoredRect(
+                text.rectTransform,
+                0f,
+                topCursor - height * 0.5f,
+                DialogueContentWidth,
+                height);
+            topCursor -= height + DialogueRowSpacing;
+        }
+
+        private static float MeasureWrappedTextHeight(TMP_Text text, float width, float minimumHeight)
+        {
+            if (text == null)
+            {
+                return minimumHeight;
+            }
+
+            text.ForceMeshUpdate(true, true);
+            var preferred = text.GetPreferredValues(text.text ?? string.Empty, width, 0f);
+            return Mathf.Ceil(Mathf.Max(minimumHeight, preferred.y + DialogueTextVerticalPadding));
+        }
+
+        private static bool IsLayoutActive(TMP_Text text) => text != null && text.gameObject.activeSelf;
+
+        private static void SetBottomAnchoredRect(
+            RectTransform rect,
+            float centerX,
+            float centerY,
+            float width,
+            float height)
+        {
+            if (rect == null)
+            {
+                return;
+            }
+
+            rect.anchorMin = new Vector2(0.5f, 0f);
+            rect.anchorMax = new Vector2(0.5f, 0f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = new Vector2(centerX, centerY);
+            rect.sizeDelta = new Vector2(width, height);
         }
 
         private static string ResolveRequestListenButtonLabel(bool isRecording, bool hasTranscript, bool hasError)
@@ -2727,7 +2870,6 @@ namespace SceneTalkVR.Runtime
             }
 
             interactionBootstrap?.ApplyUserSettings(settings);
-            UpdateTaskGoalCanvasFacingUser();
         }
 
         private void QuitApplication()
@@ -2791,38 +2933,13 @@ namespace SceneTalkVR.Runtime
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = TaskGoalCanvasPosition;
             rect.sizeDelta = TaskGoalPanelSize;
+            rect.localRotation = Quaternion.identity;
             rect.localScale = Vector3.one;
 
             var scaler = canvasObject.AddComponent<CanvasScaler>();
             var sourceScaler = worldCanvas.GetComponent<CanvasScaler>();
             scaler.dynamicPixelsPerUnit = sourceScaler != null ? sourceScaler.dynamicPixelsPerUnit : 20f;
             return canvas;
-        }
-
-        private void UpdateTaskGoalCanvasFacingUser()
-        {
-            if (taskGoalCanvas == null)
-            {
-                return;
-            }
-
-            var targetCamera = taskGoalCanvas.worldCamera != null
-                ? taskGoalCanvas.worldCamera
-                : Camera.main;
-            if (targetCamera == null)
-            {
-                return;
-            }
-
-            var direction = Vector3.ProjectOnPlane(
-                taskGoalCanvas.transform.position - targetCamera.transform.position,
-                Vector3.up);
-            if (direction.sqrMagnitude < 0.0001f)
-            {
-                return;
-            }
-
-            taskGoalCanvas.transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
         }
 
         private static TMP_Text CreateScrollableText(
@@ -2904,6 +3021,19 @@ namespace SceneTalkVR.Runtime
             label.enableAutoSizing = true;
             label.fontSizeMax = label.fontSize;
             label.fontSizeMin = Mathf.Max(10f, label.fontSize * 0.72f);
+        }
+
+        private static void ConfigureExpandableDialogueText(TMP_Text label)
+        {
+            if (label == null)
+            {
+                return;
+            }
+
+            label.lineSpacing = 0.92f;
+            label.enableAutoSizing = false;
+            label.textWrappingMode = TextWrappingModes.Normal;
+            label.overflowMode = TextOverflowModes.Overflow;
         }
 
         private static Button CreateButton(

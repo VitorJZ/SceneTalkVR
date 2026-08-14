@@ -143,6 +143,7 @@ namespace SceneTalkVR.AvatarSystem
             AvatarSpeechPlaybackContext playbackContext,
             Action beginDialogueAvatarSpeaking,
             Action endDialogueAvatarSpeaking,
+            Action<CorrectionSubtitleCue> correctionSubtitleStarted,
             Action<CorrectionPlaybackResult> onComplete)
         {
             if (experimentLocked && debugForceFeedback)
@@ -272,13 +273,17 @@ namespace SceneTalkVR.AvatarSystem
                 speakingSpeedOverride = useDialogueAvatar ? null : actualSpeed,
                 preparationStarted = () => timing?.RecordTimingEvent(ExperimentTimingEventType.CorrectionTtsStarted, feedbackText: text),
                 preparationReady = () => timing?.RecordTimingEvent(ExperimentTimingEventType.CorrectionTtsReady, feedbackText: text),
-                playbackStarted = () => timing?.RecordTimingEvent(
-                    ExperimentTimingEventType.CorrectionPlaybackStarted,
-                    actualPlaybackActor: actualActor,
-                    voiceProfile: actualVoice,
-                    speakingSpeed: actualSpeed,
-                    volume: actualVolume,
-                    feedbackText: text),
+                playbackStarted = () =>
+                {
+                    timing?.RecordTimingEvent(
+                        ExperimentTimingEventType.CorrectionPlaybackStarted,
+                        actualPlaybackActor: actualActor,
+                        voiceProfile: actualVoice,
+                        speakingSpeed: actualSpeed,
+                        volume: actualVolume,
+                        feedbackText: text);
+                    correctionSubtitleStarted?.Invoke(new CorrectionSubtitleCue(provider, text));
+                },
                 playbackEnded = () => timing?.RecordTimingEvent(
                     ExperimentTimingEventType.CorrectionPlaybackEnded,
                     actualPlaybackActor: actualActor,
@@ -578,22 +583,7 @@ namespace SceneTalkVR.AvatarSystem
 
         internal static string ResolveFeedbackText(CorrectionFeedbackData feedback)
         {
-            if (feedback == null)
-            {
-                return string.Empty;
-            }
-
-            if (string.Equals(feedback.style, "recast", StringComparison.OrdinalIgnoreCase))
-            {
-                return !string.IsNullOrWhiteSpace(feedback.recastText)
-                    ? feedback.recastText
-                    : !string.IsNullOrWhiteSpace(feedback.feedbackText) ? feedback.feedbackText : feedback.correctedText;
-            }
-
-            var explicitText = !string.IsNullOrWhiteSpace(feedback.feedbackText)
-                ? feedback.feedbackText
-                : feedback.correctedText;
-            return CorrectionTextGuards.RemoveGrammarTipPrefix(explicitText);
+            return CorrectionTextGuards.ResolveSpokenFeedbackText(feedback);
         }
 
         private static bool IsSupportedProvider(string provider)

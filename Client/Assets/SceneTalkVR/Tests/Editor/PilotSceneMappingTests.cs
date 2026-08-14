@@ -1,5 +1,6 @@
 using System.Reflection;
 using NUnit.Framework;
+using SceneTalkVR.Core;
 using SceneTalkVR.Runtime.Services;
 using UnityEngine;
 
@@ -18,6 +19,21 @@ namespace SceneTalkVR.Tests.Editor
 
             Assert.That(method, Is.Not.Null);
             Assert.That(method.Invoke(null, new object[] { "restaurant", taskId }), Is.EqualTo(expectedPath));
+        }
+
+        [Test]
+        public void TemporaryPilotTask_ResolvesToWalkInScene()
+        {
+            var method = typeof(HybridScenePresenter).GetMethod(
+                "ResolveStaticSceneName",
+                BindingFlags.NonPublic | BindingFlags.Static);
+
+            Assert.That(method, Is.Not.Null);
+            for (var i = 0; i < 3; i++)
+            {
+                Assert.That(method.Invoke(null, new object[] { "restaurant", PilotAssignmentAllocator.TemporaryTaskId }),
+                    Is.EqualTo("PilotEnvironmentVariants/WalkInScene"));
+            }
         }
 
         [Test]

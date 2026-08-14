@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Reflection;
 using NUnit.Framework;
+using SceneTalkVR.AvatarSystem;
 using SceneTalkVR.Core;
 using SceneTalkVR.Runtime;
 using UnityEngine;
@@ -46,7 +47,8 @@ namespace SceneTalkVR.Tests.Editor
             {
                 var orchestrator = host.AddComponent<SceneTalkOrchestrator>();
                 var voice = host.AddComponent<FakeRecoveryVoice>();
-                orchestrator.ConfigureModules(avatarVoice: voice);
+                var speechInput = host.AddComponent<FakeManualSpeechInput>();
+                orchestrator.ConfigureModules(speechInput: speechInput, avatarVoice: voice);
                 var method = typeof(SceneTalkOrchestrator).GetMethod(
                     "RecoverFromLlmFailure",
                     BindingFlags.Instance | BindingFlags.NonPublic);
@@ -55,7 +57,7 @@ namespace SceneTalkVR.Tests.Editor
                     orchestrator,
                     new object[] { "HTTP 429", "Dialogue reply generation failed." });
                 LogAssert.Expect(
-                    LogType.Error,
+                    LogType.Warning,
                     "[SceneTalkVR] Dialogue reply generation failed. HTTP 429");
                 yield return routine;
 
@@ -68,6 +70,12 @@ namespace SceneTalkVR.Tests.Editor
                 Assert.That(orchestrator.LastError, Is.EqualTo("Please try again."));
                 Assert.That(orchestrator.IsTurnRunning, Is.False);
                 Assert.That(orchestrator.IsSpeechRecording, Is.False);
+
+                orchestrator.RetryAfterError();
+                yield return null;
+
+                Assert.That(orchestrator.CurrentState, Is.EqualTo(SceneTalkState.Recording));
+                Assert.That(orchestrator.IsSpeechRecording, Is.True);
             }
             finally
             {
@@ -224,6 +232,126 @@ namespace SceneTalkVR.Tests.Editor
             Assert.That(typeof(SceneTalkInteractionBootstrap).GetMethod(
                 "TryEndSpeechTriggerCapture",
                 BindingFlags.Instance | BindingFlags.NonPublic), Is.Null);
+        }
+
+        [Test]
+        public void CorrectionSubtitleState_EarlyPlaybackCompletionDoesNotReturnToCorrectionState()
+        {
+            var host = new GameObject("CorrectionSubtitleStateTests");
+            try
+            {
+                var orchestrator = host.AddComponent<SceneTalkOrchestrator>();
+                var type = typeof(SceneTalkOrchestrator);
+                var invokeFlags = BindingFlags.Instance | BindingFlags.NonPublic;
+                var cue = new CorrectionSubtitleCue(
+                    ExperimentConditionManager.AssistantAgentProvider,
+                    "Try saying: I would like a table.");
+
+                type.GetMethod("OnCorrectionSubtitleStarted", invokeFlags)
+                    .Invoke(orchestrator, new object[] { cue });
+                var payload = new SpringScenePayload
+                {
+                    correctionFeedback = new CorrectionFeedbackData
+                    {
+                        hasFeedback = true,
+                        provider = ExperimentConditionManager.AssistantAgentProvider,
+                        style = ExperimentConditionManager.ExplicitStyle,
+                        feedbackText = "Try saying: I would like a table."
+                    }
+                };
+                type.GetMethod("PrepareCorrectionReview", invokeFlags).Invoke(
+                    orchestrator,
+                    new object[] { payload, false });
+
+                Assert.That(orchestrator.LastCorrectionSpokenProvider,
+                    Is.EqualTo(ExperimentConditionManager.AssistantAgentProvider));
+                Assert.That(orchestrator.LastCorrectionSpokenText,
+                    Is.EqualTo("Try saying: I would like a table."));
+                Assert.That(
+                    type.GetMethod("ResolveReplyPlaybackState", invokeFlags).Invoke(orchestrator, null),
+                    Is.EqualTo(SceneTalkState.CorrectionFeedbackSpeaking));
+
+                type.GetMethod("OnCorrectionPlaybackCompleted", invokeFlags).Invoke(
+                    orchestrator,
+                    new object[]
+                    {
+                        new CorrectionPlaybackResult
+                        {
+                            provider = ExperimentConditionManager.AssistantAgentProvider,
+                            outcome = "played"
+                        }
+                    });
+                type.GetMethod("PrepareCorrectionReview", invokeFlags).Invoke(
+                    orchestrator,
+                    new object[] { payload, false });
+
+                Assert.That(
+                    type.GetMethod("ResolveReplyPlaybackState", invokeFlags).Invoke(orchestrator, null),
+                    Is.EqualTo(SceneTalkState.DialogueSpeaking));
+
+                type.GetMethod("BeginTurnSubtitleState", invokeFlags).Invoke(orchestrator, null);
+                Assert.That(orchestrator.LastCorrectionSpokenText, Is.Empty);
+                Assert.That(orchestrator.LastCorrectionSpokenProvider, Is.Empty);
+                Assert.That(orchestrator.CurrentDialogueSubtitleText, Is.Empty);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(host);
+            }
+        }
+
+        [Test]
+        public void TurnSubtitleSynchronization_ReleasesCorrectionAndReplyTogether()
+        {
+            var host = new GameObject("TurnSubtitleSynchronizationTests");
+            try
+            {
+                var orchestrator = host.AddComponent<SceneTalkOrchestrator>();
+                var type = typeof(SceneTalkOrchestrator);
+                var invokeFlags = BindingFlags.Instance | BindingFlags.NonPublic;
+                var beginTurn = type.GetMethod("BeginTurnSubtitleState", invokeFlags);
+                var resolvePlan = type.GetMethod("OnCorrectionPlanResolved", invokeFlags);
+                var startCorrection = type.GetMethod("OnCorrectionSubtitleStarted", invokeFlags);
+                var replySetter = type.GetProperty(nameof(SceneTalkOrchestrator.CurrentDialogueSubtitleText))
+                    ?.GetSetMethod(true);
+                var feedback = new CorrectionFeedbackData
+                {
+                    hasFeedback = true,
+                    provider = ExperimentConditionManager.AssistantAgentProvider,
+                    feedbackText = "Try saying: I would like a table."
+                };
+                var cue = new CorrectionSubtitleCue(
+                    ExperimentConditionManager.AssistantAgentProvider,
+                    feedback.feedbackText);
+
+                beginTurn!.Invoke(orchestrator, null);
+                replySetter!.Invoke(orchestrator, new object[] { "Here is the role reply." });
+                resolvePlan!.Invoke(orchestrator, new object[] { feedback });
+                Assert.That(orchestrator.AreTurnSubtitlesReady, Is.False,
+                    "A reply must remain hidden while its correction subtitle is pending.");
+
+                startCorrection!.Invoke(orchestrator, new object[] { cue });
+                Assert.That(orchestrator.AreTurnSubtitlesReady, Is.True,
+                    "The correction cue must release the buffered reply in the same update.");
+
+                beginTurn.Invoke(orchestrator, null);
+                startCorrection.Invoke(orchestrator, new object[] { cue });
+                Assert.That(orchestrator.AreTurnSubtitlesReady, Is.False,
+                    "An early correction cue must wait for dialogue text.");
+                replySetter.Invoke(orchestrator, new object[] { "Here is the role reply." });
+                Assert.That(orchestrator.AreTurnSubtitlesReady, Is.True,
+                    "The first dialogue text must release an already buffered correction cue.");
+
+                beginTurn.Invoke(orchestrator, null);
+                replySetter.Invoke(orchestrator, new object[] { "No correction is required." });
+                resolvePlan.Invoke(orchestrator, new object[] { null });
+                Assert.That(orchestrator.AreTurnSubtitlesReady, Is.True,
+                    "A resolved no-correction plan must not delay dialogue subtitles.");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(host);
+            }
         }
 
         private sealed class FakeRecoveryVoice : MonoBehaviour,
