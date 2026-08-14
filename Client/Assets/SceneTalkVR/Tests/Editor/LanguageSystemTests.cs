@@ -44,6 +44,45 @@ namespace SceneTalkVR.Tests.Editor
             ResetSettingsCache();
 
             Assert.That(SceneTalkUserSettingsStore.Current.language, Is.EqualTo(SceneTalkLanguage.Chinese));
+            Assert.That(SceneTalkUserSettingsStore.Current.hideDialogueStatuses, Is.False);
+        }
+
+        [Test]
+        public void DialogueStatusVisibility_DefaultsToShownAndResetRestoresDefault()
+        {
+            Assert.That(SceneTalkUserSettingsStore.Current.hideDialogueStatuses, Is.False);
+
+            SceneTalkUserSettingsStore.SetHideDialogueStatuses(true);
+            Assert.That(SceneTalkUserSettingsStore.Current.hideDialogueStatuses, Is.True);
+
+            SceneTalkUserSettingsStore.ResetAll();
+            Assert.That(SceneTalkUserSettingsStore.Current.hideDialogueStatuses, Is.False);
+        }
+
+        [Test]
+        public void SetHideDialogueStatuses_RaisesChangedAndPersistsSelection()
+        {
+            var changedCount = 0;
+            Action<SceneTalkUserSettings> handler = settings =>
+            {
+                changedCount++;
+                Assert.That(settings.hideDialogueStatuses, Is.True);
+            };
+            SceneTalkUserSettingsStore.Changed += handler;
+            try
+            {
+                SceneTalkUserSettingsStore.SetHideDialogueStatuses(true);
+            }
+            finally
+            {
+                SceneTalkUserSettingsStore.Changed -= handler;
+            }
+
+            Assert.That(changedCount, Is.EqualTo(1));
+            Assert.That(PlayerPrefs.GetString(PlayerPrefsKey), Does.Contain("\"hideDialogueStatuses\":true"));
+
+            ResetSettingsCache();
+            Assert.That(SceneTalkUserSettingsStore.Current.hideDialogueStatuses, Is.True);
         }
 
         [Test]
@@ -110,7 +149,7 @@ namespace SceneTalkVR.Tests.Editor
             var criticalText = new[]
             {
                 "预实验", "正式实验", "实验历史", "对话历史", "导出历史数据", "设置", "退出",
-                "显示、纠错与连接", "语言", "字体大小", "界面大小", "对话字幕", "数据通道",
+                "显示、纠错与连接", "语言", "字体大小", "界面大小", "对话字幕", "状态显示", "数据通道",
                 "上一页", "下一页", "跳过", "提交", "最终排序", "任务目标", "第 1 / 1 页"
             };
             foreach (var value in criticalText)

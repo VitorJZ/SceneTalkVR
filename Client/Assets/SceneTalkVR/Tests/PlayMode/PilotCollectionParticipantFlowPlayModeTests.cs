@@ -25,12 +25,17 @@ namespace SceneTalkVR.Tests.PlayMode
             Click("SettingsButton");yield return null;
             Assert.That(Get(orchestrator,"CurrentState").ToString(),Is.EqualTo("Settings"));
             Assert.That(Text("SettingsPanel"),Does.Contain("语言"));
+            Assert.That(Text("SettingsPanel"),Does.Contain("状态显示"));
+            Assert.That(Text("StatusDisplayValue"),Does.Contain("显示"));
             Assert.That(Label("LanguageChangeButton"),Is.EqualTo("English"));
 
             Click("LanguageChangeButton");yield return null;yield return null;
             Assert.That(Get(orchestrator,"CurrentState").ToString(),Is.EqualTo("Settings"));
             Assert.That(Text("SettingsPanel"),Does.Contain("Language"));
             Assert.That(Text("SettingsPanel"),Does.Contain("Display, feedback, and connection"));
+            Assert.That(Text("SettingsPanel"),Does.Contain("Status display"));
+            Assert.That(Text("StatusDisplayValue"),Does.Contain("Shown"));
+            Assert.That(Label("StatusDisplayChangeButton"),Is.EqualTo("Switch"));
             Assert.That(Label("LanguageChangeButton"),Is.EqualTo("Chinese"));
             Assert.That(Label("PilotExperimentButton"),Is.EqualTo("Pilot experiment"));
             Assert.That(Label("FormalExperimentButton"),Is.EqualTo("Formal experiment"));
@@ -40,10 +45,39 @@ namespace SceneTalkVR.Tests.PlayMode
             Assert.That(Resources.FindObjectsOfTypeAll<GameObject>().Count(x=>x.scene.IsValid()&&x.name=="SettingsPanel"),Is.EqualTo(1));
             Assert.That(Resources.FindObjectsOfTypeAll<GameObject>().Count(x=>x.scene.IsValid()&&x.name=="ExitButton"),Is.EqualTo(1));
 
+            Click("StatusDisplayChangeButton");yield return null;
+            Assert.That(Text("StatusDisplayValue"),Does.Contain("Hidden"));
+
             Click("LanguageChangeButton");yield return null;yield return null;
             Assert.That(Get(orchestrator,"CurrentState").ToString(),Is.EqualTo("Settings"));
             Assert.That(Text("SettingsPanel"),Does.Contain("显示、纠错与连接"));
+            Assert.That(Text("StatusDisplayValue"),Does.Contain("隐藏"));
             Assert.That(Label("LanguageChangeButton"),Is.EqualTo("English"));
+        }
+
+        [UnityTest]public IEnumerator DialogueStatusVisibilitySetting_HidesOnlyStatusesWithoutChangingDialogueLayout()
+        {
+            Create();var coordinator=ActiveObject("SceneTalkVR.Core.PilotCollectionSessionCoordinator, Assembly-CSharp");var selected=Conditions(coordinator).First();
+            Click(Get(selected,"embodimentCondition")+"AppearanceButton");yield return null;Click("PilotTaskContinueButton");yield return null;
+            for(var i=0;i<300&&!Active("SubtitlePanel");i++)yield return null;
+            Assert.That(Active("SubtitlePanel"),Is.True,"Dialogue panel did not become visible before the status-display assertions.");
+            var panel=Rect("SubtitlePanel");var button=Rect("DialogueListenButton");
+            var panelPosition=panel.anchoredPosition;var panelSize=panel.sizeDelta;var buttonPosition=button.anchoredPosition;var buttonSize=button.sizeDelta;
+            var feedback=SceneObject("CorrectionFeedback");var feedbackActive=feedback.activeSelf;
+
+            Assert.That(Active("CorrectionStatus"),Is.True);Assert.That(Active("DialogueStatus"),Is.True);
+            Assert.That(Active("TextContainer"),Is.True);Assert.That(Active("DialogueListenButton"),Is.True);
+            SetHideDialogueStatuses(true);yield return null;
+            Assert.That(Active("CorrectionStatus"),Is.False);Assert.That(Active("DialogueStatus"),Is.False);
+            Assert.That(Active("TextContainer"),Is.True);Assert.That(Active("DialogueListenButton"),Is.True);
+            Assert.That(feedback.activeSelf,Is.EqualTo(feedbackActive));
+            Assert.That(panel.anchoredPosition,Is.EqualTo(panelPosition));Assert.That(panel.sizeDelta,Is.EqualTo(panelSize));
+            Assert.That(button.anchoredPosition,Is.EqualTo(buttonPosition));Assert.That(button.sizeDelta,Is.EqualTo(buttonSize));
+
+            SetHideDialogueSubtitles(true);yield return null;
+            Assert.That(Active("TextContainer"),Is.False);Assert.That(Active("CorrectionStatus"),Is.False);Assert.That(Active("DialogueStatus"),Is.False);
+            SetHideDialogueStatuses(false);yield return null;
+            Assert.That(Active("TextContainer"),Is.False);Assert.That(Active("CorrectionStatus"),Is.True);Assert.That(Active("DialogueStatus"),Is.True);
         }
         [UnityTest]public IEnumerator PilotCreateSession_PersistsLockedMappingAndShowsAppearanceSelection()
         {Create();yield return null;var coordinator=ActiveObject("SceneTalkVR.Core.PilotCollectionSessionCoordinator, Assembly-CSharp");Assert.That((bool)Get(coordinator,"IsArmed"),Is.True);Assert.That(Get(coordinator,"Stage").ToString(),Is.EqualTo("AppearanceSelection"));Assert.That((string)Get(coordinator,"ParticipantId"),Does.StartWith("PILOT-P-"));Assert.That((string)Get(coordinator,"SessionId"),Does.StartWith("PILOT-S-"));var assignment=Get(coordinator,"Assignment");Assert.That((bool)Get(assignment,"collectionEligible"),Is.True);Assert.That((bool)Get(assignment,"developerTestAssignment"),Is.False);var conditions=((IEnumerable)Get(assignment,"conditions")).Cast<object>().ToArray();Assert.That(conditions.Select(x=>Get(Get(x,"task"),"taskId")).Distinct().Count(),Is.EqualTo(3));Assert.That(conditions.Select(x=>Get(x,"embodimentCondition")).Distinct().Count(),Is.EqualTo(3));Assert.That(System.IO.File.Exists(System.IO.Path.Combine((string)Get(coordinator,"CurrentDataFolder"),"pilot_assignment.json")),Is.True);Assert.That(Active("PilotAppearanceSelectionPanel"),Is.True);}
@@ -342,6 +376,8 @@ namespace SceneTalkVR.Tests.PlayMode
         private static void ForcePicoCollection(bool value){var type=Type.GetType("SceneTalkVR.Core.ExperimentRuntimePlatform, Assembly-CSharp");type.GetProperty("ForcePicoCollectionForTests").SetValue(null,value);}
         private static void ResetUserSettings(){var type=Type.GetType("SceneTalkVR.Core.SceneTalkUserSettingsStore, Assembly-CSharp");type.GetMethod("ResetAll").Invoke(null,null);}
         private static void SetHideDialogueSubtitles(bool hidden){var type=Type.GetType("SceneTalkVR.Core.SceneTalkUserSettingsStore, Assembly-CSharp");type.GetMethod("SetHideDialogueSubtitles").Invoke(null,new object[]{hidden});}
+        private static void SetHideDialogueStatuses(bool hidden){var type=Type.GetType("SceneTalkVR.Core.SceneTalkUserSettingsStore, Assembly-CSharp");type.GetMethod("SetHideDialogueStatuses").Invoke(null,new object[]{hidden});}
+        private static GameObject SceneObject(string name)=>Resources.FindObjectsOfTypeAll<GameObject>().First(x=>x.name==name&&x.scene.IsValid());
         private static GameObject InstallReadyUsbTransport(out object previousRouter)
         {
             var routerType=Type.GetType("SceneTalkVR.Core.GatewayTransportRouter, Assembly-CSharp",true);

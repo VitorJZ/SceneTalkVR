@@ -22,6 +22,7 @@ namespace SceneTalkVR.Core
         public float fontScale = 1f;
         public float uiScale = 1f;
         public bool hideDialogueSubtitles;
+        public bool hideDialogueStatuses;
         public string assistantEmbodiment = ExperimentConditionManager.OrbAssistantEmbodiment;
         public SceneTalkLanguage language = SceneTalkLanguage.Chinese;
 
@@ -37,6 +38,7 @@ namespace SceneTalkVR.Core
                 fontScale = fontScale,
                 uiScale = uiScale,
                 hideDialogueSubtitles = hideDialogueSubtitles,
+                hideDialogueStatuses = hideDialogueStatuses,
                 assistantEmbodiment = assistantEmbodiment,
                 language = language
             };
@@ -112,6 +114,14 @@ namespace SceneTalkVR.Core
         {
             var settings = Current.Clone();
             settings.hideDialogueSubtitles = hidden;
+            settings.Normalize();
+            Save(settings);
+        }
+
+        public static void SetHideDialogueStatuses(bool hidden)
+        {
+            var settings = Current.Clone();
+            settings.hideDialogueStatuses = hidden;
             settings.Normalize();
             Save(settings);
         }

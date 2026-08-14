@@ -83,6 +83,7 @@ namespace SceneTalkVR.Runtime
         private Button uiMinusButton;
         private Button uiPlusButton;
         private Button subtitleChangeButton;
+        private Button statusDisplayChangeButton;
         private Button correctionSourceChangeButton;
         private Button correctionAppearanceChangeButton;
         private Button correctionStyleChangeButton;
@@ -135,6 +136,7 @@ namespace SceneTalkVR.Runtime
         private TMP_Text fontValueText;
         private TMP_Text uiValueText;
         private TMP_Text subtitleValueText;
+        private TMP_Text statusDisplayValueText;
         private TMP_Text correctionSourceValueText;
         private TMP_Text correctionAppearanceValueText;
         private TMP_Text correctionStyleValueText;
@@ -390,21 +392,25 @@ namespace SceneTalkVR.Runtime
             subtitleValueText = CreateText(settingsGeneralGroup.transform, "SubtitleValue", string.Empty, new Vector2(110f, 8f), new Vector2(140f, 44f), 20, TextAnchor.MiddleCenter, Color.white);
             subtitleChangeButton = CreateButton(settingsGeneralGroup.transform, "SubtitleChangeButton", "切换", new Vector2(293f, 8f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
 
-            CreateText(settingsGeneralGroup.transform, "CorrectionSourceLabel", "纠错来源", new Vector2(-240f, -42f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
-            correctionSourceValueText = CreateText(settingsGeneralGroup.transform, "CorrectionSourceValue", string.Empty, new Vector2(110f, -42f), new Vector2(190f, 44f), 18, TextAnchor.MiddleCenter, Color.white);
-            correctionSourceChangeButton = CreateButton(settingsGeneralGroup.transform, "CorrectionSourceChangeButton", "切换", new Vector2(293f, -42f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
+            CreateText(settingsGeneralGroup.transform, "StatusDisplayLabel", "状态显示", new Vector2(-240f, -42f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
+            statusDisplayValueText = CreateText(settingsGeneralGroup.transform, "StatusDisplayValue", string.Empty, new Vector2(110f, -42f), new Vector2(140f, 44f), 20, TextAnchor.MiddleCenter, Color.white);
+            statusDisplayChangeButton = CreateButton(settingsGeneralGroup.transform, "StatusDisplayChangeButton", "切换", new Vector2(293f, -42f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
 
-            CreateText(settingsGeneralGroup.transform, "CorrectionAppearanceLabel", "辅助角色外观", new Vector2(-240f, -92f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
-            correctionAppearanceValueText = CreateText(settingsGeneralGroup.transform, "CorrectionAppearanceValue", string.Empty, new Vector2(110f, -92f), new Vector2(190f, 44f), 18, TextAnchor.MiddleCenter, Color.white);
-            correctionAppearanceChangeButton = CreateButton(settingsGeneralGroup.transform, "CorrectionAppearanceChangeButton", "切换", new Vector2(293f, -92f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
+            CreateText(settingsGeneralGroup.transform, "CorrectionSourceLabel", "纠错来源", new Vector2(-240f, -92f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
+            correctionSourceValueText = CreateText(settingsGeneralGroup.transform, "CorrectionSourceValue", string.Empty, new Vector2(110f, -92f), new Vector2(190f, 44f), 18, TextAnchor.MiddleCenter, Color.white);
+            correctionSourceChangeButton = CreateButton(settingsGeneralGroup.transform, "CorrectionSourceChangeButton", "切换", new Vector2(293f, -92f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
 
-            CreateText(settingsGeneralGroup.transform, "CorrectionStyleLabel", "纠错方式", new Vector2(-240f, -142f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
-            correctionStyleValueText = CreateText(settingsGeneralGroup.transform, "CorrectionStyleValue", string.Empty, new Vector2(110f, -142f), new Vector2(190f, 44f), 18, TextAnchor.MiddleCenter, Color.white);
-            correctionStyleChangeButton = CreateButton(settingsGeneralGroup.transform, "CorrectionStyleChangeButton", "切换", new Vector2(293f, -142f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
+            CreateText(settingsGeneralGroup.transform, "CorrectionAppearanceLabel", "辅助角色外观", new Vector2(-240f, -142f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
+            correctionAppearanceValueText = CreateText(settingsGeneralGroup.transform, "CorrectionAppearanceValue", string.Empty, new Vector2(110f, -142f), new Vector2(190f, 44f), 18, TextAnchor.MiddleCenter, Color.white);
+            correctionAppearanceChangeButton = CreateButton(settingsGeneralGroup.transform, "CorrectionAppearanceChangeButton", "切换", new Vector2(293f, -142f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
 
-            CreateText(settingsGeneralGroup.transform, "TransportLabel", "数据通道", new Vector2(-240f, -184f), new Vector2(320f, 34f), 19, TextAnchor.MiddleLeft, Color.white);
-            transportStatusText = CreateText(settingsGeneralGroup.transform, "TransportStatus", "正在连接", new Vector2(196f, -184f), new Vector2(360f, 34f), 18, TextAnchor.MiddleCenter, new Color(0.74f, 0.86f, 1f, 1f));
-            correctionSettingsStatusText = CreateText(settingsGeneralGroup.transform, "CorrectionSettingsStatus", string.Empty, new Vector2(0f, -222f), new Vector2(700f, 24f), 14, TextAnchor.MiddleCenter, new Color(0.72f, 0.8f, 0.86f, 1f));
+            CreateText(settingsGeneralGroup.transform, "CorrectionStyleLabel", "纠错方式", new Vector2(-240f, -192f), new Vector2(320f, 44f), 21, TextAnchor.MiddleLeft, Color.white);
+            correctionStyleValueText = CreateText(settingsGeneralGroup.transform, "CorrectionStyleValue", string.Empty, new Vector2(110f, -192f), new Vector2(190f, 44f), 18, TextAnchor.MiddleCenter, Color.white);
+            correctionStyleChangeButton = CreateButton(settingsGeneralGroup.transform, "CorrectionStyleChangeButton", "切换", new Vector2(293f, -192f), new Vector2(170f, 48f), new Color(0.12f, 0.52f, 0.38f, 1f));
+
+            CreateText(settingsGeneralGroup.transform, "TransportLabel", "数据通道", new Vector2(-240f, -234f), new Vector2(320f, 34f), 19, TextAnchor.MiddleLeft, Color.white);
+            transportStatusText = CreateText(settingsGeneralGroup.transform, "TransportStatus", "正在连接", new Vector2(196f, -234f), new Vector2(360f, 34f), 18, TextAnchor.MiddleCenter, new Color(0.74f, 0.86f, 1f, 1f));
+            correctionSettingsStatusText = CreateText(settingsGeneralGroup.transform, "CorrectionSettingsStatus", string.Empty, new Vector2(0f, -272f), new Vector2(700f, 24f), 14, TextAnchor.MiddleCenter, new Color(0.72f, 0.8f, 0.86f, 1f));
 
             requestPanel = CreatePanel(root, "RequestPanel", new Vector2(0f, 0f), new Vector2(700f, 380f), new Color(0.04f, 0.05f, 0.07f, 0.9f));
             requestTitleText = CreateText(requestPanel.transform, "Title", "场景与角色需求", new Vector2(0f, 146f), new Vector2(640f, 42f), 26, TextAnchor.MiddleCenter, Color.white);
@@ -772,6 +778,13 @@ namespace SceneTalkVR.Runtime
                 subtitleChangeButton.onClick.RemoveAllListeners();
                 subtitleChangeButton.onClick.AddListener(() =>
                     SceneTalkUserSettingsStore.SetHideDialogueSubtitles(!SceneTalkUserSettingsStore.Current.hideDialogueSubtitles));
+            }
+
+            if (statusDisplayChangeButton != null)
+            {
+                statusDisplayChangeButton.onClick.RemoveAllListeners();
+                statusDisplayChangeButton.onClick.AddListener(() =>
+                    SceneTalkUserSettingsStore.SetHideDialogueStatuses(!SceneTalkUserSettingsStore.Current.hideDialogueStatuses));
             }
 
             if (correctionSourceChangeButton != null)
@@ -1550,6 +1563,13 @@ namespace SceneTalkVR.Runtime
                     : SceneTalkUiText.Select("显示", "Shown");
             }
 
+            if (statusDisplayValueText != null)
+            {
+                statusDisplayValueText.text = settings.hideDialogueStatuses
+                    ? SceneTalkUiText.Select("隐藏", "Hidden")
+                    : SceneTalkUiText.Select("显示", "Shown");
+            }
+
             if (correctionSourceValueText != null)
             {
                 correctionSourceValueText.text = ResolveCorrectionSourceDisplayName(
@@ -2248,7 +2268,9 @@ namespace SceneTalkVR.Runtime
             var reply = orchestrator.LastScenePayload == null || string.IsNullOrWhiteSpace(orchestrator.LastScenePayload.dialogueReply)
                 ? "-"
                 : orchestrator.LastScenePayload.dialogueReply;
-            var hideSubtitles = SceneTalkUserSettingsStore.Current.hideDialogueSubtitles;
+            var settings = SceneTalkUserSettingsStore.Current;
+            var hideSubtitles = settings.hideDialogueSubtitles;
+            var hideStatuses = settings.hideDialogueStatuses;
             ApplySubtitleLayout(hideSubtitles);
 
             SetActive(subtitleTextContainer, !hideSubtitles);
@@ -2276,6 +2298,7 @@ namespace SceneTalkVR.Runtime
 
             if (correctionStatusText != null)
             {
+                SetActive(correctionStatusText.gameObject, !hideStatuses);
                 var status = orchestrator.LastCorrectionStatus;
                 correctionStatusText.text = SceneTalkUiText.CorrectionStatus(status);
             }
@@ -2289,6 +2312,7 @@ namespace SceneTalkVR.Runtime
 
             if (dialogueStatusText != null)
             {
+                SetActive(dialogueStatusText.gameObject, !hideStatuses);
                 dialogueStatusText.text = ResolveDialogueStatusText();
             }
 

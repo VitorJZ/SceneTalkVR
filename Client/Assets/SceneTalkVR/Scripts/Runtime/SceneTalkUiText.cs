@@ -42,6 +42,7 @@ namespace SceneTalkVR.Runtime
                 ["字体大小"] = "Font size",
                 ["界面大小"] = "Interface size",
                 ["对话字幕"] = "Dialogue subtitles",
+                ["状态显示"] = "Status display",
                 ["切换"] = "Switch",
                 ["纠错来源"] = "Feedback provider",
                 ["辅助角色外观"] = "Assistant appearance",

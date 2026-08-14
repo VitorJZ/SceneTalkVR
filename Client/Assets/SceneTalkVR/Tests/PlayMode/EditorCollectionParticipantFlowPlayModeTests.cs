@@ -93,6 +93,22 @@ namespace SceneTalkVR.Tests.PlayMode
             SetHideDialogueSubtitles(false); yield return null;
         }
 
+        [UnityTest] public IEnumerator T03B_DialogueStatusVisibilitySetting_AppliesToFormalDialogue()
+        {
+            Arm(out var assignment); StartFormalFlow(); yield return null; var selected = ConditionForTask(assignment, "hotel_check_in");
+            Click(Get(selected, "formalConditionCode") + "ModeButton"); yield return null;
+            for (var i = 0; i < 300 && !Active("SubtitlePanel"); i++) yield return null;
+            Assert.That(Active("SubtitlePanel"), Is.True, "Dialogue panel did not become visible before the status-display assertions.");
+            Assert.That(Active("CorrectionStatus"), Is.True); Assert.That(Active("DialogueStatus"), Is.True);
+
+            SetHideDialogueStatuses(true); yield return null;
+            Assert.That(Active("CorrectionStatus"), Is.False); Assert.That(Active("DialogueStatus"), Is.False);
+            Assert.That(Active("TextContainer"), Is.True); Assert.That(Active("DialogueListenButton"), Is.True);
+
+            SetHideDialogueStatuses(false); yield return null;
+            Assert.That(Active("CorrectionStatus"), Is.True); Assert.That(Active("DialogueStatus"), Is.True);
+        }
+
         [UnityTest] public IEnumerator T04_HotelSpeechUpdatesGoalPanelAndOpensQuestionnaireExactlyOnce()
         {
             Arm(out var assignment); StartFormalFlow(); yield return null; var selected = ConditionForTask(assignment, "hotel_check_in"); Click(Get(selected, "formalConditionCode") + "ModeButton"); yield return null;
@@ -419,6 +435,7 @@ namespace SceneTalkVR.Tests.PlayMode
         private static void SetTransportField(object target, string name, object value) => target.GetType().GetField(name).SetValue(target, value);
         private static void SetAssistantEmbodiment(string value) => UserSettingsStoreType.GetMethod("SetAssistantEmbodiment").Invoke(null, new object[] { value });
         private static void SetHideDialogueSubtitles(bool hidden) => UserSettingsStoreType.GetMethod("SetHideDialogueSubtitles").Invoke(null, new object[] { hidden });
+        private static void SetHideDialogueStatuses(bool hidden) => UserSettingsStoreType.GetMethod("SetHideDialogueStatuses").Invoke(null, new object[] { hidden });
         private static void AssertTaskAboveFullWidthDialogue()
         {
             var task = Rect("ReadOnlyTaskGoalPanel");
