@@ -100,13 +100,22 @@ namespace SceneTalkVR.Tests.PlayMode
             for (var i = 0; i < 300 && !Active("SubtitlePanel"); i++) yield return null;
             Assert.That(Active("SubtitlePanel"), Is.True, "Dialogue panel did not become visible before the status-display assertions.");
             Assert.That(Active("CorrectionStatus"), Is.True); Assert.That(Active("DialogueStatus"), Is.True);
+            var panel = Rect("SubtitlePanel"); var button = Rect("DialogueListenButton");
+            var originalHeight = panel.rect.height; var originalPosition = panel.anchoredPosition;
+            var originalBottom = panel.anchoredPosition.y + panel.rect.yMin; var originalButtonPosition = button.anchoredPosition;
+            Assert.That(Resources.FindObjectsOfTypeAll<GameObject>().Any(x => x.scene.IsValid() && x.name == "CorrectionFeedback"), Is.False);
 
             SetHideDialogueStatuses(true); yield return null;
             Assert.That(Active("CorrectionStatus"), Is.False); Assert.That(Active("DialogueStatus"), Is.False);
             Assert.That(Active("TextContainer"), Is.True); Assert.That(Active("DialogueListenButton"), Is.True);
+            Assert.That(panel.rect.height, Is.LessThan(originalHeight));
+            Assert.That(panel.anchoredPosition, Is.EqualTo(originalPosition));
+            Assert.That(panel.anchoredPosition.y + panel.rect.yMin, Is.EqualTo(originalBottom).Within(.01f));
+            Assert.That(button.anchoredPosition, Is.EqualTo(originalButtonPosition));
 
             SetHideDialogueStatuses(false); yield return null;
             Assert.That(Active("CorrectionStatus"), Is.True); Assert.That(Active("DialogueStatus"), Is.True);
+            Assert.That(panel.rect.height, Is.EqualTo(originalHeight).Within(.01f));
         }
 
         [UnityTest] public IEnumerator T04_HotelSpeechUpdatesGoalPanelAndOpensQuestionnaireExactlyOnce()

@@ -72,7 +72,6 @@ namespace SceneTalkVR.Runtime
         public SpringScenePayload LastScenePayload { get; private set; }
         public string LastError { get; private set; }
         public string LastCorrectionStatus { get; private set; }
-        public string LastCorrectionDisplayText { get; private set; }
         public string LastCorrectionSpokenText { get; private set; }
         public string LastCorrectionSpokenProvider { get; private set; }
         public string CurrentDialogueSubtitleText { get; private set; }
@@ -2248,7 +2247,6 @@ namespace SceneTalkVR.Runtime
             ResolveCorrectionSubtitlePlan(feedback);
             LastCorrectionProvider = ResolveNonEmpty(feedback == null ? null : feedback.provider, "none");
             LastCorrectionStyle = ResolveNonEmpty(feedback == null ? null : feedback.style, "none");
-            LastCorrectionDisplayText = ResolveCorrectionDisplayText(feedback);
             LastCorrectionStatus = LastCorrectionHasFeedback
                 ? $"Feedback: {LastCorrectionProvider} / {LastCorrectionStyle}"
                 : "No correction feedback this turn.";
@@ -2406,7 +2404,6 @@ namespace SceneTalkVR.Runtime
         private void ClearCorrectionReviewState()
         {
             LastCorrectionStatus = string.Empty;
-            LastCorrectionDisplayText = string.Empty;
             ClearCorrectionSpokenSubtitle();
             CurrentDialogueSubtitleText = string.Empty;
             ResetTurnSubtitleSynchronization();
@@ -2544,24 +2541,6 @@ namespace SceneTalkVR.Runtime
             LastCorrectionSpokenProvider = string.Empty;
             correctionSubtitleStartedThisTurn = false;
             correctionPlaybackCompletedThisTurn = false;
-        }
-
-        private string ResolveCorrectionDisplayText(CorrectionFeedbackData feedback)
-        {
-            if (feedback == null || !feedback.hasFeedback)
-            {
-                return string.Empty;
-            }
-
-            var style = ResolveNonEmpty(feedback.style, LastCorrectionStyle);
-            var manager = ResolveExperimentConditionManager(false);
-            if (string.Equals(style, ExperimentConditionManager.RecastStyle, System.StringComparison.OrdinalIgnoreCase)
-                && (manager == null || !manager.ShowDebugLabel))
-            {
-                return string.Empty;
-            }
-
-            return ResolveNonEmpty(feedback.correctedText, feedback.feedbackText);
         }
 
         private static string ResolveNonEmpty(string value, string fallback)
