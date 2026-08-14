@@ -91,7 +91,13 @@ namespace SceneTalkVR.Tests.Editor
         [TestCase("You're welcome to take photos inside the museum, but flash photography is not allowed to protect the exhibits.")]
         [TestCase("Breakfast is not included, but you can order it at the restaurant.")]
         [TestCase("That table is not available until seven o'clock.")]
-        public void OrdinaryRoleplayNegation_IsNotCorrectionLeakage(string dialogueReply)
+        [TestCase("No, there will be no extra charge at all—this mistake is on us. Is the table comfortable for you?")]
+        [TestCase("No, there will absolutely be no extra charge for correcting this mistake. Would you like an extra napkin before we continue?")]
+        [TestCase("You're absolutely right, and I apologize for the mistake. I'll take this back and bring the dish you actually ordered.")]
+        [TestCase("I'll replace the wrong dish immediately.")]
+        [TestCase("A better way to the museum is through the park.")]
+        [TestCase("You can say hello to the manager when she arrives.")]
+        public void OrdinaryRoleplayLanguage_IsNotCorrectionLeakage(string dialogueReply)
         {
             Assert.That(CorrectionTextGuards.LooksLikeCorrection(dialogueReply), Is.False);
         }
@@ -99,6 +105,11 @@ namespace SceneTalkVR.Tests.Editor
         [TestCase("Grammar tip: use 'are' here.")]
         [TestCase("You should say, 'I would like a table for two.'")]
         [TestCase("Try saying, 'Could I have the bill, please?'")]
+        [TestCase("Your sentence is wrong.")]
+        [TestCase("That expression is incorrect.")]
+        [TestCase("There is a mistake in the verb tense.")]
+        [TestCase("A better way to say it is, 'Could I have the bill?'")]
+        [TestCase("Use 'went' instead of saying 'goed'.")]
         public void ExplicitCorrectionLanguage_IsStillDetected(string dialogueReply)
         {
             Assert.That(CorrectionTextGuards.LooksLikeCorrection(dialogueReply), Is.True);

@@ -4,27 +4,51 @@ namespace SceneTalkVR.Core
 {
     public static class CorrectionTextGuards
     {
-        // Keep these correction-specific: ordinary roleplay negation such as "not allowed" is valid dialogue.
-        private static readonly string[] CorrectionLeakagePatterns =
+        // Keep these correction-specific: ordinary roleplay language such as
+        // "this mistake is on us" or "the wrong dish" is valid dialogue.
+        private static readonly string[] ExplicitCorrectionLeakagePatterns =
         {
             "you should say",
             "should say",
-            "you can say",
             "try saying",
-            "a better way",
-            "better way",
+            "a better way to say",
+            "a better way to phrase",
+            "better way to say",
+            "better way to phrase",
             "correct sentence",
             "correct expression",
             "grammar",
             "grammatical",
+            "instead of saying",
+            "instead of using",
+            "the right way to say",
+            "the right way to phrase",
+            "proper way to say",
+            "proper way to phrase",
+            "more natural to say",
+            "more natural to phrase"
+        };
+
+        private static readonly string[] LinguisticSubjectPatterns =
+        {
+            "sentence",
+            "phrase",
+            "expression",
+            "word choice",
+            "verb",
+            "tense",
+            "pronunciation"
+        };
+
+        private static readonly string[] CorrectionJudgmentPatterns =
+        {
             "mistake",
             "wrong",
             "incorrect",
-            "instead of",
-            "the right way",
-            "proper way",
-            "actually, you",
-            "more natural"
+            "correct",
+            "better",
+            "natural",
+            "proper"
         };
 
         private static readonly string[] RecastForbiddenTerms =
@@ -61,15 +85,13 @@ namespace SceneTalkVR.Core
             }
 
             var lower = text.ToLowerInvariant();
-            foreach (var pattern in CorrectionLeakagePatterns)
+            if (ContainsAny(lower, ExplicitCorrectionLeakagePatterns))
             {
-                if (lower.Contains(pattern))
-                {
-                    return true;
-                }
+                return true;
             }
 
-            return false;
+            return ContainsAny(lower, LinguisticSubjectPatterns)
+                && ContainsAny(lower, CorrectionJudgmentPatterns);
         }
 
         public static bool ViolatesRecastPurity(string feedbackText)
@@ -137,6 +159,19 @@ namespace SceneTalkVR.Core
             }
 
             return 0;
+        }
+
+        private static bool ContainsAny(string value, string[] patterns)
+        {
+            foreach (var pattern in patterns)
+            {
+                if (value.Contains(pattern))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }
