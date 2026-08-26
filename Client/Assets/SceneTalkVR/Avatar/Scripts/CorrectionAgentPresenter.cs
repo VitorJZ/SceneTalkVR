@@ -396,6 +396,7 @@ namespace SceneTalkVR.AvatarSystem
         private void StopSpeaking()
         {
             isSpeaking = false;
+            speakingEnergy = 0f;
             if (humanoidAnimationDriver != null)
             {
                 humanoidAnimationDriver.EndTalking();
@@ -1086,21 +1087,24 @@ namespace SceneTalkVR.AvatarSystem
             }
             else
             {
-                var vertical = Mathf.Sin(time * idleFloatSpeed) * idleFloatAmplitude;
+                var motion = IsGeneratedActive ? isSpeaking ? 1f : 0f : 1f;
+                var vertical = Mathf.Sin(time * idleFloatSpeed) * idleFloatAmplitude * motion;
                 var lateral = Mathf.Sin(time * idleFloatSpeed * 0.53f + 0.8f)
                     * idleFloatAmplitude
-                    * 0.18f;
+                    * 0.18f
+                    * motion;
                 var depth = Mathf.Cos(time * idleFloatSpeed * 0.39f)
                     * idleFloatAmplitude
-                    * 0.1f;
+                    * 0.1f
+                    * motion;
                 agentRoot.localPosition = baseLocalPosition + new Vector3(lateral, vertical, depth);
             }
 
             var visibilityScale = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(visibleAmount));
-            var breathing = IsHumanoidActive
+            var breathing = IsHumanoidActive || IsGeneratedActive
                 ? 1f
                 : 1f + Mathf.Sin(time * idleFloatSpeed * 0.72f) * 0.018f;
-            var voicePulse = IsHumanoidActive
+            var voicePulse = IsHumanoidActive || IsGeneratedActive
                 ? 0f
                 : speakingEnergy
                     * (speakingPulseScale * 0.55f
@@ -1110,31 +1114,42 @@ namespace SceneTalkVR.AvatarSystem
 
             if (bodyRoot != null)
             {
-                bodyRoot.localRotation = Quaternion.Euler(
-                    Mathf.Sin(time * 0.72f) * 2.5f,
-                    time * (7f + speakingEnergy * 9f),
-                    Mathf.Cos(time * 0.61f) * 2f);
+                bodyRoot.localRotation = IsGeneratedActive
+                    ? isSpeaking
+                        ? Quaternion.Euler(
+                            Mathf.Sin(time * 0.72f) * 2.5f,
+                            time * 7f,
+                            Mathf.Cos(time * 0.61f) * 2f)
+                        : Quaternion.identity
+                    : Quaternion.Euler(
+                        Mathf.Sin(time * 0.72f) * 2.5f,
+                        time * (7f + speakingEnergy * 9f),
+                        Mathf.Cos(time * 0.61f) * 2f);
             }
         }
 
         private void UpdateOrbitMotion(float time, float deltaTime)
         {
+            var motion = IsGeneratedActive ? isSpeaking ? 1f : 0f : 1f;
+            var speed = IsGeneratedActive
+                ? orbitSpeed * motion
+                : orbitSpeed * (1f + speakingEnergy * 2.8f);
             orbitAngle = Mathf.Repeat(
-                orbitAngle + deltaTime * orbitSpeed * (1f + speakingEnergy * 2.8f),
+                orbitAngle + deltaTime * speed,
                 360f);
 
             if (primaryRing != null)
             {
                 primaryRing.localRotation = Quaternion.Euler(
-                    18f + Mathf.Sin(time * 0.58f) * 5f,
+                    18f + Mathf.Sin(time * 0.58f) * 5f * motion,
                     orbitAngle * 0.35f,
-                    62f + Mathf.Cos(time * 0.43f) * 5f);
+                    62f + Mathf.Cos(time * 0.43f) * 5f * motion);
             }
 
             var secondaryRotation = Quaternion.Euler(
-                68f + Mathf.Cos(time * 0.47f) * 7f,
+                68f + Mathf.Cos(time * 0.47f) * 7f * motion,
                 -orbitAngle * 0.55f,
-                18f + Mathf.Sin(time * 0.51f) * 6f);
+                18f + Mathf.Sin(time * 0.51f) * 6f * motion);
             if (secondaryRing != null)
             {
                 secondaryRing.localRotation = secondaryRotation;
@@ -1355,7 +1370,9 @@ namespace SceneTalkVR.AvatarSystem
 
             if (agentLight != null)
             {
-                var breathe = 0.88f + Mathf.Sin(Time.time * idleFloatSpeed * 0.72f) * 0.08f;
+                var breathe = IsGeneratedActive
+                    ? 1f
+                    : 0.88f + Mathf.Sin(Time.time * idleFloatSpeed * 0.72f) * 0.08f;
                 agentLight.intensity = lightIntensity
                     * visibility
                     * (breathe + speakingEnergy * 0.72f);

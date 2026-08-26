@@ -115,6 +115,80 @@ namespace SceneTalkVR.AvatarSystem.Tests
         }
 
         [Test]
+        public void LittleOrb_RemainsStillWhileIdleAndMovesWhileSpeaking()
+        {
+            var host = new GameObject("Little Orb Idle Motion Test");
+            var player = new GameObject("Player Head");
+            try
+            {
+                player.transform.position = new Vector3(4f, 2f, -3f);
+                var presenter = host.AddComponent<CorrectionAgentPresenter>();
+                presenter.SetAppearanceId(ExperimentConditionManager.OrbAssistantEmbodiment);
+                typeof(CorrectionAgentPresenter)
+                    .GetField("lookTarget", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .SetValue(presenter, player.transform);
+                presenter.ShowImmediate();
+
+                var root = host.transform.Find("Correction Assistant Agent");
+                var visual = root.Find("Assistant Visuals");
+                var body = visual.Find("Body");
+                var face = visual.Find("Voice Face");
+                var primaryRing = visual.Find("Primary Orbit");
+                var secondaryRing = visual.Find("Secondary Orbit");
+                var updateRoot = typeof(CorrectionAgentPresenter)
+                    .GetMethod("UpdateRootMotion", BindingFlags.Instance | BindingFlags.NonPublic);
+                var updateOrbit = typeof(CorrectionAgentPresenter)
+                    .GetMethod("UpdateOrbitMotion", BindingFlags.Instance | BindingFlags.NonPublic);
+                var updateFacing = typeof(CorrectionAgentPresenter)
+                    .GetMethod("UpdateFaceDirection", BindingFlags.Instance | BindingFlags.NonPublic);
+
+                updateFacing.Invoke(presenter, new object[] { 100f });
+                Assert.That(
+                    Vector3.Dot(
+                        face.forward,
+                        (player.transform.position - face.position).normalized),
+                    Is.GreaterThan(0.999f),
+                    "The orb should face the user before its first correction.");
+
+                player.transform.position = new Vector3(-4f, 2f, -3f);
+                updateFacing.Invoke(presenter, new object[] { 100f });
+                Assert.That(
+                    Vector3.Dot(
+                        face.forward,
+                        (player.transform.position - face.position).normalized),
+                    Is.GreaterThan(0.999f),
+                    "The idle orb should keep facing the user.");
+
+                updateRoot.Invoke(presenter, new object[] { 1f });
+                updateOrbit.Invoke(presenter, new object[] { 1f, 0.1f });
+                var idlePosition = root.localPosition;
+                var idleScale = root.localScale;
+                var idleBodyRotation = body.localRotation;
+                var idlePrimaryRotation = primaryRing.localRotation;
+                var idleSecondaryRotation = secondaryRing.localRotation;
+
+                updateRoot.Invoke(presenter, new object[] { 4f });
+                updateOrbit.Invoke(presenter, new object[] { 4f, 0.1f });
+                Assert.That(root.localPosition, Is.EqualTo(idlePosition));
+                Assert.That(root.localScale, Is.EqualTo(idleScale));
+                Assert.That(body.localRotation, Is.EqualTo(idleBodyRotation));
+                Assert.That(primaryRing.localRotation, Is.EqualTo(idlePrimaryRotation));
+                Assert.That(secondaryRing.localRotation, Is.EqualTo(idleSecondaryRotation));
+
+                presenter.BeginSpeaking();
+                updateRoot.Invoke(presenter, new object[] { 5f });
+                updateOrbit.Invoke(presenter, new object[] { 5f, 0.1f });
+                Assert.That(root.localPosition, Is.Not.EqualTo(idlePosition));
+                Assert.That(primaryRing.localRotation, Is.Not.EqualTo(idlePrimaryRotation));
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+                Object.DestroyImmediate(player);
+            }
+        }
+
+        [Test]
         public void AudioOnly_KeepsIndependentVoiceSourceWithoutVisuals()
         {
             var host = new GameObject("Audio Only Assistant Test");
